@@ -1,7 +1,11 @@
-import type { NextConfig } from "next";
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  // If you are using images from external sources
+  images: {
+    unoptimized: true, 
+  },
+  // This helps Vercel optimize the build
+  output: 'standalone', 
+}
 
-const nextConfig: NextConfig = {
-  /* config options here */
-};
-
-export default nextConfig;
+module.exports = nextConfig

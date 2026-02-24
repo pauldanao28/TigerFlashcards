@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+/* In v4, we use standard CSS for base styles */
+body {
+  background-color: var(--color-slate-50);
+  color: var(--color-slate-900);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* If you really want to use @apply for complex things, 
+   you must use @reference, but for simple body styles, 
+   the variables above are better! */
