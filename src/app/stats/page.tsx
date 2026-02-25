@@ -2,232 +2,186 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { FlashcardData } from '@/lib/types';
+import { supabase } from '@/lib/supabase'; // Import Supabase
 
 export default function StatsPage() {
   const [cards, setCards] = useState<FlashcardData[]>([]);
   const [input, setInput] = useState("");
-const [batchInput, setBatchInput] = useState("");
-const [showBatch, setShowBatch] = useState(false);
+  const [batchInput, setBatchInput] = useState("");
+  const [showBatch, setShowBatch] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // --- 1. Fetch from Supabase instead of LocalStorage ---
   useEffect(() => {
-    const saved = localStorage.getItem('tiger-cards');
-    if (saved) setCards(JSON.parse(saved));
+    fetchCards();
   }, []);
 
-  const saveCards = (newCards: FlashcardData[]) => {
-    setCards(newCards);
-    localStorage.setItem('tiger-cards', JSON.stringify(newCards));
-  };
-
-  const generateCard = async () => {
-    if (!input) return;
-    setLoading(true);
-    try {
-      const res = await fetch("/api/generate", { 
-        method: "POST", 
-        body: JSON.stringify({ topic: input }) 
-      });
-      const data = await res.json();
-      const newCard: FlashcardData = {
-        ...data,
-        id: Date.now().toString(),
-        passCount: 0, failCount: 0, totalTries: 0, score: 0
-      };
-      saveCards([...cards, newCard]);
-      setInput("");
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
-  };
-
-  const clearPending = () => {
-  if (confirm("Are you sure you want to delete all unsynced cards?")) {
-    const filtered = cards.filter(c => c.english !== "Pending AI Sync");
-    saveCards(filtered);
-  }
-};
-
-  // For the single input field
-const handleSingleAdd = () => {
-  if (!input.trim()) return;
-  processWords([input.trim()]);
-  setInput("");
-};
-
-// For the batch textarea
-const handleBatchUpload = () => {
-  const words = batchInput.split('\n').filter(l => l.trim());
-  if (words.length === 0) return;
-  processWords(words);
-  setBatchInput("");
-  setShowBatch(false);
-};
-
-  const processWords = async (wordList: string[]) => {
-  // 1. Filter out words that already exist in your 'cards' state
-  const uniqueWords = wordList.filter(word => 
-    !cards.some(c => c.japanese === word.trim())
-  );
-
-  if (uniqueWords.length === 0) {
-    alert("All these words are already in your deck!");
-    return;
-  }
-
-  setLoading(true);
-  let newlyAddedCards: FlashcardData[] = [];
-  const chunkSize = 10;
-
-  for (let i = 0; i < uniqueWords.length; i += chunkSize) {
-    const chunk = uniqueWords.slice(i, i + chunkSize);
+  const fetchCards = async () => {
+    const { data, error } = await supabase
+      .from('flashcards')
+      .select('*')
+      .order('created_at', { ascending: false });
     
-    try {
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        body: JSON.stringify({ words: chunk }), 
-      });
-
-      const data = await res.json();
-      const items = Array.isArray(data) ? data : [data];
-
-      const formatted = items.map((item: any) => ({
-        ...item,
-        id: crypto.randomUUID(),
-        passCount: 0,
-        failCount: 0,
-        totalTries: 0,
-        score: 0
-      }));
-
-      newlyAddedCards = [...newlyAddedCards, ...formatted];
-      
-      setCards(prev => {
-        const updated = [...prev, ...formatted];
-        localStorage.setItem('tiger-cards', JSON.stringify(updated));
-        return updated;
-      });
-    } catch (e) {
-      console.error("Processing error:", e);
-    }
-  }
-  setLoading(false);
-};
-
-
-  const deleteCard = (id: string) => {
-    saveCards(cards.filter(c => c.id !== id));
+    if (data) setCards(data);
+    if (error) console.error("Error fetching:", error);
   };
 
-  // Calculate some quick stats
-  const totalCards = cards.length;
-  const masteredCards = cards.filter(c => c.score >= 10).length;
-  const strugglingCards = cards.filter(c => c.score < 0).length;
+  // --- 2. Update processWords to save to Supabase ---
+  const processWords = async (wordList: string[]) => {
+  setLoading(true);
+  try {
+    const res = await fetch("/api/generate", {
+      method: "POST",
+      body: JSON.stringify({ words: wordList }), 
+    });
 
-  // 1. Sort the cards: Lowest Score at the top
-const sortedCards = [...cards].sort((a, b) => {
-  return (a.score || 0) - (b.score || 0);
-});
+    const items = await res.json();
+    
+    // Ensure items is always an array
+    const dataToInsert = (Array.isArray(items) ? items : [items]).map((item) => ({
+      ...item,
+      // Manual fields for our logic
+      score: 0,
+      scores: {
+        jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
+        en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 }
+      }
+    }));
+
+    const { error } = await supabase.from('flashcards').insert(dataToInsert);
+    
+    if (error) throw error; // This will now work if you did Step 1!
+
+    fetchCards();
+  } catch (e: any) {
+    console.error("Insert failed:", e.message);
+    alert(`Error: ${e.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
+
+  const deleteCard = async (id: string) => {
+    if (!confirm("Delete this card?")) return;
+    const { error } = await supabase.from('flashcards').delete().eq('id', id);
+    if (!error) setCards(cards.filter(c => c.id !== id));
+  };
+
+  // --- 3. Mode-aware calculations ---
+  // Calculate stats based on dual-mode average
+const totalCards = cards.length;
+
+// Mastered: Average score >= 80%
+const masteredCards = cards.filter(c => {
+  const avg = ((c.scores?.jp_to_en?.percent || 0) + (c.scores?.en_to_jp?.percent || 0)) / 2;
+  return avg >= 80;
+}).length;
+
+// Struggling: Average score < 40% (Only counts if you've actually tried the card at least once)
+const strugglingCards = cards.filter(c => {
+  const hasTried = (c.scores?.jp_to_en?.total || 0) > 0 || (c.scores?.en_to_jp?.total || 0) > 0;
+  const avg = ((c.scores?.jp_to_en?.percent || 0) + (c.scores?.en_to_jp?.percent || 0)) / 2;
+  return hasTried && avg < 40;
+}).length;
 
   return (
     <main className="min-h-screen bg-slate-50 p-8">
-      <div className="max-w-4xl mx-auto">
-        {/* --- Management Toolbar --- */}
-<div className="flex flex-col md:flex-row gap-4 mb-8">
-  {/* Single AI Add */}
-  <div className="flex-1 bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-2">
-    <input 
-      type="text"
-      value={input}
-      onChange={(e) => setInput(e.target.value)}
-      onKeyDown={(e) => {
-      if (e.key === 'Enter') handleSingleAdd();
-    }}
-      placeholder="Add new word..."
-      className="flex-1 bg-slate-50 border-none rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-    />
-    <button 
-      onClick={handleSingleAdd}
-      disabled={loading}
-      className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50"
-    >
-      {loading ? "..." : "AI Add"}
-    </button>
-  </div>
+      <div className="max-w-5xl mx-auto">
+        {/* Management Toolbar */}
+        <div className="flex flex-col md:flex-row gap-4 mb-8">
+          <div className="flex-1 bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-2">
+            <input 
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Add new word..."
+              className="flex-1 bg-slate-50 border-none rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <button 
+              onClick={() => processWords([input])}
+              disabled={loading}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {loading ? "..." : "AI Add"}
+            </button>
+          </div>
 
-  {/* Batch Toggle */}
-  <button 
-    onClick={() => setShowBatch(!showBatch)}
-    className="px-6 py-2 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 transition-colors"
-  >
-    {showBatch ? "Close Batch" : "Batch Upload"}
-  </button>
+          <button 
+            onClick={() => setShowBatch(!showBatch)}
+            className="px-6 py-2 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 transition-colors"
+          >
+            {showBatch ? "Close" : "Batch Upload"}
+          </button>
+        </div>
 
+        {/* Batch Area */}
+        {showBatch && (
+          <div className="mb-8 p-6 bg-indigo-50 rounded-3xl border-2 border-dashed border-indigo-200">
+            <textarea 
+              value={batchInput}
+              onChange={(e) => setBatchInput(e.target.value)}
+              className="w-full h-32 p-4 rounded-xl border-none outline-none mb-3"
+              placeholder="Paste list here..."
+            />
+            <button 
+              onClick={() => processWords(batchInput.split('\n').filter(l => l.trim()))}
+              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold"
+            >
+              Process Words
+            </button>
+          </div>
+        )}
 
-<button 
-  onClick={clearPending}
-  className="px-4 py-2 text-rose-600 text-sm font-bold hover:bg-rose-50 rounded-xl transition-all"
->
-  🗑️ Clear All Pending
-</button>
-
-</div>
-
-{/* --- Conditional Batch Area --- */}
-{showBatch && (
-  <div className="mb-8 p-6 bg-indigo-50 rounded-3xl border-2 border-dashed border-indigo-200 animate-in slide-in-from-top duration-300">
-    <textarea 
-      value={batchInput}
-      onChange={(e) => setBatchInput(e.target.value)}
-      className="w-full h-32 p-4 rounded-xl border-none outline-none mb-3"
-      placeholder="Paste list here (one per line)..."
-    />
-    <button 
-      onClick={handleBatchUpload}
-      className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold"
-    >
-      Process {batchInput.split('\n').filter(l => l.trim()).length} Words
-    </button>
-  </div>
-)}
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-extrabold text-slate-800">Your Progress</h1>
-          <Link href="/" className="text-indigo-600 font-bold hover:underline">
+          <h1 className="text-3xl font-extrabold text-slate-800">Learning Progress</h1>
+          <Link href="/" className="bg-white px-4 py-2 rounded-xl shadow-sm font-bold text-indigo-600 hover:bg-indigo-50 transition-all">
             ← Back to Study
           </Link>
         </div>
 
-        {/* --- Stats Overview Cards --- */}
+        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <StatCard label="Total Cards" value={totalCards} color="bg-blue-500" />
-          <StatCard label="Mastered (Score 10+)" value={masteredCards} color="bg-emerald-500" />
-          <StatCard label="Struggling" value={strugglingCards} color="bg-rose-500" />
-        </div>
+  <StatCard label="Total Vocabulary" value={totalCards} color="bg-indigo-500" />
+  <StatCard label="Mastered (80%+)" value={masteredCards} color="bg-emerald-500" />
+  <StatCard label="Struggling (<40%)" value={strugglingCards} color="bg-rose-500" />
+</div>
 
-        {/* --- Card List Table --- */}
+        {/* Detailed Table */}
         <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
           <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-100 text-slate-600 uppercase text-xs font-bold">
+            <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-widest font-bold">
               <tr>
-                <th className="px-6 py-4">Kanji</th>
+                <th className="px-6 py-4">Kanji / Reading</th>
                 <th className="px-6 py-4">English</th>
-                <th className="px-6 py-4">Score</th>
-                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4">🇯🇵→🇺🇸 Score</th>
+                <th className="px-6 py-4">🇺🇸→🇯🇵 Score</th>
+                <th className="px-6 py-4 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {sortedCards.map((card) => (
-                <tr key={card.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-bold text-lg">{card.japanese}</td>
-                  <td className="px-6 py-4 text-slate-600">{card.english}</td>
-                  <td className="px-6 py-4 font-mono">{card.score || 0}</td>
+              {cards.map((card) => (
+                <tr key={card.id} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="px-6 py-4">
-                    {card.score >= 10 ? (
-                      <span className="text-emerald-600 text-xs font-bold bg-emerald-50 px-2 py-1 rounded">MASTERED</span>
-                    ) : card.score < 0 ? (
-                      <span className="text-rose-600 text-xs font-bold bg-rose-50 px-2 py-1 rounded">RE-STUDY</span>
-                    ) : (
-                      <span className="text-slate-400 text-xs font-bold bg-slate-50 px-2 py-1 rounded">LEARNING</span>
-                    )}
+                    <div className="font-bold text-lg text-slate-800">{card.japanese}</div>
+                    <div className="text-xs text-indigo-500 font-medium">{card.reading}</div>
+                  </td>
+                  <td className="px-6 py-4 text-slate-600 font-medium">{card.english}</td>
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-bold">{card.scores?.jp_to_en?.percent || 0}%</div>
+                    <div className="w-24 h-1.5 bg-slate-100 rounded-full mt-1 overflow-hidden">
+                       <div className="h-full bg-emerald-400" style={{ width: `${card.scores?.jp_to_en?.percent || 0}%` }} />
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-bold">{card.scores?.en_to_jp?.percent || 0}%</div>
+                    <div className="w-24 h-1.5 bg-slate-100 rounded-full mt-1 overflow-hidden">
+                       <div className="h-full bg-orange-400" style={{ width: `${card.scores?.en_to_jp?.percent || 0}%` }} />
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button onClick={() => deleteCard(card.id)} className="opacity-0 group-hover:opacity-100 text-rose-400 hover:text-rose-600 transition-all font-bold text-sm">
+                      Delete
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -239,14 +193,14 @@ const sortedCards = [...cards].sort((a, b) => {
   );
 }
 
-// Simple Helper Component
 function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
-      <p className="text-slate-500 text-sm font-bold uppercase tracking-wider mb-2">{label}</p>
-      <p className={`text-4xl font-black text-white inline-block px-4 py-1 rounded-2xl ${color}`}>
-        {value}
-      </p>
+    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex justify-between items-center">
+      <div>
+        <p className="text-slate-400 text-[10px] font-black uppercase tracking-tighter">{label}</p>
+        <p className="text-4xl font-black text-slate-800">{value}</p>
+      </div>
+      <div className={`w-12 h-12 rounded-2xl ${color} opacity-20`} />
     </div>
   );
 }

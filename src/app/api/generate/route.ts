@@ -13,15 +13,17 @@ const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 2. If the input is English: Provide the most common Kanji, reading, and example.
 3. If the input has multiple Kanji forms, choose the most common and list others in "alternatives".
 
-Output ONLY raw JSON:
-{
-  "japanese": "The Kanji/Term",
-  "reading": "Furigana/Reading",
-  "english": "English Translation",
-  "alternatives": ["Alt Kanji 1", "Alt Kanji 2"],
-  "contextNote": "Usage note",
-  "exampleSentence": { "jp": "...", "en": "..." }
-}`;
+Output ONLY raw JSON as an ARRAY of objects:
+[
+  {
+    "japanese": "...",
+    "reading": "...",
+    "english": "...",
+    "alternatives": [],
+    "contextNote": "...",
+    "exampleSentence": { "jp": "...", "en": "..." }
+  }
+]`;
 
   const result = await model.generateContent(prompt);
   const response = await result.response;

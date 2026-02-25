@@ -13,12 +13,12 @@ export interface FlashcardData {
   };
   
   // Spaced Repetition (FSRS) Data
-  passCount: number;
-  failCount: number;
-  totalTries: number;
-  score: number; // This will store our % (0 to 100)
   alternatives?: string[];
   contextNote?: string;
+  scores: {
+    jp_to_en: { pass: number; fail: number; total: number; percent: number };
+    en_to_jp: { pass: number; fail: number; total: number; percent: number };
+  };
 }
 
 // This helps us toggle between "JP -> EN" or "EN -> JP"

@@ -1,13 +1,10 @@
 "use client";
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import Flashcard from '@/components/Flashcard';
+import LanguageToggle from '@/components/LanguageToggle';
 import { FlashcardData } from '@/lib/types';
 import Link from 'next/link';
-
-const INITIAL_CARDS: FlashcardData[] = [
-  { id: "1", japanese: "勉強", reading: "べんきょう", english: "Study", passCount: 0, failCount: 0, totalTries: 0, score: 0 },
-  { id: "2", japanese: "簡単", reading: "かんたん", english: "Easy", passCount: 0, failCount: 0, totalTries: 0, score: 0 },
-];
+import { supabase } from '@/lib/supabase';
 
 export default function Home() {
   const [cards, setCards] = useState<FlashcardData[]>([]);
@@ -15,25 +12,149 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [isBatchMode, setIsBatchMode] = useState(false);
-const [batchInput, setBatchInput] = useState("");
+  const [language, setLanguage] = useState<'en' | 'jp'>('jp');
+
+// --- 1. Fetch Cards from Supabase on Load ---
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      const { data, error } = await supabase
+        .from('flashcards')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error("Error fetching cards:", error);
+      } else {
+        const loadedCards = data || [];
+        setCards(loadedCards);
+        // Use your existing logic to pick the first card
+        if (loadedCards.length > 0) {
+          setCurrentCard(getNextPriorityCard(loadedCards));
+        }
+      }
+      setIsLoaded(true);
+    };
+
+    fetchInitialData();
+  }, []);
+
+  // --- 2. Update Scoring in Supabase ---
+  const handleScore = async (isPass: boolean) => {
+    if (!currentCard) return;
+
+    const mode = language === 'jp' ? 'jp_to_en' : 'en_to_jp';
+    
+    // Calculate new stats locally first
+    const scores = currentCard.scores || {
+      jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
+      en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 }
+    };
+
+    const currentModeStats = scores[mode];
+    const newPass = isPass ? currentModeStats.pass + 1 : currentModeStats.pass;
+    const newTotal = currentModeStats.total + 1;
+    const newPercent = Math.round((newPass / newTotal) * 100);
+
+    const updatedScores = {
+      ...scores,
+      [mode]: {
+        ...currentModeStats,
+        pass: newPass,
+        fail: !isPass ? currentModeStats.fail + 1 : currentModeStats.fail,
+        total: newTotal,
+        percent: newPercent
+      }
+    };
+
+    // Update Supabase
+    const { error } = await supabase
+      .from('flashcards')
+      .update({ 
+        scores: updatedScores,
+        score: updatedScores.jp_to_en.percent // Main score for legacy support
+      })
+      .eq('id', currentCard.id);
+
+    if (error) {
+      console.error("Failed to update score:", error);
+      return;
+    }
+
+    // Update Local State for UI
+    const updatedCards = cards.map(c => 
+      c.id === currentCard.id ? { ...c, scores: updatedScores, score: newPercent } : c
+    );
+    
+    setCards(updatedCards);
+    setCurrentCard(getNextPriorityCard(updatedCards, currentCard.id));
+  };
+
+  // --- 3. Sync AI Data to Supabase ---
+  // (Updated syncMissingData to save to DB so you don't keep calling AI)
+  useEffect(() => {
+    const syncMissingData = async () => {
+      if (currentCard && currentCard.english === "Pending AI Sync") {
+        setLoading(true);
+        try {
+          const res = await fetch("/api/generate", {
+            method: "POST",
+            body: JSON.stringify({ topic: currentCard.japanese }),
+          });
+          const fetchedData = await res.json();
+
+          // Save AI results to Supabase
+          await supabase
+            .from('flashcards')
+            .update({ 
+              reading: fetchedData.reading, 
+              english: fetchedData.english 
+            })
+            .eq('id', currentCard.id);
+
+          // Update Local UI
+          const updated = { ...currentCard, ...fetchedData };
+          setCurrentCard(updated);
+          setCards(prev => prev.map(c => c.id === currentCard.id ? updated : c));
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    syncMissingData();
+  }, [currentCard?.id]);
+
+  /* ... Keep getNextPriorityCard logic here ... */
 
   // --- Logic: Get Next Card Based on Weights ---
   // Update the function signature to accept the last ID
 const getNextPriorityCard = (allCards: FlashcardData[], lastCardId?: string) => {
   if (allCards.length === 0) return null;
-  if (allCards.length === 1) return allCards[0]; // If only one card exists, we must show it
+  if (allCards.length === 1) return allCards[0];
 
-  // 1. Categorize the cards
-  const sortedByPercent = [...allCards].sort((a, b) => (a.score || 0) - (b.score || 0));
+  // 1. Helper: Get score based on current language mode
+  const getModeScore = (card: FlashcardData) => {
+    const mode = language === 'jp' ? 'jp_to_en' : 'en_to_jp';
+    return card.scores?.[mode]?.percent || 0;
+  };
+
+  const getModeTries = (card: FlashcardData) => {
+    const mode = language === 'jp' ? 'jp_to_en' : 'en_to_jp';
+    return card.scores?.[mode]?.total || 0;
+  };
+
+  // 2. Categorize the cards using the current mode's stats
+  const sortedByPercent = [...allCards].sort((a, b) => getModeScore(a) - getModeScore(b));
+  
   const hardCards = sortedByPercent.slice(0, 10);
-  const easyCards = allCards.filter(c => (c.score || 0) >= 85 && (c.totalTries || 0) >= 20);
+  const easyCards = allCards.filter(c => getModeScore(c) >= 85 && getModeTries(c) >= 20);
   
   const hardIds = new Set(hardCards.map(c => c.id));
   const easyIds = new Set(easyCards.map(c => c.id));
   const mediumCards = allCards.filter(c => !hardIds.has(c.id) && !easyIds.has(c.id));
 
-  // 2. Roll the dice
+  // 3. Roll the dice (Spaced Repetition Logic)
   const roll = Math.random();
   let selectedBucket: FlashcardData[] = [];
 
@@ -47,11 +168,9 @@ const getNextPriorityCard = (allCards: FlashcardData[], lastCardId?: string) => 
     selectedBucket = allCards;
   }
 
-  // --- NEW LOGIC: Filter out the current card ---
+  // 4. Filter out the current card so you don't get the same one twice in a row
   const filteredBucket = selectedBucket.filter(c => c.id !== lastCardId);
   
-  // If the bucket is empty after filtering (e.g., only 1 card in that bucket), 
-  // fall back to the full deck minus the current card.
   if (filteredBucket.length === 0) {
     const fallback = allCards.filter(c => c.id !== lastCardId);
     return fallback[Math.floor(Math.random() * fallback.length)];
@@ -60,125 +179,26 @@ const getNextPriorityCard = (allCards: FlashcardData[], lastCardId?: string) => 
   return filteredBucket[Math.floor(Math.random() * filteredBucket.length)];
 };
 
-  // --- Effect: Initial Load ---
-  useEffect(() => {
-  const syncMissingData = async () => {
-    // 1. Check if the current card is missing its data
-    if (currentCard && currentCard.english === "Pending AI Sync") {
-      setLoading(true);
-      try {
-        const res = await fetch("/api/generate", {
-          method: "POST",
-          body: JSON.stringify({ topic: currentCard.japanese }),
-        });
-        const fetchedData = await res.json();
-
-        // 2. Update the card in the main list
-        const updatedCards = cards.map(c => 
-          c.id === currentCard.id 
-            ? { ...c, reading: fetchedData.reading, english: fetchedData.english } 
-            : c
-        );
-
-        setCards(updatedCards);
-        // 3. Update the card currently being displayed
-        setCurrentCard({ 
-          ...currentCard, 
-          reading: fetchedData.reading, 
-          english: fetchedData.english 
-        });
-      } catch (error) {
-        console.error("AI Sync failed:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
-
-  syncMissingData();
-}, [currentCard]); // This runs every time a new card is shown
-
-  useEffect(() => {
-    const saved = localStorage.getItem('tiger-cards');
-    let loadedCards = INITIAL_CARDS;
-    
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed.length > 0) loadedCards = parsed;
-    }
-    
-    setCards(loadedCards);
-    // CRITICAL FIX: Pick the first card immediately upon loading
-    setCurrentCard(getNextPriorityCard(loadedCards));
-    setIsLoaded(true);
-  }, []);
-
-  // --- Effect: Save on Change ---
-  useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem('tiger-cards', JSON.stringify(cards));
-    }
-  }, [cards, isLoaded]);
-
-  const generateCard = async () => {
-    if (!input) return;
-    const exists = cards.find(c => c.japanese === input || c.english.toLowerCase() === input.toLowerCase());
-    if (exists) { alert("Already exists!"); return; }
-
-    setLoading(true);
-    try {
-      const res = await fetch("/api/generate", { method: "POST", body: JSON.stringify({ topic: input }) });
-      const newCardData = await res.json();
-      const newCard: FlashcardData = {
-        ...newCardData,
-        id: Date.now().toString(),
-        passCount: 0, failCount: 0, totalTries: 0, score: 0
-      };
-      
-      const updatedCards = [...cards, newCard];
-      setCards(updatedCards);
-      // If there was no current card (deck was empty), show the new one
-      if (!currentCard) setCurrentCard(newCard);
-      setInput("");
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleScore = (isPass: boolean) => {
-    if (!currentCard) return;
-
-    const updatedCards = cards.map(c => {
-      if (c.id === currentCard.id) {
-        const newPass = isPass ? (c.passCount || 0) + 1 : (c.passCount || 0);
-        const newFail = !isPass ? (c.failCount || 0) + 1 : (c.failCount || 0);
-        const newTotal = (c.totalTries || 0) + 1;
-        return {
-          ...c,
-          passCount: newPass,
-          failCount: newFail,
-          totalTries: newTotal,
-          score: Math.round((newPass / newTotal) * 100)
-        };
-      }
-      return c;
-    });
-
-    setCards(updatedCards);
-    setCurrentCard(getNextPriorityCard(updatedCards));
-  };
-
   if (!isLoaded) return null;
 
   return (
     <main className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-      <div className="absolute top-8 right-8">
-        <Link href="/stats" className="bg-white px-4 py-2 rounded-full shadow-sm font-bold text-slate-600 hover:text-indigo-600 transition-all">
-          📊 View Stats
-        </Link>
-      </div>
+      {/* <LanguageToggle language={language} setLanguage={setLanguage} /> */}
+
+      <div className="absolute top-8 right-8 flex flex-col items-end gap-2 z-50">
+  {/* Stats Button */}
+  <Link 
+    href="/stats" 
+    className="bg-white px-4 py-2 rounded-full shadow-sm font-bold text-slate-600 hover:text-indigo-600 transition-all border border-slate-100"
+  >
+    📊 View Stats
+  </Link>
+
+  {/* Language Toggle */}
+  <div className="scale-90 origin-right">
+    <LanguageToggle language={language} setLanguage={setLanguage} />
+  </div>
+</div>
 
       <div className="w-full max-w-md flex flex-col items-center gap-8">
         {loading ? (
@@ -189,9 +209,12 @@ const getNextPriorityCard = (allCards: FlashcardData[], lastCardId?: string) => 
           <div className="flex flex-col items-center gap-4">
              {/* Show the bucket/percentage for debugging/insight */}
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              Success Rate: {currentCard.score || 0}% | Tries: {currentCard.totalTries || 0}
+              {language === 'jp' ? '🇯🇵 → 🇺🇸' : '🇺🇸 → 🇯🇵'} Mode | 
+              Success: {language === 'jp' 
+                ? (currentCard.scores?.jp_to_en?.percent || 0) 
+                : (currentCard.scores?.en_to_jp?.percent || 0)}%
             </span>
-            <Flashcard key={currentCard.id} card={currentCard} />
+            <Flashcard key={currentCard.id} card={currentCard} language={language}/>
           </div>
         ) : (
           <div className="text-center p-10 bg-white rounded-3xl border-2 border-dashed border-slate-200 w-80 h-96 flex flex-col justify-center">
