@@ -182,6 +182,13 @@ const getNextPriorityCard = (allCards: FlashcardData[], lastCardId?: string) => 
   return filteredBucket[Math.floor(Math.random() * filteredBucket.length)];
 };
 
+const onSwipe = (direction: 'left' | 'right') => {
+  const isPass = direction === 'right';
+  
+  // Trigger your existing logic
+  handleScore(isPass);
+};
+
   if (!isLoaded) return null;
 
   return (
@@ -217,7 +224,7 @@ const getNextPriorityCard = (allCards: FlashcardData[], lastCardId?: string) => 
                 ? (currentCard.scores?.jp_to_en?.percent || 0) 
                 : (currentCard.scores?.en_to_jp?.percent || 0)}%
             </span>
-            <Flashcard key={currentCard.id} card={currentCard} language={language}/>
+            <Flashcard key={currentCard.id} card={currentCard} language={language} onSwipe={onSwipe}/>
           </div>
         ) : (
           <div className="text-center p-10 bg-white rounded-3xl border-2 border-dashed border-slate-200 w-80 h-96 flex flex-col justify-center">
