@@ -11,7 +11,20 @@ interface FlashcardProps {
 export default function Flashcard({ card, language }: FlashcardProps) {
   const [flipped, setFlipped] = useState(false);
 
-  // Helper for speech
+  // Helper to determine font size based on text length
+  const getFontSize = (text: string, isJapanese: boolean) => {
+    const len = text.length;
+    if (isJapanese) {
+      if (len > 8) return 'text-3xl';
+      if (len > 5) return 'text-4xl';
+      return 'text-6xl';
+    } else {
+      if (len > 25) return 'text-xl';
+      if (len > 15) return 'text-2xl';
+      return 'text-4xl';
+    }
+  };
+
   const speak = (text: string) => {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
@@ -20,23 +33,17 @@ export default function Flashcard({ card, language }: FlashcardProps) {
     window.speechSynthesis.speak(utterance);
   };
 
-  // 1. Play sound immediately when a NEW card loads (Front Side)
   useEffect(() => {
     setFlipped(false);
-    if (card?.japanese) {
-      speak(card.japanese);
-    }
+    if (card?.japanese) speak(card.japanese);
   }, [card.id]);
 
-  // 2. Play sound immediately when card is flipped (Back Side)
   useEffect(() => {
-    if (flipped && card?.japanese) {
-      speak(card.japanese);
-    }
+    if (flipped && card?.japanese) speak(card.japanese);
   }, [flipped, card.japanese]);
 
   const handlePlayAudio = (e: React.MouseEvent, text: string) => {
-    e.stopPropagation(); // Critical: prevents card from flipping when clicking the button
+    e.stopPropagation();
     speak(text);
   };
 
@@ -52,11 +59,10 @@ export default function Flashcard({ card, language }: FlashcardProps) {
       >
         {/* FRONT SIDE */}
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-white rounded-3xl border-4 border-white shadow-2xl [backface-visibility:hidden] p-6 text-center">
-          <span className={`font-black text-slate-800 leading-tight mb-8 ${language === 'jp' ? 'text-6xl' : 'text-3xl'}`}>
+          <span className={`font-black text-slate-800 leading-tight mb-8 transition-all ${getFontSize(frontText, language === 'jp')}`}>
             {frontText}
           </span>
           
-          {/* Front Sound Icon - Kept in original "Upfront" position */}
           <button 
             onClick={(e) => handlePlayAudio(e, card.japanese)} 
             className="p-3 bg-slate-100 rounded-full hover:bg-indigo-100 transition active:scale-95"
@@ -68,20 +74,29 @@ export default function Flashcard({ card, language }: FlashcardProps) {
         {/* BACK SIDE */}
         <div className="absolute inset-0 flex flex-col bg-indigo-600 text-white rounded-3xl shadow-2xl [transform:rotateY(180deg)] [backface-visibility:hidden] p-8 text-center">
           
+          {/* Part of Speech Badge */}
+          {card.partOfSpeech && (
+            <div className="absolute top-4 right-4">
+              <span className="px-3 py-1 bg-white/20 rounded-full text-xs font-bold uppercase tracking-widest border border-white/10">
+                {card.partOfSpeech}
+              </span>
+            </div>
+          )}
+
           {/* Content Area (Centered) */}
           <div className="flex-1 flex flex-col items-center justify-center">
             {language === 'jp' && (
-              <p className="text-indigo-200 text-xl mb-2 font-medium">{card.reading}</p>
+              <p className="text-indigo-200 text-xl mb-2 font-medium tracking-wide">{card.reading}</p>
             )}
-            <h2 className={`font-bold leading-tight ${language === 'jp' ? 'text-4xl' : 'text-6xl'}`}>
+            <h2 className={`font-bold leading-tight transition-all ${getFontSize(backText, language !== 'jp')}`}>
               {backText}
             </h2>
           </div>
 
-          {/* Footer Area (Example + Sound below) */}
-          <div className="mt-auto pt-4 border-t border-indigo-400">
+          {/* Footer Area (Example + Sound) */}
+          <div className="mt-auto pt-4 border-t border-indigo-400/50">
             {card.exampleSentence && (
-              <p className="text-sm italic opacity-80 mb-4">
+              <p className="text-sm italic text-indigo-100 opacity-90 mb-4 line-clamp-3">
                 "{card.exampleSentence.jp}"
               </p>
             )}

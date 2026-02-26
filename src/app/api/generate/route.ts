@@ -11,7 +11,7 @@ const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
   const prompt = `Task: Analyze or translate this list of terms: [${words.join(", ")}].
 1. If the input is Japanese (Kanji/Kana): Provide the reading, English translation, and example.
 2. If the input is English: Provide the most common Kanji, reading, and example.
-3. If the input has multiple Kanji forms, choose the most common and list others in "alternatives".
+3. Identify the Part of Speech (e.g., noun, verb, adjective, adverb).
 
 Output ONLY raw JSON as an ARRAY of objects:
 [
@@ -19,6 +19,7 @@ Output ONLY raw JSON as an ARRAY of objects:
     "japanese": "...",
     "reading": "...",
     "english": "...",
+    "part_of_speech": "...", 
     "alternatives": [],
     "contextNote": "...",
     "exampleSentence": { "jp": "...", "en": "..." }
