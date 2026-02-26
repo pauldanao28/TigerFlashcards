@@ -19,7 +19,7 @@ Output ONLY raw JSON as an ARRAY of objects:
     "japanese": "...",
     "reading": "...",
     "english": "...",
-    "part_of_speech": "...", 
+    "partOfSpeech": "...", 
     "alternatives": [],
     "contextNote": "...",
     "exampleSentence": { "jp": "...", "en": "..." }
