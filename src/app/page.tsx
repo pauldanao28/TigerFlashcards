@@ -16,7 +16,10 @@ export default function Home() {
 
 // --- 1. Fetch Cards from Supabase on Load ---
   useEffect(() => {
+    console.log("Supabase URL Check:", process.env.NEXT_PUBLIC_SUPABASE_URL); // Is this undefined?
+    
     const fetchInitialData = async () => {
+      console.log("Starting fetch..."); // Does this even fire?
       const { data, error } = await supabase
         .from('flashcards')
         .select('*')
