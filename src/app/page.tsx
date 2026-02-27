@@ -193,20 +193,25 @@ const onSwipe = (direction: 'left' | 'right') => {
 
   return (
     <main className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-      {/* <LanguageToggle language={language} setLanguage={setLanguage} /> */}
+      <div className="fixed top-6 left-4 right-4 z-50 pointer-events-none 
+                flex flex-row items-center justify-between
+                md:flex-col md:items-end md:gap-2 md:top-8 md:right-8 md:left-auto">
+  
+  {/* Language Toggle: Left on Mobile, Bottom on Desktop */}
+  <div className="pointer-events-auto order-1 md:order-2">
+    <div className="scale-90 origin-left md:origin-right h-10 flex items-center">
+      <LanguageToggle language={language} setLanguage={setLanguage} />
+    </div>
+  </div>
 
-      <div className="absolute top-8 right-8 flex flex-col items-end gap-2 z-50">
-  {/* Stats Button */}
-  <Link 
-    href="/stats" 
-    className="bg-white px-4 py-2 rounded-full shadow-sm font-bold text-slate-600 hover:text-indigo-600 transition-all border border-slate-100"
-  >
-    📊 View Stats
-  </Link>
-
-  {/* Language Toggle */}
-  <div className="scale-90 origin-right">
-    <LanguageToggle language={language} setLanguage={setLanguage} />
+  {/* Stats Button: Right on Mobile, Top on Desktop */}
+  <div className="pointer-events-auto order-2 md:order-1">
+    <Link 
+      href="/stats" 
+      className="bg-white px-4 py-2 rounded-full shadow-sm font-bold text-slate-600 hover:text-indigo-600 transition-all border border-slate-100 flex items-center gap-2 whitespace-nowrap h-10"
+    >
+      📊 View Stats
+    </Link>
   </div>
 </div>
 

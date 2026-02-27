@@ -67,6 +67,17 @@ export default function StatsPage() {
     if (!error) setCards(cards.filter(c => c.id !== id));
   };
 
+  // Aggregating global performance across all modes
+const globalStats = cards.reduce((acc, card) => {
+  const modes = ['jp_to_en', 'en_to_jp'] as const;
+  modes.forEach(mode => {
+    acc.tries += card.scores?.[mode]?.total || 0;
+    acc.pass += card.scores?.[mode]?.pass || 0;
+    acc.fail += card.scores?.[mode]?.fail || 0;
+  });
+  return acc;
+}, { tries: 0, pass: 0, fail: 0 });
+
   // --- 3. Mode-aware calculations ---
   // Calculate stats based on dual-mode average
 const totalCards = cards.length;
@@ -140,12 +151,69 @@ const strugglingCards = cards.filter(c => {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-  <StatCard label="Total Vocabulary" value={totalCards} color="bg-indigo-500" />
-  <StatCard label="Mastered (80%+)" value={masteredCards} color="bg-emerald-500" />
-  <StatCard label="Struggling (<40%)" value={strugglingCards} color="bg-rose-500" />
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6 mb-8">
+      <StatCard label="Vocabulary" value={totalCards} color="bg-indigo-500" />
+      <StatCard label="Mastered" value={masteredCards} color="bg-emerald-500" />
+      <StatCard label="Struggling" value={strugglingCards} color="bg-rose-500" />
+  <div className="col-span-2 md:col-span-3 grid grid-cols-3 bg-slate-800 rounded-3xl p-4 text-white">
+        <div className="text-center border-r border-slate-700">
+          <p className="text-[9px] uppercase font-bold text-slate-400">Total Tries</p>
+          <p className="text-xl font-black">{globalStats.tries}</p>
+        </div>
+        <div className="text-center border-r border-slate-700">
+          <p className="text-[9px] uppercase font-bold text-emerald-400">Pass</p>
+          <p className="text-xl font-black">{globalStats.pass}</p>
+        </div>
+        <div className="text-center">
+          <p className="text-[9px] uppercase font-bold text-rose-400">Fail</p>
+          <p className="text-xl font-black">{globalStats.fail}</p>
+        </div>
+      </div>
 </div>
 
+    {/* MOBILE LIST VIEW (Visible only on mobile) */}
+    <div className="md:hidden space-y-4">
+      {cards.map((card) => (
+        <div key={card.id} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm relative">
+          <button 
+            onClick={() => deleteCard(card.id)}
+            className="absolute top-4 right-4 text-slate-300 hover:text-rose-500"
+          >
+            ✕
+          </button>
+          
+          <div className="mb-4">
+            <div className="text-2xl font-black text-slate-800">{card.japanese}</div>
+            <div className="text-sm font-bold text-indigo-500">{card.reading}</div>
+            <div className="text-slate-600 mt-1">{card.english}</div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50">
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">🇯🇵 → 🇺🇸</p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold">{card.scores?.jp_to_en?.percent || 0}%</span>
+                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-400" style={{ width: `${card.scores?.jp_to_en?.percent || 0}%` }} />
+                </div>
+              </div>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">🇺🇸 → 🇯🇵</p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold">{card.scores?.en_to_jp?.percent || 0}%</span>
+                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-orange-400" style={{ width: `${card.scores?.en_to_jp?.percent || 0}%` }} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <div className="hidden md:block bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+      
         {/* Detailed Table */}
         <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
           <table className="w-full text-left border-collapse">
@@ -187,6 +255,7 @@ const strugglingCards = cards.filter(c => {
               ))}
             </tbody>
           </table>
+        </div>
         </div>
       </div>
     </main>

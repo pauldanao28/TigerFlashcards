@@ -14,11 +14,16 @@ export default function Flashcard({ card, language, onSwipe }: FlashcardProps) {
 
   // 1. Setup Motion Values for Swipe
   const x = useMotionValue(0);
-  const rotate = useTransform(x, [-200, 200], [-25, 25]); // Rotates as you drag
-  const opacity = useTransform(x, [-200, -150, 0, 150, 200], [0, 1, 1, 1, 0]); // Fades out at edges
+  const rotate = useTransform(x, [-200, 200], [-25, 25]);
+  const opacity = useTransform(x, [-200, -150, 0, 150, 200], [0, 1, 1, 1, 0]);
+
+  // NEW: Create separate transforms for the glows so they don't flip with the card
+  const passOpacity = useTransform(x, [20, 120], [0, 1]);
+  const failOpacity = useTransform(x, [-20, -120], [0, 1]);
 
   const handleDragEnd = (event: any, info: any) => {
     const swipeThreshold = 100;
+    // Use info.offset.x for the actual drag distance
     if (info.offset.x > swipeThreshold) {
       onSwipe?.('right');
     } else if (info.offset.x < -swipeThreshold) {
@@ -72,31 +77,39 @@ useEffect(() => {
   const backText = language === 'jp' ? card.english : card.japanese;
 
   return (
-    <div className="w-80 h-96 [perspective:1000px] touch-none" onClick={() => setFlipped(!flipped)}>
+    <div className="w-80 h-96 [perspective:1000px] touch-none">
       <motion.div
-        style={{ x, rotate, opacity }} // Bind swipe values
-        drag="x" // Enable horizontal dragging
-        dragConstraints={{ left: 0, right: 0 }} // Snap back to center
+        style={{ x, rotate, opacity }}
+        drag="x"
+        dragConstraints={{ left: 0, right: 0 }}
         onDragEnd={handleDragEnd}
-        animate={{ rotateY: flipped ? 180 : 0 }}
-        transition={{ duration: 0.6, type: "spring", stiffness: 260, damping: 20 }}
-        onClick={() => setFlipped(!flipped)}
-        className="relative w-full h-full [transform-style:preserve-3d] cursor-grab active:cursor-grabbing"
+        className="relative w-full h-full cursor-grab active:cursor-grabbing"
       >
-        {/* PASS GLOW (Right) */}
-<motion.div 
-  style={{ opacity: useTransform(x, [20, 150], [0, 1]) }}
-  className="absolute inset-0 z-50 pointer-events-none rounded-3xl border-8 border-green-500 bg-green-500/10 flex items-center justify-center"
->
-  <span className="text-green-500 text-5xl font-black rotate-[-12deg] drop-shadow-lg">PASS</span>
-</motion.div>
-{/* FAIL GLOW (Left) */}
-<motion.div 
-  style={{ opacity: useTransform(x, [-20, -150], [0, 1]) }}
-  className="absolute inset-0 z-50 pointer-events-none rounded-3xl border-8 border-red-500 bg-red-500/10 flex items-center justify-center"
->
-  <span className="text-red-500 text-5xl font-black rotate-[12deg] drop-shadow-lg">FAIL</span>
-</motion.div>
+        {/* GLOWS: Placed here, they move with the drag 
+            but do NOT rotate when the card flips.
+        */}
+        <motion.div 
+          style={{ opacity: passOpacity }}
+          className="absolute inset-0 z-50 pointer-events-none rounded-3xl border-8 border-green-500 bg-green-500/10 flex items-center justify-center"
+        >
+          <span className="text-green-500 text-5xl font-black rotate-[-12deg]">PASS</span>
+        </motion.div>
+
+        <motion.div 
+          style={{ opacity: failOpacity }}
+          className="absolute inset-0 z-50 pointer-events-none rounded-3xl border-8 border-red-500 bg-red-500/10 flex items-center justify-center"
+        >
+          <span className="text-red-500 text-5xl font-black rotate-[12deg]">FAIL</span>
+        </motion.div>
+
+        {/* FLIPPING CONTAINER: Only handles the 3D flip 
+        */}
+        <motion.div
+          animate={{ rotateY: flipped ? 180 : 0 }}
+          transition={{ duration: 0.6, type: "spring", stiffness: 260, damping: 20 }}
+          onClick={() => setFlipped(!flipped)}
+          className="relative w-full h-full [transform-style:preserve-3d]"
+        >
         {/* FRONT SIDE */}
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-white rounded-3xl border-4 border-white shadow-2xl [backface-visibility:hidden] p-6 text-center">
           <span className={`font-black text-slate-800 leading-tight mb-8 transition-all ${getFontSize(frontText, language === 'jp')}`}>
@@ -148,6 +161,7 @@ useEffect(() => {
             </button>
           </div>
         </div>
+      </motion.div>
       </motion.div>
     </div>
   );
