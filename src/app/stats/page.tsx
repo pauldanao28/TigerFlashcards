@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { FlashcardData } from '@/lib/types';
 import { supabase } from '@/lib/supabase'; // Import Supabase
@@ -12,6 +12,9 @@ export default function StatsPage() {
   const [showBatch, setShowBatch] = useState(false);
   const [loading, setLoading] = useState(false);
 const [user, setUser] = useState<User | null>(null);
+// Inside StatsPage component:
+const [searchQuery, setSearchQuery] = useState("");
+const [displayLimit, setDisplayLimit] = useState(50); // Pagination limit
 
 useEffect(() => {
     // 1. Get initial user session
@@ -48,7 +51,7 @@ useEffect(() => {
   // Optional: window.location.href = "/"; // Force redirect to home
 };
 
-  // --- 1. Fetch from Supabase instead of LocalStorage ---
+  // --- 1. Fetch from Supabase ---
   useEffect(() => {
     fetchCards();
   }, []);
@@ -137,6 +140,17 @@ const strugglingCards = cards.filter(c => {
   return hasTried && avg < 40;
 }).length;
 
+const filteredCards = useMemo(() => {
+  const query = searchQuery.toLowerCase();
+  return cards.filter(card => 
+    card.japanese.toLowerCase().includes(query) ||
+    card.reading.toLowerCase().includes(query) ||
+    card.english.toLowerCase().includes(query)
+  );
+}, [cards, searchQuery]);
+
+const visibleCards = filteredCards.slice(0, displayLimit);
+
   return (
     <main className="min-h-screen bg-slate-50 p-8">
       <div className="max-w-5xl mx-auto">
@@ -223,9 +237,24 @@ const strugglingCards = cards.filter(c => {
       </div>
 </div>
 
+{/* --- SEARCH BAR (Placed above lists) --- */}
+        <div className="relative mb-6">
+          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">🔍</div>
+          <input
+            type="text"
+            placeholder="Search kanji, reading, or meaning..."
+            className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setDisplayLimit(20);
+            }}
+          />
+        </div>
+
     {/* MOBILE LIST VIEW (Visible only on mobile) */}
     <div className="md:hidden space-y-4">
-      {cards.map((card) => (
+      {visibleCards.map((card) => (
         <div key={card.id} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm relative">
           <button 
             onClick={() => deleteCard(card.id)}
@@ -279,7 +308,7 @@ const strugglingCards = cards.filter(c => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {cards.map((card) => (
+              {visibleCards.map((card) => (
                 <tr key={card.id} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="font-bold text-lg text-slate-800">{card.japanese}</div>
@@ -308,6 +337,25 @@ const strugglingCards = cards.filter(c => {
             </tbody>
           </table>
         </div>
+        {/* --- LOAD MORE BUTTON --- */}
+        {filteredCards.length > displayLimit ? (
+          <div className="mt-8 mb-12 flex justify-center">
+            <button 
+              onClick={() => setDisplayLimit(prev => prev + 50)}
+              className="bg-white border border-slate-200 px-8 py-3 rounded-2xl font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all active:scale-95"
+            >
+              Load More ({filteredCards.length - displayLimit} remaining)
+            </button>
+          </div>
+        ) : filteredCards.length === 0 ? (
+          <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-100 mt-4">
+            <p className="text-slate-400 font-medium">No cards match your search.</p>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-slate-300 text-xs font-bold uppercase tracking-widest">
+            End of List
+          </div>
+        )}
         </div>
       </div>
     </main>
