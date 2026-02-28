@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { FlashcardData } from '@/lib/types';
 import { supabase } from '@/lib/supabase'; // Import Supabase
+import { User } from '@supabase/supabase-js';
 
 export default function StatsPage() {
   const [cards, setCards] = useState<FlashcardData[]>([]);
@@ -10,6 +11,42 @@ export default function StatsPage() {
   const [batchInput, setBatchInput] = useState("");
   const [showBatch, setShowBatch] = useState(false);
   const [loading, setLoading] = useState(false);
+const [user, setUser] = useState<User | null>(null);
+
+useEffect(() => {
+    // 1. Get initial user session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    // 2. Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    fetchCards();
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    setUser(session?.user ?? null);
+    
+    // If user logs out, send them to the Home page (where your Auth component lives)
+    if (event === 'SIGNED_OUT') {
+      window.location.href = "/"; 
+    }
+  });
+
+  return () => subscription.unsubscribe();
+}, []);
+
+  const handleLogout = async () => {
+  const { error } = await supabase.auth.signOut();
+  if (error) console.error("Error signing out:", error.message);
+  // Optional: window.location.href = "/"; // Force redirect to home
+};
 
   // --- 1. Fetch from Supabase instead of LocalStorage ---
   useEffect(() => {
@@ -28,6 +65,11 @@ export default function StatsPage() {
 
   // --- 2. Update processWords to save to Supabase ---
   const processWords = async (wordList: string[]) => {
+    if (!user) {
+    alert("You must be logged in to add cards!");
+    return;
+  }
+
   setLoading(true);
   try {
     const res = await fetch("/api/generate", {
@@ -40,12 +82,12 @@ export default function StatsPage() {
     // Ensure items is always an array
     const dataToInsert = (Array.isArray(items) ? items : [items]).map((item) => ({
       ...item,
-      // Manual fields for our logic
+      user_id: user.id,
       score: 0,
       scores: {
         jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
         en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 }
-      }
+      },
     }));
 
     const { error } = await supabase.from('flashcards').insert(dataToInsert);
@@ -143,12 +185,22 @@ const strugglingCards = cards.filter(c => {
           </div>
         )}
 
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-extrabold text-slate-800">Learning Progress</h1>
-          <Link href="/" className="bg-white px-4 py-2 rounded-xl shadow-sm font-bold text-indigo-600 hover:bg-indigo-50 transition-all">
-            ← Back to Study
-          </Link>
-        </div>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+  <h1 className="text-2xl md:text-3xl font-extrabold text-slate-800">Learning Progress</h1>
+  
+  <div className="flex gap-2 w-full md:w-auto">
+    <Link href="/" className="flex-1 md:flex-none bg-white px-4 py-2 rounded-xl shadow-sm font-bold text-indigo-600 border border-slate-100 text-center hover:bg-slate-50 transition-all">
+      ← Back to Study
+    </Link>
+    
+    <button 
+      onClick={handleLogout}
+      className="flex-1 md:flex-none bg-rose-50 px-4 py-2 rounded-xl shadow-sm font-bold text-rose-600 border border-rose-100 text-center hover:bg-rose-100 transition-all"
+    >
+      Sign Out
+    </button>
+  </div>
+</div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6 mb-8">

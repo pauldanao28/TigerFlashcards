@@ -5,42 +5,65 @@ import LanguageToggle from '@/components/LanguageToggle';
 import { FlashcardData } from '@/lib/types';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import Auth from '@/components/Auth';
+import { User } from '@supabase/supabase-js';
 
 export default function Home() {
   const [cards, setCards] = useState<FlashcardData[]>([]);
   const [currentCard, setCurrentCard] = useState<FlashcardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [language, setLanguage] = useState<'en' | 'jp'>('jp');
   const [streak, setStreak] = useState(0);
 const [bestStreak, setBestStreak] = useState(0);
+const [user, setUser] = useState<User | null>(null);
 
-// --- 1. Fetch Cards from Supabase on Load ---
+// 1. Listen for Auth Changes (Keep this as is)
   useEffect(() => {
-    console.log("Supabase URL Check:", process.env.NEXT_PUBLIC_SUPABASE_URL); // Is this undefined?
-    
-    const fetchInitialData = async () => {
-      console.log("Starting fetch..."); // Does this even fire?
-      const { data, error } = await supabase
-        .from('flashcards')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error("Error fetching cards:", error);
-      } else {
-        const loadedCards = data || [];
-        setCards(loadedCards);
-        // Use your existing logic to pick the first card
-        if (loadedCards.length > 0) {
-          setCurrentCard(getNextPriorityCard(loadedCards));
-        }
-      }
+    // 1. Check current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
       setIsLoaded(true);
-    };
+    });
 
-    fetchInitialData();
+    // 2. Listen for auth changes (login/logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setIsLoaded(true);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
+
+// 2. NEW: Fetch Data ONLY when the session is confirmed
+useEffect(() => {
+  const fetchInitialData = async () => {
+    if (!user) {
+      setCards([]);
+      setDataLoading(false); // Stop loading if no user
+      return;
+    }
+
+    setDataLoading(true); // Start loading animation
+    const { data, error } = await supabase
+      .from('flashcards')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      setCards(data);
+      if (data.length > 0) {
+        setCurrentCard(getNextPriorityCard(data));
+      }
+    }
+    setDataLoading(false); // Data is now here
+  };
+
+  if (isLoaded && user) {
+    fetchInitialData();
+  }
+}, [isLoaded, user]);
 
   // --- 2. Update Scoring in Supabase ---
   const handleScore = async (isPass: boolean) => {
@@ -200,6 +223,7 @@ const onSwipe = (direction: 'left' | 'right') => {
 };
 
   if (!isLoaded) return null;
+if (!user) return <Auth />;
 
   return (
     <main className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
@@ -234,11 +258,12 @@ const onSwipe = (direction: 'left' | 'right') => {
       <span className="font-black text-sm tracking-tighter">{streak} STREAK</span>
     </div>
   )}
-  
-        {loading ? (
-          <div className="w-80 h-96 bg-white rounded-3xl border-4 border-dashed border-slate-200 flex items-center justify-center animate-pulse">
-            <p className="text-slate-400 font-bold">AI is writing...</p>
-          </div>
+
+        {dataLoading || loading ? (
+          <div className="w-80 h-96 bg-white rounded-3xl border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse gap-4">
+      <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+      <p className="text-slate-400 font-bold">Loading your deck...</p>
+    </div>
         ) : currentCard ? (
           <div className="flex flex-col items-center gap-4">
              {/* Show the bucket/percentage for debugging/insight */}
@@ -251,9 +276,12 @@ const onSwipe = (direction: 'left' | 'right') => {
             <Flashcard key={currentCard.id} card={currentCard} language={language} onSwipe={onSwipe}/>
           </div>
         ) : (
-          <div className="text-center p-10 bg-white rounded-3xl border-2 border-dashed border-slate-200 w-80 h-96 flex flex-col justify-center">
-            <p className="text-slate-500 font-bold">No cards found.</p>
-          </div>
+          <div className="text-center p-10 bg-white rounded-3xl border-2 border-dashed border-slate-200 w-80 h-96 flex flex-col justify-center items-center gap-4">
+      <p className="text-slate-500 font-bold text-xl">Empty Deck</p>
+      <Link href="/stats" className="text-indigo-600 font-bold bg-indigo-50 px-4 py-2 rounded-xl">
+        + Add your first cards
+      </Link>
+    </div>
         )}
 
         <div className="flex gap-4 w-full">
