@@ -9,10 +9,11 @@ import { supabase } from '@/lib/supabase';
 export default function Home() {
   const [cards, setCards] = useState<FlashcardData[]>([]);
   const [currentCard, setCurrentCard] = useState<FlashcardData | null>(null);
-  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [language, setLanguage] = useState<'en' | 'jp'>('jp');
+  const [streak, setStreak] = useState(0);
+const [bestStreak, setBestStreak] = useState(0);
 
 // --- 1. Fetch Cards from Supabase on Load ---
   useEffect(() => {
@@ -77,6 +78,15 @@ export default function Home() {
         score: updatedScores.jp_to_en.percent // Main score for legacy support
       })
       .eq('id', currentCard.id);
+
+      // Update Streak Logic
+  if (isPass) {
+    const newStreak = streak + 1;
+    setStreak(newStreak);
+    if (newStreak > bestStreak) setBestStreak(newStreak);
+  } else {
+    setStreak(0); // Reset on fail
+  }
 
     if (error) {
       console.error("Failed to update score:", error);
@@ -215,7 +225,16 @@ const onSwipe = (direction: 'left' | 'right') => {
   </div>
 </div>
 
+
       <div className="w-full max-w-md flex flex-col items-center gap-8">
+        {/* PLACE STREAK UI HERE */}
+  {streak > 1 && (
+    <div className="flex items-center gap-2 bg-orange-500 text-white px-4 py-1.5 rounded-full shadow-lg animate-bounce mt-12 md:mt-0">
+      <span className="text-xl">🔥</span>
+      <span className="font-black text-sm tracking-tighter">{streak} STREAK</span>
+    </div>
+  )}
+  
         {loading ? (
           <div className="w-80 h-96 bg-white rounded-3xl border-4 border-dashed border-slate-200 flex items-center justify-center animate-pulse">
             <p className="text-slate-400 font-bold">AI is writing...</p>

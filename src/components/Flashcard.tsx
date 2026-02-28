@@ -9,8 +9,15 @@ interface FlashcardProps {
   onSwipe?: (direction: 'left' | 'right') => void;
 }
 
+const triggerHaptic = (ms = 10) => {
+  if (typeof window !== 'undefined' && window.navigator.vibrate) {
+    window.navigator.vibrate(ms);
+  }
+};
+
 export default function Flashcard({ card, language, onSwipe }: FlashcardProps) {
   const [flipped, setFlipped] = useState(false);
+const [hasVibrated, setHasVibrated] = useState(false);
 
   // 1. Setup Motion Values for Swipe
   const x = useMotionValue(0);
@@ -21,6 +28,19 @@ export default function Flashcard({ card, language, onSwipe }: FlashcardProps) {
   const passOpacity = useTransform(x, [20, 120], [0, 1]);
   const failOpacity = useTransform(x, [-20, -120], [0, 1]);
 
+  // 2. Monitor 'x' to trigger haptics when threshold is hit
+  useEffect(() => {
+    return x.onChange((latestX) => {
+      const threshold = 100;
+      if (Math.abs(latestX) > threshold && !hasVibrated) {
+        triggerHaptic(15); // Short, sharp pulse
+        setHasVibrated(true);
+      } else if (Math.abs(latestX) < threshold && hasVibrated) {
+        setHasVibrated(false); // Reset when they pull back
+      }
+    });
+  }, [x, hasVibrated]);
+
   const handleDragEnd = (event: any, info: any) => {
     const swipeThreshold = 100;
     // Use info.offset.x for the actual drag distance
@@ -29,6 +49,8 @@ export default function Flashcard({ card, language, onSwipe }: FlashcardProps) {
     } else if (info.offset.x < -swipeThreshold) {
       onSwipe?.('left');
     }
+
+    setHasVibrated(false); // Ensure reset for next card
   };
   
   // Helper to determine font size based on text length
@@ -110,6 +132,13 @@ useEffect(() => {
           onClick={() => setFlipped(!flipped)}
           className="relative w-full h-full [transform-style:preserve-3d]"
         >
+          <motion.div
+  drag="x"
+  dragConstraints={{ left: 0, right: 0 }}
+  dragElastic={0.7} // Makes it harder to pull the further it goes
+  onDragEnd={handleDragEnd}
+  // ...
+/>
         {/* FRONT SIDE */}
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-white rounded-3xl border-4 border-white shadow-2xl [backface-visibility:hidden] p-6 text-center">
           <span className={`font-black text-slate-800 leading-tight mb-8 transition-all ${getFontSize(frontText, language === 'jp')}`}>
