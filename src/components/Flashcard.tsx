@@ -168,10 +168,9 @@ export default function Flashcard({ card, language, onSwipe }: FlashcardProps) {
     {/* FIX: If the back text is Japanese (which happens in 'en' mode), 
        or if we are in 'jp' mode, show the reading.
     */}
-    {(language === 'en' || language === 'jp') && card.reading && (
-      <p className="text-indigo-200 text-xl mb-2 font-medium tracking-wide">
-        {/* We only show reading if the card is showing Japanese on this side */}
-        {backText === card.japanese ? card.reading : ""}
+    {(language === 'jp' || language  === 'en') && card.reading && (
+      <p className="text-indigo-200 text-xl mb-2 font-medium tracking-wide animate-fade-in">
+        {card.reading}
       </p>
     )}
     
