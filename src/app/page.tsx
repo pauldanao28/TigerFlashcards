@@ -16,7 +16,7 @@ export default function Home() {
   const [dataLoading, setDataLoading] = useState(true);
   const [language, setLanguage] = useState<'en' | 'jp'>('jp');
   const [streak, setStreak] = useState(0);
-const [bestStreak, setBestStreak] = useState(0);
+  const [sessionStreak, setSessionStreak] = useState(0); // Consecutive correct answers right now
 const [user, setUser] = useState<User | null>(null);
 const [dailyProgress, setDailyProgress] = useState(0);
 const DAILY_GOAL = 10; 
@@ -176,17 +176,24 @@ useEffect(() => {
       })
       .eq('id', currentCard.id);
 
-      // Update Streak Logic
-  if (isPass) {
-    const newProgress = dailyProgress + 1;
-    setDailyProgress(newProgress);
-
-    // If they hit the goal (e.g., 10 correct cards)
-    if (newProgress === DAILY_GOAL) {
-      updateStreak(); 
-      // Optional: trigger confetti here!
+   // A. Handle Session Streak (Consecutive correct answers)
+    if (isPass) {
+      setSessionStreak(prev => prev + 1);
+    } else {
+      setSessionStreak(0); // Reset session streak on fail
     }
-  }
+
+    // B. Handle Daily Goal & Database Streak
+    if (isPass) {
+      const newProgress = dailyProgress + 1;
+      // Only increment progress if they haven't finished the goal for this specific session
+      setDailyProgress(newProgress);
+
+      if (newProgress === DAILY_GOAL) {
+        updateStreak(); // Only updates DB if today hasn't been recorded yet
+        alert("🎉 Daily Goal Reached! Streak Extended!");
+      }
+    }
 
     if (error) {
       console.error("Failed to update score:", error);
@@ -338,22 +345,32 @@ if (!user) return <Auth />; // Only show Auth if user is explicitly null
 </div>
 
 
-      <div className="w-full max-w-md flex flex-col items-center gap-8">
+      <div className="relative w-full max-w-md flex flex-col items-center gap-8">
         {/* PLACE STREAK UI HERE */}
-  {streak > 1 && (
-  <div className="absolute top-20 inset-x-0 flex justify-center z-10 pointer-events-none">
-    <div className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-red-500 text-white px-5 py-2 rounded-full shadow-xl animate-bounce">
+{/* Session Streak (Burning) */}
+{sessionStreak >= 3 && (
+  <div className="absolute -top-16 inset-x-0 flex justify-center z-50 pointer-events-none">
+    <div className="flex items-center gap-2 bg-white px-5 py-2 rounded-full shadow-xl border border-orange-100 animate-bounce pointer-events-auto">
       <span className="text-xl">🔥</span>
-      <span className="font-black text-sm tracking-widest">{streak} STREAK</span>
+      <span className="font-black text-slate-800 tracking-tight">
+        {sessionStreak} CORRECT IN A ROW
+      </span>
     </div>
   </div>
 )}
 
-{dailyProgress < DAILY_GOAL && (
-    <div className="mt-2 bg-slate-800/80 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-white uppercase tracking-widest">
-      Daily Goal: {dailyProgress} / {DAILY_GOAL}
-    </div>
-  )}
+        {/* Daily Progress Bar */}
+       {dailyProgress < DAILY_GOAL && (<div className="mt-4 flex flex-col items-center">
+            <div className="w-32 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                <div 
+                    className="h-full bg-emerald-500 transition-all duration-500" 
+                    style={{ width: `${Math.min((dailyProgress / DAILY_GOAL) * 100, 100)}%` }}
+                />
+            </div>
+            <p className="text-[9px] font-black text-slate-400 mt-1 uppercase">
+                {dailyProgress >= DAILY_GOAL ? "Goal Reached! ✨" : `Goal: ${dailyProgress}/${DAILY_GOAL} Correct`}
+            </p>
+        </div>)}
 
         {dataLoading || loading ? (
           <div className="w-80 h-96 bg-white rounded-3xl border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse gap-4">
