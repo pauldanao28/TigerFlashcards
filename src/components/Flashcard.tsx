@@ -53,24 +53,26 @@ export default function Flashcard({ card, language, onSwipe }: FlashcardProps) {
 
   // 3. Auto-play Audio on Front
   useEffect(() => {
-    setFlipped(false);
-    const timer = setTimeout(() => {
-      const textToSpeak = language === 'jp' ? card.japanese : card.english;
-      const langCode = language === 'jp' ? 'ja-JP' : 'en-US';
-      if (textToSpeak) speak(textToSpeak, langCode);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [card.id, language]);
+  setFlipped(false);
+  const timer = setTimeout(() => {
+    // Only speak if the front is Japanese
+    if (language === 'jp') {
+      speak(card.japanese, 'ja-JP');
+    }
+  }, 300);
+  return () => clearTimeout(timer);
+}, [card.id, language]);
 
   // 4. Auto-play Audio on Flip
   useEffect(() => {
-    if (flipped) {
-      const textToSpeak = language === 'jp' ? card.english : card.japanese;
-      const langCode = language === 'jp' ? 'en-US' : 'ja-JP';
-      const timer = setTimeout(() => speak(textToSpeak, langCode), 200);
+  if (flipped) {
+    // Only speak if the back is Japanese (which happens in 'en' mode)
+    if (language === 'en') {
+      const timer = setTimeout(() => speak(card.japanese, 'ja-JP'), 200);
       return () => clearTimeout(timer);
     }
-  }, [flipped, card.id, language]);
+  }
+}, [flipped, card.id, language]);
 
   const handleDragEnd = (event: any, info: any) => {
     const swipeThreshold = 100;

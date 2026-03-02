@@ -18,6 +18,80 @@ export default function Home() {
   const [streak, setStreak] = useState(0);
 const [bestStreak, setBestStreak] = useState(0);
 const [user, setUser] = useState<User | null>(null);
+const [dailyProgress, setDailyProgress] = useState(0);
+const DAILY_GOAL = 10; 
+
+// Fetch Profile Data on Load
+useEffect(() => {
+  const fetchProfile = async () => {
+    // 1. Safety Check: If no user, don't even try
+    if (!user?.id) return;
+
+    const { data } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single();
+  
+  if (data) {
+    setStreak(data.streak_count);
+    
+    // CHECK: If the last_review_date is TODAY, 
+    // set progress to 10 so the UI shows the goal is met.
+    const today = new Date().toISOString().split('T')[0];
+    if (data.last_review_date === today) {
+      setDailyProgress(DAILY_GOAL); 
+    }
+  }
+  };
+
+  fetchProfile();
+}, [user?.id]); // Watch for the specific ID to change
+
+
+const updateStreak = async () => {
+  if (!user?.id) return;
+
+  const today = new Date().toISOString().split('T')[0];
+  
+  // 1. Get current profile
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('streak_count, last_review_date')
+    .eq('id', user.id)
+    .single();
+
+  if (error || !profile) return;
+
+  const lastDate = profile.last_review_date;
+  let newStreak = profile.streak_count;
+
+  // 2. Already updated today? Exit.
+  if (lastDate === today) return;
+
+  // 3. Calculate Yesterday
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+  // 4. Increment or Reset
+  if (lastDate === yesterdayStr) {
+    newStreak += 1;
+  } else {
+    newStreak = 1;
+  }
+
+  // 5. Save back to Supabase
+  await supabase
+    .from('profiles')
+    .update({ 
+      streak_count: newStreak, 
+      last_review_date: today 
+    })
+    .eq('id', user.id);
+  
+  setStreak(newStreak);
+};
 
 // 1. Listen for Auth Changes (Keep this as is)
   useEffect(() => {
@@ -104,11 +178,14 @@ useEffect(() => {
 
       // Update Streak Logic
   if (isPass) {
-    const newStreak = streak + 1;
-    setStreak(newStreak);
-    if (newStreak > bestStreak) setBestStreak(newStreak);
-  } else {
-    setStreak(0); // Reset on fail
+    const newProgress = dailyProgress + 1;
+    setDailyProgress(newProgress);
+
+    // If they hit the goal (e.g., 10 correct cards)
+    if (newProgress === DAILY_GOAL) {
+      updateStreak(); 
+      // Optional: trigger confetti here!
+    }
   }
 
     if (error) {
@@ -121,6 +198,17 @@ useEffect(() => {
       c.id === currentCard.id ? { ...c, scores: updatedScores, score: newPercent } : c
     );
     
+    // Update session progress
+  const newProgress = dailyProgress + 1;
+  setDailyProgress(newProgress);
+
+  // If they just hit the goal, update the database streak
+  if (newProgress === DAILY_GOAL) {
+    alert("🎉 Daily Goal Reached! Streak Extended!");
+    updateStreak();
+    // Optional: confetti!
+  }
+
     setCards(updatedCards);
     setCurrentCard(getNextPriorityCard(updatedCards, currentCard.id));
   };
@@ -222,8 +310,8 @@ const onSwipe = (direction: 'left' | 'right') => {
   handleScore(isPass);
 };
 
-  if (!isLoaded) return null;
-if (!user) return <Auth />;
+  if (!isLoaded) return <div>Loading Session...</div>;
+if (!user) return <Auth />; // Only show Auth if user is explicitly null
 
   return (
     <main className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
@@ -260,6 +348,12 @@ if (!user) return <Auth />;
     </div>
   </div>
 )}
+
+{dailyProgress < DAILY_GOAL && (
+    <div className="mt-2 bg-slate-800/80 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-white uppercase tracking-widest">
+      Daily Goal: {dailyProgress} / {DAILY_GOAL}
+    </div>
+  )}
 
         {dataLoading || loading ? (
           <div className="w-80 h-96 bg-white rounded-3xl border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse gap-4">

@@ -15,6 +15,25 @@ const [user, setUser] = useState<User | null>(null);
 // Inside StatsPage component:
 const [searchQuery, setSearchQuery] = useState("");
 const [displayLimit, setDisplayLimit] = useState(50); // Pagination limit
+// 1. Add this state at the top of StatsPage component
+const [streak, setStreak] = useState(0);
+
+// 2. Update the existing useEffect (or add this one)
+useEffect(() => {
+  if (user) {
+    fetchProfile();
+  }
+}, [user]);
+
+const fetchProfile = async () => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('streak_count')
+    .eq('id', user?.id)
+    .single();
+
+  if (data) setStreak(data.streak_count);
+};
 
 useEffect(() => {
     // 1. Get initial user session
@@ -234,6 +253,16 @@ const visibleCards = filteredCards.slice(0, displayLimit);
       <StatCard label="Vocabulary" value={totalCards} color="bg-indigo-500" />
       <StatCard label="Mastered" value={masteredCards} color="bg-emerald-500" />
       <StatCard label="Struggling" value={strugglingCards} color="bg-rose-500" />
+
+      {/* NEW STREAK CARD */}
+  <div className="bg-gradient-to-br from-orange-500 to-red-600 p-6 rounded-3xl shadow-lg flex justify-between items-center text-white">
+    <div>
+      <p className="text-white/70 text-[10px] font-black uppercase tracking-tighter">Current Streak</p>
+      <p className="text-4xl font-black">{streak} Days</p>
+    </div>
+    <span className="text-3xl">🔥</span>
+  </div>
+
   <div className="col-span-2 md:col-span-3 grid grid-cols-3 bg-slate-800 rounded-3xl p-4 text-white">
         <div className="text-center border-r border-slate-700">
           <p className="text-[9px] uppercase font-bold text-slate-400">Total Tries</p>
