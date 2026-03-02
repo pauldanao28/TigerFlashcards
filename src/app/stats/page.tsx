@@ -68,8 +68,16 @@ useEffect(() => {
 
   // --- 2. Update processWords to save to Supabase ---
   const processWords = async (wordList: string[]) => {
-    if (!user) {
-    alert("You must be logged in to add cards!");
+  if (!user) return alert("Please log in");
+
+  // Filter out words already in your local 'cards' state to save AI calls
+  const existingWords = new Set(cards.map(c => c.japanese.toLowerCase()));
+  const wordsToProcess = wordList
+    .map(w => w.trim())
+    .filter(w => w && !existingWords.has(w.toLowerCase()));
+
+  if (wordsToProcess.length === 0) {
+    alert("These words are already in your list!");
     return;
   }
 
@@ -77,29 +85,34 @@ useEffect(() => {
   try {
     const res = await fetch("/api/generate", {
       method: "POST",
-      body: JSON.stringify({ words: wordList }), 
+      body: JSON.stringify({ words: wordsToProcess }), 
     });
 
     const items = await res.json();
-    
-    // Ensure items is always an array
     const dataToInsert = (Array.isArray(items) ? items : [items]).map((item) => ({
       ...item,
       user_id: user.id,
-      score: 0,
+      // Default scores for new/updated cards
       scores: {
         jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
         en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 }
       },
     }));
 
-    const { error } = await supabase.from('flashcards').insert(dataToInsert);
+    // USE UPSERT: This prevents the 'Unique Constraint' error from breaking the app
+    const { error } = await supabase
+      .from('flashcards')
+      .upsert(dataToInsert, { 
+        onConflict: 'user_id, japanese', // Tells SQL what defines a "duplicate"
+        ignoreDuplicates: false          // Set to true if you DON'T want to overwrite stats
+      });
     
-    if (error) throw error; // This will now work if you did Step 1!
+    if (error) throw error;
 
     fetchCards();
+    setInput("");
+    setBatchInput("");
   } catch (e: any) {
-    console.error("Insert failed:", e.message);
     alert(`Error: ${e.message}`);
   } finally {
     setLoading(false);

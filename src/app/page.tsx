@@ -253,11 +253,13 @@ if (!user) return <Auth />;
       <div className="w-full max-w-md flex flex-col items-center gap-8">
         {/* PLACE STREAK UI HERE */}
   {streak > 1 && (
-    <div className="flex items-center gap-2 bg-orange-500 text-white px-4 py-1.5 rounded-full shadow-lg animate-bounce mt-12 md:mt-0">
+  <div className="absolute top-20 inset-x-0 flex justify-center z-10 pointer-events-none">
+    <div className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-red-500 text-white px-5 py-2 rounded-full shadow-xl animate-bounce">
       <span className="text-xl">🔥</span>
-      <span className="font-black text-sm tracking-tighter">{streak} STREAK</span>
+      <span className="font-black text-sm tracking-widest">{streak} STREAK</span>
     </div>
-  )}
+  </div>
+)}
 
         {dataLoading || loading ? (
           <div className="w-80 h-96 bg-white rounded-3xl border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse gap-4">

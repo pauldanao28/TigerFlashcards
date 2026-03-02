@@ -15,45 +15,73 @@ const triggerHaptic = (ms = 10) => {
   }
 };
 
+const speak = (text: string, langCode: 'ja-JP' | 'en-US') => {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = langCode;
+  utterance.rate = 0.9;
+  window.speechSynthesis.speak(utterance);
+};
+
 export default function Flashcard({ card, language, onSwipe }: FlashcardProps) {
   const [flipped, setFlipped] = useState(false);
-const [hasVibrated, setHasVibrated] = useState(false);
+  const [hasVibrated, setHasVibrated] = useState(false);
 
   // 1. Setup Motion Values for Swipe
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-25, 25]);
   const opacity = useTransform(x, [-200, -150, 0, 150, 200], [0, 1, 1, 1, 0]);
 
-  // NEW: Create separate transforms for the glows so they don't flip with the card
+  // Pass/Fail Glow transforms
   const passOpacity = useTransform(x, [20, 120], [0, 1]);
   const failOpacity = useTransform(x, [-20, -120], [0, 1]);
 
-  // 2. Monitor 'x' to trigger haptics when threshold is hit
+  // 2. Monitor 'x' for Haptics
   useEffect(() => {
-    return x.onChange((latestX) => {
+    const unsubscribe = x.on("change", (latestX) => {
       const threshold = 100;
       if (Math.abs(latestX) > threshold && !hasVibrated) {
-        triggerHaptic(15); // Short, sharp pulse
+        triggerHaptic(15);
         setHasVibrated(true);
       } else if (Math.abs(latestX) < threshold && hasVibrated) {
-        setHasVibrated(false); // Reset when they pull back
+        setHasVibrated(false);
       }
     });
+    return () => unsubscribe();
   }, [x, hasVibrated]);
+
+  // 3. Auto-play Audio on Front
+  useEffect(() => {
+    setFlipped(false);
+    const timer = setTimeout(() => {
+      const textToSpeak = language === 'jp' ? card.japanese : card.english;
+      const langCode = language === 'jp' ? 'ja-JP' : 'en-US';
+      if (textToSpeak) speak(textToSpeak, langCode);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [card.id, language]);
+
+  // 4. Auto-play Audio on Flip
+  useEffect(() => {
+    if (flipped) {
+      const textToSpeak = language === 'jp' ? card.english : card.japanese;
+      const langCode = language === 'jp' ? 'en-US' : 'ja-JP';
+      const timer = setTimeout(() => speak(textToSpeak, langCode), 200);
+      return () => clearTimeout(timer);
+    }
+  }, [flipped, card.id, language]);
 
   const handleDragEnd = (event: any, info: any) => {
     const swipeThreshold = 100;
-    // Use info.offset.x for the actual drag distance
     if (info.offset.x > swipeThreshold) {
       onSwipe?.('right');
     } else if (info.offset.x < -swipeThreshold) {
       onSwipe?.('left');
     }
-
-    setHasVibrated(false); // Ensure reset for next card
+    setHasVibrated(false);
   };
-  
-  // Helper to determine font size based on text length
+
   const getFontSize = (text: string, isJapanese: boolean) => {
     const len = text.length;
     if (isJapanese) {
@@ -67,32 +95,9 @@ const [hasVibrated, setHasVibrated] = useState(false);
     }
   };
 
-  const speak = (text: string) => {
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'ja-JP';
-    utterance.rate = 0.9;
-    window.speechSynthesis.speak(utterance);
-  };
-
-useEffect(() => {
-  setFlipped(false);
-  
-  // Optional: 300ms delay so audio plays when the new card is centered
-  const timer = setTimeout(() => {
-    if (card?.japanese) speak(card.japanese);
-  }, 300);
-
-  return () => clearTimeout(timer); // Clean up if the user swipes super fast
-}, [card.id]);
-
-  useEffect(() => {
-    if (flipped && card?.japanese) speak(card.japanese);
-  }, [flipped, card.japanese]);
-
-  const handlePlayAudio = (e: React.MouseEvent, text: string) => {
+  const handlePlayAudio = (e: React.MouseEvent, text: string, lang: 'ja-JP' | 'en-US') => {
     e.stopPropagation();
-    speak(text);
+    speak(text, lang);
   };
 
   const frontText = language === 'jp' ? card.japanese : card.english;
@@ -100,16 +105,16 @@ useEffect(() => {
 
   return (
     <div className="w-80 h-96 [perspective:1000px] touch-none">
+      {/* DRAG WRAPPER */}
       <motion.div
         style={{ x, rotate, opacity }}
         drag="x"
         dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.7}
         onDragEnd={handleDragEnd}
         className="relative w-full h-full cursor-grab active:cursor-grabbing"
       >
-        {/* GLOWS: Placed here, they move with the drag 
-            but do NOT rotate when the card flips.
-        */}
+        {/* INDICATORS (Outside flipping div so they stay oriented correctly) */}
         <motion.div 
           style={{ opacity: passOpacity }}
           className="absolute inset-0 z-50 pointer-events-none rounded-3xl border-8 border-green-500 bg-green-500/10 flex items-center justify-center"
@@ -124,73 +129,71 @@ useEffect(() => {
           <span className="text-red-500 text-5xl font-black rotate-[12deg]">FAIL</span>
         </motion.div>
 
-        {/* FLIPPING CONTAINER: Only handles the 3D flip 
-        */}
+        {/* FLIP CONTAINER */}
         <motion.div
           animate={{ rotateY: flipped ? 180 : 0 }}
           transition={{ duration: 0.6, type: "spring", stiffness: 260, damping: 20 }}
           onClick={() => setFlipped(!flipped)}
           className="relative w-full h-full [transform-style:preserve-3d]"
         >
-          <motion.div
-  drag="x"
-  dragConstraints={{ left: 0, right: 0 }}
-  dragElastic={0.7} // Makes it harder to pull the further it goes
-  onDragEnd={handleDragEnd}
-  // ...
-/>
-        {/* FRONT SIDE */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white rounded-3xl border-4 border-white shadow-2xl [backface-visibility:hidden] p-6 text-center">
-          <span className={`font-black text-slate-800 leading-tight mb-8 transition-all ${getFontSize(frontText, language === 'jp')}`}>
-            {frontText}
-          </span>
-          
-          <button 
-            onClick={(e) => handlePlayAudio(e, card.japanese)} 
-            className="p-3 bg-slate-100 rounded-full hover:bg-indigo-100 transition active:scale-95"
-          >
-            🔊
-          </button>
-        </div>
-
-        {/* BACK SIDE */}
-        <div className="absolute inset-0 flex flex-col bg-indigo-600 text-white rounded-3xl shadow-2xl [transform:rotateY(180deg)] [backface-visibility:hidden] p-8 text-center">
-          
-          {/* Part of Speech Badge */}
-          {card.partOfSpeech && (
-            <div className="absolute top-4 right-4">
-              <span className="px-3 py-1 bg-white/20 rounded-full text-xs font-bold uppercase tracking-widest border border-white/10">
-                {card.partOfSpeech}
-              </span>
-            </div>
-          )}
-
-          {/* Content Area (Centered) */}
-          <div className="flex-1 flex flex-col items-center justify-center">
-            {language === 'jp' && (
-              <p className="text-indigo-200 text-xl mb-2 font-medium tracking-wide">{card.reading}</p>
-            )}
-            <h2 className={`font-bold leading-tight transition-all ${getFontSize(backText, language !== 'jp')}`}>
-              {backText}
-            </h2>
-          </div>
-
-          {/* Footer Area (Example + Sound) */}
-          <div className="mt-auto pt-4 border-t border-indigo-400/50">
-            {card.exampleSentence && (
-              <p className="text-sm italic text-indigo-100 opacity-90 mb-4 line-clamp-3">
-                "{card.exampleSentence.jp}"
-              </p>
-            )}
+          {/* FRONT SIDE */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white rounded-3xl border-4 border-white shadow-2xl [backface-visibility:hidden] p-6 text-center">
+            <span className={`font-black text-slate-800 leading-tight mb-8 transition-all ${getFontSize(frontText, language === 'jp')}`}>
+              {frontText}
+            </span>
             <button 
-              onClick={(e) => handlePlayAudio(e, card.japanese)}
-              className="p-3 bg-white/10 hover:bg-white/20 rounded-full transition-all border border-white/20 active:scale-95"
+              onClick={(e) => handlePlayAudio(e, frontText, language === 'jp' ? 'ja-JP' : 'en-US')} 
+              className="p-3 bg-slate-100 rounded-full hover:bg-indigo-100 transition active:scale-95"
             >
               🔊
             </button>
           </div>
-        </div>
-      </motion.div>
+
+          {/* BACK SIDE */}
+<div className="absolute inset-0 flex flex-col bg-indigo-600 text-white rounded-3xl shadow-2xl [transform:rotateY(180deg)] [backface-visibility:hidden] p-8 text-center">
+  
+  {/* Part of Speech Badge */}
+  {card.partOfSpeech && (
+    <div className="absolute top-4 right-4">
+      <span className="px-3 py-1 bg-white/20 rounded-full text-xs font-bold uppercase tracking-widest border border-white/10">
+        {card.partOfSpeech}
+      </span>
+    </div>
+  )}
+
+  {/* Content Area (Centered) */}
+  <div className="flex-1 flex flex-col items-center justify-center">
+    {/* FIX: If the back text is Japanese (which happens in 'en' mode), 
+       or if we are in 'jp' mode, show the reading.
+    */}
+    {(language === 'en' || language === 'jp') && card.reading && (
+      <p className="text-indigo-200 text-xl mb-2 font-medium tracking-wide">
+        {/* We only show reading if the card is showing Japanese on this side */}
+        {backText === card.japanese ? card.reading : ""}
+      </p>
+    )}
+    
+    <h2 className={`font-bold leading-tight transition-all ${getFontSize(backText, backText === card.japanese)}`}>
+      {backText}
+    </h2>
+  </div>
+
+  {/* Footer Area */}
+  <div className="mt-auto pt-4 border-t border-indigo-400/50">
+    {card.exampleSentence && (
+      <p className="text-sm italic text-indigo-100 opacity-90 mb-4 line-clamp-3">
+        "{card.exampleSentence.jp}"
+      </p>
+    )}
+    <button 
+      onClick={(e) => handlePlayAudio(e, backText, backText === card.japanese ? 'ja-JP' : 'en-US')}
+      className="p-3 bg-white/10 hover:bg-white/20 rounded-full transition-all border border-white/20 active:scale-95"
+    >
+      🔊
+    </button>
+  </div>
+</div>
+        </motion.div>
       </motion.div>
     </div>
   );
