@@ -15,12 +15,13 @@ const triggerHaptic = (ms = 10) => {
   }
 };
 
-const speak = (text: string, langCode: 'ja-JP' | 'en-US') => {
-  if (typeof window === 'undefined' || !window.speechSynthesis) return;
+const speak = (text: string, lang: 'ja-JP') => {
+  // Cancel any ongoing speech to prevent overlapping
   window.speechSynthesis.cancel();
+  
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = langCode;
-  utterance.rate = 0.9;
+  utterance.lang = lang;
+  utterance.rate = 0.9; // Slightly slower for better learning
   window.speechSynthesis.speak(utterance);
 };
 
@@ -53,23 +54,22 @@ export default function Flashcard({ card, language, onSwipe }: FlashcardProps) {
 
   // 3. Auto-play Audio on Front
   useEffect(() => {
-  setFlipped(false);
-  const timer = setTimeout(() => {
-    // Only speak if the front is Japanese
-    if (language === 'jp') {
+  // If we are in 'jp' mode, the front is Japanese. Play it!
+  if (language === 'jp') {
+    const timer = setTimeout(() => {
       speak(card.japanese, 'ja-JP');
-    }
-  }, 300);
-  return () => clearTimeout(timer);
+    }, 100); // Tiny delay to ensure component is ready
+    return () => clearTimeout(timer);
+  }
 }, [card.id, language]);
 
   // 4. Auto-play Audio on Flip
   useEffect(() => {
   if (flipped) {
-    // Only speak if the back is Japanese (which happens in 'en' mode)
+    // If we are in 'en' mode, the front was English, but the back is Japanese.
+    // We only want to hear Japanese.
     if (language === 'en') {
-      const timer = setTimeout(() => speak(card.japanese, 'ja-JP'), 200);
-      return () => clearTimeout(timer);
+      speak(card.japanese, 'ja-JP');
     }
   }
 }, [flipped, card.id, language]);
