@@ -15,14 +15,14 @@ const triggerHaptic = (ms = 10) => {
   }
 };
 
-const speak = (text: string, lang: 'ja-JP') => {
-  // Cancel any ongoing speech to prevent overlapping
-  window.speechSynthesis.cancel();
-  
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = lang;
-  utterance.rate = 0.9; // Slightly slower for better learning
-  window.speechSynthesis.speak(utterance);
+const speak = (text: string, lang: 'ja-JP' | 'en-US') => {
+  if (typeof window !== 'undefined' && window.speechSynthesis) {
+    window.speechSynthesis.cancel(); 
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = lang;
+    utterance.rate = 0.9;
+    window.speechSynthesis.speak(utterance);
+  }
 };
 
 export default function Flashcard({ card, language, onSwipe }: FlashcardProps) {
@@ -97,10 +97,10 @@ export default function Flashcard({ card, language, onSwipe }: FlashcardProps) {
     }
   };
 
-  const handlePlayAudio = (e: React.MouseEvent, text: string, lang: 'ja-JP' | 'en-US') => {
-    e.stopPropagation();
-    speak(text, lang);
-  };
+ const handlePlayAudio = (e: React.MouseEvent, text: string, lang: 'ja-JP' | 'en-US') => {
+  e.stopPropagation();
+  speak(text, lang);
+};
 
   const frontText = language === 'jp' ? card.japanese : card.english;
   const backText = language === 'jp' ? card.english : card.japanese;
@@ -144,7 +144,7 @@ export default function Flashcard({ card, language, onSwipe }: FlashcardProps) {
               {frontText}
             </span>
             <button 
-              onClick={(e) => handlePlayAudio(e, frontText, language === 'jp' ? 'ja-JP' : 'en-US')} 
+              onClick={(e) => handlePlayAudio(e, frontText, language === 'jp' ? 'ja-JP' : 'en-US')}
               className="p-3 bg-slate-100 rounded-full hover:bg-indigo-100 transition active:scale-95"
             >
               🔊
@@ -187,7 +187,7 @@ export default function Flashcard({ card, language, onSwipe }: FlashcardProps) {
       </p>
     )}
     <button 
-      onClick={(e) => handlePlayAudio(e, backText, backText === card.japanese ? 'ja-JP' : 'en-US')}
+      onClick={(e) => handlePlayAudio(e, card.japanese, 'ja-JP')}
       className="p-3 bg-white/10 hover:bg-white/20 rounded-full transition-all border border-white/20 active:scale-95"
     >
       🔊
