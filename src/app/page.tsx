@@ -204,17 +204,6 @@ useEffect(() => {
     const updatedCards = cards.map(c => 
       c.id === currentCard.id ? { ...c, scores: updatedScores, score: newPercent } : c
     );
-    
-    // Update session progress
-  const newProgress = dailyProgress + 1;
-  setDailyProgress(newProgress);
-
-  // If they just hit the goal, update the database streak
-  if (newProgress === DAILY_GOAL) {
-    alert("🎉 Daily Goal Reached! Streak Extended!");
-    updateStreak();
-    // Optional: confetti!
-  }
 
     setCards(updatedCards);
     setCurrentCard(getNextPriorityCard(updatedCards, currentCard.id));
