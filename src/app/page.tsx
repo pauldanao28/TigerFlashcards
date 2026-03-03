@@ -334,40 +334,52 @@ if (!user) return <Auth />; // Only show Auth if user is explicitly null
 </div>
 
 
-      <div className="relative w-full max-w-md flex flex-col items-center gap-8">
-        {/* PLACE STREAK UI HERE */}
-{/* Session Streak (Burning) */}
-{sessionStreak >= 3 && (
-  <div className="absolute -top-16 inset-x-0 flex justify-center z-50 pointer-events-none">
-    <div className="flex items-center gap-2 bg-white px-5 py-2 rounded-full shadow-xl border border-orange-100 animate-bounce pointer-events-auto">
-      <span className="text-xl">🔥</span>
-      <span className="font-black text-slate-800 tracking-tight">
-        {sessionStreak} CORRECT IN A ROW
-      </span>
-    </div>
-  </div>
-)}
-
-        {/* Daily Progress Bar */}
-       {dailyProgress < DAILY_GOAL && (<div className="mt-4 flex flex-col items-center">
-            <div className="w-32 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                <div 
-                    className="h-full bg-emerald-500 transition-all duration-500" 
-                    style={{ width: `${Math.min((dailyProgress / DAILY_GOAL) * 100, 100)}%` }}
-                />
+      <div className="relative w-full max-w-md flex flex-col items-center">
+        
+        {/* 2. DYNAMIC HUD AREA (Reserved space so cards don't jump) */}
+        <div className="w-full h-24 flex flex-col items-center justify-center relative mb-4">
+          
+          {/* Session Streak: Absolute but positioned to not cover buttons */}
+          {sessionStreak >= 3 && (
+            <div className="absolute top-0 flex items-center gap-2 bg-white px-5 py-2 rounded-full shadow-xl border border-orange-100 animate-bounce pointer-events-auto z-40">
+              <span className="text-xl">🔥</span>
+              <span className="font-black text-slate-800 tracking-tight text-sm">
+                {sessionStreak} IN A ROW
+              </span>
             </div>
-            <p className="text-[9px] font-black text-slate-400 mt-1 uppercase">
-                {dailyProgress >= DAILY_GOAL ? "Goal Reached! ✨" : `Goal: ${dailyProgress}/${DAILY_GOAL} Correct`}
-            </p>
-        </div>)}
+          )}
+
+          {/* Daily Progress: Sits below the Streak */}
+          <div className="mt-auto pb-2">
+            {dailyProgress < DAILY_GOAL ? (
+              <div className="flex flex-col items-center gap-1">
+                <div className="w-32 h-1.5 bg-slate-200 rounded-full overflow-hidden shadow-inner">
+                  <div 
+                    className="h-full bg-emerald-500 transition-all duration-500" 
+                    style={{ width: `${(dailyProgress / DAILY_GOAL) * 100}%` }}
+                  />
+                </div>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                  Goal: {dailyProgress}/{DAILY_GOAL}
+                </p>
+              </div>
+            ) : (
+              <div className="bg-emerald-100 border border-emerald-200 px-4 py-1 rounded-full animate-pulse">
+                <p className="text-[10px] font-black text-emerald-700 uppercase tracking-tighter">
+                  ✨ Daily Goal Met
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
 
         {dataLoading || loading ? (
           <div className="w-80 h-96 bg-white rounded-3xl border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse gap-4">
-      <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-      <p className="text-slate-400 font-bold">Loading your deck...</p>
+            <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-slate-400 font-bold">Generating card...</p>
     </div>
         ) : currentCard ? (
-          <div className="flex flex-col items-center gap-4">
+          <div className="flex flex-col items-center gap-6">
              {/* Show the bucket/percentage for debugging/insight */}
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
               {language === 'jp' ? '🇯🇵 → 🇺🇸' : '🇺🇸 → 🇯🇵'} Mode | 
@@ -386,7 +398,7 @@ if (!user) return <Auth />; // Only show Auth if user is explicitly null
     </div>
         )}
 
-        <div className="flex gap-4 w-full">
+        <div className="flex gap-4 w-full py-4">
           <button onClick={() => handleScore(false)} className="flex-1 py-4 bg-rose-100 text-rose-700 rounded-2xl font-bold border-b-4 border-rose-300 active:border-b-0 active:translate-y-1">✕ Fail</button>
           <button onClick={() => handleScore(true)} className="flex-1 py-4 bg-emerald-500 text-white rounded-2xl font-bold border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1">✓ Pass</button>
         </div>
