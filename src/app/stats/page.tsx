@@ -107,28 +107,48 @@ useEffect(() => {
       body: JSON.stringify({ words: wordsToProcess }), 
     });
 
-    const items = await res.json();
-    const dataToInsert = (Array.isArray(items) ? items : [items]).map((item) => ({
-      japanese: String(item.japanese || "").trim(),
-      reading: String(item.reading || "").trim(),
-      english: String(item.english || "").trim(),
-      partOfSpeech: String(item.partOfSpeech || "").trim(),
-      exampleSentence: item.exampleSentence || { jp: "", en: "" },
-      user_id: user.id,
-      // Default scores for new/updated cards
-      scores: {
-        jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
-        en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 }
-      },
-    }));
+    // CHECK FOR QUOTA ERROR FIRST
+  if (res.status === 429) {
+    throw new Error("AI Limit Reached: Please wait about 30 seconds and try again.");
+  }
 
-    // USE UPSERT: This prevents the 'Unique Constraint' error from breaking the app
-    const { error } = await supabase
-      .from('flashcards')
-      .upsert(dataToInsert, { 
-        onConflict: 'user_id, japanese', // Tells SQL what defines a "duplicate"
-        ignoreDuplicates: false          // Set to true if you DON'T want to overwrite stats
-      });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || "Failed to generate cards.");
+  }
+  
+    const items = await res.json();
+   const dataToInsert = (Array.isArray(items) ? items : [items]).map((item) => {
+  if (!item.japanese) throw new Error("AI missed a Japanese word.");
+
+  return {
+    // String Columns
+    japanese: String(item.japanese).trim(),
+    reading: String(item.reading || "").trim(),
+    english: String(item.english || "").trim(),
+    partOfSpeech: String(item.partOfSpeech || "noun").trim().toLowerCase(),
+    
+    // UUID Column (The Pattern Culprit)
+    user_id: String(user.id), 
+
+    // JSONB Columns
+    exampleSentence: item.exampleSentence || { jp: "", en: "" },
+    scores: {
+      jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
+      en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 }
+    },
+
+    // Numeric Column (Integer/SmallInt pattern)
+    score: 0 
+  };
+});
+
+// Use the EXACT column names in onConflict
+const { error } = await supabase
+  .from('flashcards')
+  .upsert(dataToInsert, { 
+    onConflict: 'user_id,japanese' // No spaces after the comma
+  });
     
     if (error) throw error;
 
