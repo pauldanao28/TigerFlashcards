@@ -109,7 +109,11 @@ useEffect(() => {
 
     const items = await res.json();
     const dataToInsert = (Array.isArray(items) ? items : [items]).map((item) => ({
-      ...item,
+      japanese: String(item.japanese || "").trim(),
+      reading: String(item.reading || "").trim(),
+      english: String(item.english || "").trim(),
+      partOfSpeech: String(item.partOfSpeech || "").trim(),
+      exampleSentence: item.exampleSentence || { jp: "", en: "" },
       user_id: user.id,
       // Default scores for new/updated cards
       scores: {
@@ -182,6 +186,14 @@ const filteredCards = useMemo(() => {
 }, [cards, searchQuery]);
 
 const visibleCards = filteredCards.slice(0, displayLimit);
+
+const getPosColor = (pos: string) => {
+  const p = pos?.toLowerCase() || '';
+  if (p.includes('noun')) return 'bg-blue-100 text-blue-700 border-blue-200';
+  if (p.includes('verb')) return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+  if (p.includes('adj')) return 'bg-amber-100 text-amber-700 border-amber-200';
+  return 'bg-slate-100 text-slate-600 border-slate-200';
+};
 
   return (
     <main className="min-h-screen bg-slate-50 p-8">
@@ -307,6 +319,11 @@ const visibleCards = filteredCards.slice(0, displayLimit);
           
           <div className="mb-4">
             <div className="text-2xl font-black text-slate-800">{card.japanese}</div>
+            {card.partOfSpeech && (
+        <span className={`text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(card.partOfSpeech)}`}>
+          {card.partOfSpeech}
+        </span>
+      )}
             <div className="text-sm font-bold text-indigo-500">{card.reading}</div>
             <div className="text-slate-600 mt-1">{card.english}</div>
           </div>
@@ -354,6 +371,11 @@ const visibleCards = filteredCards.slice(0, displayLimit);
                 <tr key={card.id} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="font-bold text-lg text-slate-800">{card.japanese}</div>
+                    {card.partOfSpeech && (
+        <span className={`text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(card.partOfSpeech)}`}>
+          {card.partOfSpeech}
+        </span>
+      )}
                     <div className="text-xs text-indigo-500 font-medium">{card.reading}</div>
                   </td>
                   <td className="px-6 py-4 text-slate-600 font-medium">{card.english}</td>
