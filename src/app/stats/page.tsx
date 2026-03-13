@@ -295,20 +295,30 @@ const getPosColor = (pos: string) => {
     <span className="text-3xl">🔥</span>
   </div>
 
-  <div className="col-span-2 md:col-span-3 grid grid-cols-3 bg-slate-800 rounded-3xl p-4 text-white">
-        <div className="text-center border-r border-slate-700">
-          <p className="text-[9px] uppercase font-bold text-slate-400">Total Tries</p>
-          <p className="text-xl font-black">{globalStats.tries}</p>
-        </div>
-        <div className="text-center border-r border-slate-700">
-          <p className="text-[9px] uppercase font-bold text-emerald-400">Pass</p>
-          <p className="text-xl font-black">{globalStats.pass}</p>
-        </div>
-        <div className="text-center">
-          <p className="text-[9px] uppercase font-bold text-rose-400">Fail</p>
-          <p className="text-xl font-black">{globalStats.fail}</p>
-        </div>
-      </div>
+  <div className="col-span-2 md:col-span-3 grid grid-cols-4 bg-slate-800 rounded-3xl p-4 text-white">
+  <div className="text-center border-r border-slate-700">
+    <p className="text-[9px] uppercase font-bold text-slate-400">Total Tries</p>
+    <p className="text-xl font-black">{globalStats.tries}</p>
+  </div>
+  
+  {/* NEW: Percentage Column */}
+  <div className="text-center border-r border-slate-700">
+    <p className="text-[9px] uppercase font-bold text-indigo-400">Accuracy</p>
+    <p className="text-xl font-black">
+      {globalStats.tries > 0 ? Math.round((globalStats.pass / globalStats.tries) * 100) : 0}%
+    </p>
+  </div>
+
+  <div className="text-center border-r border-slate-700">
+    <p className="text-[9px] uppercase font-bold text-emerald-400">Pass</p>
+    <p className="text-xl font-black">{globalStats.pass}</p>
+  </div>
+  
+  <div className="text-center">
+    <p className="text-[9px] uppercase font-bold text-rose-400">Fail</p>
+    <p className="text-xl font-black">{globalStats.fail}</p>
+  </div>
+</div>
 </div>
 
 {/* --- SEARCH BAR (Placed above lists) --- */}
