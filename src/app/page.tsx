@@ -309,69 +309,67 @@ const onSwipe = (direction: 'left' | 'right') => {
   if (!isLoaded) return <div>Loading Session...</div>;
 if (!user) return <Auth />; // Only show Auth if user is explicitly null
 
-  return (
-    <main className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-      <div className="fixed top-6 left-4 right-4 z-50 pointer-events-none 
-                flex flex-row items-center justify-between
-                md:flex-col md:items-end md:gap-2 md:top-8 md:right-8 md:left-auto">
-  
-  {/* Language Toggle: Left on Mobile, Bottom on Desktop */}
-  <div className="pointer-events-auto order-1 md:order-2">
-    <div className="scale-90 origin-left md:origin-right h-10 flex items-center">
-      <LanguageToggle language={language} setLanguage={setLanguage} />
+return (
+  <main className="min-h-screen bg-slate-50 flex flex-col items-center p-4 overflow-hidden">
+    
+    {/* 1. FIXED TOP NAV - Standard spacing */}
+    <div className="fixed top-5 left-0 w-full px-4 z-50 pointer-events-none flex items-center justify-between transform-gpu
+                md:top-8 md:px-8 md:justify-end md:gap-4">
+      <div className="pointer-events-auto">
+        <div className="scale-90 origin-left h-10 flex items-center">
+          <LanguageToggle language={language} setLanguage={setLanguage} />
+        </div>
+      </div>
+      <div className="pointer-events-auto">
+        <Link 
+          href="/stats" 
+          className="bg-white px-4 py-2 rounded-full shadow-sm font-bold text-slate-600 hover:text-indigo-600 transition-all border border-slate-100 flex items-center gap-2 h-10"
+        >
+          📊 Stats
+        </Link>
+      </div>
     </div>
-  </div>
 
-  {/* Stats Button: Right on Mobile, Top on Desktop */}
-  <div className="pointer-events-auto order-2 md:order-1">
-    <Link 
-      href="/stats" 
-      className="bg-white px-4 py-2 rounded-full shadow-sm font-bold text-slate-600 hover:text-indigo-600 transition-all border border-slate-100 flex items-center gap-2 whitespace-nowrap h-10"
-    >
-      📊 View Stats
-    </Link>
-  </div>
-</div>
-
-
-      <div className="relative w-full max-w-md flex flex-col items-center">
+    {/* 2. MAIN CONTENT AREA - "Middle ground" spacing */}
+    <div className="relative w-full max-w-md flex flex-col items-center mt-6">
+      
+      {/* 3. HUD AREA - Reduced from 24 to 20 for a cleaner look */}
+      <div className="w-full h-20 flex flex-col items-center justify-end relative mb-3">
         
-        {/* 2. DYNAMIC HUD AREA (Reserved space so cards don't jump) */}
-        <div className="w-full h-24 flex flex-col items-center justify-center relative mb-4">
-          
-          {/* Session Streak: Absolute but positioned to not cover buttons */}
-          {sessionStreak >= 3 && (
-            <div className="absolute top-0 flex items-center gap-2 bg-white px-5 py-2 rounded-full shadow-xl border border-orange-100 animate-bounce pointer-events-auto z-40">
-              <span className="text-xl">🔥</span>
-              <span className="font-black text-slate-800 tracking-tight text-sm">
-                {sessionStreak} IN A ROW
-              </span>
+        {/* Session Streak */}
+        {sessionStreak >= 3 && (
+          <div className="absolute top-0 flex items-center gap-2 bg-white px-5 py-2 rounded-full shadow-xl border border-orange-100 animate-bounce z-40">
+            <span className="text-xl">🔥</span>
+            <span className="font-black text-slate-800 tracking-tight text-sm uppercase">
+              {sessionStreak} IN A ROW
+            </span>
+          </div>
+        )}
+
+        {/* Daily Progress */}
+        <div className="pb-1">
+          {dailyProgress < DAILY_GOAL ? (
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-32 h-1.5 bg-slate-200 rounded-full overflow-hidden shadow-inner">
+                <div 
+                  className="h-full bg-emerald-500 transition-all duration-500" 
+                  style={{ width: `${(dailyProgress / DAILY_GOAL) * 100}%` }}
+                />
+              </div>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                Goal: {dailyProgress}/{DAILY_GOAL}
+              </p>
+            </div>
+          ) : (
+            <div className="bg-emerald-100 border border-emerald-200 px-4 py-1 rounded-full">
+              <p className="text-[10px] font-black text-emerald-700 uppercase">
+                ✨ Daily Goal Met
+              </p>
             </div>
           )}
-
-          {/* Daily Progress: Sits below the Streak */}
-          <div className="mt-auto pb-2">
-            {dailyProgress < DAILY_GOAL ? (
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-32 h-1.5 bg-slate-200 rounded-full overflow-hidden shadow-inner">
-                  <div 
-                    className="h-full bg-emerald-500 transition-all duration-500" 
-                    style={{ width: `${(dailyProgress / DAILY_GOAL) * 100}%` }}
-                  />
-                </div>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                  Goal: {dailyProgress}/{DAILY_GOAL}
-                </p>
-              </div>
-            ) : (
-              <div className="bg-emerald-100 border border-emerald-200 px-4 py-1 rounded-full animate-pulse">
-                <p className="text-[10px] font-black text-emerald-700 uppercase tracking-tighter">
-                  ✨ Daily Goal Met
-                </p>
-              </div>
-            )}
-          </div>
         </div>
+      </div>
+
 
         {dataLoading || loading ? (
           <div className="w-80 h-96 bg-white rounded-3xl border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse gap-4">
