@@ -312,7 +312,7 @@ if (!user) return <Auth />; // Only show Auth if user is explicitly null
 return (
   <main className="min-h-screen bg-slate-50 flex flex-col items-center p-4 overflow-hidden">
     
-    {/* 1. FIXED TOP NAV - Standard spacing */}
+    {/* 1. FIXED TOP NAV */}
     <div className="fixed top-5 left-0 w-full px-4 z-50 pointer-events-none flex items-center justify-between transform-gpu
                 md:top-8 md:px-8 md:justify-end md:gap-4">
       <div className="pointer-events-auto">
@@ -323,22 +323,22 @@ return (
       <div className="pointer-events-auto">
         <Link 
           href="/stats" 
-          className="bg-white px-4 py-2 rounded-full shadow-sm font-bold text-slate-600 hover:text-indigo-600 transition-all border border-slate-100 flex items-center gap-2 h-10"
+          className="bg-white px-4 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-100 flex items-center gap-2 h-10"
         >
           📊 Stats
         </Link>
       </div>
     </div>
 
-    {/* 2. MAIN CONTENT AREA - "Middle ground" spacing */}
-    <div className="relative w-full max-w-md flex flex-col items-center mt-6">
+    {/* 2. MAIN CONTENT AREA - Increased to mt-14 for maximum clearance */}
+    <div className="relative w-full max-w-md flex flex-col items-center mt-14">
       
-      {/* 3. HUD AREA - Reduced from 24 to 20 for a cleaner look */}
+      {/* 3. HUD AREA - Height remains 20 to keep the progress bar near the card */}
       <div className="w-full h-20 flex flex-col items-center justify-end relative mb-3">
         
-        {/* Session Streak */}
+        {/* Session Streak - top-4 gives it even more breathing room from the header */}
         {sessionStreak >= 3 && (
-          <div className="absolute top-0 flex items-center gap-2 bg-white px-5 py-2 rounded-full shadow-xl border border-orange-100 animate-bounce z-40">
+          <div className="absolute top-4 flex items-center gap-2 bg-white px-5 py-2 rounded-full shadow-xl border border-orange-100 animate-bounce z-40">
             <span className="text-xl">🔥</span>
             <span className="font-black text-slate-800 tracking-tight text-sm uppercase">
               {sessionStreak} IN A ROW
@@ -346,7 +346,7 @@ return (
           </div>
         )}
 
-        {/* Daily Progress */}
+        {/* Daily Progress Bar */}
         <div className="pb-1">
           {dailyProgress < DAILY_GOAL ? (
             <div className="flex flex-col items-center gap-1">
