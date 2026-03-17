@@ -12,6 +12,12 @@ export default function StatsPage() {
   const [showBatch, setShowBatch] = useState(false);
   const [loading, setLoading] = useState(false);
 const [user, setUser] = useState<User | null>(null);
+
+const BLOCKLIST = [
+  '私', '僕', '俺', '君', 'あなた', 'これ', 'それ', 'あれ', 'どの',
+  'です', 'ます', 'した', 'から', 'まで', 'の', 'に', 'は', 'を', 'が', 'と', 'も', 'だ', 'な'
+];
+
 // Inside StatsPage component:
 const [searchQuery, setSearchQuery] = useState("");
 const [displayLimit, setDisplayLimit] = useState(50); // Pagination limit
@@ -86,7 +92,76 @@ useEffect(() => {
   };
 
   // --- 2. Update processWords to save to Supabase ---
-  const processWords = async (wordList: string[]) => {
+  const processWords = async (inputList: string[]) => {
+  if (!user) return alert("Please log in");
+
+  let wordsToProcess: string[] = [];
+  const rawInput = inputList.join('\n');
+
+  // Logic for identifying words (List vs Lyric mode)
+  if (rawInput.includes(',') || rawInput.includes('-')) {
+    wordsToProcess = inputList.map(line => line.split(/[,-]/)[0].trim()).filter(w => w.length > 0);
+  } else {
+    const tokens = rawInput.split(/[ \n\t、。！？,，\-\[\]\(\)（）「」]/);
+    wordsToProcess = [...new Set(tokens.map(w => w.trim()).filter(w => {
+      return /[\u3040-\u30ff\u4e00-\u9faf]/.test(w) && !BLOCKLIST.includes(w) && w.length > 1;
+    }))];
+  }
+
+  const existingWords = new Set(cards.map(c => c.japanese.toLowerCase()));
+  const finalWords = wordsToProcess.filter(w => !existingWords.has(w.toLowerCase()));
+
+  if (finalWords.length === 0) {
+    alert("No new words found!");
+    return;
+  }
+
+  setLoading(true); // THIS TRIGGERS THE OVERLAY
+  try {
+    const res = await fetch("/api/generate", {
+      method: "POST",
+      body: JSON.stringify({ words: finalWords }), 
+    });
+
+    if (!res.ok) throw new Error("AI Generation failed.");
+  
+    const items = await res.json();
+    const dataToInsert = (Array.isArray(items) ? items : [items]).map((item) => ({
+      japanese: String(item.japanese).trim(),
+      reading: String(item.reading || "").trim(),
+      english: String(item.english || "").trim(),
+      partOfSpeech: String(item.partOfSpeech || "noun").trim().toLowerCase(),
+      user_id: String(user.id), 
+      exampleSentence: item.exampleSentence || { jp: "", en: "" },
+      scores: {
+        jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
+        en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 }
+      },
+      score: 0 
+    }));
+
+    const { error } = await supabase
+      .from('flashcards')
+      .upsert(dataToInsert, { onConflict: 'user_id,japanese' });
+    
+    if (error) throw error;
+
+    // --- NEW: SUCCESS ALERT ---
+    const addedCount = dataToInsert.length;
+    alert(`🎉 Success! Added ${addedCount} new card${addedCount > 1 ? 's' : ''} to your deck.`);
+
+    fetchCards();
+    setInput("");
+    setBatchInput("");
+    setShowBatch(false); // Close batch window after success
+  } catch (e: any) {
+    alert(`Error: ${e.message}`);
+  } finally {
+    setLoading(false); // THIS REMOVES THE OVERLAY
+  }
+};
+
+  const processWords2 = async (wordList: string[]) => {
   if (!user) return alert("Please log in");
 
   // Filter out words already in your local 'cards' state to save AI calls
@@ -229,7 +304,11 @@ const getPosColor = (pos: string) => {
               className="flex-1 bg-slate-50 border-none rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <button 
-              onClick={() => processWords([input])}
+              onClick={() => {
+              // Split by new lines and remove empty lines
+              const lines = batchInput.split('\n').filter(l => l.trim());
+              processWords(lines);
+            }}
               disabled={loading}
               className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50"
             >
@@ -247,21 +326,24 @@ const getPosColor = (pos: string) => {
 
         {/* Batch Area */}
         {showBatch && (
-          <div className="mb-8 p-6 bg-indigo-50 rounded-3xl border-2 border-dashed border-indigo-200">
-            <textarea 
-              value={batchInput}
-              onChange={(e) => setBatchInput(e.target.value)}
-              className="w-full h-32 p-4 rounded-xl border-none outline-none mb-3"
-              placeholder="Paste list here..."
-            />
-            <button 
-              onClick={() => processWords(batchInput.split('\n').filter(l => l.trim()))}
-              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold"
-            >
-              Process Words
-            </button>
-          </div>
-        )}
+  <div className="mb-8 p-6 bg-indigo-50 rounded-3xl border-2 border-dashed border-indigo-200">
+    <textarea 
+      value={batchInput}
+      onChange={(e) => setBatchInput(e.target.value)}
+      className="w-full h-48 p-4 rounded-xl border-none outline-none mb-3 text-sm font-mono shadow-inner"
+      placeholder={`FORMAT OPTIONS:
+1. List: word, meaning (one per line)
+2. Lyrics: Paste a whole song or text. I'll pick out the new words for you!`}
+    />
+    <button 
+      onClick={() => processWords([batchInput])} // Pass as one string block
+      disabled={loading}
+      className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-transform"
+    >
+      {loading ? "AI is Extracting & Translating..." : "Process Text"}
+    </button>
+  </div>
+)}
 
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
   <h1 className="text-2xl md:text-3xl font-extrabold text-slate-800">Learning Progress</h1>
@@ -452,7 +534,16 @@ const getPosColor = (pos: string) => {
         )}
         </div>
       </div>
+
+  {loading && (
+  <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex flex-col items-center justify-center text-white">
+    <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+    <p className="text-lg font-bold animate-pulse">AI is building your cards...</p>
+    <p className="text-sm text-slate-300">This may take a few seconds</p>
+  </div>
+)}
     </main>
+    
   );
 }
 
