@@ -51,8 +51,6 @@ useEffect(() => {
       
       if (!data.has_onboarded || isFirstTimeLooking) {
         setShowHints(true);
-        // Clean up the flag so it doesn't wobble every single time they refresh
-        localStorage.removeItem('show_first_timer_hint');
       }
 
     // CHECK: If the last_review_date is TODAY, 
@@ -327,6 +325,7 @@ const onSwipe = (direction: 'left' | 'right') => {
   
   if (showHints) {
     setShowHints(false);
+    localStorage.removeItem('show_first_timer_hint');
   }
 
   // Trigger your existing logic
@@ -425,10 +424,10 @@ return (
             </span>
             <div className="relative">
             {/* The Coach Marks Overlay */}
-            {showHints && (
+            {showHints && cards.length > 0 && (
               <CoachMarks onDismiss={() => setShowHints(false)} />
             )}
-            <div className={showHints ? "animate-wobble" : ""}>
+            <div className={showHints && cards.length > 0 ? "animate-wobble" : ""}>
             <Flashcard key={currentCard.id} card={currentCard} language={language} onSwipe={onSwipe} 
             autoPlayJp={autoPlayJp} autoPlayEn={autoPlayEn} /> </div>
             </div>
