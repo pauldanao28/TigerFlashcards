@@ -105,39 +105,44 @@ useEffect(() => {
   const processWords = async (inputList: string[]) => {
   if (!user) return alert("Please log in");
 
-  const rawInput = inputList.join('\n');
+  const rawInput = inputList.join('\n').trim();
+  if (!rawInput) return;
+
   let wordsToProcess: string[] = [];
 
-  // 1. Check if we have a list (comma/dash) or raw text
-  if (rawInput.includes(',') || rawInput.includes('-')) {
+  // 1. Check if the input is primarily English/Latin characters
+  const isEnglishInput = /^[A-Za-z0-9\s.,!?-]+$/.test(rawInput);
+
+  if (isEnglishInput) {
+    // If English, treat the lines as the words themselves
+    wordsToProcess = inputList.map(w => w.trim()).filter(w => w.length > 0);
+  } else if (rawInput.includes(',') || rawInput.includes('-')) {
+    // Handle comma-separated lists (e.g., "Neko, Cat")
     wordsToProcess = inputList.map(line => line.split(/[,-]/)[0].trim());
   } else {
-    // 2. USE THE MAGIC SEGMENTER
-    // This breaks "日本語を勉強する" into ["日本語", "を", "勉強", "する"]
+    // 2. USE THE JAPANESE SEGMENTER (Original Logic)
     const segmenter = new Intl.Segmenter('ja-JP', { granularity: 'word' });
     const segments = segmenter.segment(rawInput);
 
     wordsToProcess = Array.from(segments)
-  .map(s => s.segment.trim())
-  .filter(w => {
-    const isJapanese = /[\u3040-\u30ff\u4e00-\u9faf]/.test(w);
-    
-    // USE THE USER'S CUSTOM LIST HERE
-    const isNotBlocked = !userBlocklist.includes(w); 
-    
-    const isMeaningful = w.length > 1 || /[\u4e00-\u9faf]/.test(w);
-    return isJapanese && isNotBlocked && isMeaningful;
-  });
+      .map(s => s.segment.trim())
+      .filter(w => {
+        const isJapanese = /[\u3040-\u30ff\u4e00-\u9faf]/.test(w);
+        const isNotBlocked = !userBlocklist.includes(w); 
+        const isMeaningful = w.length > 1 || /[\u4e00-\u9faf]/.test(w);
+        return isJapanese && isNotBlocked && isMeaningful;
+      });
   }
 
   // 3. Final cleanup and duplicate check
   const finalWords = [...new Set(wordsToProcess)].filter(w => {
     const existingWords = new Set(cards.map(c => c.japanese.toLowerCase()));
-    return w && !existingWords.has(w.toLowerCase());
+    const existingEnglish = new Set(cards.map(c => c.english.toLowerCase()));
+    return w && !existingWords.has(w.toLowerCase()) && !existingEnglish.has(w.toLowerCase());
   });
 
   if (finalWords.length === 0) {
-    alert("No new words found!");
+    alert("No new words to add!");
     return;
   }
 
@@ -151,14 +156,10 @@ useEffect(() => {
     if (!res.ok) throw new Error("AI Generation failed.");
   
     const items = await res.json();
-    const dataToInsert = (Array.isArray(items) ? items : [items]).map((item) => {
-  // This regex removes all English letters (a-z), spaces, and parentheses
-  const cleanReading = String(item.reading || "").replace(/[a-zA-Z\s\(\)]/g, "");
-
-  return {
-    japanese: String(item.japanese).trim(),
-    reading: cleanReading, // Now it's Hiragana only!
-    english: String(item.english || "").trim(),
+    const dataToInsert = (Array.isArray(items) ? items : [items]).map((item) => ({
+      japanese: String(item.japanese).trim(),
+      reading: String(item.reading || "").replace(/[a-zA-Z\s\(\)]/g, ""),
+      english: String(item.english || "").trim(),
       partOfSpeech: String(item.partOfSpeech || "noun").trim().toLowerCase(),
       user_id: String(user.id), 
       exampleSentence: item.exampleSentence || { jp: "", en: "" },
@@ -167,14 +168,14 @@ useEffect(() => {
         en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 }
       },
       score: 0 
-    };
-});
+    }));
 
     const { error } = await supabase.from('flashcards').upsert(dataToInsert, { onConflict: 'user_id,japanese' });
     if (error) throw error;
 
     alert(`🎉 Success! Added ${dataToInsert.length} new cards.`);
     fetchCards();
+    setInput(""); // Clear the input field
     setBatchInput("");
     setShowBatch(false);
   } catch (e: any) {

@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react';
 import Flashcard from '@/components/Flashcard';
 import LanguageToggle from '@/components/LanguageToggle';
+import OnboardingModal from '@/components/OnboardingModal';
+import CoachMarks from '@/components/CoachMarks';
 import { FlashcardData } from '@/lib/types';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
@@ -23,6 +25,8 @@ const DAILY_GOAL = 10;
 const [autoPlayJp, setAutoPlayJp] = useState(true);
 const [autoPlayEn, setAutoPlayEn] = useState(false);
 const [isPro, setIsPro] = useState(false);
+const [hasOnboarded, setHasOnboarded] = useState<boolean | null>(null);
+const [showHints, setShowHints] = useState(false);
 
 // Fetch Profile Data on Load
 useEffect(() => {
@@ -41,6 +45,8 @@ useEffect(() => {
     setAutoPlayJp(data.auto_play_jp ?? true); 
       setAutoPlayEn(data.auto_play_en ?? false);
       setIsPro(data.is_pro);
+      setHasOnboarded(data.has_onboarded);
+      setShowHints(!data.has_onboarded);
 
     // CHECK: If the last_review_date is TODAY, 
     // set progress to 10 so the UI shows the goal is met.
@@ -116,34 +122,38 @@ const updateStreak = async () => {
     return () => subscription.unsubscribe();
   }, []);
 
+
 // 2. NEW: Fetch Data ONLY when the session is confirmed
+// // 1. Define the function separately so it can be called from anywhere
+const fetchInitialData = async () => {
+  if (!user) {
+    setCards([]);
+    setDataLoading(false);
+    return;
+  }
+
+  setDataLoading(true);
+  const { data, error } = await supabase
+    .from('flashcards')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (!error && data) {
+    setCards(data);
+    if (data.length > 0) {
+      setCurrentCard(getNextPriorityCard(data));
+    }
+  }
+  setDataLoading(false);
+};
+
+// 2. Use the effect to trigger it on load
 useEffect(() => {
-  const fetchInitialData = async () => {
-    if (!user) {
-      setCards([]);
-      setDataLoading(false); // Stop loading if no user
-      return;
-    }
-
-    setDataLoading(true); // Start loading animation
-    const { data, error } = await supabase
-      .from('flashcards')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (!error && data) {
-      setCards(data);
-      if (data.length > 0) {
-        setCurrentCard(getNextPriorityCard(data));
-      }
-    }
-    setDataLoading(false); // Data is now here
-  };
-
   if (isLoaded && user) {
     fetchInitialData();
   }
 }, [isLoaded, user]);
+
 
   // --- 2. Update Scoring in Supabase ---
   const handleScore = async (isPass: boolean) => {
@@ -308,6 +318,10 @@ const getNextPriorityCard = (allCards: FlashcardData[], lastCardId?: string) => 
 const onSwipe = (direction: 'left' | 'right') => {
   const isPass = direction === 'right';
   
+  if (showHints) {
+    setShowHints(false);
+  }
+  
   // Trigger your existing logic
   handleScore(isPass);
 };
@@ -317,6 +331,17 @@ if (!user) return <Auth />; // Only show Auth if user is explicitly null
 
 return (
   <main className="min-h-screen bg-slate-50 flex flex-col items-center p-4 overflow-hidden">
+    {/* Show overlay ONLY if session is loaded, user exists, and hasn't onboarded */}
+    {isLoaded && user && hasOnboarded === false && (
+      <OnboardingModal 
+        userId={user.id} 
+        onComplete={(addedCards) => {
+          setHasOnboarded(true);
+          setShowHints(true);
+          if (addedCards) fetchInitialData(); // Refresh the card deck if they picked N5
+        }} 
+      />
+    )}
     
     {/* 1. FIXED TOP NAV */}
     <div className="fixed top-5 left-0 w-full px-4 z-50 pointer-events-none flex items-center justify-between transform-gpu
@@ -391,8 +416,15 @@ return (
                 ? (currentCard.scores?.jp_to_en?.percent || 0) 
                 : (currentCard.scores?.en_to_jp?.percent || 0)}%
             </span>
+            <div className="relative">
+            {/* The Coach Marks Overlay */}
+            {showHints && (
+              <CoachMarks onDismiss={() => setShowHints(false)} />
+            )}
+            <div className={showHints ? "animate-wobble" : ""}>
             <Flashcard key={currentCard.id} card={currentCard} language={language} onSwipe={onSwipe} 
-            autoPlayJp={autoPlayJp} autoPlayEn={autoPlayEn} />
+            autoPlayJp={autoPlayJp} autoPlayEn={autoPlayEn} /> </div>
+            </div>
           </div>
         ) : (
           <div className="text-center p-10 bg-white rounded-3xl border-2 border-dashed border-slate-200 w-80 h-96 flex flex-col justify-center items-center gap-4">

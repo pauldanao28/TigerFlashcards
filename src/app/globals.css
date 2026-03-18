@@ -8,6 +8,18 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+@keyframes entry-wobble {
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+  75% { transform: rotate(-1deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.animate-wobble {
+  animation: entry-wobble 1s ease-in-out;
+}
+
 /* If you really want to use @apply for complex things, 
    you must use @reference, but for simple body styles, 
    the variables above are better! */
