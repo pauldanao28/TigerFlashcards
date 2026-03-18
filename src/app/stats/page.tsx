@@ -12,6 +12,9 @@ export default function StatsPage() {
   const [showBatch, setShowBatch] = useState(false);
   const [loading, setLoading] = useState(false);
 const [user, setUser] = useState<User | null>(null);
+const [userBlocklist, setUserBlocklist] = useState<string[]>([]);
+const [showSettings, setShowSettings] = useState(false);
+const [newBlockWord, setNewBlockWord] = useState("");
 
 const BLOCKLIST = [
   '私', '僕', '俺', '君', 'あなた', 'これ', 'それ', 'あれ', 'どの',
@@ -34,11 +37,14 @@ useEffect(() => {
 const fetchProfile = async () => {
   const { data, error } = await supabase
     .from('profiles')
-    .select('streak_count')
+    .select('streak_count, blocked_words')
     .eq('id', user?.id)
     .single();
 
-  if (data) setStreak(data.streak_count);
+  if (data) {
+    setStreak(data.streak_count);
+    setUserBlocklist(data.blocked_words || []); // Store the user's custom list
+  }
 };
 
 useEffect(() => {
@@ -108,15 +114,16 @@ useEffect(() => {
     const segments = segmenter.segment(rawInput);
 
     wordsToProcess = Array.from(segments)
-      .map(s => s.segment.trim())
-      .filter(w => {
-        const isJapanese = /[\u3040-\u30ff\u4e00-\u9faf]/.test(w);
-        const isNotBlocked = !BLOCKLIST.includes(w);
-        // Keep 1-char Kanji (like 夢), but block 1-char Hiragana (like を)
-        const isMeaningful = w.length > 1 || /[\u4e00-\u9faf]/.test(w);
-        
-        return isJapanese && isNotBlocked && isMeaningful;
-      });
+  .map(s => s.segment.trim())
+  .filter(w => {
+    const isJapanese = /[\u3040-\u30ff\u4e00-\u9faf]/.test(w);
+    
+    // USE THE USER'S CUSTOM LIST HERE
+    const isNotBlocked = !userBlocklist.includes(w); 
+    
+    const isMeaningful = w.length > 1 || /[\u4e00-\u9faf]/.test(w);
+    return isJapanese && isNotBlocked && isMeaningful;
+  });
   }
 
   // 3. Final cleanup and duplicate check
@@ -302,6 +309,18 @@ const getPosColor = (pos: string) => {
   return 'bg-slate-100 text-slate-600 border-slate-200';
 };
 
+const updateBlocklist = async (newList: string[]) => {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ blocked_words: newList })
+    .eq('id', user?.id);
+
+  if (!error) {
+    setUserBlocklist(newList);
+    alert("Blocklist updated!");
+  }
+};
+
   return (
     <main className="min-h-screen bg-slate-50 p-8">
       <div className="max-w-5xl mx-auto">
@@ -355,6 +374,66 @@ const getPosColor = (pos: string) => {
     >
       {loading ? "AI is Extracting & Translating..." : "Process Text"}
     </button>
+  </div>
+)}
+
+{/* Settings Toggle Button */}
+<div className="flex justify-end mb-4">
+  <button 
+    onClick={() => setShowSettings(!showSettings)}
+    className="text-xs font-bold text-slate-400 hover:text-indigo-500 transition-colors flex items-center gap-1"
+  >
+    {showSettings ? "✕ Close Filter Settings" : "⚙️ Customize Word Filters"}
+  </button>
+</div>
+
+{/* Settings Panel */}
+{showSettings && (
+  <div className="mb-8 p-6 bg-white rounded-3xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-top-4">
+    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-2">Custom Blocklist</h3>
+    <p className="text-xs text-slate-500 mb-4">Words in this list will be ignored during Batch Uploads and Sentences.</p>
+    
+    <div className="flex flex-wrap gap-2 mb-6 p-4 bg-slate-50 rounded-2xl min-h-[60px]">
+      {userBlocklist.map((word) => (
+        <span key={word} className="inline-flex items-center gap-1 px-3 py-1 bg-white border border-slate-200 rounded-full text-sm font-bold text-slate-700 shadow-sm">
+          {word}
+          <button 
+            onClick={() => updateBlocklist(userBlocklist.filter(w => w !== word))}
+            className="text-rose-400 hover:text-rose-600 ml-1 px-1"
+          >
+            ×
+          </button>
+        </span>
+      ))}
+      {userBlocklist.length === 0 && <span className="text-slate-400 text-xs italic">No words blocked yet.</span>}
+    </div>
+
+    <div className="flex gap-2">
+      <input 
+        type="text"
+        value={newBlockWord}
+        onChange={(e) => setNewBlockWord(e.target.value)}
+        placeholder="Add word to block (e.g. です)..."
+        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && newBlockWord.trim()) {
+            updateBlocklist([...userBlocklist, newBlockWord.trim()]);
+            setNewBlockWord("");
+          }
+        }}
+      />
+      <button 
+        onClick={() => {
+          if (newBlockWord.trim()) {
+            updateBlocklist([...userBlocklist, newBlockWord.trim()]);
+            setNewBlockWord("");
+          }
+        }}
+        className="bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-slate-700"
+      >
+        Add
+      </button>
+    </div>
   </div>
 )}
 
