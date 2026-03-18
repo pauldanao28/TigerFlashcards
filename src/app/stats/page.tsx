@@ -318,7 +318,8 @@ const getPosColor = (pos: string) => {
             <button 
               onClick={() => {
               // Split by new lines and remove empty lines
-              const lines = batchInput.split('\n').filter(l => l.trim());
+              if (!input.trim()) return;
+              const lines = input.split('\n').filter(l => l.trim());
               processWords(lines);
             }}
               disabled={loading}
