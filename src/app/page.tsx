@@ -46,7 +46,14 @@ useEffect(() => {
       setAutoPlayEn(data.auto_play_en ?? false);
       setIsPro(data.is_pro);
       setHasOnboarded(data.has_onboarded);
-      setShowHints(!data.has_onboarded);
+      
+      const isFirstTimeLooking = localStorage.getItem('show_first_timer_hint') === 'true';
+      
+      if (!data.has_onboarded || isFirstTimeLooking) {
+        setShowHints(true);
+        // Clean up the flag so it doesn't wobble every single time they refresh
+        localStorage.removeItem('show_first_timer_hint');
+      }
 
     // CHECK: If the last_review_date is TODAY, 
     // set progress to 10 so the UI shows the goal is met.
@@ -321,7 +328,7 @@ const onSwipe = (direction: 'left' | 'right') => {
   if (showHints) {
     setShowHints(false);
   }
-  
+
   // Trigger your existing logic
   handleScore(isPass);
 };

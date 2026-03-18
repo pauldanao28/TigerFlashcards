@@ -94,6 +94,7 @@ const router = useRouter();
       .eq('id', userId);
 
     if (error) throw error;
+    localStorage.setItem('show_first_timer_hint', 'true');
 
     // 2. Trigger the local state update in Home.tsx (to hide the modal)
     onComplete(false);
