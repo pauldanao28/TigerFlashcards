@@ -15,6 +15,8 @@ const [user, setUser] = useState<User | null>(null);
 const [userBlocklist, setUserBlocklist] = useState<string[]>([]);
 const [showSettings, setShowSettings] = useState(false);
 const [newBlockWord, setNewBlockWord] = useState("");
+const [autoPlayJp, setAutoPlayJp] = useState(true);
+const [autoPlayEn, setAutoPlayEn] = useState(false);
 
 const BLOCKLIST = [
   '私', '僕', '俺', '君', 'あなた', 'これ', 'それ', 'あれ', 'どの',
@@ -37,13 +39,15 @@ useEffect(() => {
 const fetchProfile = async () => {
   const { data, error } = await supabase
     .from('profiles')
-    .select('streak_count, blocked_words')
+    .select('streak_count, blocked_words, auto_play_jp, auto_play_en')
     .eq('id', user?.id)
     .single();
 
   if (data) {
     setStreak(data.streak_count);
-    setUserBlocklist(data.blocked_words || []); // Store the user's custom list
+    setUserBlocklist(data.blocked_words || []);
+    setAutoPlayJp(data.auto_play_jp);
+    setAutoPlayEn(data.auto_play_en);
   }
 };
 
@@ -321,6 +325,18 @@ const updateBlocklist = async (newList: string[]) => {
   }
 };
 
+const updateAudioSetting = async (column: string, value: boolean) => {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ [column]: value })
+    .eq('id', user?.id);
+
+  if (!error) {
+    if (column === 'auto_play_jp') setAutoPlayJp(value);
+    if (column === 'auto_play_en') setAutoPlayEn(value);
+  }
+};
+
   return (
     <main className="min-h-screen bg-slate-50 p-8">
       <div className="max-w-5xl mx-auto">
@@ -383,56 +399,101 @@ const updateBlocklist = async (newList: string[]) => {
     onClick={() => setShowSettings(!showSettings)}
     className="text-xs font-bold text-slate-400 hover:text-indigo-500 transition-colors flex items-center gap-1"
   >
-    {showSettings ? "✕ Close Filter Settings" : "⚙️ Customize Word Filters"}
+    {showSettings ? "✕ Close Settings" : "⚙️ Settings"}
   </button>
 </div>
 
 {/* Settings Panel */}
 {showSettings && (
   <div className="mb-8 p-6 bg-white rounded-3xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-top-4">
-    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-2">Custom Blocklist</h3>
-    <p className="text-xs text-slate-500 mb-4">Words in this list will be ignored during Batch Uploads and Sentences.</p>
     
-    <div className="flex flex-wrap gap-2 mb-6 p-4 bg-slate-50 rounded-2xl min-h-[60px]">
-      {userBlocklist.map((word) => (
-        <span key={word} className="inline-flex items-center gap-1 px-3 py-1 bg-white border border-slate-200 rounded-full text-sm font-bold text-slate-700 shadow-sm">
-          {word}
+    {/* SECTION 1: AUDIO SETTINGS */}
+    <div className="mb-8">
+      <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+        <span>🔊</span> Audio Preferences
+      </h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Japanese Toggle */}
+        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+          <div>
+            <p className="text-sm font-bold text-slate-700">Auto-play Japanese</p>
+            <p className="text-[10px] text-slate-400 font-medium">Hear the kanji when card appears</p>
+          </div>
           <button 
-            onClick={() => updateBlocklist(userBlocklist.filter(w => w !== word))}
-            className="text-rose-400 hover:text-rose-600 ml-1 px-1"
+            onClick={() => updateAudioSetting('auto_play_jp', !autoPlayJp)}
+            className={`w-12 h-6 rounded-full transition-all relative ${autoPlayJp ? 'bg-indigo-600' : 'bg-slate-300'}`}
           >
-            ×
+            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${autoPlayJp ? 'left-7' : 'left-1'}`} />
           </button>
-        </span>
-      ))}
-      {userBlocklist.length === 0 && <span className="text-slate-400 text-xs italic">No words blocked yet.</span>}
+        </div>
+
+        {/* English Toggle */}
+        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+          <div>
+            <p className="text-sm font-bold text-slate-700">Auto-play English</p>
+            <p className="text-[10px] text-slate-400 font-medium">Hear translation when flipping</p>
+          </div>
+          <button 
+            onClick={() => updateAudioSetting('auto_play_en', !autoPlayEn)}
+            className={`w-12 h-6 rounded-full transition-all relative ${autoPlayEn ? 'bg-indigo-600' : 'bg-slate-300'}`}
+          >
+            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${autoPlayEn ? 'left-7' : 'left-1'}`} />
+          </button>
+        </div>
+      </div>
     </div>
 
-    <div className="flex gap-2">
-      <input 
-        type="text"
-        value={newBlockWord}
-        onChange={(e) => setNewBlockWord(e.target.value)}
-        placeholder="Add word to block (e.g. です)..."
-        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && newBlockWord.trim()) {
-            updateBlocklist([...userBlocklist, newBlockWord.trim()]);
-            setNewBlockWord("");
-          }
-        }}
-      />
-      <button 
-        onClick={() => {
-          if (newBlockWord.trim()) {
-            updateBlocklist([...userBlocklist, newBlockWord.trim()]);
-            setNewBlockWord("");
-          }
-        }}
-        className="bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-slate-700"
-      >
-        Add
-      </button>
+    {/* HORIZONTAL DIVIDER */}
+    <div className="h-px bg-slate-100 w-full mb-8" />
+
+    {/* SECTION 2: BLOCKLIST SETTINGS */}
+    <div>
+      <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-2 flex items-center gap-2">
+        <span>🚫</span> Word Filters
+      </h3>
+      <p className="text-xs text-slate-500 mb-4">Words in this list will be ignored during Batch Uploads and AI processing.</p>
+      
+      <div className="flex flex-wrap gap-2 mb-6 p-4 bg-slate-50 rounded-2xl min-h-[60px] border border-slate-100">
+        {userBlocklist.map((word) => (
+          <span key={word} className="inline-flex items-center gap-1 px-3 py-1 bg-white border border-slate-200 rounded-full text-sm font-bold text-slate-700 shadow-sm transition-all hover:border-rose-200">
+            {word}
+            <button 
+              onClick={() => updateBlocklist(userBlocklist.filter(w => w !== word))}
+              className="text-rose-400 hover:text-rose-600 ml-1 px-1 font-bold"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        {userBlocklist.length === 0 && <span className="text-slate-400 text-xs italic">No words blocked yet.</span>}
+      </div>
+
+      <div className="flex gap-2">
+        <input 
+          type="text"
+          value={newBlockWord}
+          onChange={(e) => setNewBlockWord(e.target.value)}
+          placeholder="Add word to block (e.g. です)..."
+          className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && newBlockWord.trim()) {
+              updateBlocklist([...userBlocklist, newBlockWord.trim()]);
+              setNewBlockWord("");
+            }
+          }}
+        />
+        <button 
+          onClick={() => {
+            if (newBlockWord.trim()) {
+              updateBlocklist([...userBlocklist, newBlockWord.trim()]);
+              setNewBlockWord("");
+            }
+          }}
+          className="bg-slate-800 text-white px-6 py-2 rounded-xl text-sm font-bold hover:bg-slate-700 active:scale-95 transition-all shadow-md"
+        >
+          Add
+        </button>
+      </div>
     </div>
   </div>
 )}

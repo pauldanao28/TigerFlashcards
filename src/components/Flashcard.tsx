@@ -7,6 +7,8 @@ interface FlashcardProps {
   card: FlashcardData;
   language: 'en' | 'jp'; 
   onSwipe?: (direction: 'left' | 'right') => void;
+  autoPlayJp?: boolean;
+  autoPlayEn?: boolean;
 }
 
 const triggerHaptic = (ms = 10) => {
@@ -25,7 +27,7 @@ const speak = (text: string, lang: 'ja-JP' | 'en-US') => {
   }
 };
 
-export default function Flashcard({ card, language, onSwipe }: FlashcardProps) {
+export default function Flashcard({ card, language, onSwipe, autoPlayJp, autoPlayEn }: FlashcardProps) {
   const [flipped, setFlipped] = useState(false);
   const [hasVibrated, setHasVibrated] = useState(false);
 
@@ -52,27 +54,35 @@ export default function Flashcard({ card, language, onSwipe }: FlashcardProps) {
     return () => unsubscribe();
   }, [x, hasVibrated]);
 
-  // 3. Auto-play Audio on Front
-  useEffect(() => {
-  // If we are in 'jp' mode, the front is Japanese. Play it!
-  if (language === 'jp') {
-    const timer = setTimeout(() => {
-      speak(card.japanese, 'ja-JP');
-    }, 100); // Tiny delay to ensure component is ready
-    return () => clearTimeout(timer);
-  }
-}, [card.id, language]);
+  // 3. Auto-play Audio on Front (When card appears)
+useEffect(() => {
+  // Reset flipped state whenever the card changes
+  setFlipped(false);
 
-  // 4. Auto-play Audio on Flip
-  useEffect(() => {
+  const timer = setTimeout(() => {
+    if (language === 'jp' && autoPlayJp) {
+      speak(card.japanese, 'ja-JP');
+    } else if (language === 'en' && autoPlayEn) {
+      speak(card.english, 'en-US');
+    }
+  }, 100); 
+
+  return () => clearTimeout(timer);
+}, [card.id, language, autoPlayJp, autoPlayEn]);
+
+// 4. Auto-play Audio on Flip (When card is turned over)
+useEffect(() => {
   if (flipped) {
-    // If we are in 'en' mode, the front was English, but the back is Japanese.
-    // We only want to hear Japanese.
-    if (language === 'en') {
+    // If we were looking at Japanese, play English on the back
+    if (language === 'jp' && autoPlayEn) {
+      speak(card.english, 'en-US');
+    } 
+    // If we were looking at English, play Japanese on the back
+    else if (language === 'en' && autoPlayJp) {
       speak(card.japanese, 'ja-JP');
     }
   }
-}, [flipped, card.id, language]);
+}, [flipped, card.id, language, autoPlayJp, autoPlayEn]);
 
   const handleDragEnd = (event: any, info: any) => {
     const swipeThreshold = 100;
@@ -187,7 +197,8 @@ export default function Flashcard({ card, language, onSwipe }: FlashcardProps) {
       </p>
     )}
     <button 
-      onClick={(e) => handlePlayAudio(e, card.japanese, 'ja-JP')}
+      onClick={(e) => handlePlayAudio(e, backText, 
+      backText === card.japanese ? 'ja-JP' : 'en-US')}
       className="p-3 bg-white/10 hover:bg-white/20 rounded-full transition-all border border-white/20 active:scale-95"
     >
       🔊

@@ -20,6 +20,9 @@ export default function Home() {
 const [user, setUser] = useState<User | null>(null);
 const [dailyProgress, setDailyProgress] = useState(0);
 const DAILY_GOAL = 10; 
+const [autoPlayJp, setAutoPlayJp] = useState(true);
+const [autoPlayEn, setAutoPlayEn] = useState(false);
+const [isPro, setIsPro] = useState(false);
 
 // Fetch Profile Data on Load
 useEffect(() => {
@@ -35,7 +38,10 @@ useEffect(() => {
   
   if (data) {
     setStreak(data.streak_count);
-    
+    setAutoPlayJp(data.auto_play_jp ?? true); 
+      setAutoPlayEn(data.auto_play_en ?? false);
+      setIsPro(data.is_pro);
+
     // CHECK: If the last_review_date is TODAY, 
     // set progress to 10 so the UI shows the goal is met.
     const today = new Date().toISOString().split('T')[0];
@@ -385,7 +391,8 @@ return (
                 ? (currentCard.scores?.jp_to_en?.percent || 0) 
                 : (currentCard.scores?.en_to_jp?.percent || 0)}%
             </span>
-            <Flashcard key={currentCard.id} card={currentCard} language={language} onSwipe={onSwipe}/>
+            <Flashcard key={currentCard.id} card={currentCard} language={language} onSwipe={onSwipe} 
+            autoPlayJp={autoPlayJp} autoPlayEn={autoPlayEn} />
           </div>
         ) : (
           <div className="text-center p-10 bg-white rounded-3xl border-2 border-dashed border-slate-200 w-80 h-96 flex flex-col justify-center items-center gap-4">
