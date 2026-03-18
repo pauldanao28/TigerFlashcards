@@ -496,6 +496,28 @@ const updateAudioSetting = async (column: string, value: boolean) => {
         </button>
       </div>
     </div>
+
+    {/* HORIZONTAL DIVIDER */}
+    <div className="h-px bg-slate-100 w-full mb-8" />
+
+    {/* SECTION 3: ACCOUNT SECURITY */}
+    <div>
+      <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+        <span>🔐</span> Account Security
+      </h3>
+      <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-bold text-slate-700">Password</p>
+          <p className="text-[10px] text-slate-400 font-medium">Update your login credentials</p>
+        </div>
+        <Link 
+          href="/update-password" 
+          className="bg-white px-4 py-2 rounded-xl text-xs font-bold text-indigo-600 border border-indigo-100 shadow-sm hover:bg-indigo-50 transition-all"
+        >
+          Change Password
+        </Link>
+      </div>
+    </div>
   </div>
 )}
 

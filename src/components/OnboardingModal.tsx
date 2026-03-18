@@ -113,7 +113,7 @@ const router = useRouter();
     <div className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-6">
       <div className="max-w-2xl w-full">
         <div className="text-center mb-10">
-          <h1 className="text-4xl font-black text-white mb-3">Welcome to KanjiSync</h1>
+          <h1 className="text-4xl font-black text-white mb-3">Welcome to FlashKado!</h1>
           <p className="text-slate-400 text-lg">How would you like to start your journey?</p>
         </div>
 
