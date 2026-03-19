@@ -1,25 +1,48 @@
-export interface FlashcardData {
+// 1. The Global Library Content (from master_cards table)
+export interface MasterCard {
   id: string;
+  creator_id: string;
   japanese: string;
-  reading: string;    // Furigana/Kana
+  reading: string;
   english: string;
-  
-  // Advanced AI-driven metadata
-  level?: number;     // JLPT Level (1-5)
-  partOfSpeech?: 'verb' | 'noun' | 'adjective' | 'particle';
+  level?: number;
+  partOfSpeech?: 'verb' | 'noun' | 'adjective' | 'particle' | string;
   exampleSentence?: {
     jp: string;
     en: string;
   };
-  
-  // Spaced Repetition (FSRS) Data
   alternatives?: string[];
   contextNote?: string;
-  scores: {
-    jp_to_en: { pass: number; fail: number; total: number; percent: number };
-    en_to_jp: { pass: number; fail: number; total: number; percent: number };
+  is_public: boolean;
+  created_at: string;
+}
+
+// 2. The Personal Progress (from user_scores table)
+export interface UserScore {
+  user_id: string;
+  card_id: string;
+  score: number; // Overall rank/mastery
+  next_review_at: string;
+  last_reviewed_at?: string;
+  scores_json: {
+    jp_to_en: ModeStats;
+    en_to_jp: ModeStats;
   };
 }
 
-// This helps us toggle between "JP -> EN" or "EN -> JP"
+export interface ModeStats {
+  pass: number;
+  fail: number;
+  total: number;
+  percent: number;
+}
+
+// 3. The "Joined" Type for the UI (Used in Study/Stats pages)
+// This is what your Supabase join queries will return
+export type FlashcardData = MasterCard & {
+  score: number;
+  scores: UserScore['scores_json'];
+  next_review_at: string;
+};
+
 export type StudyMode = 'recognition' | 'production';
