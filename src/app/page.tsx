@@ -1,15 +1,15 @@
 "use client";
-import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
-import { User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
+import { User } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase";
 
-import Flashcard from '@/components/Flashcard';
-import LanguageToggle from '@/components/LanguageToggle';
-import OnboardingModal from '@/components/OnboardingModal';
-import CoachMarks from '@/components/CoachMarks';
-import Auth from '@/components/Auth';
-import { FlashcardData } from '@/lib/types';
+import Flashcard from "@/components/Flashcard";
+import LanguageToggle from "@/components/LanguageToggle";
+import OnboardingModal from "@/components/OnboardingModal";
+import CoachMarks from "@/components/CoachMarks";
+import Auth from "@/components/Auth";
+import { FlashcardData } from "@/lib/types";
 
 const DAILY_GOAL = 10;
 
@@ -18,26 +18,28 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoaded, setIsAuthLoaded] = useState(false);
   const [hasOnboarded, setHasOnboarded] = useState<boolean | null>(null);
-  
+
   const [cards, setCards] = useState<FlashcardData[]>([]);
   const [currentCard, setCurrentCard] = useState<FlashcardData | null>(null);
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
-  
+
   const [dataLoading, setDataLoading] = useState(true); // Cards loading
-  const [aiLoading, setAiLoading] = useState(false);    // AI Syncing
-  
-  const [language, setLanguage] = useState<'en' | 'jp'>('jp');
+  const [aiLoading, setAiLoading] = useState(false); // AI Syncing
+
+  const [language, setLanguage] = useState<"en" | "jp">("jp");
   const [streak, setStreak] = useState(0);
   const [sessionStreak, setSessionStreak] = useState(0);
   const [dailyProgress, setDailyProgress] = useState(0);
-  
+
   const [autoPlayJp, setAutoPlayJp] = useState(true);
   const [autoPlayEn, setAutoPlayEn] = useState(false);
   const [showHints, setShowHints] = useState(false);
 
   // --- 2. Auth Listener ---
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setIsAuthLoaded(true);
     });
@@ -51,8 +53,13 @@ export default function Home() {
     const fetchUserEnvironment = async () => {
       // Fetch Profile & Deck in parallel for speed
       const [profileRes, deckRes] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', user.id).single(),
-        supabase.from('decks').select('id').eq('user_id', user.id).eq('is_default', true).maybeSingle()
+        supabase.from("profiles").select("*").eq("id", user.id).single(),
+        supabase
+          .from("decks")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("is_default", true)
+          .maybeSingle(),
       ]);
 
       if (profileRes.data) {
@@ -63,11 +70,14 @@ export default function Home() {
         setHasOnboarded(p.has_onboarded);
 
         // Check if goal already met today
-        const today = new Date().toISOString().split('T')[0];
+        const today = new Date().toISOString().split("T")[0];
         if (p.last_review_date === today) setDailyProgress(DAILY_GOAL);
 
         // Hint Logic
-        if (!p.has_onboarded || localStorage.getItem('show_first_timer_hint') === 'true') {
+        if (
+          !p.has_onboarded ||
+          localStorage.getItem("show_first_timer_hint") === "true"
+        ) {
           setShowHints(true);
         }
       }
@@ -92,22 +102,24 @@ export default function Home() {
 
     setDataLoading(true);
     const { data, error } = await supabase
-      .from('master_cards')
-      .select(`
+      .from("master_cards")
+      .select(
+        `
         *,
         deck_cards!inner (deck_id),
         user_scores (scores_json)
-      `)
-      .eq('deck_cards.deck_id', defaultDeckId)
-      .eq('user_scores.user_id', user.id);
+      `,
+      )
+      .eq("deck_cards.deck_id", defaultDeckId)
+      .eq("user_scores.user_id", user.id);
 
     if (!error && data) {
       const flattened = data.map((card: any) => ({
         ...card,
         scores: card.user_scores?.[0]?.scores_json || {
           jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
-          en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 }
-        }
+          en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
+        },
       }));
       setCards(flattened);
       if (flattened.length > 0) setCurrentCard(getNextPriorityCard(flattened));
@@ -120,63 +132,100 @@ export default function Home() {
   }, [fetchInitialData]);
 
   // --- 5. Spaced Repetition Logic ---
-  const getNextPriorityCard = (allCards: FlashcardData[], lastCardId?: string) => {
+  const getNextPriorityCard = (
+    allCards: FlashcardData[],
+    lastCardId?: string,
+  ) => {
     if (allCards.length === 0) return null;
-    const mode = language === 'jp' ? 'jp_to_en' : 'en_to_jp';
+    const mode = language === "jp" ? "jp_to_en" : "en_to_jp";
 
     const getScore = (c: FlashcardData) => c.scores?.[mode]?.percent || 0;
     const getTries = (c: FlashcardData) => c.scores?.[mode]?.total || 0;
 
     const sorted = [...allCards].sort((a, b) => getScore(a) - getScore(b));
     const hardCards = sorted.slice(0, 10);
-    const easyCards = allCards.filter(c => getScore(c) >= 85 && getTries(c) >= 15);
-    const mediumCards = allCards.filter(c => !hardCards.some(h => h.id === c.id) && !easyCards.some(e => e.id === c.id));
+    const easyCards = allCards.filter(
+      (c) => getScore(c) >= 85 && getTries(c) >= 15,
+    );
+    const mediumCards = allCards.filter(
+      (c) =>
+        !hardCards.some((h) => h.id === c.id) &&
+        !easyCards.some((e) => e.id === c.id),
+    );
 
     const roll = Math.random();
-    let pool = (roll < 0.7 && hardCards.length) ? hardCards : (roll < 0.9 && mediumCards.length) ? mediumCards : easyCards.length ? easyCards : allCards;
+    let pool =
+      roll < 0.7 && hardCards.length
+        ? hardCards
+        : roll < 0.9 && mediumCards.length
+          ? mediumCards
+          : easyCards.length
+            ? easyCards
+            : allCards;
 
-    const filtered = pool.filter(c => c.id !== lastCardId);
-    return filtered.length ? filtered[Math.floor(Math.random() * filtered.length)] : allCards[0];
+    const filtered = pool.filter((c) => c.id !== lastCardId);
+    return filtered.length
+      ? filtered[Math.floor(Math.random() * filtered.length)]
+      : allCards[0];
   };
 
   // --- 6. Interaction Handlers ---
   const updateStreak = async () => {
     if (!user) return;
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split("T")[0];
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const yesterdayStr = yesterday.toISOString().split("T")[0];
 
-    const { data: p } = await supabase.from('profiles').select('streak_count, last_review_date').eq('id', user.id).single();
+    const { data: p } = await supabase
+      .from("profiles")
+      .select("streak_count, last_review_date")
+      .eq("id", user.id)
+      .single();
     if (!p || p.last_review_date === today) return;
 
-    const newStreak = p.last_review_date === yesterdayStr ? p.streak_count + 1 : 1;
-    await supabase.from('profiles').update({ streak_count: newStreak, last_review_date: today }).eq('id', user.id);
+    const newStreak =
+      p.last_review_date === yesterdayStr ? p.streak_count + 1 : 1;
+    await supabase
+      .from("profiles")
+      .update({ streak_count: newStreak, last_review_date: today })
+      .eq("id", user.id);
     setStreak(newStreak);
   };
 
   const handleScore = async (isPass: boolean) => {
     if (!currentCard || !user) return;
-    const mode = language === 'jp' ? 'jp_to_en' : 'en_to_jp';
-    const s = currentCard.scores || { jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 }, en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 } };
-    
+    const mode = language === "jp" ? "jp_to_en" : "en_to_jp";
+    const s = currentCard.scores || {
+      jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
+      en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
+    };
+
     const stats = s[mode];
     const updatedStats = {
       ...stats,
       pass: isPass ? stats.pass + 1 : stats.pass,
       fail: !isPass ? stats.fail + 1 : stats.fail,
       total: stats.total + 1,
-      percent: Math.round(((isPass ? stats.pass + 1 : stats.pass) / (stats.total + 1)) * 100)
+      percent: Math.round(
+        ((isPass ? stats.pass + 1 : stats.pass) / (stats.total + 1)) * 100,
+      ),
     };
 
     const newScores = { ...s, [mode]: updatedStats };
 
-    await supabase.from('user_scores').upsert({ 
-      user_id: user.id, card_id: currentCard.id, scores_json: newScores, updated_at: new Date().toISOString() 
-    }, { onConflict: 'user_id,card_id' });
+    await supabase.from("user_scores").upsert(
+      {
+        user_id: user.id,
+        card_id: currentCard.id,
+        scores_json: newScores,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,card_id" },
+    );
 
     if (isPass) {
-      setSessionStreak(p => p + 1);
+      setSessionStreak((p) => p + 1);
       const prog = dailyProgress + 1;
       setDailyProgress(prog);
       if (prog === DAILY_GOAL) updateStreak();
@@ -184,7 +233,9 @@ export default function Home() {
       setSessionStreak(0);
     }
 
-    const updatedCards = cards.map(c => c.id === currentCard.id ? { ...c, scores: newScores } : c);
+    const updatedCards = cards.map((c) =>
+      c.id === currentCard.id ? { ...c, scores: newScores } : c,
+    );
     setCards(updatedCards);
     setCurrentCard(getNextPriorityCard(updatedCards, currentCard.id));
   };
@@ -195,40 +246,70 @@ export default function Home() {
       if (currentCard?.english === "Pending AI Sync") {
         setAiLoading(true);
         try {
-          const res = await fetch("/api/generate", { method: "POST", body: JSON.stringify({ words: [currentCard.japanese] }) });
+          const res = await fetch("/api/generate", {
+            method: "POST",
+            body: JSON.stringify({ words: [currentCard.japanese] }),
+          });
           const data = await res.json();
           const fetched = Array.isArray(data) ? data[0] : data;
 
-          await supabase.from('master_cards').update({ ...fetched }).eq('id', currentCard.id);
+          await supabase
+            .from("master_cards")
+            .update({ ...fetched })
+            .eq("id", currentCard.id);
           const updated = { ...currentCard, ...fetched };
           setCurrentCard(updated);
-          setCards(prev => prev.map(c => c.id === currentCard.id ? updated : c));
-        } catch (e) { console.error(e); } finally { setAiLoading(false); }
+          setCards((prev) =>
+            prev.map((c) => (c.id === currentCard.id ? updated : c)),
+          );
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setAiLoading(false);
+        }
       }
     };
     syncAI();
   }, [currentCard?.id]);
 
-  const onSwipe = (direction: 'left' | 'right') => {
-    if (showHints) { setShowHints(false); localStorage.removeItem('show_first_timer_hint'); }
-    handleScore(direction === 'right');
+  const onSwipe = (direction: "left" | "right") => {
+    if (showHints) {
+      setShowHints(false);
+      localStorage.removeItem("show_first_timer_hint");
+    }
+    handleScore(direction === "right");
   };
 
   // --- 8. Render Guards ---
-  if (!isAuthLoaded) return <div className="min-h-screen flex items-center justify-center bg-slate-50 font-bold text-slate-400">Loading Session...</div>;
+  if (!isAuthLoaded)
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 font-bold text-slate-400">
+        Loading Session...
+      </div>
+    );
   if (!user) return <Auth />;
 
   return (
     <main className="min-h-screen bg-slate-50 flex flex-col items-center p-4 overflow-hidden font-sans">
       {hasOnboarded === false && (
-        <OnboardingModal userId={user.id} onComplete={(added) => added ? window.location.reload() : setHasOnboarded(true)} />
+        <OnboardingModal
+          userId={user.id}
+          onComplete={(added) =>
+            added ? window.location.reload() : setHasOnboarded(true)
+          }
+        />
       )}
-      
+
       {/* Top Navigation */}
       <div className="fixed top-5 left-0 w-full px-4 z-50 pointer-events-none flex items-center justify-between md:top-8 md:px-8 md:justify-end md:gap-4">
-        <div className="pointer-events-auto scale-90 origin-left"><LanguageToggle language={language} setLanguage={setLanguage} /></div>
+        <div className="pointer-events-auto scale-90 origin-left">
+          <LanguageToggle language={language} setLanguage={setLanguage} />
+        </div>
         <div className="pointer-events-auto">
-          <Link href="/stats" className="bg-white px-4 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-100 flex items-center gap-2 h-10 transition-transform active:scale-95">
+          <Link
+            href="/stats"
+            className="bg-white px-4 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-100 flex items-center gap-2 h-10 transition-transform active:scale-95"
+          >
             📊 Stats
           </Link>
         </div>
@@ -240,20 +321,29 @@ export default function Home() {
           {sessionStreak >= 3 && (
             <div className="absolute top-4 flex items-center gap-2 bg-white px-5 py-2 rounded-full shadow-xl border border-orange-100 animate-bounce z-40">
               <span className="text-xl">🔥</span>
-              <span className="font-black text-slate-800 tracking-tight text-sm uppercase">{sessionStreak} IN A ROW</span>
+              <span className="font-black text-slate-800 tracking-tight text-sm uppercase">
+                {sessionStreak} IN A ROW
+              </span>
             </div>
           )}
           <div className="pb-1 text-center">
             {dailyProgress < DAILY_GOAL ? (
               <>
                 <div className="w-32 h-1.5 bg-slate-200 rounded-full overflow-hidden shadow-inner mx-auto mb-1">
-                  <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${(dailyProgress / DAILY_GOAL) * 100}%` }} />
+                  <div
+                    className="h-full bg-emerald-500 transition-all duration-500"
+                    style={{ width: `${(dailyProgress / DAILY_GOAL) * 100}%` }}
+                  />
                 </div>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Goal: {dailyProgress}/{DAILY_GOAL}</p>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                  Goal: {dailyProgress}/{DAILY_GOAL}
+                </p>
               </>
             ) : (
               <div className="bg-emerald-100 border border-emerald-200 px-4 py-1 rounded-full animate-pulse">
-                <p className="text-[10px] font-black text-emerald-700 uppercase">✨ Daily Goal Met</p>
+                <p className="text-[10px] font-black text-emerald-700 uppercase">
+                  ✨ Daily Goal Met
+                </p>
               </div>
             )}
           </div>
@@ -263,23 +353,30 @@ export default function Home() {
         {dataLoading || aiLoading ? (
           <div className="w-80 h-[28rem] bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse gap-4">
             <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Syncing Deck...</p>
+            <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">
+              Syncing Deck...
+            </p>
           </div>
         ) : currentCard ? (
           <div className="flex flex-col items-center gap-6">
             <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
-              {language === 'jp' ? '🇯🇵 Recognition' : '🇺🇸 Recall'} | {currentCard.scores?.[language === 'jp' ? 'jp_to_en' : 'en_to_jp']?.percent || 0}% Accuracy
+              {language === "jp" ? "🇯🇵 Recognition" : "🇺🇸 Recall"} |{" "}
+              {currentCard.scores?.[language === "jp" ? "jp_to_en" : "en_to_jp"]
+                ?.percent || 0}
+              % Accuracy
             </span>
             <div className="relative">
-              {showHints && cards.length > 0 && <CoachMarks onDismiss={() => setShowHints(false)} />}
+              {showHints && cards.length > 0 && (
+                <CoachMarks onDismiss={() => setShowHints(false)} />
+              )}
               <div className={showHints ? "animate-wobble" : ""}>
-                <Flashcard 
-                  key={currentCard.id} 
-                  card={currentCard} 
-                  language={language} 
-                  onSwipe={onSwipe} 
-                  autoPlayJp={autoPlayJp} 
-                  autoPlayEn={autoPlayEn} 
+                <Flashcard
+                  key={currentCard.id}
+                  card={currentCard}
+                  language={language}
+                  onSwipe={onSwipe}
+                  autoPlayJp={autoPlayJp}
+                  autoPlayEn={autoPlayEn}
                 />
               </div>
             </div>
@@ -288,10 +385,17 @@ export default function Home() {
           <div className="text-center p-10 bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 w-80 h-[28rem] flex flex-col justify-center items-center gap-6">
             <div className="text-5xl">📭</div>
             <div>
-              <p className="text-slate-800 font-black text-xl mb-2">Empty Deck</p>
-              <p className="text-slate-400 text-sm mb-6">Start your journey by adding some cards.</p>
+              <p className="text-slate-800 font-black text-xl mb-2">
+                Empty Deck
+              </p>
+              <p className="text-slate-400 text-sm mb-6">
+                Start your journey by adding some cards.
+              </p>
             </div>
-            <Link href="/stats" className="text-white font-bold bg-indigo-600 px-8 py-3 rounded-2xl shadow-lg shadow-indigo-100 transition-transform active:scale-95">
+            <Link
+              href="/stats"
+              className="text-white font-bold bg-indigo-600 px-8 py-3 rounded-2xl shadow-lg shadow-indigo-100 transition-transform active:scale-95"
+            >
               + Get Started
             </Link>
           </div>
@@ -299,8 +403,18 @@ export default function Home() {
 
         {/* Action Buttons */}
         <div className="flex gap-4 w-full py-6">
-          <button onClick={() => handleScore(false)} className="flex-1 py-4 bg-rose-50 text-rose-600 rounded-[1.5rem] font-black border-b-4 border-rose-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-sm tracking-widest">✕ Fail</button>
-          <button onClick={() => handleScore(true)} className="flex-1 py-4 bg-emerald-500 text-white rounded-[1.5rem] font-black border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all uppercase text-sm tracking-widest">✓ Pass</button>
+          <button
+            onClick={() => handleScore(false)}
+            className="flex-1 py-4 bg-rose-50 text-rose-600 rounded-[1.5rem] font-black border-b-4 border-rose-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-sm tracking-widest"
+          >
+            ✕ Fail
+          </button>
+          <button
+            onClick={() => handleScore(true)}
+            className="flex-1 py-4 bg-emerald-500 text-white rounded-[1.5rem] font-black border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all uppercase text-sm tracking-widest"
+          >
+            ✓ Pass
+          </button>
         </div>
       </div>
     </main>
