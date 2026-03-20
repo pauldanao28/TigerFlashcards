@@ -315,33 +315,39 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="relative w-full max-w-md flex flex-col items-center mt-14">
+      <div className="relative w-full max-w-md flex flex-col items-center mt-28 md:mt-14">
         {/* HUD / Progress Area */}
-        <div className="w-full h-20 flex flex-col items-center justify-end relative mb-3">
+        {/* CHANGE: 
+    h-24 mb-6 (Mobile: more breathing room) 
+    md:h-20 md:mb-3 (Desktop: restored to original compact size) 
+  */}
+        <div className="w-full h-24 mb-6 flex flex-col items-center justify-end relative md:h-20 md:mb-3">
           {sessionStreak >= 3 && (
-            <div className="absolute top-4 flex items-center gap-2 bg-white px-5 py-2 rounded-full shadow-xl border border-orange-100 animate-bounce z-40">
+            <div className="absolute top-0 flex items-center gap-2 bg-white px-5 py-2 rounded-full shadow-xl border border-orange-100 animate-bounce z-40 md:top-4">
               <span className="text-xl">🔥</span>
               <span className="font-black text-slate-800 tracking-tight text-sm uppercase">
                 {sessionStreak} IN A ROW
               </span>
             </div>
           )}
-          <div className="pb-1 text-center">
+
+          <div className="pb-2 text-center md:pb-1">
             {dailyProgress < DAILY_GOAL ? (
               <>
-                <div className="w-32 h-1.5 bg-slate-200 rounded-full overflow-hidden shadow-inner mx-auto mb-1">
+                {/* w-40 for mobile, w-32 for desktop */}
+                <div className="w-40 h-2 bg-slate-200 rounded-full overflow-hidden shadow-inner mx-auto mb-2 md:w-32 md:h-1.5 md:mb-1">
                   <div
                     className="h-full bg-emerald-500 transition-all duration-500"
                     style={{ width: `${(dailyProgress / DAILY_GOAL) * 100}%` }}
                   />
                 </div>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest md:text-[9px]">
                   Goal: {dailyProgress}/{DAILY_GOAL}
                 </p>
               </>
             ) : (
-              <div className="bg-emerald-100 border border-emerald-200 px-4 py-1 rounded-full animate-pulse">
-                <p className="text-[10px] font-black text-emerald-700 uppercase">
+              <div className="bg-emerald-100 border border-emerald-200 px-5 py-2 rounded-full animate-pulse md:px-4 md:py-1">
+                <p className="text-[11px] font-black text-emerald-700 uppercase md:text-[10px]">
                   ✨ Daily Goal Met
                 </p>
               </div>
