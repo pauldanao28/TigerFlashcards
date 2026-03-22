@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { useLang } from "@/context/LanguageContext";
 
 import Flashcard from "@/components/Flashcard";
 import LanguageToggle from "@/components/LanguageToggle";
@@ -34,6 +35,8 @@ export default function Home() {
   const [autoPlayJp, setAutoPlayJp] = useState(true);
   const [autoPlayEn, setAutoPlayEn] = useState(false);
   const [showHints, setShowHints] = useState(false);
+
+  const { t, setLang, lang } = useLang();
 
   // --- 2. Auth Listener ---
   useEffect(() => {

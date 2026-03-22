@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FlashcardData } from "@/lib/types";
 import { supabase } from "@/lib/supabase"; // Import Supabase
 import { User } from "@supabase/supabase-js";
+import { useLang } from "@/context/LanguageContext";
 
 export default function StatsPage() {
   const [cards, setCards] = useState<FlashcardData[]>([]);
@@ -26,6 +27,7 @@ export default function StatsPage() {
   const [tempTitle, setTempTitle] = useState("");
   const [starterPacks, setStarterPacks] = useState<any[]>([]);
   const [ownedPacks, setOwnedPacks] = useState<string[]>([]);
+  const { t, setLang, lang } = useLang();
 
   const fetchStarterPacks = async () => {
     const { data, error } = await supabase.from("starter_packs").select("*"); // Fetches id, name, description, card_data, etc.
@@ -327,6 +329,24 @@ export default function StatsPage() {
         }
       }
 
+      // --- 3.5 Success Feedback ---
+      const totalAdded = uniqueInputWords.length;
+      if (totalAdded > 0) {
+        // If you have a toast library like sonner or react-hot-toast, use that here.
+        // Otherwise, a simple alert with your new translations:
+        const message =
+          lang === "jp"
+            ? `${totalAdded}語を追加しました！`
+            : `Successfully added ${totalAdded} words!`;
+
+        alert(message);
+      }
+
+      // --- 4. Cleanup UI ---
+      setInput("");
+      setBatchInput("");
+      setShowBatch(false);
+
       // --- 4. Cleanup UI ---
       setInput("");
       setBatchInput("");
@@ -553,7 +573,7 @@ export default function StatsPage() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Add new word..."
+              placeholder={t.add_new_word}
               className="flex-1 bg-slate-50 border-none rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <button
@@ -565,7 +585,7 @@ export default function StatsPage() {
               disabled={loading}
               className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50"
             >
-              {loading ? "..." : "AI Add"}
+              {loading ? "..." : t.ai_add}
             </button>
           </div>
 
@@ -573,7 +593,7 @@ export default function StatsPage() {
             onClick={() => setShowBatch(!showBatch)}
             className="px-6 py-2 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 transition-colors"
           >
-            {showBatch ? "Close" : "Batch Upload"}
+            {showBatch ? t.close : t.batch_upload}
           </button>
         </div>
 
@@ -584,16 +604,22 @@ export default function StatsPage() {
               value={batchInput}
               onChange={(e) => setBatchInput(e.target.value)}
               className="w-full h-48 p-4 rounded-xl border-none outline-none mb-3 text-sm font-mono shadow-inner"
-              placeholder={`FORMAT OPTIONS:
+              placeholder={
+                lang === "jp"
+                  ? `入力形式の選択:
+1. リスト形式: 単語, 意味 (1行に1項目)
+2. 歌詞・長文: 歌詞や文章を貼り付けると、AIが新しい単語を抽出します！`
+                  : `FORMAT OPTIONS:
 1. List: word, meaning (one per line)
-2. Lyrics: Paste a whole song or text. I'll pick out the new words for you!`}
+2. Lyrics: Paste a whole song or text. I'll pick out the new words for you!`
+              }
             />
             <button
               onClick={() => processWords([batchInput])}
               disabled={loading}
               className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-transform"
             >
-              {loading ? "AI is Extracting & Translating..." : "Process Text"}
+              {loading ? "AI is Extracting & Translating..." : t.process_text}
             </button>
           </div>
         )}
@@ -602,9 +628,13 @@ export default function StatsPage() {
         <div className="flex justify-end mb-4">
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className="text-xs font-bold text-slate-400 hover:text-indigo-500 transition-colors flex items-center gap-1"
+            className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 font-bold text-slate-600 transition-all active:scale-95"
           >
-            {showSettings ? "✕ Close Settings" : "⚙️ Settings"}
+            <span>{showSettings ? "✕" : "⚙️"}</span>
+            {/* Use t.close_settings or t.settings */}
+            <span className="text-sm">
+              {showSettings ? t.close_settings : t.settings}
+            </span>
           </button>
         </div>
 
@@ -613,16 +643,16 @@ export default function StatsPage() {
           <div className="mb-8 p-6 bg-white rounded-3xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-top-4">
             <div className="mb-8">
               <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <span>🔊</span> Audio Preferences
+                <span>🔊</span> {t.audio_prefs}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
                   <div>
                     <p className="text-sm font-bold text-slate-700">
-                      Auto-play Japanese
+                      {t.auto_play_jp}
                     </p>
                     <p className="text-[10px] text-slate-400 font-medium">
-                      Hear the kanji when card appears
+                      {t.audio_desc_jp}
                     </p>
                   </div>
                   <button
@@ -640,10 +670,10 @@ export default function StatsPage() {
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
                   <div>
                     <p className="text-sm font-bold text-slate-700">
-                      Auto-play English
+                      {t.auto_play_en}
                     </p>
                     <p className="text-[10px] text-slate-400 font-medium">
-                      Hear translation when flipping
+                      {t.audio_desc_en}
                     </p>
                   </div>
                   <button
@@ -655,6 +685,48 @@ export default function StatsPage() {
                     <div
                       className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${autoPlayEn ? "left-7" : "left-1"}`}
                     />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="h-px bg-slate-100 w-full mb-8" />
+
+            {/* Language Preference - NEW SECTION */}
+            <div className="mb-8">
+              <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <span>🌐</span>{" "}
+                {lang === "jp" ? "表示言語" : "Interface Language"}
+              </h3>
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                <div>
+                  <p className="text-sm font-bold text-slate-700">
+                    {t.language_label || "App Language"}
+                  </p>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    Toggle between English and Japanese
+                  </p>
+                </div>
+                <div className="flex bg-white rounded-xl p-1 border border-slate-200 shadow-sm relative z-50 pointer-events-auto">
+                  <button
+                    onClick={() => setLang("en")}
+                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${
+                      lang === "en"
+                        ? "bg-indigo-600 text-white shadow-md"
+                        : "text-slate-400 hover:text-slate-600"
+                    }`}
+                  >
+                    ENGLISH
+                  </button>
+                  <button
+                    onClick={() => setLang("jp")}
+                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${
+                      lang === "jp"
+                        ? "bg-indigo-600 text-white shadow-md"
+                        : "text-slate-400 hover:text-slate-600"
+                    }`}
+                  >
+                    日本語
                   </button>
                 </div>
               </div>
@@ -721,7 +793,7 @@ export default function StatsPage() {
                   onClick={updateDeckTitle}
                   className="bg-emerald-500 text-white px-3 py-1 rounded-lg text-xs font-bold shadow-sm hover:bg-emerald-600 transition-colors"
                 >
-                  Save
+                  {t.save}
                 </button>
                 <button
                   onClick={() => setIsEditingTitle(false)}
@@ -758,7 +830,7 @@ export default function StatsPage() {
               </div>
             )}
             <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">
-              Active Collection
+              {t.active_collection}
             </p>
           </div>
 
@@ -768,13 +840,13 @@ export default function StatsPage() {
               href="/"
               className="flex-1 md:flex-none bg-white px-5 py-2.5 rounded-xl shadow-sm font-bold text-indigo-600 border border-slate-100 text-center hover:bg-slate-50 transition-all hover:shadow-md"
             >
-              ← Back to Study
+              ← {t.back}
             </Link>
             <button
               onClick={handleLogout}
               className="flex-1 md:flex-none bg-rose-50 px-5 py-2.5 rounded-xl shadow-sm font-bold text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all"
             >
-              Sign Out
+              {t.signout}
             </button>
           </div>
         </div>
@@ -782,17 +854,17 @@ export default function StatsPage() {
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6 mb-8">
           <StatCard
-            label="Vocabulary"
+            label={t.vocabulary}
             value={totalCards}
             color="bg-indigo-500"
           />
           <StatCard
-            label="Mastered"
+            label={t.mastered}
             value={masteredCards}
             color="bg-emerald-500"
           />
           <StatCard
-            label="Struggling"
+            label={t.struggling}
             value={strugglingCards}
             color="bg-rose-500"
           />
@@ -800,9 +872,11 @@ export default function StatsPage() {
           <div className="bg-gradient-to-br from-orange-500 to-red-600 p-6 rounded-3xl shadow-lg flex justify-between items-center text-white">
             <div>
               <p className="text-white/70 text-[10px] font-black uppercase tracking-tighter">
-                Current Streak
+                {t.streak}
               </p>
-              <p className="text-4xl font-black">{streak} Days</p>
+              <p className="text-4xl font-black">
+                {streak} {t.days}
+              </p>
             </div>
             <span className="text-3xl">🔥</span>
           </div>
@@ -817,20 +891,20 @@ export default function StatsPage() {
               <div className="flex-1 w-full">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 text-[10px] font-black rounded-md border border-indigo-500/30 uppercase tracking-widest">
-                    Recognize
+                    {t.recognition}
                   </span>
                   <p className="text-xs font-bold text-slate-400">🇯🇵 → 🇺🇸</p>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
                     <p className="text-[10px] font-bold text-slate-500 uppercase">
-                      Tries
+                      {t.tries}
                     </p>
                     <p className="text-xl font-black">{globalStats.jp.tries}</p>
                   </div>
                   <div>
                     <p className="text-[10px] font-bold text-indigo-400 uppercase">
-                      Accuracy
+                      {t.accuracy}
                     </p>
                     <p className="text-xl font-black">
                       {globalStats.jp.tries > 0
@@ -843,7 +917,7 @@ export default function StatsPage() {
                   </div>
                   <div>
                     <p className="text-[10px] font-bold text-emerald-500 uppercase">
-                      Pass
+                      {t.pass}
                     </p>
                     <p className="text-xl font-black text-emerald-400">
                       {globalStats.jp.pass}
@@ -859,20 +933,20 @@ export default function StatsPage() {
               <div className="flex-1 w-full">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 text-[10px] font-black rounded-md border border-orange-500/30 uppercase tracking-widest">
-                    Recall
+                    {t.recall}
                   </span>
                   <p className="text-xs font-bold text-slate-400">🇺🇸 → 🇯🇵</p>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
                     <p className="text-[10px] font-bold text-slate-500 uppercase">
-                      Tries
+                      {t.tries}
                     </p>
                     <p className="text-xl font-black">{globalStats.en.tries}</p>
                   </div>
                   <div>
                     <p className="text-[10px] font-bold text-orange-400 uppercase">
-                      Accuracy
+                      {t.accuracy}
                     </p>
                     <p className="text-xl font-black">
                       {globalStats.en.tries > 0
@@ -885,7 +959,7 @@ export default function StatsPage() {
                   </div>
                   <div>
                     <p className="text-[10px] font-bold text-emerald-500 uppercase">
-                      Pass
+                      {t.pass}
                     </p>
                     <p className="text-xl font-black text-emerald-400">
                       {globalStats.en.pass}
@@ -901,10 +975,10 @@ export default function StatsPage() {
         <div className="mb-10">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">
-              Starter Collections
+              {t.starter_collections}
             </h3>
             <span className="text-[10px] font-bold text-slate-300 uppercase tracking-tighter">
-              {starterPacks.length} Available
+              {starterPacks.length} {t.available}
             </span>
           </div>
 

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { LanguageProvider } from "@/context/LanguageContext";
 
 export const metadata: Metadata = {
   title: "TigerCards AI",
@@ -14,7 +15,7 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body className="antialiased bg-slate-50 text-slate-900">
-        {children}
+        <LanguageProvider>{children}</LanguageProvider>
       </body>
     </html>
   );
