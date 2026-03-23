@@ -1,4 +1,9 @@
+"use client";
+import { useLang } from "@/context/LanguageContext";
+
 export default function CoachMarks({ onDismiss }: { onDismiss: () => void }) {
+  const { t } = useLang();
+
   return (
     <div
       onClick={onDismiss}
@@ -8,7 +13,7 @@ export default function CoachMarks({ onDismiss }: { onDismiss: () => void }) {
       {/* Top Section */}
       <div className="text-center">
         <p className="bg-slate-800 text-white px-5 py-2 rounded-full text-[10px] font-black tracking-widest shadow-xl inline-block border border-slate-700/50">
-          HOW TO STUDY
+          {t.how_to_study}
         </p>
       </div>
 
@@ -19,7 +24,7 @@ export default function CoachMarks({ onDismiss }: { onDismiss: () => void }) {
             ←
           </span>
           <span className="text-[9px] font-black text-white bg-rose-600 px-2.5 py-1 rounded-md uppercase tracking-tighter shadow-lg">
-            Forgot
+            {t.forgot}
           </span>
         </div>
 
@@ -28,7 +33,7 @@ export default function CoachMarks({ onDismiss }: { onDismiss: () => void }) {
             →
           </span>
           <span className="text-[9px] font-black text-white bg-emerald-600 px-2.5 py-1 rounded-md uppercase tracking-tighter shadow-lg">
-            Know it!
+            {t.know_it}
           </span>
         </div>
       </div>
@@ -37,7 +42,7 @@ export default function CoachMarks({ onDismiss }: { onDismiss: () => void }) {
       <div className="text-center">
         <div className="bg-slate-900/80 backdrop-blur-sm px-4 py-2 rounded-2xl inline-block border border-white/10">
           <p className="text-white font-black text-xs uppercase tracking-widest">
-            Swipe the card to start
+            {t.swipe_to_start}
           </p>
         </div>
       </div>

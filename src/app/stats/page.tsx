@@ -701,10 +701,10 @@ export default function StatsPage() {
               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
                 <div>
                   <p className="text-sm font-bold text-slate-700">
-                    {t.language_label || "App Language"}
+                    {t.app_language}
                   </p>
                   <p className="text-[10px] text-slate-400 font-medium">
-                    Toggle between English and Japanese
+                    {t.app_language_desc}
                   </p>
                 </div>
                 <div className="flex bg-white rounded-xl p-1 border border-slate-200 shadow-sm relative z-50 pointer-events-auto">
@@ -736,7 +736,7 @@ export default function StatsPage() {
 
             <div>
               <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-2 flex items-center gap-2">
-                <span>🚫</span> Word Filters
+                <span>🚫</span> {t.word_filters}
               </h3>
               <div className="flex flex-wrap gap-2 mb-6 p-4 bg-slate-50 rounded-2xl min-h-[60px] border border-slate-100">
                 {userBlocklist.map((word) => (
@@ -761,7 +761,7 @@ export default function StatsPage() {
                   type="text"
                   value={newBlockWord}
                   onChange={(e) => setNewBlockWord(e.target.value)}
-                  placeholder="Add word to block..."
+                  placeholder={t.add_word_to_block}
                   className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                   onKeyDown={(e) =>
                     e.key === "Enter" &&
@@ -1008,11 +1008,11 @@ export default function StatsPage() {
                       </div>
                       {isOwned ? (
                         <span className="text-[10px] font-black text-emerald-600 bg-emerald-100/50 px-2.5 py-1 rounded-full uppercase tracking-widest border border-emerald-200">
-                          Added
+                          {t.added}
                         </span>
                       ) : (
                         <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full uppercase tracking-widest border border-indigo-100">
-                          Free
+                          {t.free}
                         </span>
                       )}
                     </div>
@@ -1037,7 +1037,7 @@ export default function StatsPage() {
                         : "bg-indigo-600 text-white hover:bg-indigo-700"
                     }`}
                   >
-                    {isOwned ? "Already in Deck" : "Add to Deck +"}
+                    {isOwned ? t.already_in_deck : t.add_to_deck}
                   </button>
                 </div>
               );
@@ -1047,7 +1047,7 @@ export default function StatsPage() {
             {starterPacks.length === 0 && (
               <div className="flex-none w-full p-8 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center">
                 <p className="text-sm text-slate-400 font-bold italic">
-                  Looking for new collections...
+                  {t.looking_collections}
                 </p>
               </div>
             )}
@@ -1061,7 +1061,7 @@ export default function StatsPage() {
           </div>
           <input
             type="text"
-            placeholder="Search kanji, reading, or meaning..."
+            placeholder={t.search_placeholder}
             className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none"
             value={searchQuery}
             onChange={(e) => {
@@ -1146,11 +1146,11 @@ export default function StatsPage() {
           <table className="w-full text-left border-collapse">
             <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-widest font-bold">
               <tr>
-                <th className="px-6 py-4">Kanji / Reading</th>
-                <th className="px-6 py-4">English</th>
-                <th className="px-6 py-4">🇯🇵→🇺🇸 Score</th>
-                <th className="px-6 py-4">🇺🇸→🇯🇵 Score</th>
-                <th className="px-6 py-4 text-right">Action</th>
+                <th className="px-6 py-4">{t.kanji_reading}</th>
+                <th className="px-6 py-4">{t.english}</th>
+                <th className="px-6 py-4">🇯🇵→🇺🇸 {t.score}</th>
+                <th className="px-6 py-4">🇺🇸→🇯🇵 {t.score}</th>
+                <th className="px-6 py-4 text-right">{t.action}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1208,7 +1208,7 @@ export default function StatsPage() {
                       onClick={() => deleteCard(card.id)}
                       className="opacity-0 group-hover:opacity-100 text-rose-400 hover:text-rose-600 font-bold text-sm"
                     >
-                      Delete
+                      {t.delete}
                     </button>
                   </td>
                 </tr>
@@ -1223,7 +1223,8 @@ export default function StatsPage() {
               onClick={() => setDisplayLimit((prev) => prev + 50)}
               className="bg-white border border-slate-200 px-8 py-3 rounded-2xl font-bold text-slate-600 hover:bg-slate-50"
             >
-              Load More ({filteredCards.length - displayLimit} remaining)
+              {t.load_more} ({filteredCards.length - displayLimit} {t.remaining}
+              )
             </button>
           </div>
         )}
@@ -1232,9 +1233,7 @@ export default function StatsPage() {
       {loading && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex flex-col items-center justify-center text-white">
           <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-lg font-bold animate-pulse">
-            AI is building your cards...
-          </p>
+          <p className="text-lg font-bold animate-pulse">{t.ai_building}</p>
         </div>
       )}
     </main>

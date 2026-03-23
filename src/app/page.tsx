@@ -35,8 +35,7 @@ export default function Home() {
   const [autoPlayJp, setAutoPlayJp] = useState(true);
   const [autoPlayEn, setAutoPlayEn] = useState(false);
   const [showHints, setShowHints] = useState(false);
-
-  const { t, setLang, lang } = useLang();
+  const { t, setLang } = useLang();
 
   // --- 2. Auth Listener ---
   useEffect(() => {
@@ -82,6 +81,10 @@ export default function Home() {
           localStorage.getItem("show_first_timer_hint") === "true"
         ) {
           setShowHints(true);
+        }
+
+        if (p.preferred_language) {
+          setLang(p.preferred_language);
         }
       }
 
@@ -287,7 +290,7 @@ export default function Home() {
   if (!isAuthLoaded)
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 font-bold text-slate-400">
-        Loading Session...
+        {t.loading_session}
       </div>
     );
   if (!user) return <Auth />;
@@ -313,7 +316,7 @@ export default function Home() {
             href="/stats"
             className="bg-white px-4 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-100 flex items-center gap-2 h-10 transition-transform active:scale-95"
           >
-            📊 Stats
+            📊 {t.stats}
           </Link>
         </div>
       </div>
@@ -329,7 +332,7 @@ export default function Home() {
             <div className="absolute top-0 flex items-center gap-2 bg-white px-5 py-2 rounded-full shadow-xl border border-orange-100 animate-bounce z-40 md:top-4">
               <span className="text-xl">🔥</span>
               <span className="font-black text-slate-800 tracking-tight text-sm uppercase">
-                {sessionStreak} IN A ROW
+                {sessionStreak} {t.in_a_row}
               </span>
             </div>
           )}
@@ -345,13 +348,13 @@ export default function Home() {
                   />
                 </div>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest md:text-[9px]">
-                  Goal: {dailyProgress}/{DAILY_GOAL}
+                  {t.goal}: {dailyProgress}/{DAILY_GOAL}
                 </p>
               </>
             ) : (
               <div className="bg-emerald-100 border border-emerald-200 px-5 py-2 rounded-full animate-pulse md:px-4 md:py-1">
                 <p className="text-[11px] font-black text-emerald-700 uppercase md:text-[10px]">
-                  ✨ Daily Goal Met
+                  {t.daily_goal_met}
                 </p>
               </div>
             )}
@@ -363,16 +366,16 @@ export default function Home() {
           <div className="w-80 h-[28rem] bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse gap-4">
             <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
             <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">
-              Syncing Deck...
+              {t.syncing_deck}
             </p>
           </div>
         ) : currentCard ? (
           <div className="flex flex-col items-center gap-6">
             <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
-              {language === "jp" ? "🇯🇵 Recognition" : "🇺🇸 Recall"} |{" "}
+              {language === "jp" ? `🇯🇵 ${t.recognition}}` : `🇺🇸 ${t.recall}`} |{" "}
               {currentCard.scores?.[language === "jp" ? "jp_to_en" : "en_to_jp"]
                 ?.percent || 0}
-              % Accuracy
+              % {t.accuracy}
             </span>
             <div className="relative">
               {showHints && cards.length > 0 && (
@@ -395,17 +398,15 @@ export default function Home() {
             <div className="text-5xl">📭</div>
             <div>
               <p className="text-slate-800 font-black text-xl mb-2">
-                Empty Deck
+                {t.empty_deck}
               </p>
-              <p className="text-slate-400 text-sm mb-6">
-                Start your journey by adding some cards.
-              </p>
+              <p className="text-slate-400 text-sm mb-6">{t.start_journey}</p>
             </div>
             <Link
               href="/stats"
               className="text-white font-bold bg-indigo-600 px-8 py-3 rounded-2xl shadow-lg shadow-indigo-100 transition-transform active:scale-95"
             >
-              + Get Started
+              {t.get_started}
             </Link>
           </div>
         )}
@@ -416,13 +417,13 @@ export default function Home() {
             onClick={() => handleScore(false)}
             className="flex-1 py-4 bg-rose-50 text-rose-600 rounded-[1.5rem] font-black border-b-4 border-rose-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-sm tracking-widest"
           >
-            ✕ Fail
+            ✕ {t.fail}
           </button>
           <button
             onClick={() => handleScore(true)}
             className="flex-1 py-4 bg-emerald-500 text-white rounded-[1.5rem] font-black border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all uppercase text-sm tracking-widest"
           >
-            ✓ Pass
+            ✓ {t.pass}
           </button>
         </div>
       </div>

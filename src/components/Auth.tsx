@@ -1,8 +1,11 @@
 "use client";
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useLang } from "@/context/LanguageContext";
+import LanguageToggle from "@/components/LanguageToggle";
 
 export default function Auth() {
+  const { t, lang, setLang } = useLang();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -61,19 +64,22 @@ export default function Auth() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-slate-50">
+      <div className="mb-8 scale-90">
+        <LanguageToggle language={lang} setLanguage={setLang} />
+      </div>
       <div className="w-full max-w-md bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
         <h1 className="text-2xl font-black text-slate-800 mb-6 text-center">
           {isResetting
-            ? "Reset Password"
+            ? t.reset_password
             : isRegistering
-              ? "Create Account"
-              : "Welcome to FlashKado!"}
+              ? t.create_account
+              : t.welcome_message}
         </h1>
 
         <form onSubmit={handleAuth} className="space-y-4">
           <input
             type="email"
-            placeholder="Email"
+            placeholder={t.email_placeholder}
             className="w-full p-3 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -83,7 +89,7 @@ export default function Auth() {
           {!isResetting && (
             <input
               type="password"
-              placeholder="Password"
+              placeholder={t.password_placeholder}
               className="w-full p-3 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -96,12 +102,12 @@ export default function Auth() {
             className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition-all disabled:opacity-50"
           >
             {loading
-              ? "Processing..."
+              ? t.processing
               : isResetting
-                ? "Send Reset Link"
+                ? t.send_reset_link
                 : isRegistering
-                  ? "Register"
-                  : "Login"}
+                  ? t.register_button
+                  : t.login_button}
           </button>
         </form>
 
@@ -114,7 +120,7 @@ export default function Auth() {
               </div>
               <div className="relative flex justify-center text-[10px] uppercase tracking-widest font-black">
                 <span className="bg-white px-4 text-slate-300">
-                  Or continue with
+                  {t.or_continue_with}
                 </span>
               </div>
             </div>
@@ -141,9 +147,7 @@ export default function Auth() {
             }}
             className="text-sm font-bold text-slate-400 hover:text-indigo-600 transition-colors"
           >
-            {isRegistering
-              ? "Already have an account? Login"
-              : "New here? Create an account"}
+            {isRegistering ? t.switch_to_login : t.switch_to_register}
           </button>
 
           <button
@@ -153,7 +157,7 @@ export default function Auth() {
             }}
             className="text-xs font-bold text-slate-300 hover:text-rose-500 transition-colors"
           >
-            {isResetting ? "Back to Login" : "Forgot your password?"}
+            {isResetting ? t.back_to_login : t.forgot_password_link}
           </button>
         </div>
       </div>
