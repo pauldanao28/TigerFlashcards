@@ -174,7 +174,8 @@ export default function StatsPage() {
       // 2. This filters the master_cards to ONLY ones in YOUR deck
       .eq("deck_cards.deck_id", defaultDeckId)
       // 3. This ensures you only get YOUR scores (not someone else's)
-      .eq("user_scores.user_id", user.id);
+      .eq("user_scores.user_id", user.id)
+      .order("created_at", { ascending: false });
 
     if (error) {
       console.error("Fetch Error:", error.message);
