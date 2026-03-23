@@ -248,7 +248,10 @@ export default function Home() {
     if (isPass) {
       const prog = dailyProgress + 1;
       setDailyProgress(prog);
-      if (prog === DAILY_GOAL) updateStreak();
+      if (prog === DAILY_GOAL) {
+        updateStreak();
+        alert(t.daily_streak_extended);
+      }
     }
 
     const updatedCards = cards.map((c) =>
