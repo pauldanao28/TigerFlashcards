@@ -715,24 +715,27 @@ export default function StatsPage() {
             <div className="h-px bg-slate-100 w-full mb-8" />
 
             {/* Language Preference - NEW SECTION */}
+            {/* Language Preference - RESPONSIVE FIX */}
             <div className="mb-8">
-              <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <span>🌐</span>{" "}
-                {lang === "jp" ? "表示言語" : "Interface Language"}
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                <span>🌐</span> {t.interface_language}
               </h3>
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                <div>
-                  <p className="text-sm font-bold text-slate-700">
+
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 gap-4">
+                <div className="max-w-[200px]">
+                  <p className="text-sm font-bold text-slate-700 leading-tight">
                     {t.app_language}
                   </p>
-                  <p className="text-[10px] text-slate-400 font-medium">
+                  <p className="text-[9px] text-slate-400 font-medium mt-0.5 leading-relaxed">
                     {t.app_language_desc}
                   </p>
                 </div>
-                <div className="flex bg-white rounded-xl p-1 border border-slate-200 shadow-sm relative z-50 pointer-events-auto">
+
+                {/* Buttons: Forced to fit on one line or stacked based on width */}
+                <div className="flex bg-white rounded-xl p-1 border border-slate-200 shadow-sm w-full sm:w-auto">
                   <button
                     onClick={() => setLang("en")}
-                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${
+                    className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[10px] font-black transition-all ${
                       lang === "en"
                         ? "bg-indigo-600 text-white shadow-md"
                         : "text-slate-400 hover:text-slate-600"
@@ -742,7 +745,7 @@ export default function StatsPage() {
                   </button>
                   <button
                     onClick={() => setLang("jp")}
-                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${
+                    className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[10px] font-black transition-all ${
                       lang === "jp"
                         ? "bg-indigo-600 text-white shadow-md"
                         : "text-slate-400 hover:text-slate-600"

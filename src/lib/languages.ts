@@ -96,6 +96,7 @@ export const translations = {
     status_pending: "Pending",
     system_management: "System Management",
     report_issue: "Report",
+    interface_language: "Interface Language",
   },
   jp: {
     goal: "今日の目標",
@@ -194,5 +195,6 @@ export const translations = {
     status_pending: "保留中",
     system_management: "システム管理",
     report_issue: "報告",
+    interface_language: "表示言語",
   }
 };
