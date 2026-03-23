@@ -215,15 +215,6 @@ export default function Flashcard({
 
           {/* BACK SIDE */}
           <div className="absolute inset-0 flex flex-col bg-indigo-600 text-white rounded-3xl shadow-2xl [transform:rotateY(180deg)] [backface-visibility:hidden] p-8 text-center">
-            {/* 3. The Report Button (Top Left) */}
-            <button
-              onClick={handleReport}
-              className="absolute top-4 left-4 p-2 text-indigo-300 hover:text-white transition-colors z-30"
-              title={t.fix_requested}
-            >
-              🚩
-            </button>
-
             {/* Part of Speech Badge */}
             {card.partOfSpeech && (
               <div className="absolute top-4 right-4">
@@ -269,6 +260,14 @@ export default function Flashcard({
                 className="p-3 bg-white/10 hover:bg-white/20 rounded-full transition-all border border-white/20 active:scale-95"
               >
                 🔊
+              </button>
+
+              {/* NEW SUBTLE REPORT BUTTON (Bottom Right) */}
+              <button
+                onClick={handleReport}
+                className="absolute right-0 bottom-0 text-[10px] font-black uppercase tracking-widest text-indigo-300/50 hover:text-white transition-colors py-2 px-1"
+              >
+                {t.report_issue}
               </button>
             </div>
           </div>
