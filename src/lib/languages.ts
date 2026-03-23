@@ -97,6 +97,9 @@ export const translations = {
     system_management: "System Management",
     report_issue: "Report",
     interface_language: "Interface Language",
+    daily_streak: "Daily Streak",
+    best_streak: "Best Streak",
+    passes: "Passes"
   },
   jp: {
     goal: "今日の目標",
@@ -196,5 +199,8 @@ export const translations = {
     system_management: "システム管理",
     report_issue: "報告",
     interface_language: "表示言語",
+    daily_streak: "継続日数",
+    best_streak: "最高連勝",
+    passes: "連勝"
   }
 };

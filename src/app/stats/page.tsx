@@ -20,6 +20,7 @@ export default function StatsPage() {
   const [autoPlayJp, setAutoPlayJp] = useState(true);
   const [autoPlayEn, setAutoPlayEn] = useState(false);
   const [streak, setStreak] = useState(0);
+  const [maxStreak, setMaxStreak] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [displayLimit, setDisplayLimit] = useState(50);
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
@@ -100,13 +101,14 @@ export default function StatsPage() {
     const { data } = await supabase
       .from("profiles")
       .select(
-        "streak_count, blocked_words, auto_play_jp, auto_play_en, imported_packs, is_admin",
+        "streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, imported_packs, is_admin",
       )
       .eq("id", user?.id)
       .single();
 
     if (data) {
       setStreak(data.streak_count);
+      setMaxStreak(data.max_streak || 0);
       setUserBlocklist(data.blocked_words || []);
       setAutoPlayJp(data.auto_play_jp);
       setAutoPlayEn(data.auto_play_en);
@@ -860,28 +862,33 @@ export default function StatsPage() {
           </div>
 
           {/* Right Side: Navigation Buttons */}
-          <div className="flex gap-3 w-full md:w-auto">
-            {/* --- ADD THIS ADMIN BUTTON --- */}
+          <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto md:ml-auto">
+            {/* Admin Button - Full width row 1 on mobile */}
             {isAdmin && (
               <Link
                 href="/admin"
-                className="flex-1 md:flex-none bg-slate-900 text-white px-5 py-2.5 rounded-xl shadow-lg font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center gap-2"
+                className="w-full md:w-auto bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2"
               >
                 <span className="text-sm">🚩</span> {t.admin_title}
               </Link>
             )}
-            <Link
-              href="/"
-              className="flex-1 md:flex-none bg-white px-5 py-2.5 rounded-xl shadow-sm font-bold text-indigo-600 border border-slate-100 text-center hover:bg-slate-50 transition-all hover:shadow-md"
-            >
-              ← {t.back_to_study}
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="flex-1 md:flex-none bg-rose-50 px-5 py-2.5 rounded-xl shadow-sm font-bold text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all"
-            >
-              {t.signout}
-            </button>
+
+            {/* Study & Logout - Shared row 2 on mobile */}
+            <div className="flex gap-3 w-full md:w-auto">
+              <Link
+                href="/"
+                className="flex-1 md:flex-none md:px-6 bg-white py-3 rounded-2xl shadow-sm font-bold text-indigo-600 border border-slate-100 text-center hover:bg-slate-50 transition-all text-sm whitespace-nowrap"
+              >
+                ← {t.back_to_study}
+              </Link>
+
+              <button
+                onClick={handleLogout}
+                className="flex-1 md:flex-none md:px-6 bg-rose-50 py-3 rounded-2xl shadow-sm font-bold text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all text-sm whitespace-nowrap"
+              >
+                {t.signout}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -903,16 +910,43 @@ export default function StatsPage() {
             color="bg-rose-500"
           />
 
-          <div className="bg-gradient-to-br from-orange-500 to-red-600 p-6 rounded-3xl shadow-lg flex justify-between items-center text-white">
-            <div>
-              <p className="text-white/70 text-[10px] font-black uppercase tracking-tighter">
-                {t.streak}
-              </p>
-              <p className="text-4xl font-black">
-                {streak} {t.days}
-              </p>
+          <div className="bg-gradient-to-br from-orange-500 to-red-600 p-5 rounded-[2rem] shadow-lg flex items-center justify-between text-white overflow-hidden">
+            {/* Left Section: Streaks */}
+            <div className="flex flex-1 items-center justify-around sm:justify-start sm:gap-10">
+              {/* DAILY LOGIN STREAK */}
+              <div className="flex flex-col">
+                <p className="text-white/70 text-[10px] font-black uppercase tracking-tighter mb-0.5 whitespace-nowrap">
+                  {t.daily_streak}
+                </p>
+                <p className="text-2xl sm:text-3xl font-black leading-none">
+                  {streak}{" "}
+                  <span className="text-[10px] sm:text-xs uppercase opacity-80">
+                    {t.days}
+                  </span>
+                </p>
+              </div>
+
+              {/* VERTICAL DIVIDER (Hidden if screen is too tiny, or kept for flair) */}
+              <div className="w-px h-8 bg-white/20 mx-2" />
+
+              {/* BEST SESSION STREAK */}
+              <div className="flex flex-col">
+                <p className="text-white/70 text-[10px] font-black uppercase tracking-tighter mb-0.5 whitespace-nowrap">
+                  {t.best_streak}
+                </p>
+                <p className="text-2xl sm:text-3xl font-black italic leading-none">
+                  {maxStreak}{" "}
+                  <span className="text-[10px] not-italic uppercase opacity-80">
+                    {t.passes}
+                  </span>
+                </p>
+              </div>
             </div>
-            <span className="text-3xl">🔥</span>
+
+            {/* Right Section: Icon (Shrunk slightly for mobile) */}
+            <div className="ml-4 flex-shrink-0">
+              <span className="text-2xl sm:text-3xl drop-shadow-md">🔥</span>
+            </div>
           </div>
 
           {/* Directional Comparison Dashboard */}
@@ -1110,14 +1144,40 @@ export default function StatsPage() {
           {visibleCards.map((card) => (
             <div
               key={card.id}
-              className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm relative"
+              className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden"
             >
-              <button
-                onClick={() => deleteCard(card.id)}
-                className="absolute top-4 right-4 text-slate-300 hover:text-rose-500"
-              >
-                ✕
-              </button>
+              {/* ACTION BUTTONS (Top Right) */}
+              {/* ACTION BUTTONS (Perfectly Aligned) */}
+              <div className="absolute top-4 right-4 flex items-center gap-1">
+                {/* REPORT BUTTON */}
+                <button
+                  onClick={() => handleReport(card.id, card.english)}
+                  className="w-8 h-8 flex items-center justify-center text-amber-500 active:scale-90 transition-all"
+                >
+                  <span className="text-base leading-none">🚩</span>
+                </button>
+
+                {/* DELETE BUTTON */}
+                <button
+                  onClick={() => deleteCard(card.id)}
+                  className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-rose-500 active:scale-90 transition-all"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2.5}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
               <div className="mb-4">
                 <div className="text-2xl font-black text-slate-800">
                   {card.japanese}

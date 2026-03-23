@@ -70,6 +70,7 @@ export default function Home() {
         setAutoPlayJp(p.auto_play_jp ?? true);
         setAutoPlayEn(p.auto_play_en ?? false);
         setHasOnboarded(p.has_onboarded);
+        setStreak(p.max_streak || 0);
 
         // Check if goal already met today
         const today = new Date().toISOString().split("T")[0];
@@ -201,6 +202,20 @@ export default function Home() {
 
   const handleScore = async (isPass: boolean) => {
     if (!currentCard || !user) return;
+
+    const newSessionStreak = isPass ? sessionStreak + 1 : 0;
+    setSessionStreak(newSessionStreak);
+
+    // If this session just broke the all-time record, update the profile
+    // We compare against the 'streak' state (which we fetched from profiles.streak_count/max_streak earlier)
+    if (isPass && newSessionStreak > streak) {
+      setStreak(newSessionStreak); // Update local UI immediately
+      await supabase
+        .from("profiles")
+        .update({ max_streak: newSessionStreak }) // Make sure this column exists in SQL!
+        .eq("id", user.id);
+    }
+
     const mode = language === "jp" ? "jp_to_en" : "en_to_jp";
     const s = currentCard.scores || {
       jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
@@ -231,12 +246,9 @@ export default function Home() {
     );
 
     if (isPass) {
-      setSessionStreak((p) => p + 1);
       const prog = dailyProgress + 1;
       setDailyProgress(prog);
       if (prog === DAILY_GOAL) updateStreak();
-    } else {
-      setSessionStreak(0);
     }
 
     const updatedCards = cards.map((c) =>
