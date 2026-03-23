@@ -4,6 +4,8 @@ export const translations = {
     stats: "Stats",
     fail: "Fail",
     pass: "Pass",
+    fail_caps: "FAIL",
+    pass_caps: "PASS",
     empty_deck: "Empty Deck",
     recall: "Recall",
     recognition: "Recognition",
@@ -12,7 +14,8 @@ export const translations = {
     streak: "Current Streak",
     syncing_deck: "Syncing Deck...",
     days: "Days",
-    back: "Back to Study",
+    back: "Back",
+    back_to_study: "Back to Study",
     signout: "Sign Out",
     active_collection: "Active Collection",
     save: "Save",
@@ -80,12 +83,27 @@ export const translations = {
     forgot_password_link: "Forgot your password?",
     check_email_reset: "Check your email for the reset link!",
     check_email_confirm: "Check your email for the confirmation link!",
+    report_placeholder: "Suggest a better meaning or fix...",
+    report_sent: "Feedback sent! Thank you.",
+    fix_requested: "Fix Requested",
+    admin_title: "Admin Reports",
+    current_meaning: "Current Meaning",
+    suggested_fix: "Suggested Fix",
+    approve_fix: "Apply & Resolve",
+    ignore_fix: "Ignore",
+    no_reports: "No pending reports. Great job!",
+    status_resolved: "Resolved",
+    status_pending: "Pending",
+    system_management: "System Management",
+    report_issue: "Report",
   },
   jp: {
     goal: "今日の目標",
     stats: "統計",
     fail: "わからない",
     pass: "わかった",
+    fail_caps: "わからない",
+    pass_caps: "わかった",
     empty_deck: "デッキが空です",
     recall: "想起", 
     recognition: "認識", 
@@ -94,7 +112,8 @@ export const translations = {
     streak: "連続記録", // Renzoku kiroku (Continuous record)
     syncing_deck: "デッキを同期中...", // Dekki o dōkichū...
     days: "日", // Hi/Nichi
-    back: "学習に戻る", // Gakushū ni modoru (Return to learning)
+    back: "戻る",
+    back_to_study: "学習に戻る", // Gakushū ni modoru (Return to learning)
     signout: "ログアウト", // Log-out (Standard katakana)
     active_collection: "現在のコレクション", // Genzai no korekushon (Current Collection)
     save: "保存する", // Hozon suru (To Save/Preserve)
@@ -162,5 +181,18 @@ export const translations = {
     forgot_password_link: "パスワードをお忘れですか？",
     check_email_reset: "再設定リンクをメールで送信しました！",
     check_email_confirm: "確認リンクをメールで送信しました！",
+    report_placeholder: "正しい意味や修正案を入力してください...",
+    report_sent: "報告を送信しました。ありがとうございます！",
+    fix_requested: "修正依頼",
+    admin_title: "修正依頼一覧",
+    current_meaning: "現在の意味",
+    suggested_fix: "修正案",
+    approve_fix: "反映して解決",
+    ignore_fix: "無視する",
+    no_reports: "保留中の依頼はありません。",
+    status_resolved: "解決済み",
+    status_pending: "保留中",
+    system_management: "システム管理",
+    report_issue: "報告",
   }
 };

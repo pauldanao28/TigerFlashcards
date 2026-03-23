@@ -2,10 +2,13 @@
 import { useState, useEffect } from "react";
 import { motion, useMotionValue, useTransform } from "framer-motion";
 import { FlashcardData } from "@/lib/types";
+import { supabase } from "@/lib/supabase";
+import { useLang } from "@/context/LanguageContext";
 
 interface FlashcardProps {
   card: FlashcardData;
   language: "en" | "jp";
+  userId: string;
   onSwipe?: (direction: "left" | "right") => void;
   autoPlayJp?: boolean;
   autoPlayEn?: boolean;
@@ -30,10 +33,12 @@ const speak = (text: string, lang: "ja-JP" | "en-US") => {
 export default function Flashcard({
   card,
   language,
+  userId,
   onSwipe,
   autoPlayJp,
   autoPlayEn,
 }: FlashcardProps) {
+  const { t } = useLang();
   const [flipped, setFlipped] = useState(false);
   const [hasVibrated, setHasVibrated] = useState(false);
 
@@ -100,6 +105,26 @@ export default function Flashcard({
     setHasVibrated(false);
   };
 
+  const handleReport = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // CRITICAL: Prevents the card from flipping/swiping when clicking report
+
+    const suggestion = window.prompt(t.report_placeholder);
+
+    if (!suggestion) return;
+
+    const { error } = await supabase.from("card_reports").insert({
+      card_id: card.id,
+      user_id: userId,
+      suggested_meaning: suggestion,
+    });
+
+    if (error) {
+      alert(error.message);
+    } else {
+      alert(t.report_sent);
+    }
+  };
+
   const getFontSize = (text: string, isJapanese: boolean) => {
     const len = text.length;
     if (isJapanese) {
@@ -142,7 +167,7 @@ export default function Flashcard({
           className="absolute inset-0 z-50 pointer-events-none rounded-3xl border-8 border-green-500 bg-green-500/10 flex items-center justify-center"
         >
           <span className="text-green-500 text-5xl font-black rotate-[-12deg]">
-            PASS
+            {t.pass_caps}
           </span>
         </motion.div>
 
@@ -151,7 +176,7 @@ export default function Flashcard({
           className="absolute inset-0 z-50 pointer-events-none rounded-3xl border-8 border-red-500 bg-red-500/10 flex items-center justify-center"
         >
           <span className="text-red-500 text-5xl font-black rotate-[12deg]">
-            FAIL
+            {t.fail_caps}
           </span>
         </motion.div>
 
@@ -190,6 +215,15 @@ export default function Flashcard({
 
           {/* BACK SIDE */}
           <div className="absolute inset-0 flex flex-col bg-indigo-600 text-white rounded-3xl shadow-2xl [transform:rotateY(180deg)] [backface-visibility:hidden] p-8 text-center">
+            {/* 3. The Report Button (Top Left) */}
+            <button
+              onClick={handleReport}
+              className="absolute top-4 left-4 p-2 text-indigo-300 hover:text-white transition-colors z-30"
+              title={t.fix_requested}
+            >
+              🚩
+            </button>
+
             {/* Part of Speech Badge */}
             {card.partOfSpeech && (
               <div className="absolute top-4 right-4">

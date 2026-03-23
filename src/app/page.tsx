@@ -386,6 +386,7 @@ export default function Home() {
                   key={currentCard.id}
                   card={currentCard}
                   language={language}
+                  userId={user.id}
                   onSwipe={onSwipe}
                   autoPlayJp={autoPlayJp}
                   autoPlayEn={autoPlayEn}
