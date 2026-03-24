@@ -1016,17 +1016,27 @@ export default function StatsPage() {
             )}
 
             {/* UTILITY ROW: Study & Logout - Shared row on mobile */}
-            <div className="flex gap-3 w-full md:w-auto">
+            <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+              {/* Mini Games Button */}
               <Link
-                href="/"
-                className="flex-1 md:flex-none md:px-6 bg-white py-3 rounded-2xl shadow-sm font-bold text-indigo-600 border border-slate-100 text-center hover:bg-slate-50 transition-all text-sm whitespace-nowrap"
+                href="/minigames/focus"
+                className="flex-1 md:flex-none md:px-5 bg-indigo-50 py-3 rounded-2xl shadow-sm font-bold text-indigo-700 border border-indigo-100 hover:bg-indigo-100 transition-all text-sm whitespace-nowrap flex items-center justify-center gap-2"
               >
-                ← {t.back_to_study}
+                <span className="text-lg">🎮</span> {t.mini_games}
               </Link>
 
+              {/* Back to Study - Added flex properties to match alignment */}
+              <Link
+                href="/"
+                className="flex-1 md:flex-none md:px-5 bg-white py-3 rounded-2xl shadow-sm font-bold text-indigo-600 border border-slate-100 hover:bg-slate-50 transition-all text-sm whitespace-nowrap flex items-center justify-center gap-2"
+              >
+                <span>←</span> {t.back_to_study}
+              </Link>
+
+              {/* Signout - Added flex properties to match alignment */}
               <button
                 onClick={handleLogout}
-                className="flex-1 md:flex-none md:px-6 bg-rose-50 py-3 rounded-2xl shadow-sm font-bold text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all text-sm whitespace-nowrap"
+                className="flex-1 md:flex-none md:px-5 bg-rose-50 py-3 rounded-2xl shadow-sm font-bold text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all text-sm whitespace-nowrap flex items-center justify-center"
               >
                 {t.signout}
               </button>
