@@ -30,6 +30,13 @@ export default function StatsPage() {
   const [starterPacks, setStarterPacks] = useState<any[]>([]);
   const [ownedPacks, setOwnedPacks] = useState<string[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [feedbackForm, setFeedbackForm] = useState({
+    type: "feedback",
+    subject: "",
+    description: "",
+  });
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [sent, setSent] = useState(false);
 
   const fetchStarterPacks = async () => {
     const { data, error } = await supabase.from("starter_packs").select("*"); // Fetches id, name, description, card_data, etc.
@@ -587,6 +594,23 @@ export default function StatsPage() {
     }
   };
 
+  const submitFeedback = async () => {
+    setSubmittingFeedback(true);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const { error } = await supabase.from("system_feedback").insert({
+      user_id: user?.id,
+      ...feedbackForm,
+    });
+    if (!error) {
+      setSent(true);
+      setFeedbackForm({ type: "feedback", subject: "", description: "" });
+      setTimeout(() => setSent(false), 4000);
+    }
+    setSubmittingFeedback(false);
+  };
+
   return (
     <main className="min-h-screen bg-slate-50 p-8">
       <div className="max-w-5xl mx-auto">
@@ -798,6 +822,78 @@ export default function StatsPage() {
                   }
                 />
               </div>
+            </div>
+
+            <div className="h-px bg-slate-100 w-full mb-8" />
+
+            {/* BUG & FEEDBACK SECTION - NEW */}
+            <div className="mb-4">
+              <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <span>💬</span> {t.feedback_title || "Bug & Feedback"}
+              </h3>
+
+              {sent ? (
+                <div className="bg-emerald-50 border border-emerald-100 p-8 rounded-2xl text-center animate-in zoom-in-95 duration-300">
+                  <p className="text-emerald-600 font-black uppercase text-[10px] tracking-widest">
+                    {t.feedback_sent || "Message Received! Thanks!"}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* TYPE SELECTOR */}
+                  <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100 gap-1">
+                    {["bug", "feedback", "feature"].map((type) => (
+                      <button
+                        key={type}
+                        onClick={() =>
+                          setFeedbackForm({ ...feedbackForm, type })
+                        }
+                        className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                          feedbackForm.type === type
+                            ? "bg-white text-indigo-600 shadow-sm"
+                            : "text-slate-400 hover:text-slate-500"
+                        }`}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+
+                  <input
+                    type="text"
+                    placeholder="Subject..."
+                    value={feedbackForm.subject}
+                    onChange={(e) =>
+                      setFeedbackForm({
+                        ...feedbackForm,
+                        subject: e.target.value,
+                      })
+                    }
+                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all placeholder:text-slate-300"
+                  />
+
+                  <textarea
+                    rows={3}
+                    placeholder="Describe the issue..."
+                    value={feedbackForm.description}
+                    onChange={(e) =>
+                      setFeedbackForm({
+                        ...feedbackForm,
+                        description: e.target.value,
+                      })
+                    }
+                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all placeholder:text-slate-300 resize-none"
+                  />
+
+                  <button
+                    onClick={submitFeedback}
+                    disabled={submittingFeedback || !feedbackForm.subject}
+                    className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-600 disabled:opacity-30 disabled:grayscale transition-all active:scale-95"
+                  >
+                    {submittingFeedback ? "Sending..." : "Submit Report"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
