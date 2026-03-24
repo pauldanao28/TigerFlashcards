@@ -41,7 +41,7 @@ const updateMinigameBest = async (
 };
 
 export default function StroopSwipeGame() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
 
   const [user, setUser] = useState<any>(null);
   const [dbScores, setDbScores] = useState({ best30s: 0, best60s: 0 });
@@ -189,7 +189,7 @@ export default function StroopSwipeGame() {
   };
   return (
     // INCREASED CONTAINER: changed max-w-sm to max-w-md
-    <div className="max-w-md mx-auto p-6 font-sans select-none overflow-hidden min-h-[600px]">
+    <div className="max-w-md mx-auto p-6 font-sans select-none overflow-hidden min-h-[600px] touch-none overscroll-none">
       {/* Header / Back */}
       <Link
         href="/stats"
@@ -258,6 +258,45 @@ export default function StroopSwipeGame() {
           <h2 className="text-4xl font-black text-slate-900 mb-8 leading-tight">
             {gameState === "over" ? "❌ " + t.game_over : t.focus_swipe_game}
           </h2>
+
+          {/* --- NEW INSTRUCTIONS SECTION --- */}
+          {gameState !== "over" && (
+            <div className="mb-8 space-y-4 bg-slate-50 p-6 rounded-3xl border border-slate-100">
+              <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">
+                {lang === "en" ? "How to Play" : "遊び方"}
+              </p>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-black">
+                    →
+                  </div>
+                  <p className="text-[11px] font-bold text-slate-600 leading-tight">
+                    {lang === "en"
+                      ? "SWIPE RIGHT if Word matches Color"
+                      : "色の名前とインクの色が同じなら右へ"}
+                  </p>
+                </div>
+
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center font-black">
+                    ←
+                  </div>
+                  <p className="text-[11px] font-bold text-slate-600 leading-tight">
+                    {lang === "en"
+                      ? "SWIPE LEFT if they are Different"
+                      : "違っていたら左へスワイプ"}
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-[9px] font-black text-slate-400 uppercase italic">
+                {lang === "en"
+                  ? "Don't let the word trick you!"
+                  : "文字にだまされないで！"}
+              </p>
+            </div>
+          )}
 
           {gameState === "over" && (
             <div className="mb-8 space-y-3">
