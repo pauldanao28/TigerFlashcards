@@ -192,8 +192,10 @@ export default function AdminDashboard() {
 
   if (loading)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 font-black text-slate-400 animate-pulse uppercase tracking-widest">
-        {t.processing}
+      <div className="flex items-center justify-center min-h-screen bg-slate-50">
+        <p className="font-black text-slate-300 animate-pulse tracking-widest uppercase">
+          {t.securing_session}
+        </p>
       </div>
     );
 

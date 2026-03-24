@@ -994,17 +994,28 @@ export default function StatsPage() {
 
           {/* Right Side: Navigation Buttons */}
           <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto md:ml-auto">
-            {/* Admin Button - Full width row 1 on mobile */}
+            {/* ADMIN ROW: Stacked on mobile, side-by-side on desktop */}
             {isAdmin && (
-              <Link
-                href="/admin"
-                className="w-full md:w-auto bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2"
-              >
-                <span className="text-sm">🚩</span> {t.admin_title}
-              </Link>
+              <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                {/* Admin Reports */}
+                <Link
+                  href="/admin"
+                  className="w-full md:w-auto bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <span className="text-sm">🚩</span> {t.admin_title}
+                </Link>
+
+                {/* Admin Users Performance */}
+                <Link
+                  href="/admin/users"
+                  className="w-full md:w-auto bg-indigo-600 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <span className="text-sm">📊</span> {t.admin_user_stats}
+                </Link>
+              </div>
             )}
 
-            {/* Study & Logout - Shared row 2 on mobile */}
+            {/* UTILITY ROW: Study & Logout - Shared row on mobile */}
             <div className="flex gap-3 w-full md:w-auto">
               <Link
                 href="/"

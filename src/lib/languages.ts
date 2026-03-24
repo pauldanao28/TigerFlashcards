@@ -111,6 +111,8 @@ export const translations = {
     type_bug: "Bug",
     type_feedback: "Feedback",
     type_feature: "Feature",
+    admin_user_stats: "User Stats",
+    securing_session: "Securing Session...",
   },
   jp: {
     goal: "今日の目標",
@@ -224,5 +226,7 @@ export const translations = {
     type_bug: "バグ",
     type_feedback: "意見",
     type_feature: "新機能",
+    admin_user_stats: "ユーザー統計",
+    securing_session: "セッションを保護中...",
   }
 };
