@@ -38,6 +38,19 @@ export default function StatsPage() {
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [sent, setSent] = useState(false);
 
+  // 1. ADD THIS CSS BLOCK AT THE TOP OF YOUR FILE OR IN YOUR GLOBAL CSS
+  const firePulseAnimation = `
+  @keyframes firePulse {
+    0% { transform: scale(1); opacity: 0.9; filter: drop-shadow(0 0 1px #ff6b00); }
+    50% { transform: scale(1.1); opacity: 1; filter: drop-shadow(0 0 4px #ff0000); }
+    100% { transform: scale(1); opacity: 0.9; filter: drop-shadow(0 0 1px #ff6b00); }
+  }
+  .animate-fire {
+    animation: firePulse 2.5s ease-in-out infinite;
+    display: inline-block; /* Required for transform to work */
+  }
+`;
+
   const fetchStarterPacks = async () => {
     const { data, error } = await supabase.from("starter_packs").select("*"); // Fetches id, name, description, card_data, etc.
     if (data) setStarterPacks(data);
@@ -829,39 +842,41 @@ export default function StatsPage() {
             {/* BUG & FEEDBACK SECTION - NEW */}
             <div className="mb-4">
               <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <span>💬</span> {t.feedback_title || "Bug & Feedback"}
+                <span>💬</span> {t.feedback_title}
               </h3>
 
               {sent ? (
                 <div className="bg-emerald-50 border border-emerald-100 p-8 rounded-2xl text-center animate-in zoom-in-95 duration-300">
                   <p className="text-emerald-600 font-black uppercase text-[10px] tracking-widest">
-                    {t.feedback_sent || "Message Received! Thanks!"}
+                    {t.feedback_sent}
                   </p>
                 </div>
               ) : (
                 <div className="space-y-4">
                   {/* TYPE SELECTOR */}
                   <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100 gap-1">
-                    {["bug", "feedback", "feature"].map((type) => (
-                      <button
-                        key={type}
-                        onClick={() =>
-                          setFeedbackForm({ ...feedbackForm, type })
-                        }
-                        className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
-                          feedbackForm.type === type
-                            ? "bg-white text-indigo-600 shadow-sm"
-                            : "text-slate-400 hover:text-slate-500"
-                        }`}
-                      >
-                        {type}
-                      </button>
-                    ))}
+                    {[t.type_bug, t.type_feedback, t.type_feature].map(
+                      (type) => (
+                        <button
+                          key={type}
+                          onClick={() =>
+                            setFeedbackForm({ ...feedbackForm, type })
+                          }
+                          className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                            feedbackForm.type === type
+                              ? "bg-white text-indigo-600 shadow-sm"
+                              : "text-slate-400 hover:text-slate-500"
+                          }`}
+                        >
+                          {type}
+                        </button>
+                      ),
+                    )}
                   </div>
 
                   <input
                     type="text"
-                    placeholder="Subject..."
+                    placeholder={t.feedback_placeholder_subject}
                     value={feedbackForm.subject}
                     onChange={(e) =>
                       setFeedbackForm({
@@ -874,7 +889,7 @@ export default function StatsPage() {
 
                   <textarea
                     rows={3}
-                    placeholder="Describe the issue..."
+                    placeholder={t.feedback_placeholder_desc}
                     value={feedbackForm.description}
                     onChange={(e) =>
                       setFeedbackForm({
@@ -890,7 +905,9 @@ export default function StatsPage() {
                     disabled={submittingFeedback || !feedbackForm.subject}
                     className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-600 disabled:opacity-30 disabled:grayscale transition-all active:scale-95"
                   >
-                    {submittingFeedback ? "Sending..." : "Submit Report"}
+                    {submittingFeedback
+                      ? t.feedback_btn_sending
+                      : t.feedback_btn_submit}
                   </button>
                 </div>
               )}
@@ -1007,42 +1024,71 @@ export default function StatsPage() {
           />
 
           <div className="bg-gradient-to-br from-orange-500 to-red-600 p-5 rounded-[2rem] shadow-lg flex items-center justify-between text-white overflow-hidden">
-            {/* Left Section: Streaks */}
-            <div className="flex flex-1 items-center justify-around sm:justify-start sm:gap-10">
-              {/* DAILY LOGIN STREAK */}
-              <div className="flex flex-col">
-                <p className="text-white/70 text-[10px] font-black uppercase tracking-tighter mb-0.5 whitespace-nowrap">
-                  {t.daily_streak}
-                </p>
-                <p className="text-2xl sm:text-3xl font-black leading-none">
-                  {streak}{" "}
-                  <span className="text-[10px] sm:text-xs uppercase opacity-80">
-                    {t.days}
-                  </span>
-                </p>
-              </div>
+            {/* Left Section: Added pl-3 to prevent text from touching the left edge on mobile */}
+            <div className="flex flex-1 items-center gap-4 sm:gap-10 pl-3 sm:pl-0">
+              {/* Container for both streaks: Stack on mobile, Row on tablet+ */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-10">
+                {/* DAILY LOGIN STREAK */}
+                <div className="flex flex-col">
+                  <p className="text-white/70 text-[9px] sm:text-[10px] font-black uppercase tracking-tighter mb-0.5 whitespace-nowrap">
+                    {t.daily_streak}
+                  </p>
+                  <p className="text-xl sm:text-3xl font-black leading-none">
+                    {streak}{" "}
+                    <span className="text-[10px] sm:text-xs uppercase opacity-80">
+                      {t.days}
+                    </span>
+                  </p>
+                </div>
 
-              {/* VERTICAL DIVIDER (Hidden if screen is too tiny, or kept for flair) */}
-              <div className="w-px h-8 bg-white/20 mx-2" />
+                {/* DIVIDER: Hidden on mobile because we are stacking vertically */}
+                <div className="hidden sm:block w-px h-8 bg-white/20" />
 
-              {/* BEST SESSION STREAK */}
-              <div className="flex flex-col">
-                <p className="text-white/70 text-[10px] font-black uppercase tracking-tighter mb-0.5 whitespace-nowrap">
-                  {t.best_streak}
-                </p>
-                <p className="text-2xl sm:text-3xl font-black italic leading-none">
-                  {maxStreak}{" "}
-                  <span className="text-[10px] not-italic uppercase opacity-80">
-                    {t.passes}
-                  </span>
-                </p>
+                {/* BEST SESSION STREAK */}
+                <div className="flex flex-col">
+                  <p className="text-white/70 text-[9px] sm:text-[10px] font-black uppercase tracking-tighter mb-0.5 whitespace-nowrap">
+                    {t.best_streak}
+                  </p>
+                  <p className="text-xl sm:text-3xl font-black italic leading-none">
+                    {maxStreak}{" "}
+                    <span className="text-[10px] not-italic uppercase opacity-80">
+                      {t.passes}
+                    </span>
+                  </p>
+                </div>
               </div>
             </div>
 
-            {/* Right Section: Icon (Shrunk slightly for mobile) */}
-            <div className="ml-4 flex-shrink-0">
-              <span className="text-2xl sm:text-3xl drop-shadow-md">🔥</span>
+            {/* Right Section: Icon - Using firePulseAnimation logic */}
+            <div className="ml-2 flex-shrink-0">
+              <span className="inline-block text-3xl sm:text-4xl animate-fire">
+                🔥
+              </span>
             </div>
+
+            {/* The Animation Logic */}
+            <style jsx global>{`
+              @keyframes firePulse {
+                0% {
+                  transform: scale(1);
+                  opacity: 0.9;
+                  filter: drop-shadow(0 0 2px #ff6b00);
+                }
+                50% {
+                  transform: scale(1.15);
+                  opacity: 1;
+                  filter: drop-shadow(0 0 8px #ffeb3b);
+                }
+                100% {
+                  transform: scale(1);
+                  opacity: 0.9;
+                  filter: drop-shadow(0 0 2px #ff6b00);
+                }
+              }
+              .animate-fire {
+                animation: firePulse 2s ease-in-out infinite;
+              }
+            `}</style>
           </div>
 
           {/* Directional Comparison Dashboard */}
