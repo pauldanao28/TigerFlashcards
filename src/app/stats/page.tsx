@@ -13,6 +13,7 @@ export default function StatsPage() {
   const [batchInput, setBatchInput] = useState("");
   const [showBatch, setShowBatch] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [initLoading, setInitLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [userBlocklist, setUserBlocklist] = useState<string[]>([]);
   const [showSettings, setShowSettings] = useState(false);
@@ -37,19 +38,6 @@ export default function StatsPage() {
   });
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [sent, setSent] = useState(false);
-
-  // 1. ADD THIS CSS BLOCK AT THE TOP OF YOUR FILE OR IN YOUR GLOBAL CSS
-  const firePulseAnimation = `
-  @keyframes firePulse {
-    0% { transform: scale(1); opacity: 0.9; filter: drop-shadow(0 0 1px #ff6b00); }
-    50% { transform: scale(1.1); opacity: 1; filter: drop-shadow(0 0 4px #ff0000); }
-    100% { transform: scale(1); opacity: 0.9; filter: drop-shadow(0 0 1px #ff6b00); }
-  }
-  .animate-fire {
-    animation: firePulse 2.5s ease-in-out infinite;
-    display: inline-block; /* Required for transform to work */
-  }
-`;
 
   const fetchStarterPacks = async () => {
     const { data, error } = await supabase.from("starter_packs").select("*"); // Fetches id, name, description, card_data, etc.
@@ -85,6 +73,7 @@ export default function StatsPage() {
   };
 
   useEffect(() => {
+    setInitLoading(true);
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
     });
@@ -103,11 +92,26 @@ export default function StatsPage() {
 
   // 1. Fetch the user's basic info first
   useEffect(() => {
-    if (user) {
-      fetchProfile();
-      fetchDefaultDeck();
-      fetchStarterPacks();
-    }
+    const initData = async () => {
+      if (user) {
+        setInitLoading(true);
+        try {
+          // Promise.all waits for all functions to finish
+          // Note: Make sure your fetch functions are "async" and return the supabase promise!
+          await Promise.all([
+            fetchProfile(),
+            fetchDefaultDeck(),
+            fetchStarterPacks(),
+          ]);
+        } catch (error) {
+          console.error("Error loading stats:", error);
+        } finally {
+          setInitLoading(false); // Only turn off once everything is done
+        }
+      }
+    };
+
+    initData();
   }, [user]);
 
   // 2. ONLY fetch cards once we have a valid Deck ID
@@ -606,23 +610,37 @@ export default function StatsPage() {
       setLoading(false);
     }
   };
-
   const submitFeedback = async () => {
     setSubmittingFeedback(true);
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
+
     const { error } = await supabase.from("system_feedback").insert({
       user_id: user?.id,
-      ...feedbackForm,
+      type: feedbackForm.type.toLowerCase(),
+      subject: feedbackForm.subject,
+      description: feedbackForm.description,
+      status: "open",
     });
+
     if (!error) {
       setSent(true);
+      // Reset form to default values
       setFeedbackForm({ type: "feedback", subject: "", description: "" });
       setTimeout(() => setSent(false), 4000);
     }
+
     setSubmittingFeedback(false);
   };
+
+  if (initLoading)
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 font-black text-slate-400 animate-pulse uppercase tracking-widest">
+        {t.processing}
+      </div>
+    );
 
   return (
     <main className="min-h-screen bg-slate-50 p-8">

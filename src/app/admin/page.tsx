@@ -111,35 +111,32 @@ export default function AdminDashboard() {
     fetchData();
   }, [fetchData]);
 
-  // Handle System Feedback Status Update
   const updateFeedbackStatus = async (id: string, newStatus: string) => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    await supabase
+
+    if (!user) {
+      console.error("No user found");
+      return;
+    }
+
+    const { error } = await supabase
       .from("system_feedback")
       .update({
-        status: newStatus,
-        resolved_by: user?.id,
+        status: newStatus.toLowerCase(), // Always force lowercase for the DB check
+        resolved_by: user.id,
         resolved_at: new Date().toISOString(),
       })
       .eq("id", id);
-    fetchData();
+
+    if (error) {
+      console.error("Update failed:", error.message);
+      alert(`Failed to update: ${error.message}`);
+    } else {
+      fetchData();
+    }
   };
-
-  const fetchSystemFeedback = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("system_feedback")
-      .select(
-        `
-      *,
-      reporter:profiles!user_id (email)
-    `,
-      )
-      .order("created_at", { ascending: false });
-
-    if (!error) setSystemFeedbacks(data || []);
-  }, []);
 
   // Starts the manual edit mode and pre-fills the form
   const startManualEdit = (report: any) => {
