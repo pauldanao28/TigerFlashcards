@@ -30,23 +30,48 @@ const triggerHaptic = (ms = 10) => {
 //   }
 // };
 
+// const speak = (text: string, lang: "ja-JP" | "en-US") => {
+//   if (typeof window !== "undefined" && window.speechSynthesis) {
+//     window.speechSynthesis.cancel();
+
+//     const utterance = new SpeechSynthesisUtterance(text);
+//     utterance.lang = lang;
+//     utterance.rate = 0.9;
+//     utterance.pitch = 1.0;
+
+//     // Optional: Pick a specific Japanese voice if it exists on the system
+//     const voices = window.speechSynthesis.getVoices();
+//     const jaVoice = voices.find(
+//       (v) => v.lang === "ja-JP" && v.name.includes("Google"),
+//     );
+//     if (jaVoice) utterance.voice = jaVoice;
+
+//     window.speechSynthesis.speak(utterance);
+//   }
+// };
+
 const speak = (text: string, lang: "ja-JP" | "en-US") => {
-  if (typeof window !== "undefined" && window.speechSynthesis) {
-    window.speechSynthesis.cancel();
+  const synth = window.speechSynthesis;
+  if (typeof window !== "undefined" && synth) {
+    synth.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = lang;
-    utterance.rate = 0.9;
+    utterance.rate = 0.9; // Slightly slower for N5 clarity
     utterance.pitch = 1.0;
 
-    // Optional: Pick a specific Japanese voice if it exists on the system
-    const voices = window.speechSynthesis.getVoices();
-    const jaVoice = voices.find(
-      (v) => v.lang === "ja-JP" && v.name.includes("Google"),
-    );
-    if (jaVoice) utterance.voice = jaVoice;
+    const voices = synth.getVoices();
 
-    window.speechSynthesis.speak(utterance);
+    // Priority: 1. Google Japanese, 2. Any Japanese, 3. Default
+    const selectedVoice =
+      voices.find((v) => v.lang === lang && v.name.includes("Google")) ||
+      voices.find((v) => v.lang === lang);
+
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+    }
+
+    synth.speak(utterance);
   }
 };
 
@@ -85,18 +110,35 @@ export default function Flashcard({
     return () => unsubscribe();
   }, [x, hasVibrated]);
 
+  useEffect(() => {
+    const synth = window.speechSynthesis;
+
+    const loadVoices = () => {
+      synth.getVoices(); // Force population of the list
+    };
+
+    if (synth.onvoiceschanged !== undefined) {
+      synth.onvoiceschanged = loadVoices;
+    }
+
+    loadVoices();
+  }, []);
+
   // 3. Auto-play Audio on Front (When card appears)
   useEffect(() => {
-    // Reset flipped state whenever the card changes
     setFlipped(false);
 
     const timer = setTimeout(() => {
+      // If voices aren't loaded yet, calling getVoices() here
+      // can sometimes trigger the internal browser load
+      window.speechSynthesis.getVoices();
+
       if (language === "jp" && autoPlayJp) {
-        speak(card.reading, "ja-JP");
+        speak(card.reading || card.japanese, "ja-JP");
       } else if (language === "en" && autoPlayEn) {
         speak(card.english, "en-US");
       }
-    }, 100);
+    }, 300); // Increased to 300ms to give the engine a heartbeat to initialize
 
     return () => clearTimeout(timer);
   }, [card.id, language, autoPlayJp, autoPlayEn]);

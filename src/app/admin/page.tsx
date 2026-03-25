@@ -294,6 +294,16 @@ export default function AdminDashboard() {
                           </p>
                         </div>
 
+                        {/* NEW: Created Date Badge */}
+                        <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
+                          <span className="text-[9px] text-slate-300 font-black uppercase tracking-widest">
+                            Created
+                          </span>
+                          <p className="text-xs font-bold text-slate-400">
+                            {new Date(report.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+
                         {view !== "pending" && (
                           <div className="flex items-center gap-2">
                             <span
@@ -499,6 +509,17 @@ export default function AdminDashboard() {
                           {fb.reporter?.email || "Anonymous"}
                         </p>
                       </div>
+
+                      {/* NEW: Created Date Badge */}
+                      <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
+                        <span className="text-[9px] text-slate-300 font-black uppercase tracking-widest">
+                          Created
+                        </span>
+                        <p className="text-xs font-bold text-slate-400">
+                          {new Date(fb.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+
                       {view !== "pending" && (
                         <div className="flex items-center gap-2">
                           <span

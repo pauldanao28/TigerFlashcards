@@ -1246,18 +1246,20 @@ export default function StatsPage() {
               <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-white/80 backdrop-blur-sm sticky top-0 z-10">
                 <div>
                   <h3 className="text-2xl font-black text-slate-800 uppercase italic tracking-tight flex items-center gap-3">
-                    {viewMode === "mastered" ? "🏆 Mastered" : "🎯 Struggling"}
+                    {viewMode === "mastered"
+                      ? `🏆 ${t.mastered}`
+                      : `🎯 ${t.struggling}`}
                     <span
                       className={`text-[10px] not-italic px-3 py-1 rounded-full font-black tracking-widest ${viewMode === "mastered" ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600"}`}
                     >
                       {viewMode === "mastered"
                         ? masteredList.length
                         : strugglingList.length}{" "}
-                      WORDS
+                      {t.words}
                     </span>
                   </h3>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                    Tap backdrop or [x] to dismiss
+                    {t.dismiss_hint}
                   </p>
                 </div>
                 <button
@@ -1323,7 +1325,7 @@ export default function StatsPage() {
                   onClick={() => setViewMode("none")}
                   className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-slate-600"
                 >
-                  Return to Dashboard
+                  {t.return_to_dashboard}
                 </button>
               </div>
             </div>

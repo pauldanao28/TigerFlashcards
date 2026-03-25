@@ -126,6 +126,9 @@ export const translations = {
   minigame_focus_best_60s: "60s Best",
   minigame_focus_best: "Best Score",
   minigame_focus_new_best: "✨ New Personal Best!",
+  return_to_dashboard: "Return to Dashboard",
+  words: "Words",
+  dismiss_hint: "TAP BACKDROP OR [X] TO DISMISS"
   },
   jp: {
     goal: "今日の目標",
@@ -254,5 +257,8 @@ export const translations = {
   minigame_focus_best_60s: "60秒ベスト",
   minigame_focus_best: "自己ベスト",
   minigame_focus_new_best: "✨ 自己ベスト更新！",
+  return_to_dashboard: "ダッシュボードに戻る",
+  words: "単語",
+  dismiss_hint: "枠外または[X]をタップして閉じる",
   }
 };
