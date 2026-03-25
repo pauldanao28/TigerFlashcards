@@ -13,7 +13,6 @@ const UserTable = ({ users }: { users: any[] }) => {
             <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">
               Engagement
             </th>
-            {/* NEW: Proficiency Header */}
             <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">
               Proficiency
             </th>
@@ -32,7 +31,7 @@ const UserTable = ({ users }: { users: any[] }) => {
           {users.map((user) => (
             <tr
               key={user.id}
-              className="hover:bg-slate-50/80 transition-all group"
+              className={`transition-all group ${user.reviews_today > 0 ? "bg-indigo-50/20 hover:bg-indigo-50/40" : "hover:bg-slate-50/80"}`}
             >
               <td className="p-6">
                 <div className="flex flex-col">
@@ -47,21 +46,39 @@ const UserTable = ({ users }: { users: any[] }) => {
 
               <td className="p-6 text-center">
                 <div className="flex flex-col items-center">
-                  <span className="text-lg font-black text-slate-900 flex items-center gap-1">
-                    {user.streak_count} <span className="text-sm">🔥</span>
-                  </span>
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
+                  <div className="flex items-center gap-3">
+                    {/* Today's Count with Active Indicator */}
+                    <div className="flex flex-col items-end">
+                      <span
+                        className={`text-xs font-black ${user.reviews_today > 0 ? "text-indigo-600" : "text-slate-300"}`}
+                      >
+                        {user.reviews_today || 0}
+                      </span>
+                      <span className="text-[7px] font-black text-slate-400 uppercase tracking-tighter">
+                        Today
+                      </span>
+                    </div>
+
+                    <div className="w-[1px] h-4 bg-slate-200" />
+
+                    {/* Streak Count */}
+                    <div className="flex flex-col items-start">
+                      <span className="text-lg font-black text-slate-900 flex items-center gap-1">
+                        {user.streak_count} <span className="text-sm">🔥</span>
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mt-1">
                     Best: {user.profile_max_streak}
                   </span>
                 </div>
               </td>
 
-              {/* NEW: Mastered & Struggling Badges */}
               <td className="p-6 text-center">
                 <div className="flex justify-center gap-2">
                   <div className="flex flex-col items-center">
                     <span className="text-xs font-black text-emerald-600">
-                      {user.mastered_count || 0}
+                      {user.master_count || user.mastered_count || 0}
                     </span>
                     <span className="text-[8px] font-black text-slate-300 uppercase tracking-tighter">
                       Mastered

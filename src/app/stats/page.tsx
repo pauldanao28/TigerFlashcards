@@ -41,6 +41,54 @@ export default function StatsPage() {
   const [viewMode, setViewMode] = useState<"none" | "mastered" | "struggling">(
     "none",
   );
+  const [dailyHistory, setDailyHistory] = useState<
+    { study_date: string; count: number }[]
+  >([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [reviewsToday, setReviewsToday] = useState(0);
+
+  useEffect(() => {
+    const fetchTodayCount = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Get today's date in YYYY-MM-DD format (Singapore Time)
+      const today = new Date().toLocaleDateString("en-CA", {
+        timeZone: "Asia/Singapore",
+      });
+
+      const { data, error } = await supabase
+        .from("user_review_counts")
+        .select("count")
+        .eq("user_id", user.id)
+        .eq("study_date", today)
+        .single();
+
+      if (!error && data) {
+        setReviewsToday(data.count);
+      }
+    };
+
+    fetchTodayCount();
+  }, []);
+
+  const fetchHistory = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data } = await supabase
+      .from("user_review_counts")
+      .select("study_date, count")
+      .eq("user_id", user.id)
+      .order("study_date", { ascending: false })
+      .limit(14);
+
+    setDailyHistory(data || []);
+  };
 
   const fetchStarterPacks = async () => {
     const { data, error } = await supabase.from("starter_packs").select("*"); // Fetches id, name, description, card_data, etc.
@@ -1071,6 +1119,16 @@ export default function StatsPage() {
             onClick={() => setViewMode("struggling")}
           />
 
+          <StatCard
+            label="Daily Progress"
+            value={reviewsToday} // The count for today
+            color="bg-amber-400"
+            onClick={() => {
+              fetchHistory(); // Fetch fresh data
+              setShowHistory(true); // Open overlay
+            }}
+          />
+
           <div className="bg-gradient-to-br from-orange-500 to-red-600 p-5 rounded-[2rem] shadow-lg flex items-center justify-between text-white overflow-hidden">
             {/* Left Section: Added pl-3 to prevent text from touching the left edge on mobile */}
             <div className="flex flex-1 items-center gap-4 sm:gap-10 pl-3 sm:pl-0">
@@ -1228,6 +1286,7 @@ export default function StatsPage() {
             </div>
           </div>
         </div>
+
         {viewMode !== "none" && (
           /* 1. Backdrop Overlay */
           <div
@@ -1327,6 +1386,172 @@ export default function StatsPage() {
                 >
                   {t.return_to_dashboard}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* --- Daily Activity Overlay --- */}
+        {showHistory && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-300"
+              onClick={() => setShowHistory(false)}
+            />
+
+            <div className="relative w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
+              {/* Header */}
+              <div className="p-8 border-b border-slate-50 flex justify-between items-end bg-gradient-to-b from-slate-50/50 to-transparent">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+                    <h3 className="text-2xl font-black text-slate-800 uppercase italic tracking-tight">
+                      Activity Log
+                    </h3>
+                  </div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-4">
+                    Progress Tracking • Last 14 Days
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowHistory(false)}
+                  className="h-12 w-12 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-800 hover:shadow-sm transition-all active:scale-90"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-8 md:p-10 overflow-y-auto custom-scrollbar">
+                {/* The Visual Chart Area */}
+                <div className="relative bg-slate-50/50 rounded-[2.5rem] p-6 border border-slate-100 mb-8">
+                  {/* Subtle Grid Lines Background */}
+                  <div className="absolute inset-0 grid grid-rows-4 px-6 py-6 opacity-[0.03] pointer-events-none">
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className="border-t border-black w-full" />
+                    ))}
+                  </div>
+
+                  <div className="relative flex items-end justify-between gap-1.5 md:gap-3 h-56">
+                    {dailyHistory.map((day, i) => {
+                      const maxCount = Math.max(
+                        ...dailyHistory.map((d) => d.count),
+                        1,
+                      );
+                      const heightPercentage = Math.max(
+                        (day.count / maxCount) * 100,
+                        4,
+                      ); // Min 4% height so 0s are visible
+                      const isToday = i === 0;
+
+                      return (
+                        <div
+                          key={day.study_date}
+                          className="flex-1 flex flex-col items-center group h-full justify-end"
+                        >
+                          {/* The Bar */}
+                          <div className="relative w-full flex flex-col justify-end h-full">
+                            {/* Tooltip */}
+                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-black px-2.5 py-1.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100 pointer-events-none z-10 shadow-xl">
+                              {day.count}{" "}
+                              <span className="text-slate-400 font-bold ml-0.5">
+                                pts
+                              </span>
+                            </div>
+
+                            <div
+                              style={{ height: `${heightPercentage}%` }}
+                              className={`w-full rounded-t-2xl transition-all duration-700 ease-out cursor-default
+                        ${
+                          isToday
+                            ? "bg-gradient-to-t from-indigo-600 to-indigo-400 shadow-lg shadow-indigo-100"
+                            : "bg-slate-200 group-hover:bg-slate-300 group-hover:shadow-md"
+                        }`}
+                            />
+                          </div>
+                          {/* Label */}
+                          <div className="mt-4 flex flex-col items-center">
+                            <span
+                              className={`text-[8px] font-black uppercase tracking-tighter ${isToday ? "text-indigo-600" : "text-slate-400"}`}
+                            >
+                              {new Date(day.study_date).toLocaleDateString(
+                                "en-SG",
+                                { weekday: "short" },
+                              )}
+                            </span>
+                            <span className="text-[7px] font-bold text-slate-300 mt-0.5">
+                              {new Date(day.study_date).getDate()}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Stats Summary Cards */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-indigo-100 transition-colors">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-500">
+                        <svg
+                          className="w-3 h-3"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                        </svg>
+                      </div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        Total
+                      </p>
+                    </div>
+                    <p className="text-3xl font-black text-slate-800 tracking-tight">
+                      {dailyHistory.reduce((acc, curr) => acc + curr.count, 0)}
+                      <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">
+                        Reviews
+                      </span>
+                    </p>
+                  </div>
+
+                  <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-emerald-100 transition-colors">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-500">
+                        <svg
+                          className="w-3 h-3"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        Average
+                      </p>
+                    </div>
+                    <p className="text-3xl font-black text-slate-800 tracking-tight">
+                      {Math.round(
+                        dailyHistory.reduce(
+                          (acc, curr) => acc + curr.count,
+                          0,
+                        ) / (dailyHistory.length || 1),
+                      )}
+                      <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">
+                        Daily
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 bg-slate-50/50 text-center mt-auto border-t border-slate-50">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] opacity-60">
+                  Focus • Consistency • Mastery
+                </p>
               </div>
             </div>
           </div>

@@ -200,11 +200,26 @@ export default function Home() {
     setStreak(newStreak);
   };
 
+  const incrementStudyCount = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Calls the Postgres function we just created
+    const { error } = await supabase.rpc("increment_daily_review", {
+      target_user_id: user.id,
+    });
+
+    if (error) console.error("Error incrementing daily count:", error);
+  };
+
   const handleScore = async (isPass: boolean) => {
     if (!currentCard || !user) return;
 
     const newSessionStreak = isPass ? sessionStreak + 1 : 0;
     setSessionStreak(newSessionStreak);
+    incrementStudyCount(); // Add today's study count
 
     // If this session just broke the all-time record, update the profile
     // We compare against the 'streak' state (which we fetched from profiles.streak_count/max_streak earlier)
