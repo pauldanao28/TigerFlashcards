@@ -4,7 +4,7 @@ import React from "react";
 const UserTable = ({ users }: { users: any[] }) => {
   return (
     <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/40 border border-slate-100 overflow-hidden">
-      <table className="w-full text-left">
+      <table className="w-full text-left text-sm">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-100">
             <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">
@@ -12,6 +12,10 @@ const UserTable = ({ users }: { users: any[] }) => {
             </th>
             <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">
               Engagement
+            </th>
+            {/* NEW: Proficiency Header */}
+            <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">
+              Proficiency
             </th>
             <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">
               Knowledge Base
@@ -52,9 +56,33 @@ const UserTable = ({ users }: { users: any[] }) => {
                 </div>
               </td>
 
+              {/* NEW: Mastered & Struggling Badges */}
+              <td className="p-6 text-center">
+                <div className="flex justify-center gap-2">
+                  <div className="flex flex-col items-center">
+                    <span className="text-xs font-black text-emerald-600">
+                      {user.mastered_count || 0}
+                    </span>
+                    <span className="text-[8px] font-black text-slate-300 uppercase tracking-tighter">
+                      Mastered
+                    </span>
+                  </div>
+                  <div className="w-[1px] h-6 bg-slate-100 self-center" />
+                  <div className="flex flex-col items-center">
+                    <span className="text-xs font-black text-rose-500">
+                      {user.struggling_count || 0}
+                    </span>
+                    <span className="text-[8px] font-black text-slate-300 uppercase tracking-tighter">
+                      Struggling
+                    </span>
+                  </div>
+                </div>
+              </td>
+
               <td className="p-6 text-center">
                 <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-[11px] font-black">
-                  {user.cards_studied} <span className="opacity-40">WORDS</span>
+                  {user.cards_studied}{" "}
+                  <span className="opacity-40 text-[9px]">WORDS</span>
                 </span>
               </td>
 

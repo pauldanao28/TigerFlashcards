@@ -38,6 +38,9 @@ export default function StatsPage() {
   });
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [sent, setSent] = useState(false);
+  const [viewMode, setViewMode] = useState<"none" | "mastered" | "struggling">(
+    "none",
+  );
 
   const fetchStarterPacks = async () => {
     const { data, error } = await supabase.from("starter_packs").select("*"); // Fetches id, name, description, card_data, etc.
@@ -470,30 +473,34 @@ export default function StatsPage() {
   }, [cards]);
 
   // 2. Mastered (Avg Accuracy > 80% and has been attempted)
-  const masteredCards = useMemo(() => {
+  // 1. Get the lists of objects
+  const masteredList = useMemo(() => {
     return cards.filter((c) => {
       const s = c.scores;
-      const jpT = s?.jp_to_en?.total || 0;
-      const enT = s?.en_to_jp?.total || 0;
-      const jpP = s?.jp_to_en?.percent || 0;
-      const enP = s?.en_to_jp?.percent || 0;
+      const totalAttempts =
+        (s?.jp_to_en?.total || 0) + (s?.en_to_jp?.total || 0);
+      const avgAccuracy =
+        ((s?.jp_to_en?.percent || 0) + (s?.en_to_jp?.percent || 0)) / 2;
 
-      return jpT + enT > 0 && (jpP + enP) / 2 >= 80;
-    }).length;
+      return totalAttempts > 0 && avgAccuracy >= 80;
+    });
   }, [cards]);
 
-  // 3. Struggling (Avg Accuracy < 40% and has been attempted)
-  const strugglingCards = useMemo(() => {
+  const strugglingList = useMemo(() => {
     return cards.filter((c) => {
       const s = c.scores;
-      const jpT = s?.jp_to_en?.total || 0;
-      const enT = s?.en_to_jp?.total || 0;
-      const jpP = s?.jp_to_en?.percent || 0;
-      const enP = s?.en_to_jp?.percent || 0;
+      const totalAttempts =
+        (s?.jp_to_en?.total || 0) + (s?.en_to_jp?.total || 0);
+      const avgAccuracy =
+        ((s?.jp_to_en?.percent || 0) + (s?.en_to_jp?.percent || 0)) / 2;
 
-      return jpT + enT > 0 && (jpP + enP) / 2 < 40;
-    }).length;
+      return totalAttempts > 0 && avgAccuracy < 40;
+    });
   }, [cards]);
+
+  // 2. Derive the counts for your StatCards
+  const masteredCount = masteredList.length;
+  const strugglingCount = strugglingList.length;
 
   const filteredCards = useMemo(() => {
     const query = searchQuery.toLowerCase();
@@ -1053,13 +1060,15 @@ export default function StatsPage() {
           />
           <StatCard
             label={t.mastered}
-            value={masteredCards}
+            value={masteredCount}
             color="bg-emerald-500"
+            onClick={() => setViewMode("mastered")} // Add onClick to your StatCard component
           />
           <StatCard
             label={t.struggling}
-            value={strugglingCards}
+            value={strugglingCount}
             color="bg-rose-500"
+            onClick={() => setViewMode("struggling")}
           />
 
           <div className="bg-gradient-to-br from-orange-500 to-red-600 p-5 rounded-[2rem] shadow-lg flex items-center justify-between text-white overflow-hidden">
@@ -1219,6 +1228,107 @@ export default function StatsPage() {
             </div>
           </div>
         </div>
+        {viewMode !== "none" && (
+          /* 1. Backdrop Overlay */
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+            onClick={() => setViewMode("none")} // Click backdrop to close
+          >
+            {/* 2. Blurred background */}
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-300" />
+
+            {/* 3. Modal Content Card */}
+            <div
+              className="relative w-full max-w-4xl bg-white rounded-[2.5rem] shadow-2xl border border-white/20 flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside the card
+            >
+              {/* Header - Fixed at top */}
+              <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+                <div>
+                  <h3 className="text-2xl font-black text-slate-800 uppercase italic tracking-tight flex items-center gap-3">
+                    {viewMode === "mastered" ? "🏆 Mastered" : "🎯 Struggling"}
+                    <span
+                      className={`text-[10px] not-italic px-3 py-1 rounded-full font-black tracking-widest ${viewMode === "mastered" ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600"}`}
+                    >
+                      {viewMode === "mastered"
+                        ? masteredList.length
+                        : strugglingList.length}{" "}
+                      WORDS
+                    </span>
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                    Tap backdrop or [x] to dismiss
+                  </p>
+                </div>
+                <button
+                  onClick={() => setViewMode("none")}
+                  className="h-12 w-12 flex items-center justify-center rounded-2xl bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-800 transition-all active:scale-90"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={3}
+                    stroke="currentColor"
+                    className="w-5 h-5"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Body - Scrollable Area */}
+              <div className="p-8 overflow-y-auto custom-scrollbar bg-slate-50/30">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+                  {(viewMode === "mastered"
+                    ? masteredList
+                    : strugglingList
+                  ).map((word) => (
+                    <div
+                      key={word.id}
+                      className="p-5 rounded-3xl border border-white bg-white shadow-sm flex justify-between items-center hover:shadow-md hover:scale-[1.01] transition-all group"
+                    >
+                      <div>
+                        <p className="text-xl font-black text-slate-800 group-hover:text-indigo-600 transition-colors">
+                          {word.japanese}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                          {word.reading} • {word.english}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p
+                          className={`text-sm font-black ${viewMode === "mastered" ? "text-emerald-500" : "text-rose-500"}`}
+                        >
+                          {Math.round(
+                            ((word.scores?.jp_to_en?.percent || 0) +
+                              (word.scores?.en_to_jp?.percent || 0)) /
+                              2,
+                          )}
+                          %
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Footer - Optional: Quick Action */}
+              <div className="p-6 border-t border-slate-50 text-center bg-white">
+                <button
+                  onClick={() => setViewMode("none")}
+                  className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-slate-600"
+                >
+                  Return to Dashboard
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Starter Packs Section */}
         <div className="mb-10">
@@ -1538,25 +1648,46 @@ export default function StatsPage() {
     </main>
   );
 }
-
 function StatCard({
   label,
   value,
   color,
+  onClick, // 1. Add the prop here
 }: {
   label: string;
   value: number;
   color: string;
+  onClick?: () => void; // 2. Define the type (optional)
 }) {
   return (
-    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex justify-between items-center">
+    <div
+      onClick={onClick}
+      className={`bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex justify-between items-center transition-all ${
+        onClick
+          ? "cursor-pointer hover:border-slate-300 hover:scale-[1.02] active:scale-95"
+          : ""
+      }`}
+    >
       <div>
         <p className="text-slate-400 text-[10px] font-black uppercase tracking-tighter">
           {label}
         </p>
         <p className="text-4xl font-black text-slate-800">{value || 0}</p>
       </div>
-      <div className={`w-12 h-12 rounded-2xl ${color} opacity-20`} />
+
+      {/* Visual Icon Box */}
+      <div
+        className={`w-12 h-12 rounded-2xl ${color} opacity-20 flex items-center justify-center`}
+      >
+        {/* Optional: Add a small chevron if it's clickable */}
+        {onClick && (
+          <span
+            className={`text-xl font-black ${color.replace("bg-", "text-")} opacity-100`}
+          >
+            →
+          </span>
+        )}
+      </div>
     </div>
   );
 }

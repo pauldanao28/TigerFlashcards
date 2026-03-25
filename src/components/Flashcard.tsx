@@ -20,12 +20,32 @@ const triggerHaptic = (ms = 10) => {
   }
 };
 
+// const speak = (text: string, lang: "ja-JP" | "en-US") => {
+//   if (typeof window !== "undefined" && window.speechSynthesis) {
+//     window.speechSynthesis.cancel();
+//     const utterance = new SpeechSynthesisUtterance(text);
+//     utterance.lang = lang;
+//     utterance.rate = 0.9;
+//     window.speechSynthesis.speak(utterance);
+//   }
+// };
+
 const speak = (text: string, lang: "ja-JP" | "en-US") => {
   if (typeof window !== "undefined" && window.speechSynthesis) {
     window.speechSynthesis.cancel();
+
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = lang;
     utterance.rate = 0.9;
+    utterance.pitch = 1.0;
+
+    // Optional: Pick a specific Japanese voice if it exists on the system
+    const voices = window.speechSynthesis.getVoices();
+    const jaVoice = voices.find(
+      (v) => v.lang === "ja-JP" && v.name.includes("Google"),
+    );
+    if (jaVoice) utterance.voice = jaVoice;
+
     window.speechSynthesis.speak(utterance);
   }
 };
@@ -72,7 +92,7 @@ export default function Flashcard({
 
     const timer = setTimeout(() => {
       if (language === "jp" && autoPlayJp) {
-        speak(card.japanese, "ja-JP");
+        speak(card.reading, "ja-JP");
       } else if (language === "en" && autoPlayEn) {
         speak(card.english, "en-US");
       }
