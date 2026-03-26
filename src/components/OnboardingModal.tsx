@@ -124,6 +124,8 @@ export default function OnboardingModal({
         })
         .eq("id", userId);
 
+      localStorage.setItem("show_first_timer_hint", "true");
+
       onComplete(true);
     } catch (error: any) {
       alert(error.message);
