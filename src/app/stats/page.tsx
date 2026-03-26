@@ -772,10 +772,10 @@ export default function StatsPage() {
               placeholder={
                 lang === "jp"
                   ? `入力形式の選択:
-1. リスト形式: 単語, 意味 (1行に1項目)
+1. リスト形式: 単語（1行につき1単語/漢字）
 2. 歌詞・長文: 歌詞や文章を貼り付けると、AIが新しい単語を抽出します！`
                   : `FORMAT OPTIONS:
-1. List: word, meaning (one per line)
+1. List: words (1 kanji/english word per line)
 2. Lyrics: Paste a whole song or text. I'll pick out the new words for you!`
               }
             />
@@ -784,7 +784,7 @@ export default function StatsPage() {
               disabled={loading}
               className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-transform"
             >
-              {loading ? "AI is Extracting & Translating..." : t.process_text}
+              {loading ? t.ai_processing : `${t.batch_upload} (BETA)`}
             </button>
           </div>
         )}

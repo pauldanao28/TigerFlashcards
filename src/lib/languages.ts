@@ -141,6 +141,7 @@ export const translations = {
   motto_mastery: "Mastery",
   motto_footer: "Focus • Consistency • Mastery",
   daily_progress: "Daily Progress",
+  ai_processing: "AI is Extracting & Translating...",
   },
   jp: {
     goal: "今日の目標",
@@ -284,5 +285,6 @@ export const translations = {
   motto_mastery: "習得",
   motto_footer: "集中 • 継続 • 習得",
   daily_progress: "今日の進捗",
+  ai_processing: "AIが抽出・翻訳中...",
   }
 };
