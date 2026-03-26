@@ -731,6 +731,26 @@ export default function StatsPage() {
   return (
     <main className="min-h-screen bg-slate-50 p-8">
       <div className="max-w-5xl mx-auto">
+        <div className="mb-8 flex items-center gap-4 border-b border-slate-200 pb-6 animate-in fade-in slide-in-from-left-4 duration-700">
+          {/* Name & Status aligned horizontally */}
+          <div className="flex items-center gap-3">
+            <h1 className="text-4xl font-black text-slate-800 italic uppercase tracking-tighter leading-none">
+              {user?.user_metadata?.full_name ||
+                user?.user_metadata?.name ||
+                "Satoshi"}
+            </h1>
+
+            {/* Status Badge - Now right beside the name */}
+            <div className="flex items-center">
+              <span className="px-3 py-1 bg-slate-800 text-white rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-sm">
+                {/* Optional: Small pulsing dot for extra "System" feel */}
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                {t.status_online}
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Management Toolbar */}
         <div className="flex flex-col md:flex-row gap-4 mb-8">
           <div className="flex-1 bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-2">

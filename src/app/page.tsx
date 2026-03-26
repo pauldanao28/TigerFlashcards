@@ -360,6 +360,9 @@ export default function Home() {
     <main className="min-h-screen bg-slate-50 flex flex-col items-center p-4 overflow-hidden font-sans">
       {hasOnboarded === false && (
         <OnboardingModal
+          defaultName={
+            user.user_metadata?.full_name || user.user_metadata?.name || ""
+          }
           userId={user.id}
           onComplete={(added) =>
             added ? window.location.reload() : setHasOnboarded(true)
@@ -423,9 +426,8 @@ export default function Home() {
         </div>
 
         {/* Card Main Logic */}
-        {dataLoading || aiLoading || (cards.length === 0 && !dataLoading) ? (
-          /* 1. LOADING STATE */
-          /* Show this if explicitly loading OR if cards are empty but we haven't confirmed a "No Cards" state yet */
+        {/* 1. LOADING STATE: Only show if an active process is in flight */}
+        {dataLoading || aiLoading ? (
           <div className="w-80 h-[28rem] bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse gap-4">
             <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
             <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">
@@ -433,10 +435,9 @@ export default function Home() {
             </p>
           </div>
         ) : cards.length > 0 && currentCard ? (
-          /* 2. ACTIVE CARD STATE */
-          /* Only show this if we actually have cards in the array */
+          /* 2. ACTIVE CARD STATE: Show when we have data */
           <div className="flex flex-col items-center gap-6">
-            <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+            <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">
               {language === "jp" ? `🇯🇵 ${t.recognition}` : `🇺🇸 ${t.recall}`} |{" "}
               {currentCard.scores?.[language === "jp" ? "jp_to_en" : "en_to_jp"]
                 ?.percent || 0}
@@ -460,19 +461,20 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          /* 3. ACTUAL EMPTY STATE */
-          /* This will only render if dataLoading is false AND cards.length is confirmed to be 0 */
-          <div className="text-center p-10 bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 w-80 h-[28rem] flex flex-col justify-center items-center gap-6 animate-in fade-in duration-500">
-            <div className="text-5xl">📭</div>
+          /* 3. ACTUAL EMPTY STATE: Show when loading is finished AND cards are zero */
+          <div className="text-center p-10 bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 w-80 h-[28rem] flex flex-col justify-center items-center gap-6 animate-in fade-in zoom-in-95 duration-500">
+            <div className="text-5xl opacity-40">📭</div>
             <div>
-              <p className="text-slate-800 font-black text-xl mb-2">
+              <h3 className="text-slate-800 font-black text-xl mb-2 italic uppercase tracking-tighter">
                 {t.empty_deck}
+              </h3>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest leading-relaxed">
+                {t.start_journey}
               </p>
-              <p className="text-slate-400 text-sm mb-6">{t.start_journey}</p>
             </div>
             <Link
               href="/stats"
-              className="text-white font-bold bg-indigo-600 px-8 py-3 rounded-2xl shadow-lg shadow-indigo-100 transition-transform active:scale-95"
+              className="text-white font-black bg-indigo-600 px-8 py-4 rounded-2xl shadow-xl shadow-indigo-100 transition-all active:scale-95 uppercase tracking-widest text-xs"
             >
               {t.get_started}
             </Link>
