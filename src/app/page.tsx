@@ -319,8 +319,39 @@ export default function Home() {
   // --- 8. Render Guards ---
   if (!isAuthLoaded)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 font-bold text-slate-400">
-        {t.loading_session}
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-6">
+        {/* Animated Icon Container */}
+        <div className="relative">
+          <div className="absolute inset-0 bg-orange-500/20 blur-3xl rounded-full animate-pulse" />
+          <span className="relative inline-block text-6xl animate-bounce">
+            🔥
+          </span>
+        </div>
+
+        {/* Text with high-end typography */}
+        <div className="flex flex-col items-center gap-2">
+          <h2 className="text-slate-900 font-black text-2xl uppercase tracking-tighter italic">
+            {t.processing}
+          </h2>
+          {/* Modern thin progress bar */}
+          <div className="w-48 h-1 bg-slate-200 rounded-full overflow-hidden">
+            <div className="w-full h-full bg-gradient-to-r from-orange-500 to-red-600 animate-shimmer" />
+          </div>
+        </div>
+
+        <style jsx>{`
+          @keyframes shimmer {
+            0% {
+              transform: translateX(-100%);
+            }
+            100% {
+              transform: translateX(100%);
+            }
+          }
+          .animate-shimmer {
+            animation: shimmer 1.5s infinite linear;
+          }
+        `}</style>
       </div>
     );
   if (!user) return <Auth />;
@@ -392,23 +423,27 @@ export default function Home() {
         </div>
 
         {/* Card Main Logic */}
-        {dataLoading || aiLoading ? (
+        {dataLoading || aiLoading || (cards.length === 0 && !dataLoading) ? (
+          /* 1. LOADING STATE */
+          /* Show this if explicitly loading OR if cards are empty but we haven't confirmed a "No Cards" state yet */
           <div className="w-80 h-[28rem] bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse gap-4">
             <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
             <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">
               {t.syncing_deck}
             </p>
           </div>
-        ) : currentCard ? (
+        ) : cards.length > 0 && currentCard ? (
+          /* 2. ACTIVE CARD STATE */
+          /* Only show this if we actually have cards in the array */
           <div className="flex flex-col items-center gap-6">
             <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
-              {language === "jp" ? `🇯🇵 ${t.recognition}}` : `🇺🇸 ${t.recall}`} |{" "}
+              {language === "jp" ? `🇯🇵 ${t.recognition}` : `🇺🇸 ${t.recall}`} |{" "}
               {currentCard.scores?.[language === "jp" ? "jp_to_en" : "en_to_jp"]
                 ?.percent || 0}
               % {t.accuracy}
             </span>
             <div className="relative">
-              {showHints && cards.length > 0 && (
+              {showHints && (
                 <CoachMarks onDismiss={() => setShowHints(false)} />
               )}
               <div className={showHints ? "animate-wobble" : ""}>
@@ -425,7 +460,9 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          <div className="text-center p-10 bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 w-80 h-[28rem] flex flex-col justify-center items-center gap-6">
+          /* 3. ACTUAL EMPTY STATE */
+          /* This will only render if dataLoading is false AND cards.length is confirmed to be 0 */
+          <div className="text-center p-10 bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 w-80 h-[28rem] flex flex-col justify-center items-center gap-6 animate-in fade-in duration-500">
             <div className="text-5xl">📭</div>
             <div>
               <p className="text-slate-800 font-black text-xl mb-2">

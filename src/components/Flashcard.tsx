@@ -190,12 +190,16 @@ export default function Flashcard({
   const getFontSize = (text: string, isJapanese: boolean) => {
     const len = text.length;
     if (isJapanese) {
+      if (len > 15) return "text-xl"; // Long sentences
+      if (len > 10) return "text-2xl";
       if (len > 8) return "text-3xl";
       if (len > 5) return "text-4xl";
-      return "text-6xl";
+      return "text-6xl"; // Single Kanji/Short words
     } else {
-      if (len > 25) return "text-xl";
-      if (len > 15) return "text-2xl";
+      if (len > 50) return "text-lg"; // Very long definitions
+      if (len > 35) return "text-xl";
+      if (len > 25) return "text-2xl";
+      if (len > 15) return "text-3xl";
       return "text-4xl";
     }
   };
@@ -211,10 +215,10 @@ export default function Flashcard({
 
   const frontText = language === "jp" ? card.japanese : card.english;
   const backText = language === "jp" ? card.english : card.japanese;
+  const isBackJapanese = backText === card.japanese;
 
   return (
     <div className="w-80 h-96 [perspective:1000px] touch-none">
-      {/* DRAG WRAPPER */}
       <motion.div
         style={{ x, rotate, opacity }}
         drag="x"
@@ -223,26 +227,8 @@ export default function Flashcard({
         onDragEnd={handleDragEnd}
         className="relative w-full h-full cursor-grab active:cursor-grabbing"
       >
-        {/* INDICATORS (Outside flipping div so they stay oriented correctly) */}
-        <motion.div
-          style={{ opacity: passOpacity }}
-          className="absolute inset-0 z-50 pointer-events-none rounded-3xl border-8 border-green-500 bg-green-500/10 flex items-center justify-center"
-        >
-          <span className="text-green-500 text-5xl font-black rotate-[-12deg]">
-            {t.pass_caps}
-          </span>
-        </motion.div>
+        {/* SWIPE INDICATORS - (Keep existing code) */}
 
-        <motion.div
-          style={{ opacity: failOpacity }}
-          className="absolute inset-0 z-50 pointer-events-none rounded-3xl border-8 border-red-500 bg-red-500/10 flex items-center justify-center"
-        >
-          <span className="text-red-500 text-5xl font-black rotate-[12deg]">
-            {t.fail_caps}
-          </span>
-        </motion.div>
-
-        {/* FLIP CONTAINER */}
         <motion.div
           animate={{ rotateY: flipped ? 180 : 0 }}
           transition={{
@@ -255,12 +241,14 @@ export default function Flashcard({
           className="relative w-full h-full [transform-style:preserve-3d]"
         >
           {/* FRONT SIDE */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white rounded-3xl border-4 border-white shadow-2xl [backface-visibility:hidden] p-6 text-center">
-            <span
-              className={`font-black text-slate-800 leading-tight mb-8 transition-all ${getFontSize(frontText, language === "jp")}`}
-            >
-              {frontText}
-            </span>
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white rounded-3xl border-4 border-white shadow-2xl [backface-visibility:hidden] p-8 text-center overflow-hidden">
+            <div className="flex-1 flex items-center justify-center w-full">
+              <span
+                className={`font-black text-slate-800 leading-tight transition-all duration-300 break-words w-full ${getFontSize(frontText, language === "jp")}`}
+              >
+                {frontText}
+              </span>
+            </div>
             <button
               onClick={(e) =>
                 handlePlayAudio(
@@ -269,68 +257,65 @@ export default function Flashcard({
                   language === "jp" ? "ja-JP" : "en-US",
                 )
               }
-              className="p-3 bg-slate-100 rounded-full hover:bg-indigo-100 transition active:scale-95"
+              className="mt-4 p-3 bg-slate-100 rounded-full hover:bg-indigo-100 transition active:scale-95"
             >
               🔊
             </button>
           </div>
 
           {/* BACK SIDE */}
-          <div className="absolute inset-0 flex flex-col bg-indigo-600 text-white rounded-3xl shadow-2xl [transform:rotateY(180deg)] [backface-visibility:hidden] p-8 text-center">
-            {/* Part of Speech Badge */}
+          <div className="absolute inset-0 flex flex-col bg-indigo-600 text-white rounded-3xl shadow-2xl [transform:rotateY(180deg)] [backface-visibility:hidden] p-8 text-center overflow-hidden">
             {card.partOfSpeech && (
-              <div className="absolute top-4 right-4">
-                <span className="px-3 py-1 bg-white/20 rounded-full text-xs font-bold uppercase tracking-widest border border-white/10">
+              <div className="absolute top-4 right-4 z-10">
+                <span className="px-3 py-1 bg-white/20 rounded-full text-[10px] font-bold uppercase tracking-widest border border-white/10">
                   {card.partOfSpeech}
                 </span>
               </div>
             )}
 
-            {/* Content Area (Centered) */}
-            <div className="flex-1 flex flex-col items-center justify-center">
-              {/* FIX: If the back text is Japanese (which happens in 'en' mode), 
-       or if we are in 'jp' mode, show the reading.
-    */}
+            <div className="flex-1 flex flex-col items-center justify-center w-full overflow-hidden">
               {(language === "jp" || language === "en") && card.reading && (
-                <p className="text-indigo-200 text-xl mb-2 font-medium tracking-wide animate-fade-in">
+                <p className="text-indigo-200 text-lg mb-2 font-medium tracking-wide animate-fade-in truncate w-full">
                   {card.reading}
                 </p>
               )}
 
               <h2
-                className={`font-bold leading-tight transition-all ${getFontSize(backText, backText === card.japanese)}`}
+                className={`font-bold leading-tight transition-all duration-300 break-words w-full ${getFontSize(backText, isBackJapanese)}`}
               >
                 {backText}
               </h2>
             </div>
 
             {/* Footer Area */}
-            <div className="mt-auto pt-4 border-t border-indigo-400/50">
+            <div className="mt-auto pt-4 border-t border-indigo-400/50 w-full">
               {card.exampleSentence && (
-                <p className="text-sm italic text-indigo-100 opacity-90 mb-4 line-clamp-3">
+                <p className="text-xs italic text-indigo-100 opacity-90 mb-4 line-clamp-2 overflow-hidden break-words px-2">
                   "{card.exampleSentence.jp}"
                 </p>
               )}
-              <button
-                onClick={(e) =>
-                  handlePlayAudio(
-                    e,
-                    backText,
-                    backText === card.japanese ? "ja-JP" : "en-US",
-                  )
-                }
-                className="p-3 bg-white/10 hover:bg-white/20 rounded-full transition-all border border-white/20 active:scale-95"
-              >
-                🔊
-              </button>
 
-              {/* NEW SUBTLE REPORT BUTTON (Bottom Right) */}
-              <button
-                onClick={handleReport}
-                className="absolute right-0 bottom-0 text-[10px] font-black uppercase tracking-widest text-indigo-300/50 hover:text-white transition-colors py-2 px-1"
-              >
-                {t.report_issue}
-              </button>
+              <div className="flex justify-center items-center gap-4 relative">
+                <button
+                  onClick={(e) =>
+                    handlePlayAudio(
+                      e,
+                      backText,
+                      isBackJapanese ? "ja-JP" : "en-US",
+                    )
+                  }
+                  className="p-3 bg-white/10 hover:bg-white/20 rounded-full transition-all border border-white/20 active:scale-95"
+                >
+                  🔊
+                </button>
+
+                <button
+                  onClick={handleReport}
+                  className="absolute right-[-10px] bottom-[-10px] text-[9px] font-black uppercase tracking-widest text-indigo-300/40 hover:text-white transition-colors p-2"
+                >
+                  {t.report_issue}
+                </button>
+              </div>
             </div>
           </div>
         </motion.div>

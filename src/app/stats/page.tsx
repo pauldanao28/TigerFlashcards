@@ -692,8 +692,39 @@ export default function StatsPage() {
 
   if (initLoading)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 font-black text-slate-400 animate-pulse uppercase tracking-widest">
-        {t.processing}
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-6">
+        {/* Animated Icon Container */}
+        <div className="relative">
+          <div className="absolute inset-0 bg-orange-500/20 blur-3xl rounded-full animate-pulse" />
+          <span className="relative inline-block text-6xl animate-bounce">
+            🔥
+          </span>
+        </div>
+
+        {/* Text with high-end typography */}
+        <div className="flex flex-col items-center gap-2">
+          <h2 className="text-slate-900 font-black text-2xl uppercase tracking-tighter italic">
+            {t.processing}
+          </h2>
+          {/* Modern thin progress bar */}
+          <div className="w-48 h-1 bg-slate-200 rounded-full overflow-hidden">
+            <div className="w-full h-full bg-gradient-to-r from-orange-500 to-red-600 animate-shimmer" />
+          </div>
+        </div>
+
+        <style jsx>{`
+          @keyframes shimmer {
+            0% {
+              transform: translateX(-100%);
+            }
+            100% {
+              transform: translateX(100%);
+            }
+          }
+          .animate-shimmer {
+            animation: shimmer 1.5s infinite linear;
+          }
+        `}</style>
       </div>
     );
 
@@ -1120,7 +1151,7 @@ export default function StatsPage() {
           />
 
           <StatCard
-            label="Daily Progress"
+            label={t.daily_progress}
             value={reviewsToday} // The count for today
             color="bg-amber-400"
             onClick={() => {
@@ -1129,6 +1160,7 @@ export default function StatsPage() {
             }}
           />
 
+          {/* VOCAB - MASTERED - STRUGGLING */}
           <div className="bg-gradient-to-br from-orange-500 to-red-600 p-5 rounded-[2rem] shadow-lg flex items-center justify-between text-white overflow-hidden">
             {/* Left Section: Added pl-3 to prevent text from touching the left edge on mobile */}
             <div className="flex flex-1 items-center gap-4 sm:gap-10 pl-3 sm:pl-0">
@@ -1407,11 +1439,11 @@ export default function StatsPage() {
                   <div className="flex items-center gap-2 mb-1">
                     <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
                     <h3 className="text-2xl font-black text-slate-800 uppercase italic tracking-tight">
-                      Activity Log
+                      {t.activity_log}
                     </h3>
                   </div>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-4">
-                    Progress Tracking • Last 14 Days
+                    {t.progress_tracking} • {t.last_14_days}
                   </p>
                 </div>
                 <button
@@ -1503,13 +1535,13 @@ export default function StatsPage() {
                         </svg>
                       </div>
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        Total
+                        {t.total}
                       </p>
                     </div>
                     <p className="text-3xl font-black text-slate-800 tracking-tight">
                       {dailyHistory.reduce((acc, curr) => acc + curr.count, 0)}
                       <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">
-                        Reviews
+                        {t.reviews}
                       </span>
                     </p>
                   </div>
@@ -1530,7 +1562,7 @@ export default function StatsPage() {
                         </svg>
                       </div>
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        Average
+                        {t.average}
                       </p>
                     </div>
                     <p className="text-3xl font-black text-slate-800 tracking-tight">
@@ -1541,7 +1573,7 @@ export default function StatsPage() {
                         ) / (dailyHistory.length || 1),
                       )}
                       <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">
-                        Daily
+                        {t.daily}
                       </span>
                     </p>
                   </div>
@@ -1550,7 +1582,7 @@ export default function StatsPage() {
 
               <div className="p-6 bg-slate-50/50 text-center mt-auto border-t border-slate-50">
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] opacity-60">
-                  Focus • Consistency • Mastery
+                  {t.motto_focus} • {t.motto_consistency} • {t.motto_mastery}
                 </p>
               </div>
             </div>
