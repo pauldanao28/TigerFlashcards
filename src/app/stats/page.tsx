@@ -31,6 +31,7 @@ export default function StatsPage() {
   const [starterPacks, setStarterPacks] = useState<any[]>([]);
   const [ownedPacks, setOwnedPacks] = useState<string[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [profileName, setProfileName] = useState<string | null>(null);
   const [feedbackForm, setFeedbackForm] = useState({
     type: "feedback",
     subject: "",
@@ -176,7 +177,7 @@ export default function StatsPage() {
     const { data } = await supabase
       .from("profiles")
       .select(
-        "streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, imported_packs, is_admin",
+        "full_name, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, imported_packs, is_admin",
       )
       .eq("id", user?.id)
       .single();
@@ -189,6 +190,7 @@ export default function StatsPage() {
       setAutoPlayEn(data.auto_play_en);
       setOwnedPacks(data.imported_packs);
       setIsAdmin(data.is_admin);
+      setProfileName(data.full_name);
     }
   };
 
@@ -735,7 +737,8 @@ export default function StatsPage() {
           {/* Name & Status aligned horizontally */}
           <div className="flex items-center gap-3">
             <h1 className="text-4xl font-black text-slate-800 italic uppercase tracking-tighter leading-none">
-              {user?.user_metadata?.full_name ||
+              {profileName ||
+                user?.user_metadata?.full_name ||
                 user?.user_metadata?.name ||
                 "Satoshi"}
             </h1>
