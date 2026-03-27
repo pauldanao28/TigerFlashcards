@@ -26,6 +26,7 @@ export default function Home() {
 
   const [dataLoading, setDataLoading] = useState(true); // Cards loading
   const [aiLoading, setAiLoading] = useState(false); // AI Syncing
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   const [language, setLanguage] = useState<"en" | "jp">("jp");
   const [streak, setStreak] = useState(0);
@@ -132,6 +133,7 @@ export default function Home() {
       if (flattened.length > 0) setCurrentCard(getNextPriorityCard(flattened));
     }
     setDataLoading(false);
+    setHasLoadedOnce(true);
   }, [user, defaultDeckId, language]);
 
   useEffect(() => {
@@ -424,10 +426,9 @@ export default function Home() {
             )}
           </div>
         </div>
-
         {/* Card Main Logic */}
         {/* 1. LOADING STATE: Only show if an active process is in flight */}
-        {dataLoading || aiLoading ? (
+        {(dataLoading || aiLoading) && !hasLoadedOnce ? (
           <div className="w-80 h-[28rem] bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse gap-4">
             <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
             <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">
@@ -460,7 +461,7 @@ export default function Home() {
               </div>
             </div>
           </div>
-        ) : (
+        ) : hasLoadedOnce && cards.length === 0 ? (
           /* 3. ACTUAL EMPTY STATE: Show when loading is finished AND cards are zero */
           <div className="text-center p-10 bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 w-80 h-[28rem] flex flex-col justify-center items-center gap-6 animate-in fade-in zoom-in-95 duration-500">
             <div className="text-5xl opacity-40">📭</div>
@@ -479,23 +480,25 @@ export default function Home() {
               {t.get_started}
             </Link>
           </div>
-        )}
-
+        ) : null}{" "}
+        {/* 4. NEUTRAL STATE: Prevents flickering before the very first render */}
         {/* Action Buttons */}
-        <div className="flex gap-4 w-full py-6">
-          <button
-            onClick={() => handleScore(false)}
-            className="flex-1 py-4 bg-rose-50 text-rose-600 rounded-[1.5rem] font-black border-b-4 border-rose-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-sm tracking-widest"
-          >
-            ✕ {t.fail}
-          </button>
-          <button
-            onClick={() => handleScore(true)}
-            className="flex-1 py-4 bg-emerald-500 text-white rounded-[1.5rem] font-black border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all uppercase text-sm tracking-widest"
-          >
-            ✓ {t.pass}
-          </button>
-        </div>
+        {!dataLoading && cards.length > 0 && currentCard && (
+          <div className="flex gap-4 w-full py-6">
+            <button
+              onClick={() => handleScore(false)}
+              className="flex-1 py-4 bg-rose-50 text-rose-600 rounded-[1.5rem] font-black border-b-4 border-rose-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-sm tracking-widest"
+            >
+              ✕ {t.fail}
+            </button>
+            <button
+              onClick={() => handleScore(true)}
+              className="flex-1 py-4 bg-emerald-500 text-white rounded-[1.5rem] font-black border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all uppercase text-sm tracking-widest"
+            >
+              ✓ {t.pass}
+            </button>
+          </div>
+        )}
       </div>
     </main>
   );
