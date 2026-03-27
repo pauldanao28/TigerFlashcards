@@ -41,6 +41,7 @@ export const translations = {
     add_new_word: "Add New Word...",
     success_added: "Successfully added {{count}} words!",
     in_a_row: "in a row",
+    loading: "LOADING...",
     loading_session: "Loading Session...",
     daily_goal_met: "Daily Goal Met! 🎉",
     start_journey: "Start your journey by adding some cards.",
@@ -186,6 +187,7 @@ export const translations = {
     add_new_word: "単語を追加...", // Tango o tsuika
     success_added: "{{count}}語を追加しました！", // {{count}}-go o tsuika shimashita!
     in_a_row: "連続",           // Renzoku (Consecutive)
+    loading: "読み込み中...",       // "Yomikomi-chū"
     loading_session: "セッションを読み込み中...", // Sesshon o yomikomi-chū
     daily_goal_met: "今日の目標達成！ 🎉",      // Kyō no mokuhyō tassei!
     start_journey: "カードを追加して、学習を始めましょう！", // Kādo o tsuika shite...
