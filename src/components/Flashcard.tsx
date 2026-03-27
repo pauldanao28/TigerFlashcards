@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, useMotionValue, useTransform } from "framer-motion";
 import { FlashcardData } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
@@ -53,23 +53,18 @@ const triggerHaptic = (ms = 10) => {
 const speak = (text: string, lang: "ja-JP" | "en-US") => {
   const synth = window.speechSynthesis;
   if (typeof window !== "undefined" && synth) {
+    // 🔥 MANDATORY FOR IOS: Resume every single time
+    synth.resume();
     synth.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = lang;
-    utterance.rate = 0.9; // Slightly slower for N5 clarity
-    utterance.pitch = 1.0;
+    utterance.rate = 0.85; // Slightly slower for better N5/N4 recognition
 
+    // iOS sometimes ignores the voice if it's not explicitly set from the loaded list
     const voices = synth.getVoices();
-
-    // Priority: 1. Google Japanese, 2. Any Japanese, 3. Default
-    const selectedVoice =
-      voices.find((v) => v.lang === lang && v.name.includes("Google")) ||
-      voices.find((v) => v.lang === lang);
-
-    if (selectedVoice) {
-      utterance.voice = selectedVoice;
-    }
+    const voice = voices.find((v) => v.lang === lang);
+    if (voice) utterance.voice = voice;
 
     synth.speak(utterance);
   }
@@ -95,6 +90,20 @@ export default function Flashcard({
   // Pass/Fail Glow transforms
   const passOpacity = useTransform(x, [20, 120], [0, 1]);
   const failOpacity = useTransform(x, [-20, -120], [0, 1]);
+
+  const isAudioUnlocked = useRef(false);
+
+  const forceUnlock = () => {
+    if (isAudioUnlocked.current) return;
+
+    const synth = window.speechSynthesis;
+    const utterance = new SpeechSynthesisUtterance("");
+    utterance.volume = 0;
+    synth.speak(utterance);
+
+    isAudioUnlocked.current = true;
+    console.log("iOS Protocol: Audio Latched");
+  };
 
   // 2. Monitor 'x' for Haptics
   useEffect(() => {
@@ -128,9 +137,9 @@ export default function Flashcard({
   useEffect(() => {
     setFlipped(false);
 
+    // Reduced delay to 50ms. 300ms is often too long for iOS to
+    // associate the sound with the previous "Swipe" gesture.
     const timer = setTimeout(() => {
-      // If voices aren't loaded yet, calling getVoices() here
-      // can sometimes trigger the internal browser load
       window.speechSynthesis.getVoices();
 
       if (language === "jp" && autoPlayJp) {
@@ -138,7 +147,7 @@ export default function Flashcard({
       } else if (language === "en" && autoPlayEn) {
         speak(card.english, "en-US");
       }
-    }, 300); // Increased to 300ms to give the engine a heartbeat to initialize
+    }, 50);
 
     return () => clearTimeout(timer);
   }, [card.id, language, autoPlayJp, autoPlayEn]);
@@ -146,19 +155,24 @@ export default function Flashcard({
   // 4. Auto-play Audio on Flip (When card is turned over)
   useEffect(() => {
     if (flipped) {
-      // If we were looking at Japanese, play English on the back
-      if (language === "jp" && autoPlayEn) {
+      // 🔥 ALWAYS speak Japanese on the back if autoPlayJp is enabled
+      // regardless of whether the front was English or Japanese.
+      if (autoPlayJp) {
+        speak(card.reading || card.japanese, "ja-JP");
+      }
+      // Fallback: If they specifically want English auto-play and JP is off
+      else if (language === "jp" && autoPlayEn) {
         speak(card.english, "en-US");
       }
-      // If we were looking at English, play Japanese on the back
-      else if (language === "en" && autoPlayJp) {
-        speak(card.japanese, "ja-JP");
-      }
     }
-  }, [flipped, card.id, language, autoPlayJp, autoPlayEn]);
+  }, [flipped, card.id, autoPlayJp, autoPlayEn]);
 
   const handleDragEnd = (event: any, info: any) => {
     const swipeThreshold = 100;
+
+    // 🔥 THE FIX: Unlock immediately on the user's physical release
+    forceUnlock();
+
     if (info.offset.x > swipeThreshold) {
       onSwipe?.("right");
     } else if (info.offset.x < -swipeThreshold) {

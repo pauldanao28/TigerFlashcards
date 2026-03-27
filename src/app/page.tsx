@@ -333,7 +333,7 @@ export default function Home() {
         {/* Text with high-end typography */}
         <div className="flex flex-col items-center gap-2">
           <h2 className="text-slate-900 font-black text-2xl uppercase tracking-tighter italic">
-            {t.processing}
+            {t.loading}
           </h2>
           {/* Modern thin progress bar */}
           <div className="w-48 h-1 bg-slate-200 rounded-full overflow-hidden">
