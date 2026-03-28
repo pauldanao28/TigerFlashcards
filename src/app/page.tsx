@@ -563,7 +563,7 @@ export default function Home() {
           /* 2. ACTIVE CARD STATE: Show when we have data */
           <div className="flex flex-col items-center gap-6">
             <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">
-              {language === "jp" ? `🇯🇵 ${t.recognition}` : `🇺🇸 ${t.recall}`} |{" "}
+              {language === "jp" ? `🇯🇵 ${t.recognition}` : `🇺🇸 ${t.recall}`}
               {currentCard.scores?.[language === "jp" ? "jp_to_en" : "en_to_jp"]
                 ?.percent || 0}
               % {t.accuracy}
@@ -607,7 +607,7 @@ export default function Home() {
               {t.get_started}
             </Link>
           </div>
-        ) : null}{" "}
+        ) : null}
         {/* 4. NEUTRAL STATE: Prevents flickering before the very first render */}
         {/* Action Buttons */}
         {!dataLoading && cards.length > 0 && currentCard && (

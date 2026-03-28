@@ -87,6 +87,7 @@ export default function Flashcard({
   const { t } = useLang();
   //const [flipped, setFlipped] = useState(false);
   const [hasVibrated, setHasVibrated] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
   // 1. Setup Motion Values for Swipe
   const x = useMotionValue(0);
@@ -110,6 +111,12 @@ export default function Flashcard({
     isAudioUnlocked.current = true;
     console.log("iOS Protocol: Audio Latched");
   };
+
+  useEffect(() => {
+    setIsReady(false);
+    const timer = setTimeout(() => setIsReady(true), 50); // Small delay to let the DOM settle
+    return () => clearTimeout(timer);
+  }, [card.id]); // Trigger every time a new card appears
 
   useEffect(() => {
     if (audioPulse === 0) return; // Don't play on initial mount
@@ -310,7 +317,9 @@ export default function Flashcard({
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-white rounded-3xl border-4 border-white shadow-2xl [backface-visibility:hidden] p-8 text-center overflow-hidden">
             <div className="flex-1 flex items-center justify-center w-full">
               <span
-                className={`font-black text-slate-800 leading-tight transition-all duration-300 break-words w-full ${getFontSize(frontText, language === "jp")}`}
+                className={`font-black text-slate-800 leading-tight break-words w-full 
+    ${isReady ? "transition-all duration-300" : "transition-none"} 
+    ${getFontSize(frontText, language === "jp")}`}
               >
                 {frontText}
               </span>
@@ -347,7 +356,9 @@ export default function Flashcard({
               )}
 
               <h2
-                className={`font-bold leading-tight transition-all duration-300 break-words w-full ${getFontSize(backText, isBackJapanese)}`}
+                className={`font-bold leading-tight break-words w-full 
+    ${isReady ? "transition-all duration-300" : "transition-none"} 
+    ${getFontSize(backText, isBackJapanese)}`}
               >
                 {backText}
               </h2>
