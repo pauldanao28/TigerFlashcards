@@ -46,7 +46,15 @@ export default function Home() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      const newUser = session?.user ?? null;
+
+      // ✅ FIX: Only update state if the actual user ID changed.
+      // This prevents the tab-refocus from triggering a "new" user.
+      setUser((prevUser) => {
+        if (prevUser?.id === newUser?.id) return prevUser;
+        return newUser;
+      });
+
       setIsAuthLoaded(true);
     });
     return () => subscription.unsubscribe();
@@ -110,8 +118,12 @@ export default function Home() {
       setDataLoading(false);
       return;
     }
+    // 🔥 FIX 1: Only show the "Syncing Deck" spinner if we have NO cards.
+    // If we already have cards, we fetch in the background silently.
+    if (cards.length === 0) {
+      setDataLoading(true);
+    }
 
-    setDataLoading(true);
     const { data, error } = await supabase
       .from("master_cards")
       .select(
@@ -133,7 +145,14 @@ export default function Home() {
         },
       }));
       setCards(flattened);
-      if (flattened.length > 0) setCurrentCard(getNextPriorityCard(flattened));
+      if (flattened.length > 0) {
+        // ✅ FIX: Only pick a new card if we don't already have one on screen.
+        // This prevents the card from "jumping" when you return to the tab.
+        setCurrentCard((prev) => {
+          if (prev) return prev; // Keep the card that was already there
+          return getNextPriorityCard(flattened);
+        });
+      }
     }
     setDataLoading(false);
     setHasLoadedOnce(true);
@@ -443,28 +462,58 @@ export default function Home() {
         />
       )}
 
-      {/* Top Navigation Wrapper */}
-      <div className="fixed top-4 left-0 w-full z-50 pointer-events-none px-4 flex items-center justify-between md:top-8 md:px-8">
-        {/* Left: Tiny Toggle */}
-        <div className="pointer-events-auto scale-[0.65] origin-left md:scale-90 flex items-center h-7 md:h-10">
-          <LanguageToggle language={language} setLanguage={setLanguage} />
-        </div>
-
-        {/* CENTER: THE BRAND (Big enough to see the white/red contrast) */}
-        <div className="absolute left-1/2 -translate-x-1/2 pointer-events-auto">
-          <Link href="/" className="block transition-transform active:scale-90">
-            <Logo className="w-8 h-11 md:w-10 md:h-14" />
+      {/* --- MOBILE NAVIGATION (Top-Right Stack) --- */}
+      <div className="md:hidden fixed top-4 left-0 w-full z-50 pointer-events-none px-4 flex justify-between items-start">
+        {/* TOP LEFT: Logo */}
+        <div className="pointer-events-auto flex items-center h-12">
+          <Link href="/" className="block active:scale-95 transition-transform">
+            <Logo className="w-10 h-12" />
           </Link>
         </div>
 
-        {/* Right: Tiny Stats (Matched to Toggle height) */}
-        <div className="pointer-events-auto">
+        {/* TOP RIGHT: The "Control Stack" */}
+        <div className="flex flex-col items-end gap-2 pointer-events-auto">
+          {/* 1. Language Toggle: Locked to w-28 h-8 */}
+          <div className="h-8 w-28 flex items-center">
+            <LanguageToggle language={language} setLanguage={setLanguage} />
+          </div>
+
+          {/* 2. Stats Button: Locked to w-28 h-8 to match exactly */}
           <Link
             href="/stats"
-            className="bg-white px-2.5 h-7 rounded-full shadow-sm font-bold text-slate-700 border border-slate-100 flex items-center gap-1 transition-all active:scale-95 md:h-10 md:px-4 md:gap-2"
+            className="bg-white h-8 w-28 rounded-full shadow-sm border border-slate-100 flex items-center justify-center gap-1.5 active:scale-95 transition-all"
           >
-            <span className="text-sm md:text-lg">📊</span>
-            <span className="text-[9px] md:text-xs uppercase tracking-tight">
+            <span className="text-xs leading-none">📊</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-700 leading-none">
+              {t.stats}
+            </span>
+          </Link>
+        </div>
+      </div>
+
+      {/* --- 2. DESKTOP NAVIGATION (Single-Line Layout) --- */}
+      <div className="hidden md:flex fixed top-8 left-0 w-full z-50 pointer-events-none px-8 items-center justify-between">
+        {/* Left: Logo */}
+        <div className="pointer-events-auto flex items-center h-12">
+          <Link href="/" className="block hover:scale-105 transition-transform">
+            <Logo className="w-10 h-12" />
+          </Link>
+        </div>
+
+        {/* Right: Controls Group */}
+        <div className="flex items-center gap-6 pointer-events-auto">
+          {/* 1. Language Toggle - Removed width restriction, increased height */}
+          <div className="h-11 flex items-center min-w-[200px]">
+            <LanguageToggle language={language} setLanguage={setLanguage} />
+          </div>
+
+          {/* 2. Stats Button - Matched to h-11 with more padding */}
+          <Link
+            href="/stats"
+            className="bg-white h-11 px-8 rounded-full shadow-sm border border-slate-100 flex items-center gap-3 hover:border-slate-300 transition-all active:scale-95"
+          >
+            <span className="text-xl leading-none">📊</span>
+            <span className="text-sm font-black uppercase tracking-[0.2em] text-slate-700">
               {t.stats}
             </span>
           </Link>
@@ -490,7 +539,6 @@ export default function Home() {
           <div className="pb-2 text-center md:pb-1">
             {dailyProgress < DAILY_GOAL ? (
               <>
-                {/* w-40 for mobile, w-32 for desktop */}
                 <div className="w-40 h-2 bg-slate-200 rounded-full overflow-hidden shadow-inner mx-auto mb-2 md:w-32 md:h-1.5 md:mb-1">
                   <div
                     className="h-full bg-emerald-500 transition-all duration-500"
@@ -502,8 +550,11 @@ export default function Home() {
                 </p>
               </>
             ) : (
-              <div className="bg-emerald-100 border border-emerald-200 px-5 py-2 rounded-full animate-pulse md:px-4 md:py-1">
-                <p className="text-[11px] font-black text-emerald-700 uppercase md:text-[10px]">
+              /* SUCCESS STATE: Non-distracting and compact */
+              <div className="flex items-center justify-center gap-1.5 opacity-60 transition-opacity hover:opacity-100">
+                {/* Small subtle dot instead of a pulsing pill */}
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] md:text-[8px]">
                   {t.daily_goal_met}
                 </p>
               </div>

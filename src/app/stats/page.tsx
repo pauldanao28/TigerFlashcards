@@ -128,9 +128,13 @@ export default function StatsPage() {
       );
     }
   };
-
   useEffect(() => {
-    setInitLoading(true);
+    // 1. Only set initLoading if we don't have a user yet
+    if (!user) {
+      setInitLoading(true);
+    }
+
+    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
     });
@@ -139,19 +143,22 @@ export default function StatsPage() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
+
+      // 2. Stop loading on any auth event (login, token refresh, etc.)
+      setInitLoading(false);
+
       if (event === "SIGNED_OUT") {
         window.location.href = "/";
       }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, []); // Empty array means this ONLY runs once on mount
 
   // 1. Fetch the user's basic info first
   useEffect(() => {
     const initData = async () => {
       if (user) {
-        setInitLoading(true);
         try {
           // Promise.all waits for all functions to finish
           // Note: Make sure your fetch functions are "async" and return the supabase promise!
@@ -262,11 +269,12 @@ export default function StatsPage() {
       return;
     }
 
-    // 1. We query master_cards, but we use !inner on the join to filter the results
-    const { data, error } = await supabase
-      .from("master_cards")
-      .select(
-        `
+    try {
+      // 1. We query master_cards, but we use !inner on the join to filter the results
+      const { data, error } = await supabase
+        .from("master_cards")
+        .select(
+          `
       *,
       deck_cards!inner (
         deck_id
@@ -275,33 +283,39 @@ export default function StatsPage() {
         scores_json
       )
     `,
-      )
-      // 2. This filters the master_cards to ONLY ones in YOUR deck
-      .eq("deck_cards.deck_id", defaultDeckId)
-      // 3. This ensures you only get YOUR scores (not someone else's)
-      .eq("user_scores.user_id", user.id)
-      .order("created_at", { ascending: false });
+        )
+        // 2. This filters the master_cards to ONLY ones in YOUR deck
+        .eq("deck_cards.deck_id", defaultDeckId)
+        // 3. This ensures you only get YOUR scores (not someone else's)
+        .eq("user_scores.user_id", user.id)
+        .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Fetch Error:", error.message);
-      return;
-    }
+      if (error) {
+        console.error("Fetch Error:", error.message);
+        return;
+      }
 
-    if (data) {
-      const flattened = data.map((card: any) => {
-        // user_scores is still an array from the join
-        const userStats = card.user_scores?.[0];
+      if (data) {
+        const flattened = data.map((card: any) => {
+          // user_scores is still an array from the join
+          const userStats = card.user_scores?.[0];
 
-        return {
-          ...card,
-          scores: userStats?.scores_json || {
-            jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
-            en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
-          },
-        };
-      });
+          return {
+            ...card,
+            scores: userStats?.scores_json || {
+              jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
+              en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
+            },
+          };
+        });
 
-      setCards(flattened);
+        setCards(flattened);
+      }
+    } catch (err) {
+      console.error("Unexpected Fetch Error:", err);
+    } finally {
+      // 2. FINISH: Always turn off loading at the end
+      setInitLoading(false);
     }
   };
 
@@ -463,19 +477,18 @@ export default function StatsPage() {
     }
   };
 
-  const deleteCard = async (id: string) => {
-    if (!confirm("Remove this card from your collection?")) return;
+  const deleteCard = async (id: string, isFromSummary = false) => {
+    // Only show the browser confirm if it's NOT from the quick-summary overlay
+    if (!isFromSummary && !confirm("Remove this card from your collection?"))
+      return;
 
-    console.log(`Attempting to delete card ${id} for user ${user?.id}`);
-
-    // 1. Delete from deck_cards
+    // 1. Database Cleanup (Linking & Scores)
     const { error: linkErr } = await supabase
       .from("deck_cards")
       .delete()
       .eq("card_id", id)
       .eq("deck_id", defaultDeckId);
 
-    // 2. Delete from user_scores
     const { error: scoreErr } = await supabase
       .from("user_scores")
       .delete()
@@ -483,14 +496,17 @@ export default function StatsPage() {
       .eq("user_id", user?.id);
 
     if (linkErr || scoreErr) {
-      console.error("Delete failed!", { linkErr, scoreErr });
       alert(`Could not delete: ${linkErr?.message || scoreErr?.message}`);
       return;
     }
 
-    // 3. Update UI
+    // 2. Update Main List UI
     setCards((prev) => prev.filter((c) => c.id !== id));
-    console.log("Successfully removed from local state");
+
+    // 3. Update Overlay UI (If applicable)
+    if (isFromSummary) {
+      setAddedWordsSummary((prev) => prev.filter((c) => c.id !== id));
+    }
   };
 
   // 1. Aggregating Global Totals
@@ -750,7 +766,7 @@ export default function StatsPage() {
   md:text-4xl font-black text-slate-800 italic uppercase tracking-tighter leading-none
 `}
               >
-                {profileName || user?.user_metadata?.full_name || "Satoshi"}
+                {profileName || user?.user_metadata?.full_name || ""}
               </h1>
 
               <div className="flex items-center mt-1.5">
@@ -2057,35 +2073,58 @@ export default function StatsPage() {
                 {addedWordsSummary.map((word, i) => (
                   <div
                     key={i}
-                    className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-start gap-4"
+                    className="group bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-start gap-4 hover:border-indigo-100 transition-all"
                   >
-                    <div className="flex-shrink-0 w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100">
-                      <span className="text-indigo-600 font-bold text-xl">
+                    {/* 1. LEFT: THE COLORFUL KANJI AVATAR (Restored Colors) */}
+                    <div className="flex-shrink-0 w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100 shadow-sm">
+                      <span className="text-indigo-600 font-black text-xl">
                         {word.japanese[0]}
                       </span>
                     </div>
-                    <div className="flex-1">
+
+                    {/* 2. CENTER: Content Info */}
+                    <div className="flex-1 flex flex-col text-left">
                       <div className="flex items-baseline gap-2">
                         <span className="text-lg font-black text-slate-800">
                           {word.japanese}
                         </span>
-                        <span className="text-xs font-bold text-rose-500">
-                          [{word.reading}]
+                        <span className="text-xs font-bold text-rose-500 uppercase tracking-tighter">
+                          {word.reading}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-600 font-medium mt-1">
+
+                      <p className="text-sm text-slate-600 font-medium mt-0.5 leading-tight pr-10">
                         {word.english}
                       </p>
-                      <div className="mt-2 text-[9px] font-black uppercase tracking-tighter text-slate-400 flex gap-2">
-                        <span className="bg-slate-100 px-1.5 py-0.5 rounded">
+
+                      {/* Meta Tags */}
+                      <div className="mt-2 flex gap-2">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
                           {word.partOfSpeech}
                         </span>
-                        {word.exampleSentence?.jp && (
-                          <span className="text-emerald-500">
-                            ✓ Example Added
-                          </span>
-                        )}
                       </div>
+                    </div>
+
+                    {/* 3. TOP RIGHT: THE DELETE BUTTON (Trash Can Style) */}
+                    <div className="flex-shrink-0 -mt-1 -mr-1">
+                      <button
+                        onClick={() => deleteCard(word.id, true)}
+                        className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all active:scale-90"
+                        title={t.delete}
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-5 w-5"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </button>
                     </div>
                   </div>
                 ))}
