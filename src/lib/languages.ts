@@ -144,6 +144,8 @@ export const translations = {
   daily_progress: "Daily Progress",
   ai_processing: "AI is Extracting & Translating...",
   status_online: "ONLINE",
+  flip_control: "Flip",
+    score_control: "Score",
   },
   jp: {
     goal: "今日の目標",
@@ -290,5 +292,7 @@ export const translations = {
   daily_progress: "今日の進捗",
   ai_processing: "AIが抽出・翻訳中...",
   status_online: "接続中",
+  flip_control: "めくる",      // (Mekuru) To flip/turn over - very natural for cards
+    score_control: "評価",      // (Hyouka) Evaluation/Grade - standard for SRS apps
   }
 };

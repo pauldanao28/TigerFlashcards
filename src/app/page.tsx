@@ -567,6 +567,46 @@ export default function Home() {
           </div>
         )}
       </div>
+      {/* Keyboard Shortcuts Legend - Desktop Only */}
+      <div className="hidden md:flex fixed bottom-6 left-0 w-full justify-center pointer-events-none">
+        <div className="bg-white/80 backdrop-blur-sm px-4 py-2 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+          {/* Flip Controls: Space & Up Arrow */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <kbd className="px-2 py-1 bg-slate-100 border-b-2 border-slate-300 rounded text-[10px] font-black text-slate-500">
+                SPACE
+              </kbd>
+              <span className="text-[10px] font-bold text-slate-300 uppercase">
+                or
+              </span>
+              <kbd className="px-2 py-1 bg-slate-100 border-b-2 border-slate-300 rounded text-[10px] font-black text-slate-500">
+                ↑
+              </kbd>
+            </div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              {t.flip_control}
+            </span>
+          </div>
+
+          {/* Divider */}
+          <div className="w-[1px] h-3 bg-slate-200" />
+
+          {/* Scoring Controls: Left & Right Arrows */}
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1">
+              <kbd className="px-2 py-1 bg-slate-100 border-b-2 border-slate-300 rounded text-[10px] font-black text-slate-500">
+                ←
+              </kbd>
+              <kbd className="px-2 py-1 bg-slate-100 border-b-2 border-slate-300 rounded text-[10px] font-black text-slate-500">
+                →
+              </kbd>
+            </div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              {t.score_control}
+            </span>
+          </div>
+        </div>
+      </div>
     </main>
   );
 }
