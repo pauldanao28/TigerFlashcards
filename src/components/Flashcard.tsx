@@ -267,7 +267,29 @@ export default function Flashcard({
         onDragEnd={handleDragEnd}
         className="relative w-full h-full cursor-grab active:cursor-grabbing"
       >
-        {/* SWIPE INDICATORS - (Keep existing code) */}
+        {/* --- REFINED: SUBTLE OVERLAYS --- */}
+        <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden rounded-3xl">
+          {/* PASS (Right) - Using /10 for a very light emerald tint */}
+          <motion.div
+            style={{ opacity: passOpacity }}
+            className="absolute inset-0 bg-emerald-500/10 flex items-center justify-center"
+          >
+            <span className="text-emerald-600/30 text-7xl font-black uppercase tracking-tighter -rotate-12">
+              {t.pass}
+            </span>
+          </motion.div>
+
+          {/* FAIL (Left) - Using /10 for a very light rose tint */}
+          <motion.div
+            style={{ opacity: failOpacity }}
+            className="absolute inset-0 bg-rose-500/10 flex items-center justify-center"
+          >
+            <span className="text-rose-600/30 text-7xl font-black uppercase tracking-tighter rotate-12">
+              {t.fail}
+            </span>
+          </motion.div>
+        </div>
+        {/* -------------------------------------- */}
 
         <motion.div
           // Use 'animate' directly linked to the prop
