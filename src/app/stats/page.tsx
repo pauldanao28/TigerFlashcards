@@ -319,6 +319,29 @@ export default function StatsPage() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    try {
+      if (!confirm(t.delete_confirm)) return;
+
+      // Call the Postgres function we just created
+      const { error } = await supabase.rpc("delete_user_forever");
+
+      if (error) {
+        console.error("RPC Error:", error.message);
+        throw error;
+      }
+
+      // Sign out locally to clear the session
+      await supabase.auth.signOut();
+
+      // Redirect to landing
+      window.location.href = "/";
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      alert("Failed to delete account. Please try logging in again first.");
+    }
+  };
+
   const processWords = async (inputList: string[]) => {
     if (!user || !defaultDeckId)
       return alert("Please log in and ensure deck is initialized.");
@@ -782,12 +805,9 @@ export default function StatsPage() {
           <div className="flex-shrink-0">
             <Link
               href="/"
-              className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 font-bold text-slate-600 transition-all active:scale-95 h-10 md:h-11"
+              className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 font-black text-slate-600 transition-all active:scale-95 h-10 uppercase tracking-widest text-[10px]"
             >
-              <span className="text-lg">←</span>
-              <span className="text-xs md:text-sm whitespace-nowrap uppercase tracking-tight">
-                {t.back_to_study}
-              </span>
+              <span>←</span> {t.back_to_study}
             </Link>
           </div>
         </div>
@@ -796,13 +816,13 @@ export default function StatsPage() {
         <div className="max-w-5xl mx-auto">
           {/* Management Toolbar */}
           <div className="flex flex-col md:flex-row gap-4 mb-8">
-            <div className="flex-1 bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-2">
+            <div className="flex-1 bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex gap-2">
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={t.add_new_word}
-                className="flex-1 bg-slate-50 border-none rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold"
               />
               <button
                 onClick={() => {
@@ -811,7 +831,7 @@ export default function StatsPage() {
                   processWords(lines);
                 }}
                 disabled={loading}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50"
+                className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-700 transition-all active:scale-95"
               >
                 {loading ? "..." : t.ai_add}
               </button>
@@ -1022,8 +1042,27 @@ export default function StatsPage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {/* TYPE SELECTOR */}
-                    <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100 gap-1">
+                    {/* TYPE SELECTOR WITH INDIGO OVERLAY */}
+                    <div className="relative flex bg-slate-100 p-1 rounded-xl border border-slate-200 gap-1 overflow-hidden">
+                      {/* Animated Indigo Slider */}
+                      <motion.div
+                        className="absolute top-1 bottom-1 left-1 w-[calc(33.33%-5.3px)] bg-indigo-600 rounded-lg shadow-sm"
+                        initial={false}
+                        animate={{
+                          x:
+                            feedbackForm.type === t.type_bug
+                              ? "0%"
+                              : feedbackForm.type === t.type_feedback
+                                ? "100%"
+                                : "200%",
+                        }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 400,
+                          damping: 30,
+                        }}
+                      />
+
                       {[t.type_bug, t.type_feedback, t.type_feature].map(
                         (type) => (
                           <button
@@ -1031,9 +1070,9 @@ export default function StatsPage() {
                             onClick={() =>
                               setFeedbackForm({ ...feedbackForm, type })
                             }
-                            className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                            className={`relative z-10 flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors duration-200 ${
                               feedbackForm.type === type
-                                ? "bg-white text-indigo-600 shadow-sm"
+                                ? "text-white"
                                 : "text-slate-400 hover:text-slate-500"
                             }`}
                           >
@@ -1080,6 +1119,35 @@ export default function StatsPage() {
                     </button>
                   </div>
                 )}
+              </div>
+
+              <div className="mt-12 pt-8 border-t border-slate-100">
+                <h3 className="text-[10px] font-black text-red-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                  <span>⚠️</span> {t.danger_zone}
+                </h3>
+
+                {/* DELETE ACCOUNT SECTION */}
+                <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="max-w-[250px]">
+                    <p className="text-sm font-bold text-red-700 leading-tight">
+                      {t.delete_account}
+                    </p>
+                    <p className="text-[9px] text-red-400 font-medium mt-0.5 leading-relaxed">
+                      {t.delete_account_desc}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      if (confirm(t.delete_confirm)) {
+                        handleDeleteAccount();
+                      }
+                    }}
+                    className="w-full sm:w-auto px-6 py-2.5 bg-white border border-red-200 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white hover:border-red-600 transition-all active:scale-95 shadow-sm"
+                  >
+                    {t.delete_btn}
+                  </button>
+                </div>
               </div>
             </div>
           )}

@@ -464,27 +464,20 @@ export default function Home() {
 
       {/* --- MOBILE NAVIGATION (Top-Right Stack) --- */}
       <div className="md:hidden fixed top-4 left-0 w-full z-50 pointer-events-none px-4 flex justify-between items-start">
-        {/* TOP LEFT: Logo */}
-        <div className="pointer-events-auto flex items-center h-12">
-          <Link href="/" className="block active:scale-95 transition-transform">
-            <Logo className="w-10 h-12" />
-          </Link>
-        </div>
+        <Logo className="w-10 h-12 pointer-events-auto active:scale-95 transition-transform" />
 
-        {/* TOP RIGHT: The "Control Stack" */}
         <div className="flex flex-col items-end gap-2 pointer-events-auto">
-          {/* 1. Language Toggle: Locked to w-28 h-8 */}
-          <div className="h-8 w-28 flex items-center">
+          {/* Matched h-9 for slightly better tap targets than h-8 */}
+          <div className="h-9 w-32">
             <LanguageToggle language={language} setLanguage={setLanguage} />
           </div>
 
-          {/* 2. Stats Button: Locked to w-28 h-8 to match exactly */}
           <Link
             href="/stats"
-            className="bg-white h-8 w-28 rounded-full shadow-sm border border-slate-100 flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+            className="bg-white h-9 w-32 rounded-full shadow-sm border border-slate-200 flex items-center justify-center gap-1.5 active:scale-95 transition-all"
           >
-            <span className="text-xs leading-none">📊</span>
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-700 leading-none">
+            <span className="text-xs">📊</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">
               {t.stats}
             </span>
           </Link>
@@ -522,11 +515,7 @@ export default function Home() {
 
       <div className="relative w-full max-w-md flex flex-col items-center mt-28 md:mt-14">
         {/* HUD / Progress Area */}
-        {/* CHANGE: 
-    h-24 mb-6 (Mobile: more breathing room) 
-    md:h-20 md:mb-3 (Desktop: restored to original compact size) 
-  */}
-        <div className="w-full h-24 mb-6 flex flex-col items-center justify-end relative md:h-20 md:mb-3">
+        <div className="w-full h-24 mb-6 flex flex-col items-center justify-end relative md:h-20 md:mb-8">
           {sessionStreak >= 3 && (
             <div className="absolute top-0 flex items-center gap-2 bg-white px-5 py-2 rounded-full shadow-xl border border-orange-100 animate-bounce z-40 md:top-4">
               <span className="text-xl">🔥</span>
@@ -551,9 +540,9 @@ export default function Home() {
               </>
             ) : (
               /* SUCCESS STATE: Non-distracting and compact */
-              <div className="flex items-center justify-center gap-1.5 opacity-60 transition-opacity hover:opacity-100">
-                {/* Small subtle dot instead of a pulsing pill */}
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              <div className="flex items-center justify-center gap-1.5 opacity-80 group">
+                {/* The dot feels more "active" if it's slightly brighter while the text stays neutral */}
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] md:text-[8px]">
                   {t.daily_goal_met}
                 </p>

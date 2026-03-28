@@ -147,6 +147,11 @@ export const translations = {
   flip_control: "Flip",
     score_control: "Score",
     cards: "Cards",
+    danger_zone: "Danger Zone",
+  delete_account: "Delete Account",
+  delete_account_desc: "Permanently remove your account and all data. This cannot be undone.",
+  delete_confirm: "Are you absolutely sure? All your data will be wiped forever.",
+  delete_btn: "Delete Forever",
   },
   jp: {
     goal: "今日の目標",
@@ -296,5 +301,10 @@ export const translations = {
   flip_control: "めくる",      // (Mekuru) To flip/turn over - very natural for cards
     score_control: "評価",      // (Hyouka) Evaluation/Grade - standard for SRS apps
     cards: "枚",
+    danger_zone: "危険ゾーン",
+  delete_account: "アカウント削除",
+  delete_account_desc: "アカウントとすべてのデータを完全に削除します。この操作は取り消せません。",
+  delete_confirm: "本当によろしいですか？すべてのデータが永久に削除されます。",
+  delete_btn: "永久に削除する"
   }
 };

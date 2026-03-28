@@ -68,7 +68,7 @@ export default function Auth() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-slate-50">
-      <div className="mb-8 scale-90">
+      <div className="mb-8 w-48 h-10">
         <LanguageToggle language={lang} setLanguage={setLang} />
       </div>
 
