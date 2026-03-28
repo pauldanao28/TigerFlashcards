@@ -146,6 +146,7 @@ export const translations = {
   status_online: "ONLINE",
   flip_control: "Flip",
     score_control: "Score",
+    cards: "Cards",
   },
   jp: {
     goal: "今日の目標",
@@ -294,5 +295,6 @@ export const translations = {
   status_online: "接続中",
   flip_control: "めくる",      // (Mekuru) To flip/turn over - very natural for cards
     score_control: "評価",      // (Hyouka) Evaluation/Grade - standard for SRS apps
+    cards: "枚",
   }
 };

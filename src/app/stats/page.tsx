@@ -47,6 +47,7 @@ export default function StatsPage() {
   >([]);
   const [showHistory, setShowHistory] = useState(false);
   const [reviewsToday, setReviewsToday] = useState(0);
+  const [previewPack, setPreviewPack] = useState<any | null>(null);
 
   useEffect(() => {
     const fetchTodayCount = async () => {
@@ -1638,7 +1639,10 @@ export default function StatsPage() {
                   }`}
                 >
                   {/* Top Section: Icon and Status */}
-                  <div>
+                  <div
+                    className="cursor-pointer group/card"
+                    onClick={() => setPreviewPack(pack)}
+                  >
                     <div className="flex justify-between items-start mb-4">
                       <div
                         className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-inner ${
@@ -1694,6 +1698,88 @@ export default function StatsPage() {
             )}
           </div>
         </div>
+
+        {/* --- Starter Pack Preview Overlay --- */}
+        {previewPack && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-300"
+              onClick={() => setPreviewPack(null)}
+            />
+
+            <div className="relative w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
+              {/* Header (Matching your Activity Log style) */}
+              <div className="p-8 border-b border-slate-50 flex justify-between items-end bg-gradient-to-b from-slate-50/50 to-transparent">
+                <div>
+                  <div className="flex items-center gap-3 mb-1">
+                    <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-xl shadow-inner">
+                      {previewPack.icon || "📦"}
+                    </div>
+                    <h3 className="text-2xl font-black text-slate-800 uppercase italic tracking-tight">
+                      {previewPack.name}
+                    </h3>
+                  </div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">
+                    {previewPack.card_data?.length} {t.cards} •{" "}
+                    {t.starter_collection}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setPreviewPack(null)}
+                  className="h-12 w-12 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-800 hover:shadow-sm transition-all active:scale-90"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Content Area: Card List */}
+              <div className="p-6 md:p-8 overflow-y-auto custom-scrollbar bg-slate-50/30">
+                {/* Description Card */}
+                <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 mb-6 shadow-sm">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                    {t.description}
+                  </p>
+                  <p className="text-slate-600 text-sm leading-relaxed font-medium">
+                    {previewPack.description || t.default_pack_desc}
+                  </p>
+                </div>
+
+                {/* The "Contents" Grid */}
+                <div className="grid grid-cols-1 gap-3">
+                  {previewPack.card_data?.map((card: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="group bg-white p-5 rounded-[2rem] border border-slate-100 hover:border-indigo-100 hover:shadow-md transition-all flex items-center justify-between"
+                    >
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xl font-black text-slate-800 tracking-tight">
+                          {card.japanese}
+                        </span>
+                        <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">
+                          {card.reading}
+                        </span>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="inline-block bg-slate-50 px-4 py-2 rounded-xl text-xs font-black text-slate-500 border border-slate-100 group-hover:bg-indigo-50 group-hover:text-indigo-600 group-hover:border-indigo-100 transition-colors">
+                          {card.english}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Subtle Bottom Branding */}
+              <div className="pb-6 bg-white text-center">
+                <p className="text-[8px] font-black text-slate-300 uppercase tracking-[0.5em] opacity-60">
+                  {t.mastery_awaits}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Search */}
         <div className="relative mb-6">
