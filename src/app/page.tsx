@@ -10,6 +10,7 @@ import LanguageToggle from "@/components/LanguageToggle";
 import OnboardingModal from "@/components/OnboardingModal";
 import CoachMarks from "@/components/CoachMarks";
 import Auth from "@/components/Auth";
+import Logo from "@/components/Logo";
 import { FlashcardData } from "@/lib/types";
 
 const DAILY_GOAL = 10;
@@ -442,17 +443,30 @@ export default function Home() {
         />
       )}
 
-      {/* Top Navigation */}
-      <div className="fixed top-5 left-0 w-full px-4 z-50 pointer-events-none flex items-center justify-between md:top-8 md:px-8 md:justify-end md:gap-4">
-        <div className="pointer-events-auto scale-90 origin-left">
+      {/* Top Navigation Wrapper */}
+      <div className="fixed top-4 left-0 w-full z-50 pointer-events-none px-4 flex items-center justify-between md:top-8 md:px-8">
+        {/* Left: Tiny Toggle */}
+        <div className="pointer-events-auto scale-[0.65] origin-left md:scale-90 flex items-center h-7 md:h-10">
           <LanguageToggle language={language} setLanguage={setLanguage} />
         </div>
+
+        {/* CENTER: THE BRAND (Big enough to see the white/red contrast) */}
+        <div className="absolute left-1/2 -translate-x-1/2 pointer-events-auto">
+          <Link href="/" className="block transition-transform active:scale-90">
+            <Logo className="w-8 h-11 md:w-10 md:h-14" />
+          </Link>
+        </div>
+
+        {/* Right: Tiny Stats (Matched to Toggle height) */}
         <div className="pointer-events-auto">
           <Link
             href="/stats"
-            className="bg-white px-4 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-100 flex items-center gap-2 h-10 transition-transform active:scale-95"
+            className="bg-white px-2.5 h-7 rounded-full shadow-sm font-bold text-slate-700 border border-slate-100 flex items-center gap-1 transition-all active:scale-95 md:h-10 md:px-4 md:gap-2"
           >
-            📊 {t.stats}
+            <span className="text-sm md:text-lg">📊</span>
+            <span className="text-[9px] md:text-xs uppercase tracking-tight">
+              {t.stats}
+            </span>
           </Link>
         </div>
       </div>

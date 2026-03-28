@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
 import { useLang } from "@/context/LanguageContext";
 import { motion } from "framer-motion";
+import Logo from "@/components/Logo";
 
 export default function StatsPage() {
   const { t, setLang, lang } = useLang();
@@ -49,6 +50,8 @@ export default function StatsPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [reviewsToday, setReviewsToday] = useState(0);
   const [previewPack, setPreviewPack] = useState<any | null>(null);
+  const [addedWordsSummary, setAddedWordsSummary] = useState<any[]>([]);
+  const [showSummaryOverlay, setShowSummaryOverlay] = useState(false);
 
   useEffect(() => {
     const fetchTodayCount = async () => {
@@ -365,14 +368,22 @@ export default function StatsPage() {
       }
     };
 
+    let allProcessedCards: any[] = []; // Temporary array to hold summary data
+
     try {
       // --- 2. Step 1: Handle Existing Cards (Instant) ---
       const { data: existingCards, error: searchErr } = await supabase
         .from("master_cards")
-        .select("id, japanese")
+        .select("*")
         .in("japanese", uniqueInputWords);
 
       if (searchErr) throw searchErr;
+
+      if (existingCards) {
+        allProcessedCards = [...existingCards];
+        const foundIds = existingCards.map((c) => c.id);
+        if (foundIds.length > 0) await performLinking(foundIds);
+      }
 
       const existingMap = new Map(
         existingCards?.map((c) => [c.japanese, c.id]) || [],
@@ -380,12 +391,11 @@ export default function StatsPage() {
       const wordsForAI = uniqueInputWords.filter((w) => !existingMap.has(w));
 
       // Link what we found immediately
-      const foundIds = Array.from(existingMap.values());
-      if (foundIds.length > 0) {
-        await performLinking(foundIds);
-        fetchCards(); // Refresh UI to show the "already known" words
-      }
-
+      // const foundIds = Array.from(existingMap.values());
+      // if (foundIds.length > 0) {
+      //   await performLinking(foundIds);
+      //   fetchCards(); // Refresh UI to show the "already known" words
+      // }
       // --- 3. Step 2: Handle New Words (AI) ---
       if (wordsForAI.length > 0) {
         try {
@@ -417,38 +427,29 @@ export default function StatsPage() {
               })),
               { onConflict: "japanese" },
             )
-            .select("id");
+            .select("*");
 
           if (mErr) throw mErr;
-          if (newCards && newCards.length > 0) {
+          if (newCards) {
+            // Append to the existing cards found in Step 1
+            allProcessedCards = [...allProcessedCards, ...newCards];
             await performLinking(newCards.map((c) => c.id));
-            fetchCards();
           }
         } catch (aiErr: any) {
-          // If AI fails, we don't crash the whole function because some words were already added
-          alert(
-            `Note: Added existing words, but new ones failed: ${aiErr.message}`,
-          );
+          console.error("AI Step Failed:", aiErr);
         }
       }
 
-      // --- 3.5 Success Feedback ---
-      const totalAdded = uniqueInputWords.length;
-      if (totalAdded > 0) {
-        // If you have a toast library like sonner or react-hot-toast, use that here.
-        // Otherwise, a simple alert with your new translations:
-        const message =
-          lang === "jp"
-            ? `${totalAdded}語を追加しました！`
-            : `Successfully added ${totalAdded} words!`;
-
-        alert(message);
+      // --- 3.5 Show Overlay ---
+      if (allProcessedCards.length > 0) {
+        // Final check to make sure the summary list doesn't have duplicates
+        const finalSummary = Array.from(
+          new Map(allProcessedCards.map((c) => [c.japanese, c])).values(),
+        );
+        setAddedWordsSummary(finalSummary);
+        setShowSummaryOverlay(true);
+        fetchCards();
       }
-
-      // --- 4. Cleanup UI ---
-      setInput("");
-      setBatchInput("");
-      setShowBatch(false);
 
       // --- 4. Cleanup UI ---
       setInput("");
@@ -733,1286 +734,1384 @@ export default function StatsPage() {
     );
 
   return (
-    <main className="min-h-screen bg-slate-50 p-8">
-      <div className="max-w-5xl mx-auto">
-        <div className="mb-8 flex items-center gap-4 border-b border-slate-200 pb-6 animate-in fade-in slide-in-from-left-4 duration-700">
-          {/* Name & Status aligned horizontally */}
-          <div className="flex items-center gap-3">
-            <h1 className="text-4xl font-black text-slate-800 italic uppercase tracking-tighter leading-none">
-              {profileName ||
-                user?.user_metadata?.full_name ||
-                user?.user_metadata?.name ||
-                "Satoshi"}
-            </h1>
+    <div className="min-h-screen bg-slate-50">
+      {/* Single Parent Wrapper */}
+      {/* 1. STICKY HEADER: Edge-to-Edge */}
+      <header className="sticky top-0 z-50 w-full bg-slate-50/80 backdrop-blur-md border-b border-slate-200 px-4 py-4 md:px-8">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          {/* LEFT: Identity (Bigger & Left-Aligned) */}
+          <div className="flex items-center gap-4">
+            <Logo className="w-10 h-14 md:w-12 h-16" />
 
-            {/* Status Badge - Now right beside the name */}
-            <div className="flex items-center">
-              <span className="px-3 py-1 bg-slate-800 text-white rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-sm">
-                {/* Optional: Small pulsing dot for extra "System" feel */}
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                {t.status_online}
-              </span>
+            <div className="flex flex-col text-left">
+              <h1
+                className={`
+  ${(profileName?.length || 10) > 12 ? "text-xl" : "text-3xl"} 
+  md:text-4xl font-black text-slate-800 italic uppercase tracking-tighter leading-none
+`}
+              >
+                {profileName || user?.user_metadata?.full_name || "Satoshi"}
+              </h1>
+
+              <div className="flex items-center mt-1.5">
+                <span className="px-2.5 py-0.5 bg-slate-800 text-white rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-sm">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  {t.status_online}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Management Toolbar */}
-        <div className="flex flex-col md:flex-row gap-4 mb-8">
-          <div className="flex-1 bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-2">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={t.add_new_word}
-              className="flex-1 bg-slate-50 border-none rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <button
-              onClick={() => {
-                if (!input.trim()) return;
-                const lines = input.split("\n").filter((l) => l.trim());
-                processWords(lines);
-              }}
-              disabled={loading}
-              className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50"
+          {/* RIGHT: Back to Study (Settings-Style) */}
+          <div className="flex-shrink-0">
+            <Link
+              href="/"
+              className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 font-bold text-slate-600 transition-all active:scale-95 h-10 md:h-11"
             >
-              {loading ? "..." : t.ai_add}
+              <span className="text-lg">←</span>
+              <span className="text-xs md:text-sm whitespace-nowrap uppercase tracking-tight">
+                {t.back_to_study}
+              </span>
+            </Link>
+          </div>
+        </div>
+      </header>
+      <main className="min-h-screen bg-slate-50 p-8">
+        <div className="max-w-5xl mx-auto">
+          {/* Management Toolbar */}
+          <div className="flex flex-col md:flex-row gap-4 mb-8">
+            <div className="flex-1 bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-2">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={t.add_new_word}
+                className="flex-1 bg-slate-50 border-none rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <button
+                onClick={() => {
+                  if (!input.trim()) return;
+                  const lines = input.split("\n").filter((l) => l.trim());
+                  processWords(lines);
+                }}
+                disabled={loading}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {loading ? "..." : t.ai_add}
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowBatch(!showBatch)}
+              className="px-6 py-2 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 transition-colors"
+            >
+              {showBatch ? t.close : t.batch_upload}
             </button>
           </div>
 
-          <button
-            onClick={() => setShowBatch(!showBatch)}
-            className="px-6 py-2 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 transition-colors"
-          >
-            {showBatch ? t.close : t.batch_upload}
-          </button>
-        </div>
-
-        {/* Batch Area */}
-        {showBatch && (
-          <div className="mb-8 p-6 bg-indigo-50 rounded-3xl border-2 border-dashed border-indigo-200">
-            <textarea
-              value={batchInput}
-              onChange={(e) => setBatchInput(e.target.value)}
-              className="w-full h-48 p-4 rounded-xl border-none outline-none mb-3 text-sm font-mono shadow-inner"
-              placeholder={
-                lang === "jp"
-                  ? `入力形式の選択:
+          {/* Batch Area */}
+          {showBatch && (
+            <div className="mb-8 p-6 bg-indigo-50 rounded-3xl border-2 border-dashed border-indigo-200">
+              <textarea
+                value={batchInput}
+                onChange={(e) => setBatchInput(e.target.value)}
+                className="w-full h-48 p-4 rounded-xl border-none outline-none mb-3 text-sm font-mono shadow-inner"
+                placeholder={
+                  lang === "jp"
+                    ? `入力形式の選択:
 1. リスト形式: 単語（1行につき1単語/漢字）
 2. 歌詞・長文: 歌詞や文章を貼り付けると、AIが新しい単語を抽出します！`
-                  : `FORMAT OPTIONS:
+                    : `FORMAT OPTIONS:
 1. List: words (1 kanji/english word per line)
 2. Lyrics: Paste a whole song or text. I'll pick out the new words for you!`
-              }
-            />
+                }
+              />
+              <button
+                onClick={() => processWords([batchInput])}
+                disabled={loading}
+                className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-transform"
+              >
+                {loading ? t.ai_processing : `${t.batch_upload} (BETA)`}
+              </button>
+            </div>
+          )}
+
+          {/* Settings Toggle */}
+          <div className="flex justify-end mb-4">
             <button
-              onClick={() => processWords([batchInput])}
-              disabled={loading}
-              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-transform"
+              onClick={() => setShowSettings(!showSettings)}
+              className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 font-bold text-slate-600 transition-all active:scale-95"
             >
-              {loading ? t.ai_processing : `${t.batch_upload} (BETA)`}
+              <span>{showSettings ? "✕" : "⚙️"}</span>
+              {/* Use t.close_settings or t.settings */}
+              <span className="text-sm">
+                {showSettings ? t.close_settings : t.settings}
+              </span>
             </button>
           </div>
-        )}
 
-        {/* Settings Toggle */}
-        <div className="flex justify-end mb-4">
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 font-bold text-slate-600 transition-all active:scale-95"
-          >
-            <span>{showSettings ? "✕" : "⚙️"}</span>
-            {/* Use t.close_settings or t.settings */}
-            <span className="text-sm">
-              {showSettings ? t.close_settings : t.settings}
-            </span>
-          </button>
-        </div>
-
-        {/* Settings Panel */}
-        {showSettings && (
-          <div className="mb-8 p-6 bg-white rounded-3xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-top-4">
-            <div className="mb-8">
-              <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <span>🔊</span> {t.audio_prefs}
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <div>
-                    <p className="text-sm font-bold text-slate-700">
-                      {t.auto_play_jp}
-                    </p>
-                    <p className="text-[10px] text-slate-400 font-medium">
-                      {t.audio_desc_jp}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() =>
-                      updateAudioSetting("auto_play_jp", !autoPlayJp)
-                    }
-                    className={`w-12 h-6 rounded-full transition-all relative ${autoPlayJp ? "bg-indigo-600" : "bg-slate-300"}`}
-                  >
-                    <div
-                      className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${autoPlayJp ? "left-7" : "left-1"}`}
-                    />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <div>
-                    <p className="text-sm font-bold text-slate-700">
-                      {t.auto_play_en}
-                    </p>
-                    <p className="text-[10px] text-slate-400 font-medium">
-                      {t.audio_desc_en}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() =>
-                      updateAudioSetting("auto_play_en", !autoPlayEn)
-                    }
-                    className={`w-12 h-6 rounded-full transition-all relative ${autoPlayEn ? "bg-indigo-600" : "bg-slate-300"}`}
-                  >
-                    <div
-                      className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${autoPlayEn ? "left-7" : "left-1"}`}
-                    />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="h-px bg-slate-100 w-full mb-8" />
-
-            {/* Language Preference - NEW SECTION */}
-            {/* Language Preference - RESPONSIVE FIX */}
-            <div className="mb-8">
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                <span>🌐</span> {t.interface_language}
-              </h3>
-
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 gap-4">
-                <div className="max-w-[200px]">
-                  <p className="text-sm font-bold text-slate-700 leading-tight">
-                    {t.app_language}
-                  </p>
-                  <p className="text-[9px] text-slate-400 font-medium mt-0.5 leading-relaxed">
-                    {t.app_language_desc}
-                  </p>
-                </div>
-
-                {/* Buttons: Forced to fit on one line or stacked based on width */}
-                <div className="flex bg-white rounded-xl p-1 border border-slate-200 shadow-sm w-full sm:w-auto">
-                  <button
-                    onClick={() => setLang("en")}
-                    className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[10px] font-black transition-all ${
-                      lang === "en"
-                        ? "bg-indigo-600 text-white shadow-md"
-                        : "text-slate-400 hover:text-slate-600"
-                    }`}
-                  >
-                    ENGLISH
-                  </button>
-                  <button
-                    onClick={() => setLang("jp")}
-                    className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[10px] font-black transition-all ${
-                      lang === "jp"
-                        ? "bg-indigo-600 text-white shadow-md"
-                        : "text-slate-400 hover:text-slate-600"
-                    }`}
-                  >
-                    日本語
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="h-px bg-slate-100 w-full mb-8" />
-
-            <div>
-              <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-2 flex items-center gap-2">
-                <span>🚫</span> {t.word_filters}
-              </h3>
-              <div className="flex flex-wrap gap-2 mb-6 p-4 bg-slate-50 rounded-2xl min-h-[60px] border border-slate-100">
-                {userBlocklist.map((word) => (
-                  <span
-                    key={word}
-                    className="inline-flex items-center gap-1 px-3 py-1 bg-white border border-slate-200 rounded-full text-sm font-bold text-slate-700 shadow-sm transition-all hover:border-rose-200"
-                  >
-                    {word}
+          {/* Settings Panel */}
+          {showSettings && (
+            <div className="mb-8 p-6 bg-white rounded-3xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-top-4">
+              <div className="mb-8">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span>🔊</span> {t.audio_prefs}
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div>
+                      <p className="text-sm font-bold text-slate-700">
+                        {t.auto_play_jp}
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-medium">
+                        {t.audio_desc_jp}
+                      </p>
+                    </div>
                     <button
                       onClick={() =>
-                        updateBlocklist(userBlocklist.filter((w) => w !== word))
+                        updateAudioSetting("auto_play_jp", !autoPlayJp)
                       }
-                      className="text-rose-400 hover:text-rose-600 ml-1 px-1 font-bold"
+                      className={`w-12 h-6 rounded-full transition-all relative ${autoPlayJp ? "bg-indigo-600" : "bg-slate-300"}`}
                     >
-                      ×
+                      <div
+                        className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${autoPlayJp ? "left-7" : "left-1"}`}
+                      />
                     </button>
-                  </span>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newBlockWord}
-                  onChange={(e) => setNewBlockWord(e.target.value)}
-                  placeholder={t.add_word_to_block}
-                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                  onKeyDown={(e) =>
-                    e.key === "Enter" &&
-                    newBlockWord.trim() &&
-                    (updateBlocklist([...userBlocklist, newBlockWord.trim()]),
-                    setNewBlockWord(""))
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="h-px bg-slate-100 w-full mb-8" />
-
-            {/* BUG & FEEDBACK SECTION - NEW */}
-            <div className="mb-4">
-              <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <span>💬</span> {t.feedback_title}
-              </h3>
-
-              {sent ? (
-                <div className="bg-emerald-50 border border-emerald-100 p-8 rounded-2xl text-center animate-in zoom-in-95 duration-300">
-                  <p className="text-emerald-600 font-black uppercase text-[10px] tracking-widest">
-                    {t.feedback_sent}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* TYPE SELECTOR */}
-                  <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100 gap-1">
-                    {[t.type_bug, t.type_feedback, t.type_feature].map(
-                      (type) => (
-                        <button
-                          key={type}
-                          onClick={() =>
-                            setFeedbackForm({ ...feedbackForm, type })
-                          }
-                          className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
-                            feedbackForm.type === type
-                              ? "bg-white text-indigo-600 shadow-sm"
-                              : "text-slate-400 hover:text-slate-500"
-                          }`}
-                        >
-                          {type}
-                        </button>
-                      ),
-                    )}
                   </div>
 
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div>
+                      <p className="text-sm font-bold text-slate-700">
+                        {t.auto_play_en}
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-medium">
+                        {t.audio_desc_en}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        updateAudioSetting("auto_play_en", !autoPlayEn)
+                      }
+                      className={`w-12 h-6 rounded-full transition-all relative ${autoPlayEn ? "bg-indigo-600" : "bg-slate-300"}`}
+                    >
+                      <div
+                        className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${autoPlayEn ? "left-7" : "left-1"}`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="h-px bg-slate-100 w-full mb-8" />
+
+              {/* Language Preference - NEW SECTION */}
+              {/* Language Preference - RESPONSIVE FIX */}
+              <div className="mb-8">
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                  <span>🌐</span> {t.interface_language}
+                </h3>
+
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 gap-4">
+                  <div className="max-w-[200px]">
+                    <p className="text-sm font-bold text-slate-700 leading-tight">
+                      {t.app_language}
+                    </p>
+                    <p className="text-[9px] text-slate-400 font-medium mt-0.5 leading-relaxed">
+                      {t.app_language_desc}
+                    </p>
+                  </div>
+
+                  {/* Buttons: Forced to fit on one line or stacked based on width */}
+                  <div className="flex bg-white rounded-xl p-1 border border-slate-200 shadow-sm w-full sm:w-auto">
+                    <button
+                      onClick={() => setLang("en")}
+                      className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[10px] font-black transition-all ${
+                        lang === "en"
+                          ? "bg-indigo-600 text-white shadow-md"
+                          : "text-slate-400 hover:text-slate-600"
+                      }`}
+                    >
+                      ENGLISH
+                    </button>
+                    <button
+                      onClick={() => setLang("jp")}
+                      className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[10px] font-black transition-all ${
+                        lang === "jp"
+                          ? "bg-indigo-600 text-white shadow-md"
+                          : "text-slate-400 hover:text-slate-600"
+                      }`}
+                    >
+                      日本語
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="h-px bg-slate-100 w-full mb-8" />
+
+              <div>
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-2 flex items-center gap-2">
+                  <span>🚫</span> {t.word_filters}
+                </h3>
+                <div className="flex flex-wrap gap-2 mb-6 p-4 bg-slate-50 rounded-2xl min-h-[60px] border border-slate-100">
+                  {userBlocklist.map((word) => (
+                    <span
+                      key={word}
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-white border border-slate-200 rounded-full text-sm font-bold text-slate-700 shadow-sm transition-all hover:border-rose-200"
+                    >
+                      {word}
+                      <button
+                        onClick={() =>
+                          updateBlocklist(
+                            userBlocklist.filter((w) => w !== word),
+                          )
+                        }
+                        className="text-rose-400 hover:text-rose-600 ml-1 px-1 font-bold"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-2">
                   <input
                     type="text"
-                    placeholder={t.feedback_placeholder_subject}
-                    value={feedbackForm.subject}
-                    onChange={(e) =>
-                      setFeedbackForm({
-                        ...feedbackForm,
-                        subject: e.target.value,
-                      })
+                    value={newBlockWord}
+                    onChange={(e) => setNewBlockWord(e.target.value)}
+                    placeholder={t.add_word_to_block}
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                    onKeyDown={(e) =>
+                      e.key === "Enter" &&
+                      newBlockWord.trim() &&
+                      (updateBlocklist([...userBlocklist, newBlockWord.trim()]),
+                      setNewBlockWord(""))
                     }
-                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all placeholder:text-slate-300"
                   />
+                </div>
+              </div>
 
-                  <textarea
-                    rows={3}
-                    placeholder={t.feedback_placeholder_desc}
-                    value={feedbackForm.description}
-                    onChange={(e) =>
-                      setFeedbackForm({
-                        ...feedbackForm,
-                        description: e.target.value,
-                      })
-                    }
-                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all placeholder:text-slate-300 resize-none"
+              <div className="h-px bg-slate-100 w-full mb-8" />
+
+              {/* BUG & FEEDBACK SECTION - NEW */}
+              <div className="mb-4">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span>💬</span> {t.feedback_title}
+                </h3>
+
+                {sent ? (
+                  <div className="bg-emerald-50 border border-emerald-100 p-8 rounded-2xl text-center animate-in zoom-in-95 duration-300">
+                    <p className="text-emerald-600 font-black uppercase text-[10px] tracking-widest">
+                      {t.feedback_sent}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* TYPE SELECTOR */}
+                    <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100 gap-1">
+                      {[t.type_bug, t.type_feedback, t.type_feature].map(
+                        (type) => (
+                          <button
+                            key={type}
+                            onClick={() =>
+                              setFeedbackForm({ ...feedbackForm, type })
+                            }
+                            className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                              feedbackForm.type === type
+                                ? "bg-white text-indigo-600 shadow-sm"
+                                : "text-slate-400 hover:text-slate-500"
+                            }`}
+                          >
+                            {type}
+                          </button>
+                        ),
+                      )}
+                    </div>
+
+                    <input
+                      type="text"
+                      placeholder={t.feedback_placeholder_subject}
+                      value={feedbackForm.subject}
+                      onChange={(e) =>
+                        setFeedbackForm({
+                          ...feedbackForm,
+                          subject: e.target.value,
+                        })
+                      }
+                      className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all placeholder:text-slate-300"
+                    />
+
+                    <textarea
+                      rows={3}
+                      placeholder={t.feedback_placeholder_desc}
+                      value={feedbackForm.description}
+                      onChange={(e) =>
+                        setFeedbackForm({
+                          ...feedbackForm,
+                          description: e.target.value,
+                        })
+                      }
+                      className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all placeholder:text-slate-300 resize-none"
+                    />
+
+                    <button
+                      onClick={submitFeedback}
+                      disabled={submittingFeedback || !feedbackForm.subject}
+                      className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-600 disabled:opacity-30 disabled:grayscale transition-all active:scale-95"
+                    >
+                      {submittingFeedback
+                        ? t.feedback_btn_sending
+                        : t.feedback_btn_submit}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+            {/* Left Side: Deck Title & Edit Logic */}
+            <div className="flex flex-col">
+              {isEditingTitle ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={tempTitle}
+                    onChange={(e) => setTempTitle(e.target.value)}
+                    className="text-2xl md:text-3xl font-extrabold text-slate-800 bg-transparent border-b-2 border-indigo-500 outline-none px-1 py-0 min-w-[200px]"
+                    autoFocus
+                    onKeyDown={(e) => e.key === "Enter" && updateDeckTitle()}
+                    onBlur={() => !tempTitle.trim() && setIsEditingTitle(false)}
                   />
-
                   <button
-                    onClick={submitFeedback}
-                    disabled={submittingFeedback || !feedbackForm.subject}
-                    className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-600 disabled:opacity-30 disabled:grayscale transition-all active:scale-95"
+                    onClick={updateDeckTitle}
+                    className="bg-emerald-500 text-white px-3 py-1 rounded-lg text-xs font-bold shadow-sm hover:bg-emerald-600 transition-colors"
                   >
-                    {submittingFeedback
-                      ? t.feedback_btn_sending
-                      : t.feedback_btn_submit}
+                    {t.save}
+                  </button>
+                  <button
+                    onClick={() => setIsEditingTitle(false)}
+                    className="bg-slate-200 text-slate-600 px-3 py-1 rounded-lg text-xs font-bold hover:bg-slate-300 transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl md:text-3xl font-black text-slate-800 leading-tight tracking-tight">
+                    {deckTitle}
+                  </h1>
+                  <button
+                    onClick={() => setIsEditingTitle(true)}
+                    className="p-1.5 bg-slate-200/50 text-slate-400 rounded-lg hover:bg-indigo-100 hover:text-indigo-600 transition-all active:scale-90"
+                    title="Rename Deck"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                      />
+                    </svg>
                   </button>
                 </div>
               )}
+              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">
+                {t.active_collection}
+              </p>
             </div>
-          </div>
-        )}
 
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
-          {/* Left Side: Deck Title & Edit Logic */}
-          <div className="flex flex-col">
-            {isEditingTitle ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={tempTitle}
-                  onChange={(e) => setTempTitle(e.target.value)}
-                  className="text-2xl md:text-3xl font-extrabold text-slate-800 bg-transparent border-b-2 border-indigo-500 outline-none px-1 py-0 min-w-[200px]"
-                  autoFocus
-                  onKeyDown={(e) => e.key === "Enter" && updateDeckTitle()}
-                  onBlur={() => !tempTitle.trim() && setIsEditingTitle(false)}
-                />
-                <button
-                  onClick={updateDeckTitle}
-                  className="bg-emerald-500 text-white px-3 py-1 rounded-lg text-xs font-bold shadow-sm hover:bg-emerald-600 transition-colors"
-                >
-                  {t.save}
-                </button>
-                <button
-                  onClick={() => setIsEditingTitle(false)}
-                  className="bg-slate-200 text-slate-600 px-3 py-1 rounded-lg text-xs font-bold hover:bg-slate-300 transition-colors"
-                >
-                  ✕
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl md:text-3xl font-black text-slate-800 leading-tight tracking-tight">
-                  {deckTitle}
-                </h1>
-                <button
-                  onClick={() => setIsEditingTitle(true)}
-                  className="p-1.5 bg-slate-200/50 text-slate-400 rounded-lg hover:bg-indigo-100 hover:text-indigo-600 transition-all active:scale-90"
-                  title="Rename Deck"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
+            {/* Right Side: Navigation Buttons */}
+            <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto md:ml-auto">
+              {/* ADMIN ROW: Stacked on mobile, side-by-side on desktop */}
+              {isAdmin && (
+                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                  {/* Admin Reports */}
+                  <Link
+                    href="/admin"
+                    className="w-full md:w-auto bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                    />
-                  </svg>
-                </button>
-              </div>
-            )}
-            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">
-              {t.active_collection}
-            </p>
-          </div>
+                    <span className="text-sm">🚩</span> {t.admin_title}
+                  </Link>
 
-          {/* Right Side: Navigation Buttons */}
-          <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto md:ml-auto">
-            {/* ADMIN ROW: Stacked on mobile, side-by-side on desktop */}
-            {isAdmin && (
-              <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                {/* Admin Reports */}
+                  {/* Admin Users Performance */}
+                  <Link
+                    href="/admin/users"
+                    className="w-full md:w-auto bg-indigo-600 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <span className="text-sm">📊</span> {t.admin_user_stats}
+                  </Link>
+                </div>
+              )}
+
+              {/* UTILITY ROW: Study & Logout - Shared row on mobile */}
+              <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+                {/* Mini Games Button */}
                 <Link
-                  href="/admin"
-                  className="w-full md:w-auto bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2"
+                  href="/minigames/focus"
+                  className="flex-1 md:flex-none md:px-5 bg-indigo-50 py-3 rounded-2xl shadow-sm font-bold text-indigo-700 border border-indigo-100 hover:bg-indigo-100 transition-all text-sm whitespace-nowrap flex items-center justify-center gap-2"
                 >
-                  <span className="text-sm">🚩</span> {t.admin_title}
+                  <span className="text-lg">🎮</span> {t.mini_games}
                 </Link>
 
-                {/* Admin Users Performance */}
-                <Link
-                  href="/admin/users"
-                  className="w-full md:w-auto bg-indigo-600 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <span className="text-sm">📊</span> {t.admin_user_stats}
-                </Link>
-              </div>
-            )}
-
-            {/* UTILITY ROW: Study & Logout - Shared row on mobile */}
-            <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-              {/* Mini Games Button */}
-              <Link
-                href="/minigames/focus"
-                className="flex-1 md:flex-none md:px-5 bg-indigo-50 py-3 rounded-2xl shadow-sm font-bold text-indigo-700 border border-indigo-100 hover:bg-indigo-100 transition-all text-sm whitespace-nowrap flex items-center justify-center gap-2"
-              >
-                <span className="text-lg">🎮</span> {t.mini_games}
-              </Link>
-
-              {/* Back to Study - Added flex properties to match alignment */}
-              <Link
-                href="/"
-                className="flex-1 md:flex-none md:px-5 bg-white py-3 rounded-2xl shadow-sm font-bold text-indigo-600 border border-slate-100 hover:bg-slate-50 transition-all text-sm whitespace-nowrap flex items-center justify-center gap-2"
-              >
-                <span>←</span> {t.back_to_study}
-              </Link>
-
-              {/* Signout - Added flex properties to match alignment */}
-              <button
-                onClick={handleLogout}
-                className="flex-1 md:flex-none md:px-5 bg-rose-50 py-3 rounded-2xl shadow-sm font-bold text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all text-sm whitespace-nowrap flex items-center justify-center"
-              >
-                {t.signout}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6 mb-8">
-          <StatCard
-            label={t.vocabulary}
-            value={totalCards}
-            color="bg-indigo-500"
-          />
-          <StatCard
-            label={t.mastered}
-            value={masteredCount}
-            color="bg-emerald-500"
-            onClick={() => setViewMode("mastered")} // Add onClick to your StatCard component
-          />
-          <StatCard
-            label={t.struggling}
-            value={strugglingCount}
-            color="bg-rose-500"
-            onClick={() => setViewMode("struggling")}
-          />
-
-          <StatCard
-            label={t.daily_progress}
-            value={reviewsToday} // The count for today
-            color="bg-amber-400"
-            onClick={() => {
-              fetchHistory(); // Fetch fresh data
-              setShowHistory(true); // Open overlay
-            }}
-          />
-
-          {/* VOCAB - MASTERED - STRUGGLING */}
-          <div className="bg-gradient-to-br from-orange-500 to-red-600 p-5 rounded-[2rem] shadow-lg flex items-center justify-between text-white overflow-hidden">
-            {/* Left Section: Added pl-3 to prevent text from touching the left edge on mobile */}
-            <div className="flex flex-1 items-center gap-4 sm:gap-10 pl-3 sm:pl-0">
-              {/* Container for both streaks: Stack on mobile, Row on tablet+ */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-10">
-                {/* DAILY LOGIN STREAK */}
-                <div className="flex flex-col">
-                  <p className="text-white/70 text-[9px] sm:text-[10px] font-black uppercase tracking-tighter mb-0.5 whitespace-nowrap">
-                    {t.daily_streak}
-                  </p>
-                  <p className="text-xl sm:text-3xl font-black leading-none">
-                    {streak}{" "}
-                    <span className="text-[10px] sm:text-xs uppercase opacity-80">
-                      {t.days}
-                    </span>
-                  </p>
-                </div>
-
-                {/* DIVIDER: Hidden on mobile because we are stacking vertically */}
-                <div className="hidden sm:block w-px h-8 bg-white/20" />
-
-                {/* BEST SESSION STREAK */}
-                <div className="flex flex-col">
-                  <p className="text-white/70 text-[9px] sm:text-[10px] font-black uppercase tracking-tighter mb-0.5 whitespace-nowrap">
-                    {t.best_streak}
-                  </p>
-                  <p className="text-xl sm:text-3xl font-black italic leading-none">
-                    {maxStreak}{" "}
-                    <span className="text-[10px] not-italic uppercase opacity-80">
-                      {t.passes}
-                    </span>
-                  </p>
-                </div>
-              </div>
-            </div>
-            {/* Right Section: Icon - Using firePulseAnimation logic */}
-            <motion.div
-              className="ml-2 flex-shrink-0 cursor-pointer select-none"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.8, rotate: -10 }} // The "Poke" effect
-              transition={{ type: "spring", stiffness: 400, damping: 10 }}
-            >
-              <span className="inline-block text-3xl sm:text-4xl animate-fire">
-                🔥
-              </span>
-            </motion.div>
-            {/* Your CSS remains the same, but let's add a "Glow" on hover */}
-            <style jsx global>{`
-              @keyframes firePulse {
-                0%,
-                100% {
-                  transform: scale(1);
-                  filter: drop-shadow(0 0 2px #ff6b00);
-                }
-                50% {
-                  transform: scale(1.1);
-                  filter: drop-shadow(0 0 12px #ffeb3b);
-                }
-              }
-              .animate-fire {
-                animation: firePulse 1.5s ease-in-out infinite;
-                display: inline-block;
-              }
-            `}</style>
-          </div>
-
-          {/* Directional Comparison Dashboard */}
-          <div className="col-span-2 md:col-span-3 bg-slate-800 rounded-[2.5rem] p-6 text-white shadow-xl border border-slate-700 relative overflow-hidden">
-            {/* Subtle Background Decoration */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full -mr-16 -mt-16 blur-3xl" />
-
-            <div className="flex flex-col md:flex-row gap-8 items-center">
-              {/* Left Side: JP → EN */}
-              <div className="flex-1 w-full">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 text-[10px] font-black rounded-md border border-indigo-500/30 uppercase tracking-widest">
-                    {t.recognition}
-                  </span>
-                  <p className="text-xs font-bold text-slate-400">🇯🇵 → 🇺🇸</p>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase">
-                      {t.tries}
-                    </p>
-                    <p className="text-xl font-black">{globalStats.jp.tries}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-indigo-400 uppercase">
-                      {t.accuracy}
-                    </p>
-                    <p className="text-xl font-black">
-                      {globalStats.jp.tries > 0
-                        ? Math.round(
-                            (globalStats.jp.pass / globalStats.jp.tries) * 100,
-                          )
-                        : 0}
-                      %
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-emerald-500 uppercase">
-                      {t.pass}
-                    </p>
-                    <p className="text-xl font-black text-emerald-400">
-                      {globalStats.jp.pass}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Center Divider (Desktop Only) */}
-              <div className="hidden md:block w-px h-16 bg-slate-700/50" />
-
-              {/* Right Side: EN → JP */}
-              <div className="flex-1 w-full">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 text-[10px] font-black rounded-md border border-orange-500/30 uppercase tracking-widest">
-                    {t.recall}
-                  </span>
-                  <p className="text-xs font-bold text-slate-400">🇺🇸 → 🇯🇵</p>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase">
-                      {t.tries}
-                    </p>
-                    <p className="text-xl font-black">{globalStats.en.tries}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-orange-400 uppercase">
-                      {t.accuracy}
-                    </p>
-                    <p className="text-xl font-black">
-                      {globalStats.en.tries > 0
-                        ? Math.round(
-                            (globalStats.en.pass / globalStats.en.tries) * 100,
-                          )
-                        : 0}
-                      %
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-emerald-500 uppercase">
-                      {t.pass}
-                    </p>
-                    <p className="text-xl font-black text-emerald-400">
-                      {globalStats.en.pass}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {viewMode !== "none" && (
-          /* 1. Backdrop Overlay */
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
-            onClick={() => setViewMode("none")} // Click backdrop to close
-          >
-            {/* 2. Blurred background */}
-            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-300" />
-
-            {/* 3. Modal Content Card */}
-            <div
-              className="relative w-full max-w-4xl bg-white rounded-[2.5rem] shadow-2xl border border-white/20 flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-200"
-              onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside the card
-            >
-              {/* Header - Fixed at top */}
-              <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-                <div>
-                  <h3 className="text-2xl font-black text-slate-800 uppercase italic tracking-tight flex items-center gap-3">
-                    {viewMode === "mastered"
-                      ? `🏆 ${t.mastered}`
-                      : `🎯 ${t.struggling}`}
-                    <span
-                      className={`text-[10px] not-italic px-3 py-1 rounded-full font-black tracking-widest ${viewMode === "mastered" ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600"}`}
-                    >
-                      {viewMode === "mastered"
-                        ? masteredList.length
-                        : strugglingList.length}{" "}
-                      {t.words}
-                    </span>
-                  </h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                    {t.dismiss_hint}
-                  </p>
-                </div>
+                {/* Signout (Now sitting next to Games) */}
                 <button
-                  onClick={() => setViewMode("none")}
-                  className="h-12 w-12 flex items-center justify-center rounded-2xl bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-800 transition-all active:scale-90"
+                  onClick={handleLogout}
+                  className="flex-1 md:flex-none md:px-5 bg-rose-50 py-3 rounded-2xl shadow-sm font-bold text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all text-sm whitespace-nowrap flex items-center justify-center"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={3}
-                    stroke="currentColor"
-                    className="w-5 h-5"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Body - Scrollable Area */}
-              <div className="p-8 overflow-y-auto custom-scrollbar bg-slate-50/30">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
-                  {(viewMode === "mastered"
-                    ? masteredList
-                    : strugglingList
-                  ).map((word) => (
-                    <div
-                      key={word.id}
-                      className="p-5 rounded-3xl border border-white bg-white shadow-sm flex justify-between items-center hover:shadow-md hover:scale-[1.01] transition-all group"
-                    >
-                      <div>
-                        <p className="text-xl font-black text-slate-800 group-hover:text-indigo-600 transition-colors">
-                          {word.japanese}
-                        </p>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                          {word.reading} • {word.english}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p
-                          className={`text-sm font-black ${viewMode === "mastered" ? "text-emerald-500" : "text-rose-500"}`}
-                        >
-                          {Math.round(
-                            ((word.scores?.jp_to_en?.percent || 0) +
-                              (word.scores?.en_to_jp?.percent || 0)) /
-                              2,
-                          )}
-                          %
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Footer - Optional: Quick Action */}
-              <div className="p-6 border-t border-slate-50 text-center bg-white">
-                <button
-                  onClick={() => setViewMode("none")}
-                  className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-slate-600"
-                >
-                  {t.return_to_dashboard}
+                  {t.signout}
                 </button>
               </div>
             </div>
           </div>
-        )}
 
-        {/* --- Daily Activity Overlay --- */}
-        {showHistory && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-            {/* Backdrop */}
-            <div
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-300"
-              onClick={() => setShowHistory(false)}
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6 mb-8">
+            <StatCard
+              label={t.vocabulary}
+              value={totalCards}
+              color="bg-indigo-500"
+            />
+            <StatCard
+              label={t.mastered}
+              value={masteredCount}
+              color="bg-emerald-500"
+              onClick={() => setViewMode("mastered")} // Add onClick to your StatCard component
+            />
+            <StatCard
+              label={t.struggling}
+              value={strugglingCount}
+              color="bg-rose-500"
+              onClick={() => setViewMode("struggling")}
             />
 
-            <div className="relative w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
-              {/* Header */}
-              <div className="p-8 border-b border-slate-50 flex justify-between items-end bg-gradient-to-b from-slate-50/50 to-transparent">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
-                    <h3 className="text-2xl font-black text-slate-800 uppercase italic tracking-tight">
-                      {t.activity_log}
-                    </h3>
-                  </div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-4">
-                    {t.progress_tracking} • {t.last_14_days}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowHistory(false)}
-                  className="h-12 w-12 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-800 hover:shadow-sm transition-all active:scale-90"
-                >
-                  ✕
-                </button>
-              </div>
+            <StatCard
+              label={t.daily_progress}
+              value={reviewsToday} // The count for today
+              color="bg-amber-400"
+              onClick={() => {
+                fetchHistory(); // Fetch fresh data
+                setShowHistory(true); // Open overlay
+              }}
+            />
 
-              <div className="p-8 md:p-10 overflow-y-auto custom-scrollbar">
-                {/* The Visual Chart Area */}
-                <div className="relative bg-slate-50/50 rounded-[2.5rem] p-6 border border-slate-100 mb-8">
-                  {/* Subtle Grid Lines Background */}
-                  <div className="absolute inset-0 grid grid-rows-4 px-6 py-6 opacity-[0.03] pointer-events-none">
-                    {[...Array(4)].map((_, i) => (
-                      <div key={i} className="border-t border-black w-full" />
+            {/* VOCAB - MASTERED - STRUGGLING */}
+            <div className="bg-gradient-to-br from-orange-500 to-red-600 p-5 rounded-[2rem] shadow-lg flex items-center justify-between text-white overflow-hidden">
+              {/* Left Section: Added pl-3 to prevent text from touching the left edge on mobile */}
+              <div className="flex flex-1 items-center gap-4 sm:gap-10 pl-3 sm:pl-0">
+                {/* Container for both streaks: Stack on mobile, Row on tablet+ */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-10">
+                  {/* DAILY LOGIN STREAK */}
+                  <div className="flex flex-col">
+                    <p className="text-white/70 text-[9px] sm:text-[10px] font-black uppercase tracking-tighter mb-0.5 whitespace-nowrap">
+                      {t.daily_streak}
+                    </p>
+                    <p className="text-xl sm:text-3xl font-black leading-none">
+                      {streak}{" "}
+                      <span className="text-[10px] sm:text-xs uppercase opacity-80">
+                        {t.days}
+                      </span>
+                    </p>
+                  </div>
+
+                  {/* DIVIDER: Hidden on mobile because we are stacking vertically */}
+                  <div className="hidden sm:block w-px h-8 bg-white/20" />
+
+                  {/* BEST SESSION STREAK */}
+                  <div className="flex flex-col">
+                    <p className="text-white/70 text-[9px] sm:text-[10px] font-black uppercase tracking-tighter mb-0.5 whitespace-nowrap">
+                      {t.best_streak}
+                    </p>
+                    <p className="text-xl sm:text-3xl font-black italic leading-none">
+                      {maxStreak}{" "}
+                      <span className="text-[10px] not-italic uppercase opacity-80">
+                        {t.passes}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+              {/* Right Section: Icon - Using firePulseAnimation logic */}
+              <motion.div
+                className="ml-2 flex-shrink-0 cursor-pointer select-none"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.8, rotate: -10 }} // The "Poke" effect
+                transition={{ type: "spring", stiffness: 400, damping: 10 }}
+              >
+                <span className="inline-block text-3xl sm:text-4xl animate-fire">
+                  🔥
+                </span>
+              </motion.div>
+              {/* Your CSS remains the same, but let's add a "Glow" on hover */}
+              <style jsx global>{`
+                @keyframes firePulse {
+                  0%,
+                  100% {
+                    transform: scale(1);
+                    filter: drop-shadow(0 0 2px #ff6b00);
+                  }
+                  50% {
+                    transform: scale(1.1);
+                    filter: drop-shadow(0 0 12px #ffeb3b);
+                  }
+                }
+                .animate-fire {
+                  animation: firePulse 1.5s ease-in-out infinite;
+                  display: inline-block;
+                }
+              `}</style>
+            </div>
+
+            {/* Directional Comparison Dashboard */}
+            <div className="col-span-2 md:col-span-3 bg-slate-800 rounded-[2.5rem] p-6 text-white shadow-xl border border-slate-700 relative overflow-hidden">
+              {/* Subtle Background Decoration */}
+              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full -mr-16 -mt-16 blur-3xl" />
+
+              <div className="flex flex-col md:flex-row gap-8 items-center">
+                {/* Left Side: JP → EN */}
+                <div className="flex-1 w-full">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 text-[10px] font-black rounded-md border border-indigo-500/30 uppercase tracking-widest">
+                      {t.recognition}
+                    </span>
+                    <p className="text-xs font-bold text-slate-400">🇯🇵 → 🇺🇸</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase">
+                        {t.tries}
+                      </p>
+                      <p className="text-xl font-black">
+                        {globalStats.jp.tries}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-indigo-400 uppercase">
+                        {t.accuracy}
+                      </p>
+                      <p className="text-xl font-black">
+                        {globalStats.jp.tries > 0
+                          ? Math.round(
+                              (globalStats.jp.pass / globalStats.jp.tries) *
+                                100,
+                            )
+                          : 0}
+                        %
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-emerald-500 uppercase">
+                        {t.pass}
+                      </p>
+                      <p className="text-xl font-black text-emerald-400">
+                        {globalStats.jp.pass}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Center Divider (Desktop Only) */}
+                <div className="hidden md:block w-px h-16 bg-slate-700/50" />
+
+                {/* Right Side: EN → JP */}
+                <div className="flex-1 w-full">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 text-[10px] font-black rounded-md border border-orange-500/30 uppercase tracking-widest">
+                      {t.recall}
+                    </span>
+                    <p className="text-xs font-bold text-slate-400">🇺🇸 → 🇯🇵</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase">
+                        {t.tries}
+                      </p>
+                      <p className="text-xl font-black">
+                        {globalStats.en.tries}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-orange-400 uppercase">
+                        {t.accuracy}
+                      </p>
+                      <p className="text-xl font-black">
+                        {globalStats.en.tries > 0
+                          ? Math.round(
+                              (globalStats.en.pass / globalStats.en.tries) *
+                                100,
+                            )
+                          : 0}
+                        %
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-emerald-500 uppercase">
+                        {t.pass}
+                      </p>
+                      <p className="text-xl font-black text-emerald-400">
+                        {globalStats.en.pass}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {viewMode !== "none" && (
+            /* 1. Backdrop Overlay */
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+              onClick={() => setViewMode("none")} // Click backdrop to close
+            >
+              {/* 2. Blurred background */}
+              <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-300" />
+
+              {/* 3. Modal Content Card */}
+              <div
+                className="relative w-full max-w-4xl bg-white rounded-[2.5rem] shadow-2xl border border-white/20 flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-200"
+                onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside the card
+              >
+                {/* Header - Fixed at top */}
+                <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+                  <div>
+                    <h3 className="text-2xl font-black text-slate-800 uppercase italic tracking-tight flex items-center gap-3">
+                      {viewMode === "mastered"
+                        ? `🏆 ${t.mastered}`
+                        : `🎯 ${t.struggling}`}
+                      <span
+                        className={`text-[10px] not-italic px-3 py-1 rounded-full font-black tracking-widest ${viewMode === "mastered" ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600"}`}
+                      >
+                        {viewMode === "mastered"
+                          ? masteredList.length
+                          : strugglingList.length}{" "}
+                        {t.words}
+                      </span>
+                    </h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                      {t.dismiss_hint}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setViewMode("none")}
+                    className="h-12 w-12 flex items-center justify-center rounded-2xl bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-800 transition-all active:scale-90"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={3}
+                      stroke="currentColor"
+                      className="w-5 h-5"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Body - Scrollable Area */}
+                <div className="p-8 overflow-y-auto custom-scrollbar bg-slate-50/30">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+                    {(viewMode === "mastered"
+                      ? masteredList
+                      : strugglingList
+                    ).map((word) => (
+                      <div
+                        key={word.id}
+                        className="p-5 rounded-3xl border border-white bg-white shadow-sm flex justify-between items-center hover:shadow-md hover:scale-[1.01] transition-all group"
+                      >
+                        <div>
+                          <p className="text-xl font-black text-slate-800 group-hover:text-indigo-600 transition-colors">
+                            {word.japanese}
+                          </p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                            {word.reading} • {word.english}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p
+                            className={`text-sm font-black ${viewMode === "mastered" ? "text-emerald-500" : "text-rose-500"}`}
+                          >
+                            {Math.round(
+                              ((word.scores?.jp_to_en?.percent || 0) +
+                                (word.scores?.en_to_jp?.percent || 0)) /
+                                2,
+                            )}
+                            %
+                          </p>
+                        </div>
+                      </div>
                     ))}
                   </div>
+                </div>
 
-                  <div className="relative flex items-end justify-between gap-1.5 md:gap-3 h-56">
-                    {dailyHistory.map((day, i) => {
-                      const maxCount = Math.max(
-                        ...dailyHistory.map((d) => d.count),
-                        1,
-                      );
-                      const heightPercentage = Math.max(
-                        (day.count / maxCount) * 100,
-                        4,
-                      ); // Min 4% height so 0s are visible
-                      const isToday = i === 0;
+                {/* Footer - Optional: Quick Action */}
+                <div className="p-6 border-t border-slate-50 text-center bg-white">
+                  <button
+                    onClick={() => setViewMode("none")}
+                    className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-slate-600"
+                  >
+                    {t.return_to_dashboard}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
-                      return (
-                        <div
-                          key={day.study_date}
-                          className="flex-1 flex flex-col items-center group h-full justify-end"
-                        >
-                          {/* The Bar */}
-                          <div className="relative w-full flex flex-col justify-end h-full">
-                            {/* Tooltip */}
-                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-black px-2.5 py-1.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100 pointer-events-none z-10 shadow-xl">
-                              {day.count}{" "}
-                              <span className="text-slate-400 font-bold ml-0.5">
-                                pts
-                              </span>
-                            </div>
+          {/* --- Daily Activity Overlay --- */}
+          {showHistory && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+              {/* Backdrop */}
+              <div
+                className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-300"
+                onClick={() => setShowHistory(false)}
+              />
 
-                            <div
-                              style={{ height: `${heightPercentage}%` }}
-                              className={`w-full rounded-t-2xl transition-all duration-700 ease-out cursor-default
+              <div className="relative w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
+                {/* Header */}
+                <div className="p-8 border-b border-slate-50 flex justify-between items-end bg-gradient-to-b from-slate-50/50 to-transparent">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+                      <h3 className="text-2xl font-black text-slate-800 uppercase italic tracking-tight">
+                        {t.activity_log}
+                      </h3>
+                    </div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-4">
+                      {t.progress_tracking} • {t.last_14_days}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowHistory(false)}
+                    className="h-12 w-12 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-800 hover:shadow-sm transition-all active:scale-90"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="p-8 md:p-10 overflow-y-auto custom-scrollbar">
+                  {/* The Visual Chart Area */}
+                  <div className="relative bg-slate-50/50 rounded-[2.5rem] p-6 border border-slate-100 mb-8">
+                    {/* Subtle Grid Lines Background */}
+                    <div className="absolute inset-0 grid grid-rows-4 px-6 py-6 opacity-[0.03] pointer-events-none">
+                      {[...Array(4)].map((_, i) => (
+                        <div key={i} className="border-t border-black w-full" />
+                      ))}
+                    </div>
+
+                    <div className="relative flex items-end justify-between gap-1.5 md:gap-3 h-56">
+                      {dailyHistory.map((day, i) => {
+                        const maxCount = Math.max(
+                          ...dailyHistory.map((d) => d.count),
+                          1,
+                        );
+                        const heightPercentage = Math.max(
+                          (day.count / maxCount) * 100,
+                          4,
+                        ); // Min 4% height so 0s are visible
+                        const isToday = i === 0;
+
+                        return (
+                          <div
+                            key={day.study_date}
+                            className="flex-1 flex flex-col items-center group h-full justify-end"
+                          >
+                            {/* The Bar */}
+                            <div className="relative w-full flex flex-col justify-end h-full">
+                              {/* Tooltip */}
+                              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-black px-2.5 py-1.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100 pointer-events-none z-10 shadow-xl">
+                                {day.count}{" "}
+                                <span className="text-slate-400 font-bold ml-0.5">
+                                  pts
+                                </span>
+                              </div>
+
+                              <div
+                                style={{ height: `${heightPercentage}%` }}
+                                className={`w-full rounded-t-2xl transition-all duration-700 ease-out cursor-default
                         ${
                           isToday
                             ? "bg-gradient-to-t from-indigo-600 to-indigo-400 shadow-lg shadow-indigo-100"
                             : "bg-slate-200 group-hover:bg-slate-300 group-hover:shadow-md"
                         }`}
-                            />
+                              />
+                            </div>
+                            {/* Label */}
+                            <div className="mt-4 flex flex-col items-center">
+                              <span
+                                className={`text-[8px] font-black uppercase tracking-tighter ${isToday ? "text-indigo-600" : "text-slate-400"}`}
+                              >
+                                {new Date(day.study_date).toLocaleDateString(
+                                  "en-SG",
+                                  { weekday: "short" },
+                                )}
+                              </span>
+                              <span className="text-[7px] font-bold text-slate-300 mt-0.5">
+                                {new Date(day.study_date).getDate()}
+                              </span>
+                            </div>
                           </div>
-                          {/* Label */}
-                          <div className="mt-4 flex flex-col items-center">
-                            <span
-                              className={`text-[8px] font-black uppercase tracking-tighter ${isToday ? "text-indigo-600" : "text-slate-400"}`}
-                            >
-                              {new Date(day.study_date).toLocaleDateString(
-                                "en-SG",
-                                { weekday: "short" },
-                              )}
-                            </span>
-                            <span className="text-[7px] font-bold text-slate-300 mt-0.5">
-                              {new Date(day.study_date).getDate()}
-                            </span>
-                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Stats Summary Cards */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-indigo-100 transition-colors">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-500">
+                          <svg
+                            className="w-3 h-3"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                          </svg>
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Stats Summary Cards */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-indigo-100 transition-colors">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-500">
-                        <svg
-                          className="w-3 h-3"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-                        </svg>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          {t.total}
+                        </p>
                       </div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        {t.total}
-                      </p>
-                    </div>
-                    <p className="text-3xl font-black text-slate-800 tracking-tight">
-                      {dailyHistory.reduce((acc, curr) => acc + curr.count, 0)}
-                      <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">
-                        {t.reviews}
-                      </span>
-                    </p>
-                  </div>
-
-                  <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-emerald-100 transition-colors">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-500">
-                        <svg
-                          className="w-3 h-3"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        {t.average}
-                      </p>
-                    </div>
-                    <p className="text-3xl font-black text-slate-800 tracking-tight">
-                      {Math.round(
-                        dailyHistory.reduce(
+                      <p className="text-3xl font-black text-slate-800 tracking-tight">
+                        {dailyHistory.reduce(
                           (acc, curr) => acc + curr.count,
                           0,
-                        ) / (dailyHistory.length || 1),
-                      )}
-                      <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">
-                        {t.daily}
-                      </span>
-                    </p>
+                        )}
+                        <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">
+                          {t.reviews}
+                        </span>
+                      </p>
+                    </div>
+
+                    <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-emerald-100 transition-colors">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-500">
+                          <svg
+                            className="w-3 h-3"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        </div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          {t.average}
+                        </p>
+                      </div>
+                      <p className="text-3xl font-black text-slate-800 tracking-tight">
+                        {Math.round(
+                          dailyHistory.reduce(
+                            (acc, curr) => acc + curr.count,
+                            0,
+                          ) / (dailyHistory.length || 1),
+                        )}
+                        <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">
+                          {t.daily}
+                        </span>
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="p-6 bg-slate-50/50 text-center mt-auto border-t border-slate-50">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] opacity-60">
-                  {t.motto_focus} • {t.motto_consistency} • {t.motto_mastery}
-                </p>
+                <div className="p-6 bg-slate-50/50 text-center mt-auto border-t border-slate-50">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] opacity-60">
+                    {t.motto_focus} • {t.motto_consistency} • {t.motto_mastery}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Starter Packs Section */}
-        <div className="mb-10">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">
-              {t.starter_collections}
-            </h3>
-            <span className="text-[10px] font-bold text-slate-300 uppercase tracking-tighter">
-              {starterPacks.length} {t.available}
-            </span>
-          </div>
+          {/* Starter Packs Section */}
+          <div className="mb-10">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                {t.starter_collections}
+              </h3>
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-tighter">
+                {starterPacks.length} {t.available}
+              </span>
+            </div>
 
-          <div className="flex gap-4 overflow-x-auto pb-6 no-scrollbar -mx-2 px-2">
-            {starterPacks.map((pack) => {
-              // Pure ID comparison
-              const isOwned = ownedPacks?.includes(pack.id);
+            <div className="flex gap-4 overflow-x-auto pb-6 no-scrollbar -mx-2 px-2">
+              {starterPacks.map((pack) => {
+                // Pure ID comparison
+                const isOwned = ownedPacks?.includes(pack.id);
 
-              return (
-                <div
-                  key={pack.id}
-                  className={`flex-none w-64 p-6 rounded-[2rem] border-2 flex flex-col justify-between transition-all ${
-                    isOwned
-                      ? "bg-slate-100 border-slate-200"
-                      : "bg-white border-indigo-50 shadow-sm"
-                  }`}
-                >
-                  {/* Top Section: Icon and Status */}
+                return (
                   <div
-                    className="cursor-pointer group/card"
-                    onClick={() => setPreviewPack(pack)}
+                    key={pack.id}
+                    className={`flex-none w-64 p-6 rounded-[2rem] border-2 flex flex-col justify-between transition-all ${
+                      isOwned
+                        ? "bg-slate-100 border-slate-200"
+                        : "bg-white border-indigo-50 shadow-sm"
+                    }`}
                   >
-                    <div className="flex justify-between items-start mb-4">
-                      <div
-                        className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-inner ${
-                          isOwned ? "bg-slate-200" : "bg-indigo-50"
-                        }`}
-                      >
-                        {pack.icon || "📦"}
+                    {/* Top Section: Icon and Status */}
+                    <div
+                      className="cursor-pointer group/card"
+                      onClick={() => setPreviewPack(pack)}
+                    >
+                      <div className="flex justify-between items-start mb-4">
+                        <div
+                          className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-inner ${
+                            isOwned ? "bg-slate-200" : "bg-indigo-50"
+                          }`}
+                        >
+                          {pack.icon || "📦"}
+                        </div>
+                        {isOwned ? (
+                          <span className="text-[10px] font-black text-emerald-600 bg-emerald-100/50 px-2.5 py-1 rounded-full uppercase tracking-widest border border-emerald-200">
+                            {t.added}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full uppercase tracking-widest border border-indigo-100">
+                            {t.free}
+                          </span>
+                        )}
                       </div>
-                      {isOwned ? (
-                        <span className="text-[10px] font-black text-emerald-600 bg-emerald-100/50 px-2.5 py-1 rounded-full uppercase tracking-widest border border-emerald-200">
-                          {t.added}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full uppercase tracking-widest border border-indigo-100">
-                          {t.free}
-                        </span>
-                      )}
+
+                      {/* Middle Section: Content */}
+                      <h4 className="font-black text-slate-800 text-lg mb-1">
+                        {pack.name}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 leading-relaxed mb-6 line-clamp-2 min-h-[32px]">
+                        {pack.description ||
+                          `${pack.card_data?.length || 0} essential words to kickstart your journey.`}
+                      </p>
                     </div>
 
-                    {/* Middle Section: Content */}
-                    <h4 className="font-black text-slate-800 text-lg mb-1">
-                      {pack.name}
-                    </h4>
-                    <p className="text-[11px] text-slate-500 leading-relaxed mb-6 line-clamp-2 min-h-[32px]">
-                      {pack.description ||
-                        `${pack.card_data?.length || 0} essential words to kickstart your journey.`}
+                    {/* Bottom Section: Action */}
+                    <button
+                      onClick={() => importPack(pack)}
+                      disabled={loading || isOwned}
+                      className={`w-full py-3 rounded-xl text-xs font-bold transition-all ${
+                        isOwned
+                          ? "bg-slate-200 text-slate-400"
+                          : "bg-indigo-600 text-white hover:bg-indigo-700"
+                      }`}
+                    >
+                      {isOwned ? t.already_in_deck : t.add_to_deck}
+                    </button>
+                  </div>
+                );
+              })}
+
+              {/* Empty State */}
+              {starterPacks.length === 0 && (
+                <div className="flex-none w-full p-8 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center">
+                  <p className="text-sm text-slate-400 font-bold italic">
+                    {t.looking_collections}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* --- Starter Pack Preview Overlay --- */}
+          {previewPack && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+              {/* Backdrop */}
+              <div
+                className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-300"
+                onClick={() => setPreviewPack(null)}
+              />
+
+              <div className="relative w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
+                {/* Header (Matching your Activity Log style) */}
+                <div className="p-8 border-b border-slate-50 flex justify-between items-end bg-gradient-to-b from-slate-50/50 to-transparent">
+                  <div>
+                    <div className="flex items-center gap-3 mb-1">
+                      <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-xl shadow-inner">
+                        {previewPack.icon || "📦"}
+                      </div>
+                      <h3 className="text-2xl font-black text-slate-800 uppercase italic tracking-tight">
+                        {previewPack.name}
+                      </h3>
+                    </div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">
+                      {previewPack.card_data?.length} {t.cards} •{" "}
+                      {t.starter_collection}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setPreviewPack(null)}
+                    className="h-12 w-12 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-800 hover:shadow-sm transition-all active:scale-90"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Content Area: Card List */}
+                <div className="p-6 md:p-8 overflow-y-auto custom-scrollbar bg-slate-50/30">
+                  {/* Description Card */}
+                  <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 mb-6 shadow-sm">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                      {t.description}
+                    </p>
+                    <p className="text-slate-600 text-sm leading-relaxed font-medium">
+                      {previewPack.description || t.default_pack_desc}
                     </p>
                   </div>
 
-                  {/* Bottom Section: Action */}
+                  {/* The "Contents" Grid */}
+                  <div className="grid grid-cols-1 gap-3">
+                    {previewPack.card_data?.map((card: any, idx: number) => (
+                      <div
+                        key={idx}
+                        className="group bg-white p-5 rounded-[2rem] border border-slate-100 hover:border-indigo-100 hover:shadow-md transition-all flex items-center justify-between"
+                      >
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xl font-black text-slate-800 tracking-tight">
+                            {card.japanese}
+                          </span>
+                          <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">
+                            {card.reading}
+                          </span>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="inline-block bg-slate-50 px-4 py-2 rounded-xl text-xs font-black text-slate-500 border border-slate-100 group-hover:bg-indigo-50 group-hover:text-indigo-600 group-hover:border-indigo-100 transition-colors">
+                            {card.english}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Subtle Bottom Branding */}
+                <div className="pb-6 bg-white text-center">
+                  <p className="text-[8px] font-black text-slate-300 uppercase tracking-[0.5em] opacity-60">
+                    {t.mastery_awaits}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Search */}
+          <div className="relative mb-6">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+              🔍
+            </div>
+            <input
+              type="text"
+              placeholder={t.search_placeholder}
+              className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setDisplayLimit(20);
+              }}
+            />
+          </div>
+
+          {/* List Views (Mobile & Desktop) */}
+          <div className="md:hidden space-y-4">
+            {visibleCards.map((card) => (
+              <div
+                key={card.id}
+                className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden"
+              >
+                {/* ACTION BUTTONS (Top Right) */}
+                {/* ACTION BUTTONS (Perfectly Aligned) */}
+                <div className="absolute top-4 right-4 flex items-center gap-1">
+                  {/* REPORT BUTTON */}
                   <button
-                    onClick={() => importPack(pack)}
-                    disabled={loading || isOwned}
-                    className={`w-full py-3 rounded-xl text-xs font-bold transition-all ${
-                      isOwned
-                        ? "bg-slate-200 text-slate-400"
-                        : "bg-indigo-600 text-white hover:bg-indigo-700"
-                    }`}
+                    onClick={() => handleReport(card.id, card.english)}
+                    className="w-8 h-8 flex items-center justify-center text-amber-500 active:scale-90 transition-all"
                   >
-                    {isOwned ? t.already_in_deck : t.add_to_deck}
+                    <span className="text-base leading-none">🚩</span>
+                  </button>
+
+                  {/* DELETE BUTTON */}
+                  <button
+                    onClick={() => deleteCard(card.id)}
+                    className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-rose-500 active:scale-90 transition-all"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2.5}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
                   </button>
                 </div>
-              );
-            })}
-
-            {/* Empty State */}
-            {starterPacks.length === 0 && (
-              <div className="flex-none w-full p-8 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center">
-                <p className="text-sm text-slate-400 font-bold italic">
-                  {t.looking_collections}
-                </p>
+                <div className="mb-4">
+                  <div className="text-2xl font-black text-slate-800">
+                    {card.japanese}
+                  </div>
+                  {card.partOfSpeech && (
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(card.partOfSpeech)}`}
+                    >
+                      {card.partOfSpeech}
+                    </span>
+                  )}
+                  <div className="text-sm font-bold text-indigo-500">
+                    {card.reading}
+                  </div>
+                  <div className="text-slate-600 mt-1">{card.english}</div>
+                </div>
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50">
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">
+                      🇯🇵 → 🇺🇸
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold">
+                        {card.scores?.jp_to_en?.percent || 0}%
+                      </span>
+                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-400"
+                          style={{
+                            width: `${card.scores?.jp_to_en?.percent || 0}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">
+                      🇺🇸 → 🇯🇵
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold">
+                        {card.scores?.en_to_jp?.percent || 0}%
+                      </span>
+                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-orange-400"
+                          style={{
+                            width: `${card.scores?.en_to_jp?.percent || 0}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-            )}
+            ))}
           </div>
+
+          <div className="hidden md:block bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-widest font-bold">
+                <tr>
+                  <th className="px-6 py-4">{t.kanji_reading}</th>
+                  <th className="px-6 py-4">{t.english}</th>
+                  <th className="px-6 py-4">🇯🇵→🇺🇸 {t.score}</th>
+                  <th className="px-6 py-4">🇺🇸→🇯🇵 {t.score}</th>
+                  <th className="px-6 py-4 text-right">{t.action}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {visibleCards.map((card) => (
+                  <tr
+                    key={card.id}
+                    className="hover:bg-slate-50/50 transition-colors group"
+                  >
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-lg text-slate-800">
+                        {card.japanese}
+                      </div>
+                      {card.partOfSpeech && (
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(card.partOfSpeech)}`}
+                        >
+                          {card.partOfSpeech}
+                        </span>
+                      )}
+                      <div className="text-xs text-indigo-500 font-medium">
+                        {card.reading}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-slate-600 font-medium">
+                      {card.english}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-bold">
+                        {card.scores?.jp_to_en?.percent || 0}%
+                      </div>
+                      <div className="w-24 h-1.5 bg-slate-100 rounded-full mt-1 overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-400"
+                          style={{
+                            width: `${card.scores?.jp_to_en?.percent || 0}%`,
+                          }}
+                        />
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-bold">
+                        {card.scores?.en_to_jp?.percent || 0}%
+                      </div>
+                      <div className="w-24 h-1.5 bg-slate-100 rounded-full mt-1 overflow-hidden">
+                        <div
+                          className="h-full bg-orange-400"
+                          style={{
+                            width: `${card.scores?.en_to_jp?.percent || 0}%`,
+                          }}
+                        />
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        {/* REPORT BUTTON */}
+                        <button
+                          onClick={() => handleReport(card.id, card.english)}
+                          className="p-2 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors group relative"
+                          title={t.report_issue}
+                        >
+                          <span className="text-lg">🚩</span>
+                        </button>
+
+                        {/* DELETE BUTTON (Existing) */}
+                        <button
+                          onClick={() => deleteCard(card.id)}
+                          className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                          title={t.delete}
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-5 w-5"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {filteredCards.length > displayLimit && (
+            <div className="mt-8 mb-12 flex justify-center">
+              <button
+                onClick={() => setDisplayLimit((prev) => prev + 50)}
+                className="bg-white border border-slate-200 px-8 py-3 rounded-2xl font-bold text-slate-600 hover:bg-slate-50"
+              >
+                {t.load_more} ({filteredCards.length - displayLimit}{" "}
+                {t.remaining})
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* --- Starter Pack Preview Overlay --- */}
-        {previewPack && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-            {/* Backdrop */}
-            <div
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-300"
-              onClick={() => setPreviewPack(null)}
-            />
-
-            <div className="relative w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
-              {/* Header (Matching your Activity Log style) */}
-              <div className="p-8 border-b border-slate-50 flex justify-between items-end bg-gradient-to-b from-slate-50/50 to-transparent">
+        {showSummaryOverlay && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 flex flex-col max-h-[80vh] overflow-hidden">
+              {/* Header */}
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <div>
-                  <div className="flex items-center gap-3 mb-1">
-                    <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-xl shadow-inner">
-                      {previewPack.icon || "📦"}
-                    </div>
-                    <h3 className="text-2xl font-black text-slate-800 uppercase italic tracking-tight">
-                      {previewPack.name}
-                    </h3>
-                  </div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">
-                    {previewPack.card_data?.length} {t.cards} •{" "}
-                    {t.starter_collection}
+                  <h2 className="text-xl font-black text-slate-800 uppercase italic tracking-tighter">
+                    Words Added
+                  </h2>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                    {addedWordsSummary.length} NEW ENTRIES PROCESSED
                   </p>
                 </div>
                 <button
-                  onClick={() => setPreviewPack(null)}
-                  className="h-12 w-12 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-800 hover:shadow-sm transition-all active:scale-90"
+                  onClick={() => setShowSummaryOverlay(false)}
+                  className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-slate-200 transition-colors text-slate-400"
                 >
                   ✕
                 </button>
               </div>
 
-              {/* Content Area: Card List */}
-              <div className="p-6 md:p-8 overflow-y-auto custom-scrollbar bg-slate-50/30">
-                {/* Description Card */}
-                <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 mb-6 shadow-sm">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
-                    {t.description}
-                  </p>
-                  <p className="text-slate-600 text-sm leading-relaxed font-medium">
-                    {previewPack.description || t.default_pack_desc}
-                  </p>
-                </div>
-
-                {/* The "Contents" Grid */}
-                <div className="grid grid-cols-1 gap-3">
-                  {previewPack.card_data?.map((card: any, idx: number) => (
-                    <div
-                      key={idx}
-                      className="group bg-white p-5 rounded-[2rem] border border-slate-100 hover:border-indigo-100 hover:shadow-md transition-all flex items-center justify-between"
-                    >
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xl font-black text-slate-800 tracking-tight">
-                          {card.japanese}
-                        </span>
-                        <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">
-                          {card.reading}
-                        </span>
-                      </div>
-
-                      <div className="text-right">
-                        <span className="inline-block bg-slate-50 px-4 py-2 rounded-xl text-xs font-black text-slate-500 border border-slate-100 group-hover:bg-indigo-50 group-hover:text-indigo-600 group-hover:border-indigo-100 transition-colors">
-                          {card.english}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Subtle Bottom Branding */}
-              <div className="pb-6 bg-white text-center">
-                <p className="text-[8px] font-black text-slate-300 uppercase tracking-[0.5em] opacity-60">
-                  {t.mastery_awaits}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Search */}
-        <div className="relative mb-6">
-          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
-            🔍
-          </div>
-          <input
-            type="text"
-            placeholder={t.search_placeholder}
-            className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setDisplayLimit(20);
-            }}
-          />
-        </div>
-
-        {/* List Views (Mobile & Desktop) */}
-        <div className="md:hidden space-y-4">
-          {visibleCards.map((card) => (
-            <div
-              key={card.id}
-              className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden"
-            >
-              {/* ACTION BUTTONS (Top Right) */}
-              {/* ACTION BUTTONS (Perfectly Aligned) */}
-              <div className="absolute top-4 right-4 flex items-center gap-1">
-                {/* REPORT BUTTON */}
-                <button
-                  onClick={() => handleReport(card.id, card.english)}
-                  className="w-8 h-8 flex items-center justify-center text-amber-500 active:scale-90 transition-all"
-                >
-                  <span className="text-base leading-none">🚩</span>
-                </button>
-
-                {/* DELETE BUTTON */}
-                <button
-                  onClick={() => deleteCard(card.id)}
-                  className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-rose-500 active:scale-90 transition-all"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
+              {/* List content */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/30">
+                {addedWordsSummary.map((word, i) => (
+                  <div
+                    key={i}
+                    className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-start gap-4"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2.5}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </button>
-              </div>
-              <div className="mb-4">
-                <div className="text-2xl font-black text-slate-800">
-                  {card.japanese}
-                </div>
-                {card.partOfSpeech && (
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(card.partOfSpeech)}`}
-                  >
-                    {card.partOfSpeech}
-                  </span>
-                )}
-                <div className="text-sm font-bold text-indigo-500">
-                  {card.reading}
-                </div>
-                <div className="text-slate-600 mt-1">{card.english}</div>
-              </div>
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50">
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">
-                    🇯🇵 → 🇺🇸
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold">
-                      {card.scores?.jp_to_en?.percent || 0}%
-                    </span>
-                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-emerald-400"
-                        style={{
-                          width: `${card.scores?.jp_to_en?.percent || 0}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">
-                    🇺🇸 → 🇯🇵
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold">
-                      {card.scores?.en_to_jp?.percent || 0}%
-                    </span>
-                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-orange-400"
-                        style={{
-                          width: `${card.scores?.en_to_jp?.percent || 0}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="hidden md:block bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-widest font-bold">
-              <tr>
-                <th className="px-6 py-4">{t.kanji_reading}</th>
-                <th className="px-6 py-4">{t.english}</th>
-                <th className="px-6 py-4">🇯🇵→🇺🇸 {t.score}</th>
-                <th className="px-6 py-4">🇺🇸→🇯🇵 {t.score}</th>
-                <th className="px-6 py-4 text-right">{t.action}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {visibleCards.map((card) => (
-                <tr
-                  key={card.id}
-                  className="hover:bg-slate-50/50 transition-colors group"
-                >
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-lg text-slate-800">
-                      {card.japanese}
-                    </div>
-                    {card.partOfSpeech && (
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(card.partOfSpeech)}`}
-                      >
-                        {card.partOfSpeech}
+                    <div className="flex-shrink-0 w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100">
+                      <span className="text-indigo-600 font-bold text-xl">
+                        {word.japanese[0]}
                       </span>
-                    )}
-                    <div className="text-xs text-indigo-500 font-medium">
-                      {card.reading}
                     </div>
-                  </td>
-                  <td className="px-6 py-4 text-slate-600 font-medium">
-                    {card.english}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm font-bold">
-                      {card.scores?.jp_to_en?.percent || 0}%
+                    <div className="flex-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-lg font-black text-slate-800">
+                          {word.japanese}
+                        </span>
+                        <span className="text-xs font-bold text-rose-500">
+                          [{word.reading}]
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-600 font-medium mt-1">
+                        {word.english}
+                      </p>
+                      <div className="mt-2 text-[9px] font-black uppercase tracking-tighter text-slate-400 flex gap-2">
+                        <span className="bg-slate-100 px-1.5 py-0.5 rounded">
+                          {word.partOfSpeech}
+                        </span>
+                        {word.exampleSentence?.jp && (
+                          <span className="text-emerald-500">
+                            ✓ Example Added
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="w-24 h-1.5 bg-slate-100 rounded-full mt-1 overflow-hidden">
-                      <div
-                        className="h-full bg-emerald-400"
-                        style={{
-                          width: `${card.scores?.jp_to_en?.percent || 0}%`,
-                        }}
-                      />
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm font-bold">
-                      {card.scores?.en_to_jp?.percent || 0}%
-                    </div>
-                    <div className="w-24 h-1.5 bg-slate-100 rounded-full mt-1 overflow-hidden">
-                      <div
-                        className="h-full bg-orange-400"
-                        style={{
-                          width: `${card.scores?.en_to_jp?.percent || 0}%`,
-                        }}
-                      />
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 text-right">
-                    <div className="flex justify-end gap-2">
-                      {/* REPORT BUTTON */}
-                      <button
-                        onClick={() => handleReport(card.id, card.english)}
-                        className="p-2 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors group relative"
-                        title={t.report_issue}
-                      >
-                        <span className="text-lg">🚩</span>
-                      </button>
+                  </div>
+                ))}
+              </div>
 
-                      {/* DELETE BUTTON (Existing) */}
-                      <button
-                        onClick={() => deleteCard(card.id)}
-                        className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
-                        title={t.delete}
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {filteredCards.length > displayLimit && (
-          <div className="mt-8 mb-12 flex justify-center">
-            <button
-              onClick={() => setDisplayLimit((prev) => prev + 50)}
-              className="bg-white border border-slate-200 px-8 py-3 rounded-2xl font-bold text-slate-600 hover:bg-slate-50"
-            >
-              {t.load_more} ({filteredCards.length - displayLimit} {t.remaining}
-              )
-            </button>
+              {/* Footer */}
+              <div className="p-4 border-t border-slate-100">
+                <button
+                  onClick={() => setShowSummaryOverlay(false)}
+                  className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-[0.98] shadow-lg"
+                >
+                  Got it
+                </button>
+              </div>
+            </div>
           </div>
         )}
-      </div>
 
-      {loading && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex flex-col items-center justify-center text-white">
-          <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-lg font-bold animate-pulse">{t.ai_building}</p>
-        </div>
-      )}
-    </main>
+        {loading && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex flex-col items-center justify-center text-white">
+            <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-lg font-bold animate-pulse">{t.ai_building}</p>
+          </div>
+        )}
+      </main>
+    </div>
   );
 }
 function StatCard({

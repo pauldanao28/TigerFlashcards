@@ -3,8 +3,12 @@ import "./globals.css";
 import { LanguageProvider } from "@/context/LanguageContext";
 
 export const metadata: Metadata = {
-  title: "TigerCards AI",
-  description: "Advanced Japanese Learning",
+  title: "FlashKado AI",
+  description: "Master Japanese with Spaced Repetition and AI",
+  icons: {
+    icon: "/logo.svg", // This points to public/logo.svg
+    apple: "/logo.svg",
+  },
 };
 
 export default function RootLayout({
