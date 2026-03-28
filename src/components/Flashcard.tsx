@@ -14,6 +14,7 @@ interface FlashcardProps {
   autoPlayEn?: boolean;
   isFlipped: boolean;
   onFlip: (state: boolean) => void;
+  audioPulse?: number;
 }
 
 const triggerHaptic = (ms = 10) => {
@@ -81,6 +82,7 @@ export default function Flashcard({
   autoPlayEn,
   isFlipped, // Use prop instead of local state
   onFlip, // Use prop setter
+  audioPulse,
 }: FlashcardProps) {
   const { t } = useLang();
   //const [flipped, setFlipped] = useState(false);
@@ -108,6 +110,20 @@ export default function Flashcard({
     isAudioUnlocked.current = true;
     console.log("iOS Protocol: Audio Latched");
   };
+
+  useEffect(() => {
+    if (audioPulse === 0) return; // Don't play on initial mount
+
+    const text = isFlipped
+      ? card.japanese // Back text
+      : language === "jp"
+        ? card.japanese
+        : card.english; // Front text
+
+    const lang = isFlipped ? "ja-JP" : language === "jp" ? "ja-JP" : "en-US";
+
+    speak(text, lang);
+  }, [audioPulse]);
 
   // 2. Monitor 'x' for Haptics
   useEffect(() => {
@@ -138,18 +154,23 @@ export default function Flashcard({
   }, []);
 
   // 3. Auto-play Audio on Front (When card appears)
+  // 3. Auto-play Audio on Front (When card appears)
   useEffect(() => {
-    //setFlipped(false);
     onFlip(false);
 
-    // Reduced delay to 50ms. 300ms is often too long for iOS to
-    // associate the sound with the previous "Swipe" gesture.
+    // Check if ANY auto-play is enabled first
+    const shouldPlayJp = language === "jp" && autoPlayJp;
+    const shouldPlayEn = language === "en" && autoPlayEn;
+
+    // If both are off, don't even start the timer
+    if (!shouldPlayJp && !shouldPlayEn) return;
+
     const timer = setTimeout(() => {
       window.speechSynthesis.getVoices();
 
-      if (language === "jp" && autoPlayJp) {
+      if (shouldPlayJp) {
         speak(card.reading || card.japanese, "ja-JP");
-      } else if (language === "en" && autoPlayEn) {
+      } else if (shouldPlayEn) {
         speak(card.english, "en-US");
       }
     }, 50);

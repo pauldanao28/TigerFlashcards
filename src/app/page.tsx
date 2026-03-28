@@ -34,6 +34,7 @@ export default function Home() {
   const [dailyProgress, setDailyProgress] = useState(0);
 
   const [isFlipped, setIsFlipped] = useState(false);
+  const [audioPulse, setAudioPulse] = useState(0);
   const [autoPlayJp, setAutoPlayJp] = useState(true);
   const [autoPlayEn, setAutoPlayEn] = useState(false);
   const [showHints, setShowHints] = useState(false);
@@ -354,6 +355,10 @@ export default function Home() {
       }
 
       switch (e.key) {
+        case "Enter":
+          e.preventDefault();
+          setAudioPulse((prev) => prev + 1);
+          break;
         case "ArrowUp":
         case " ": // Spacebar support
           e.preventDefault();
@@ -524,6 +529,7 @@ export default function Home() {
                   autoPlayEn={autoPlayEn}
                   isFlipped={isFlipped} // New Prop
                   onFlip={setIsFlipped} // New Prop
+                  audioPulse={audioPulse}
                 />
               </div>
             </div>
@@ -570,7 +576,7 @@ export default function Home() {
       {/* Keyboard Shortcuts Legend - Desktop Only */}
       <div className="hidden md:flex fixed bottom-6 left-0 w-full justify-center pointer-events-none">
         <div className="bg-white/80 backdrop-blur-sm px-4 py-2 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-          {/* Flip Controls: Space & Up Arrow */}
+          {/* Flip Controls */}
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1">
               <kbd className="px-2 py-1 bg-slate-100 border-b-2 border-slate-300 rounded text-[10px] font-black text-slate-500">
@@ -584,25 +590,36 @@ export default function Home() {
               </kbd>
             </div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              {t.flip_control}
+              {t.flip}
             </span>
           </div>
 
-          {/* Divider */}
           <div className="w-[1px] h-3 bg-slate-200" />
 
-          {/* Scoring Controls: Left & Right Arrows */}
+          {/* NEW: Audio Control */}
+          <div className="flex items-center gap-2">
+            <kbd className="px-2 py-1 bg-slate-100 border-b-2 border-slate-300 rounded text-[10px] font-black text-slate-500 italic">
+              ENTER
+            </kbd>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              🔊
+            </span>
+          </div>
+
+          <div className="w-[1px] h-3 bg-slate-200" />
+
+          {/* Scoring Controls */}
           <div className="flex items-center gap-2">
             <div className="flex gap-1">
-              <kbd className="px-2 py-1 bg-slate-100 border-b-2 border-slate-300 rounded text-[10px] font-black text-slate-500">
+              <kbd className="px-1.5 py-1 min-w-[1.5rem] flex justify-center bg-slate-100 border-b-2 border-slate-300 rounded text-[10px] font-black text-slate-500">
                 ←
               </kbd>
-              <kbd className="px-2 py-1 bg-slate-100 border-b-2 border-slate-300 rounded text-[10px] font-black text-slate-500">
+              <kbd className="px-1.5 py-1 min-w-[1.5rem] flex justify-center bg-slate-100 border-b-2 border-slate-300 rounded text-[10px] font-black text-slate-500">
                 →
               </kbd>
             </div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              {t.score_control}
+              {t.score}
             </span>
           </div>
         </div>
