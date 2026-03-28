@@ -5,6 +5,7 @@ import { FlashcardData } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
 import { useLang } from "@/context/LanguageContext";
+import { motion } from "framer-motion";
 
 export default function StatsPage() {
   const { t, setLang, lang } = useLang();
@@ -1220,35 +1221,33 @@ export default function StatsPage() {
                 </div>
               </div>
             </div>
-
             {/* Right Section: Icon - Using firePulseAnimation logic */}
-            <div className="ml-2 flex-shrink-0">
+            <motion.div
+              className="ml-2 flex-shrink-0 cursor-pointer select-none"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.8, rotate: -10 }} // The "Poke" effect
+              transition={{ type: "spring", stiffness: 400, damping: 10 }}
+            >
               <span className="inline-block text-3xl sm:text-4xl animate-fire">
                 🔥
               </span>
-            </div>
-
-            {/* The Animation Logic */}
+            </motion.div>
+            {/* Your CSS remains the same, but let's add a "Glow" on hover */}
             <style jsx global>{`
               @keyframes firePulse {
-                0% {
+                0%,
+                100% {
                   transform: scale(1);
-                  opacity: 0.9;
                   filter: drop-shadow(0 0 2px #ff6b00);
                 }
                 50% {
-                  transform: scale(1.15);
-                  opacity: 1;
-                  filter: drop-shadow(0 0 8px #ffeb3b);
-                }
-                100% {
-                  transform: scale(1);
-                  opacity: 0.9;
-                  filter: drop-shadow(0 0 2px #ff6b00);
+                  transform: scale(1.1);
+                  filter: drop-shadow(0 0 12px #ffeb3b);
                 }
               }
               .animate-fire {
-                animation: firePulse 2s ease-in-out infinite;
+                animation: firePulse 1.5s ease-in-out infinite;
+                display: inline-block;
               }
             `}</style>
           </div>
