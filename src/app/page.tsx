@@ -33,6 +33,7 @@ export default function Home() {
   const [sessionStreak, setSessionStreak] = useState(0);
   const [dailyProgress, setDailyProgress] = useState(0);
 
+  const [isFlipped, setIsFlipped] = useState(false);
   const [autoPlayJp, setAutoPlayJp] = useState(true);
   const [autoPlayEn, setAutoPlayEn] = useState(false);
   const [showHints, setShowHints] = useState(false);
@@ -216,67 +217,85 @@ export default function Home() {
     if (error) console.error("Error incrementing daily count:", error);
   };
 
-  const handleScore = async (isPass: boolean) => {
-    if (!currentCard || !user) return;
+  const handleScore = useCallback(
+    async (isPass: boolean) => {
+      if (!currentCard || !user) return;
 
-    const newSessionStreak = isPass ? sessionStreak + 1 : 0;
-    setSessionStreak(newSessionStreak);
-    incrementStudyCount(); // Add today's study count
+      const newSessionStreak = isPass ? sessionStreak + 1 : 0;
+      setSessionStreak(newSessionStreak);
+      incrementStudyCount(); // Add today's study count
 
-    // If this session just broke the all-time record, update the profile
-    // We compare against the 'streak' state (which we fetched from profiles.streak_count/max_streak earlier)
-    if (isPass && newSessionStreak > streak) {
-      setStreak(newSessionStreak); // Update local UI immediately
-      await supabase
-        .from("profiles")
-        .update({ max_streak: newSessionStreak }) // Make sure this column exists in SQL!
-        .eq("id", user.id);
-    }
-
-    const mode = language === "jp" ? "jp_to_en" : "en_to_jp";
-    const s = currentCard.scores || {
-      jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
-      en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
-    };
-
-    const stats = s[mode];
-    const updatedStats = {
-      ...stats,
-      pass: isPass ? stats.pass + 1 : stats.pass,
-      fail: !isPass ? stats.fail + 1 : stats.fail,
-      total: stats.total + 1,
-      percent: Math.round(
-        ((isPass ? stats.pass + 1 : stats.pass) / (stats.total + 1)) * 100,
-      ),
-    };
-
-    const newScores = { ...s, [mode]: updatedStats };
-
-    await supabase.from("user_scores").upsert(
-      {
-        user_id: user.id,
-        card_id: currentCard.id,
-        scores_json: newScores,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,card_id" },
-    );
-
-    if (isPass) {
-      const prog = dailyProgress + 1;
-      setDailyProgress(prog);
-      if (prog === DAILY_GOAL) {
-        updateStreak();
-        alert(t.daily_streak_extended);
+      // If this session just broke the all-time record, update the profile
+      // We compare against the 'streak' state (which we fetched from profiles.streak_count/max_streak earlier)
+      if (isPass && newSessionStreak > streak) {
+        setStreak(newSessionStreak); // Update local UI immediately
+        await supabase
+          .from("profiles")
+          .update({ max_streak: newSessionStreak }) // Make sure this column exists in SQL!
+          .eq("id", user.id);
       }
-    }
 
-    const updatedCards = cards.map((c) =>
-      c.id === currentCard.id ? { ...c, scores: newScores } : c,
-    );
-    setCards(updatedCards);
-    setCurrentCard(getNextPriorityCard(updatedCards, currentCard.id));
-  };
+      const mode = language === "jp" ? "jp_to_en" : "en_to_jp";
+      const s = currentCard.scores || {
+        jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
+        en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
+      };
+
+      const stats = s[mode];
+      const updatedStats = {
+        ...stats,
+        pass: isPass ? stats.pass + 1 : stats.pass,
+        fail: !isPass ? stats.fail + 1 : stats.fail,
+        total: stats.total + 1,
+        percent: Math.round(
+          ((isPass ? stats.pass + 1 : stats.pass) / (stats.total + 1)) * 100,
+        ),
+      };
+
+      const newScores = { ...s, [mode]: updatedStats };
+
+      await supabase.from("user_scores").upsert(
+        {
+          user_id: user.id,
+          card_id: currentCard.id,
+          scores_json: newScores,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,card_id" },
+      );
+
+      if (isPass) {
+        const prog = dailyProgress + 1;
+        setDailyProgress(prog);
+        if (prog === DAILY_GOAL) {
+          updateStreak();
+          alert(t.daily_streak_extended);
+        }
+      }
+
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+
+      const updatedCards = cards.map((c) =>
+        c.id === currentCard.id ? { ...c, scores: newScores } : c,
+      );
+      setCards(updatedCards);
+      setCurrentCard(getNextPriorityCard(updatedCards, currentCard.id));
+      setIsFlipped(false); // Always reset flip for the next card
+    },
+    [
+      currentCard,
+      user,
+      cards,
+      language,
+      dailyProgress,
+      streak,
+      sessionStreak,
+      t,
+    ],
+  );
+  // Add the dependencies used inside the function
 
   // --- 7. AI Sync Logic ---
   useEffect(() => {
@@ -315,8 +334,54 @@ export default function Home() {
       setShowHints(false);
       localStorage.removeItem("show_first_timer_hint");
     }
+
+    // 🔥 IMPORTANT: Reset the flip state so the NEXT card
+    // starts on the front side, whether swiped by mouse or thumb.
+    setIsFlipped(false);
     handleScore(direction === "right");
   };
+
+  // Keyboard Controls
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 1. Ignore if typing or if key is being held down (auto-repeat)
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.repeat
+      ) {
+        return;
+      }
+
+      switch (e.key) {
+        case "ArrowUp":
+        case " ": // Spacebar support
+          e.preventDefault();
+          setIsFlipped((prev) => !prev);
+          break;
+
+        case "ArrowRight":
+          e.preventDefault();
+          handleScore(true);
+          // Note: handleScore already calls setIsFlipped(false) in your logic,
+          // but keeping it here is a safe double-check.
+          setIsFlipped(false);
+          break;
+
+        case "ArrowLeft":
+          e.preventDefault();
+          handleScore(false);
+          setIsFlipped(false);
+          break;
+
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleScore]); // Removed isFlipped because we use the functional update (prev => !prev)
 
   // --- 8. Render Guards ---
   if (!isAuthLoaded)
@@ -457,6 +522,8 @@ export default function Home() {
                   onSwipe={onSwipe}
                   autoPlayJp={autoPlayJp}
                   autoPlayEn={autoPlayEn}
+                  isFlipped={isFlipped} // New Prop
+                  onFlip={setIsFlipped} // New Prop
                 />
               </div>
             </div>

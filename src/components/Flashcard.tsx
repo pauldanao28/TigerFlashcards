@@ -12,6 +12,8 @@ interface FlashcardProps {
   onSwipe?: (direction: "left" | "right") => void;
   autoPlayJp?: boolean;
   autoPlayEn?: boolean;
+  isFlipped: boolean;
+  onFlip: (state: boolean) => void;
 }
 
 const triggerHaptic = (ms = 10) => {
@@ -77,9 +79,11 @@ export default function Flashcard({
   onSwipe,
   autoPlayJp,
   autoPlayEn,
+  isFlipped, // Use prop instead of local state
+  onFlip, // Use prop setter
 }: FlashcardProps) {
   const { t } = useLang();
-  const [flipped, setFlipped] = useState(false);
+  //const [flipped, setFlipped] = useState(false);
   const [hasVibrated, setHasVibrated] = useState(false);
 
   // 1. Setup Motion Values for Swipe
@@ -135,7 +139,8 @@ export default function Flashcard({
 
   // 3. Auto-play Audio on Front (When card appears)
   useEffect(() => {
-    setFlipped(false);
+    //setFlipped(false);
+    onFlip(false);
 
     // Reduced delay to 50ms. 300ms is often too long for iOS to
     // associate the sound with the previous "Swipe" gesture.
@@ -154,7 +159,7 @@ export default function Flashcard({
 
   // 4. Auto-play Audio on Flip (When card is turned over)
   useEffect(() => {
-    if (flipped) {
+    if (isFlipped) {
       // 🔥 ALWAYS speak Japanese on the back if autoPlayJp is enabled
       // regardless of whether the front was English or Japanese.
       if (autoPlayJp) {
@@ -165,7 +170,7 @@ export default function Flashcard({
         speak(card.english, "en-US");
       }
     }
-  }, [flipped, card.id, autoPlayJp, autoPlayEn]);
+  }, [isFlipped, card.id, autoPlayJp, autoPlayEn]);
 
   const handleDragEnd = (event: any, info: any) => {
     const swipeThreshold = 100;
@@ -244,14 +249,18 @@ export default function Flashcard({
         {/* SWIPE INDICATORS - (Keep existing code) */}
 
         <motion.div
-          animate={{ rotateY: flipped ? 180 : 0 }}
+          // Use 'animate' directly linked to the prop
+          animate={{ rotateY: isFlipped ? 180 : 0 }}
+          // Add 'initial' to ensure it starts correctly
+          initial={false}
           transition={{
             duration: 0.6,
             type: "spring",
             stiffness: 260,
             damping: 20,
           }}
-          onClick={() => setFlipped(!flipped)}
+          // Ensure this handler is using the prop function
+          onClick={() => onFlip(!isFlipped)}
           className="relative w-full h-full [transform-style:preserve-3d]"
         >
           {/* FRONT SIDE */}
