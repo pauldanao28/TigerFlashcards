@@ -555,7 +555,7 @@ export default function StudyView() {
                   key={currentCard.id}
                   card={currentCard}
                   language={language}
-                  userId={user?.id}
+                  userId={user?.id || ""}
                   onSwipe={onSwipe}
                   autoPlayJp={autoPlayJp}
                   autoPlayEn={autoPlayEn}
