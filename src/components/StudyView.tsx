@@ -409,9 +409,10 @@ export default function StudyView() {
       {hasOnboarded === false && (
         <OnboardingModal
           defaultName={
-            user.user_metadata?.full_name || user.user_metadata?.name || ""
+            /* Add the ? after user and a fallback || "" at the end */
+            user?.user_metadata?.full_name || user?.user_metadata?.name || ""
           }
-          userId={user.id}
+          userId={user?.id || ""} // Also add a fallback for the ID
           onComplete={(added) =>
             added ? window.location.reload() : setHasOnboarded(true)
           }
