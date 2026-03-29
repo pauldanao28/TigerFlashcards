@@ -53,11 +53,11 @@ export default function StudyView() {
     const fetchUserEnvironment = async () => {
       // Fetch Profile & Deck in parallel for speed
       const [profileRes, deckRes] = await Promise.all([
-        supabase.from("profiles").select("*").eq("id", user.id).single(),
+        supabase.from("profiles").select("*").eq("id", user?.id).single(),
         supabase
           .from("decks")
           .select("id")
-          .eq("user_id", user.id)
+          .eq("user_id", user?.id)
           .eq("is_default", true)
           .maybeSingle(),
       ]);
@@ -120,7 +120,7 @@ export default function StudyView() {
       `,
       )
       .eq("deck_cards.deck_id", defaultDeckId)
-      .eq("user_scores.user_id", user.id);
+      .eq("user_scores.user_id", user?.id);
 
     if (!error && data) {
       const flattened = data.map((card: any) => ({
@@ -197,7 +197,7 @@ export default function StudyView() {
     const { data: p } = await supabase
       .from("profiles")
       .select("streak_count, last_review_date")
-      .eq("id", user.id)
+      .eq("id", user?.id)
       .single();
     if (!p || p.last_review_date === today) return;
 
@@ -206,7 +206,7 @@ export default function StudyView() {
     await supabase
       .from("profiles")
       .update({ streak_count: newStreak, last_review_date: today })
-      .eq("id", user.id);
+      .eq("id", user?.id);
     setStreak(newStreak);
   };
 
@@ -218,7 +218,7 @@ export default function StudyView() {
 
     // Calls the Postgres function we just created
     const { error } = await supabase.rpc("increment_daily_review", {
-      target_user_id: user.id,
+      target_user_id: user?.id,
     });
 
     if (error) console.error("Error incrementing daily count:", error);
@@ -264,13 +264,13 @@ export default function StudyView() {
         await supabase
           .from("profiles")
           .update({ max_streak: newSessionStreak })
-          .eq("id", user.id);
+          .eq("id", user?.id);
       }
 
       // 5. Database Sync (Upsert Score)
       await supabase.from("user_scores").upsert(
         {
-          user_id: user.id,
+          user_id: user?.id,
           card_id: currentCard.id,
           scores_json: newScores,
           updated_at: new Date().toISOString(),
@@ -555,7 +555,7 @@ export default function StudyView() {
                   key={currentCard.id}
                   card={currentCard}
                   language={language}
-                  userId={user.id}
+                  userId={user?.id}
                   onSwipe={onSwipe}
                   autoPlayJp={autoPlayJp}
                   autoPlayEn={autoPlayEn}
