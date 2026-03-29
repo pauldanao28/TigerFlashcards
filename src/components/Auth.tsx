@@ -1,15 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useLang } from "@/context/LanguageContext";
 import LanguageToggle from "@/components/LanguageToggle";
 
 export default function Auth() {
+  const router = useRouter();
   const { t, lang, setLang } = useLang();
+
+  // States
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false); // Password Toggle State
   const [isRegistering, setIsRegistering] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
 
@@ -39,6 +44,7 @@ export default function Auth() {
         password,
       });
       error = signInError;
+      if (!error) router.push("/");
     }
 
     if (error) alert(error.message);
@@ -48,9 +54,7 @@ export default function Auth() {
   const handleGoogleLogin = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: {
-        redirectTo: window.location.origin,
-      },
+      options: { redirectTo: window.location.origin },
     });
     if (error) alert(error.message);
   };
@@ -67,12 +71,16 @@ export default function Auth() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-slate-50">
-      <div className="mb-8 w-48 h-10">
+    /* Background is fixed and non-scrollable. 
+       'touch-pan-y' allows the user to still drag the card vertically.
+    */
+    <div className="fixed inset-0 h-[100dvh] w-full bg-slate-50 flex flex-col items-center justify-center p-4 overflow-hidden overscroll-none">
+      {/* Top Header */}
+      <div className="mb-6 w-48 h-10 flex-shrink-0 pointer-events-auto">
         <LanguageToggle language={lang} setLanguage={setLang} />
       </div>
-
-      <div className="w-full max-w-md bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
+      {/* Main Card */}
+      <div className="w-full max-w-md bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 overflow-y-auto max-h-[80dvh] overscroll-contain flex flex-col no-scrollbar">
         <h1 className="text-2xl font-black text-slate-800 mb-6 text-center italic uppercase tracking-tighter">
           {isResetting
             ? t.reset_password
@@ -80,32 +88,45 @@ export default function Auth() {
               ? t.create_account
               : t.welcome_message}
         </h1>
-
         <form onSubmit={handleAuth} className="space-y-4">
           <input
             type="email"
             placeholder={t.email_placeholder}
-            className="w-full p-3 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+            className="w-full p-4 rounded-2xl bg-slate-50 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
           />
 
           {!isResetting && (
-            <input
-              type="password"
-              placeholder={t.password_placeholder}
-              className="w-full p-3 rounded-xl bg-slate-50 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <div className="relative w-full">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder={t.password_placeholder}
+                className="w-full p-4 pr-12 rounded-2xl bg-slate-50 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              {/* Password Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-500 transition-colors"
+              >
+                {showPassword ? (
+                  <span className="text-lg">👁️</span>
+                ) : (
+                  <span className="text-lg">🔒</span>
+                )}
+              </button>
+            </div>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-indigo-600 text-white py-4 rounded-xl font-black uppercase tracking-widest text-sm shadow-lg hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50"
+            className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-sm shadow-lg hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50"
           >
             {loading
               ? t.processing
@@ -116,7 +137,6 @@ export default function Auth() {
                   : t.login_button}
           </button>
         </form>
-
         {!isResetting && (
           <div className="w-full">
             <div className="relative my-8">
@@ -134,7 +154,7 @@ export default function Auth() {
               <button
                 type="button"
                 onClick={handleGoogleLogin}
-                className="w-full flex items-center justify-center gap-3 bg-white text-slate-700 py-3 rounded-xl font-bold border border-slate-200 shadow-sm hover:bg-slate-50 active:scale-[0.98] transition-all"
+                className="w-full flex items-center justify-center gap-3 bg-white text-slate-700 py-3 rounded-2xl font-bold border border-slate-200 shadow-sm hover:bg-slate-50 active:scale-[0.98] transition-all"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                   <path
@@ -160,7 +180,7 @@ export default function Auth() {
               <button
                 type="button"
                 onClick={handleFacebookLogin}
-                className="w-full flex items-center justify-center gap-3 bg-[#1877F2] text-white py-3 rounded-xl font-bold shadow-sm hover:bg-[#166fe5] active:scale-[0.98] transition-all"
+                className="w-full flex items-center justify-center gap-3 bg-[#1877F2] text-white py-3 rounded-2xl font-bold shadow-sm hover:bg-[#166fe5] active:scale-[0.98] transition-all"
               >
                 <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
@@ -170,7 +190,6 @@ export default function Auth() {
             </div>
           </div>
         )}
-
         <div className="mt-8 flex flex-col gap-3 border-t border-slate-50 pt-6">
           <button
             type="button"
@@ -195,6 +214,15 @@ export default function Auth() {
           </button>
         </div>
       </div>
+      <style jsx global>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
     </div>
   );
 }

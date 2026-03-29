@@ -1285,71 +1285,55 @@ export default function StatsPage() {
               }}
             />
 
-            {/* VOCAB - MASTERED - STRUGGLING */}
-            <div className="bg-gradient-to-br from-orange-500 to-red-600 p-5 rounded-[2rem] shadow-lg flex items-center justify-between text-white overflow-hidden">
-              {/* Left Section: Added pl-3 to prevent text from touching the left edge on mobile */}
-              <div className="flex flex-1 items-center gap-4 sm:gap-10 pl-3 sm:pl-0">
-                {/* Container for both streaks: Stack on mobile, Row on tablet+ */}
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-10">
-                  {/* DAILY LOGIN STREAK */}
-                  <div className="flex flex-col">
-                    <p className="text-white/70 text-[9px] sm:text-[10px] font-black uppercase tracking-tighter mb-0.5 whitespace-nowrap">
-                      {t.daily_streak}
-                    </p>
-                    <p className="text-xl sm:text-3xl font-black leading-none">
-                      {streak}{" "}
-                      <span className="text-[10px] sm:text-xs uppercase opacity-80">
-                        {t.days}
-                      </span>
-                    </p>
+            {/* --- THE STREAK CARD --- */}
+            <div className="col-span-2 md:col-span-1 bg-gradient-to-br from-orange-500 to-red-600 p-5 rounded-[2rem] shadow-lg flex items-center text-white overflow-hidden">
+              {/* The Container: justify-around spreads them out on mobile, gap-6 pulls them together on desktop */}
+              <div className="flex flex-1 items-center justify-around sm:justify-start sm:gap-8">
+                {/* DAILY LOGIN STREAK */}
+                <div className="flex flex-col items-center sm:items-start">
+                  <p className="text-white/70 text-[9px] sm:text-[10px] font-black uppercase tracking-widest mb-1 whitespace-nowrap">
+                    {t.daily_streak}
+                  </p>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl sm:text-xl font-black leading-none">
+                      {streak}
+                    </span>
+                    <span className="text-[10px] uppercase opacity-80 font-bold">
+                      {t.days}
+                    </span>
                   </div>
+                </div>
 
-                  {/* DIVIDER: Hidden on mobile because we are stacking vertically */}
-                  <div className="hidden sm:block w-px h-8 bg-white/20" />
+                {/* --- THE DIVIDER: Visible on BOTH Mobile and Desktop --- */}
+                {/* On mobile, it's taller (h-10) to fill the row height. On desktop, it's shorter (h-8). */}
+                <div className="w-px h-10 sm:h-8 bg-white/30 rounded-full shadow-[0_0_8px_rgba(255,255,255,0.2)]" />
 
-                  {/* BEST SESSION STREAK */}
-                  <div className="flex flex-col">
-                    <p className="text-white/70 text-[9px] sm:text-[10px] font-black uppercase tracking-tighter mb-0.5 whitespace-nowrap">
-                      {t.best_streak}
-                    </p>
-                    <p className="text-xl sm:text-3xl font-black italic leading-none">
-                      {maxStreak}{" "}
-                      <span className="text-[10px] not-italic uppercase opacity-80">
-                        {t.passes}
-                      </span>
-                    </p>
+                {/* BEST SESSION STREAK */}
+                <div className="flex flex-col items-center sm:items-start">
+                  <p className="text-white/70 text-[9px] sm:text-[10px] font-black uppercase tracking-widest mb-1 whitespace-nowrap">
+                    {t.best_streak}
+                  </p>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl sm:text-xl font-black italic leading-none">
+                      {maxStreak}
+                    </span>
+                    <span className="text-[10px] not-italic uppercase opacity-80 font-bold">
+                      {t.passes}
+                    </span>
                   </div>
                 </div>
               </div>
-              {/* Right Section: Icon - Using firePulseAnimation logic */}
+
+              {/* Right Section: Icon */}
               <motion.div
-                className="ml-2 flex-shrink-0 cursor-pointer select-none"
+                className="ml-2 sm:ml-4 flex-shrink-0 cursor-pointer select-none"
                 whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.8, rotate: -10 }} // The "Poke" effect
-                transition={{ type: "spring", stiffness: 400, damping: 10 }}
+                whileTap={{ scale: 0.8, rotate: -10 }}
               >
-                <span className="inline-block text-3xl sm:text-4xl animate-fire">
+                <span className="inline-block text-4xl sm:text-3xl animate-fire">
                   🔥
                 </span>
               </motion.div>
-              {/* Your CSS remains the same, but let's add a "Glow" on hover */}
-              <style jsx global>{`
-                @keyframes firePulse {
-                  0%,
-                  100% {
-                    transform: scale(1);
-                    filter: drop-shadow(0 0 2px #ff6b00);
-                  }
-                  50% {
-                    transform: scale(1.1);
-                    filter: drop-shadow(0 0 12px #ffeb3b);
-                  }
-                }
-                .animate-fire {
-                  animation: firePulse 1.5s ease-in-out infinite;
-                  display: inline-block;
-                }
-              `}</style>
             </div>
 
             {/* Directional Comparison Dashboard */}

@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+:root {
+  --sat: env(safe-area-inset-top);
+}
+
+main {
+  /* This ensures we start exactly at the top of the screen */
+  padding-top: calc(1rem + var(--sat));
+}
+
 /* In v4, we use standard CSS for base styles */
 body {
   background-color: var(--color-slate-50);
