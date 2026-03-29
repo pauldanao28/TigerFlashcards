@@ -12,5 +12,5 @@ export default function Home() {
     return <LoadingScreen />;
   }
 
-  return user ? <StudyView user={user} /> : <WelcomeView />;
+  return user ? <StudyView /> : <WelcomeView />;
 }
