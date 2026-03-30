@@ -37,7 +37,10 @@ export default function Auth() {
         password,
       });
       error = signUpError;
-      if (!error) alert("Check your email for the confirmation link!");
+      if (!error) {
+        alert("Check your email for the confirmation link!");
+        router.push("/");
+      }
     } else {
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email,

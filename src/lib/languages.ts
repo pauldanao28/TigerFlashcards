@@ -9,6 +9,7 @@ export const translations = {
     empty_deck: "Empty Deck",
     recall: "Recall",
     recognition: "Recognition",
+    mastery: "Mastery",
     tries: "Tries",
     accuracy: "Accuracy",
     streak: "Current Streak",
@@ -163,6 +164,7 @@ export const translations = {
     empty_deck: "デッキが空です",
     recall: "想起", 
     recognition: "認識", 
+    mastery: "上達",
     tries: "試行数", 
     accuracy: "正解率",
     streak: "連続記録", // Renzoku kiroku (Continuous record)

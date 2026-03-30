@@ -236,9 +236,13 @@ export default function StudyView() {
         en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
       };
 
-      const stats = s[mode];
-      const nextPass = isPass ? stats.pass + 1 : stats.pass;
-      const nextTotal = stats.total + 1;
+      // Ensure the specific mode stats exist (This is the NaN preventer)
+      const stats = s[mode] || { pass: 0, fail: 0, total: 0, percent: 0 };
+
+      const nextPass = isPass ? (stats.pass || 0) + 1 : stats.pass || 0;
+      const nextTotal = (stats.total || 0) + 1;
+
+      // Final check to ensure we aren't dividing by zero (though total + 1 prevents this)
       const nextPercent = Math.round((nextPass / nextTotal) * 100);
 
       const updatedStats = {
@@ -413,10 +417,26 @@ export default function StudyView() {
   const currentMode = language === "jp" ? globalStats.jp : globalStats.en;
 
   // 3. Simple percentage calculation
-  const accuracyPercent =
-    currentMode.tries > 0
-      ? Math.round((currentMode.pass / currentMode.tries) * 100)
-      : 0;
+  //   const accuracyPercent =
+  //     currentMode.tries > 0
+  //       ? Math.round((currentMode.pass / currentMode.tries) * 100)
+  //       : 0;
+
+  // 3. Diminishing Buffer Calculation
+  const accuracyPercent = useMemo(() => {
+    // If they haven't tried any cards, stay at 0%
+    if (currentMode.tries === 0) return 0;
+
+    // Buffer starts at 20 and shrinks as they play.
+    // It hits 0 once they have 20 tries.
+    const buffer = Math.max(0, 200 - currentMode.tries);
+
+    // Calculate percentage with the shrinking buffer
+    const raw = (currentMode.pass / (currentMode.tries + buffer)) * 100;
+
+    // Round it and cap at 100
+    return Math.min(100, Math.round(raw));
+  }, [currentMode.pass, currentMode.tries]);
 
   // 4. Dynamic Colors based on mode
   const modeColorClass =
@@ -452,38 +472,32 @@ export default function StudyView() {
             <Logo className="w-10 h-12" />
           </Link>
 
-          {/* Integrated Profile Card - Increased min-width for a longer bar */}
-          <div className="flex flex-col gap-1.5 bg-white/80 backdrop-blur-md px-3 py-2 rounded-2xl border border-white shadow-sm min-w-[160px]">
-            {/* Name and Level Row */}
+          {/* Integrated Profile Card - Clean Mode Label & Mastery Bar */}
+          <div className="flex flex-col gap-1.5 bg-white/80 backdrop-blur-md px-3 py-2 rounded-2xl border border-white shadow-sm min-w-[170px]">
+            {/* Name and Mode/Mastery Row */}
             <div className="flex items-center justify-between gap-3">
-              <span className="text-[10px] font-black uppercase tracking-tight text-slate-800 italic leading-none truncate max-w-[90px]">
-                {profileName?.split(" ")[0] || "..."}
+              <span className="text-[10px] font-black uppercase tracking-tight text-slate-800 italic leading-none truncate max-w-[80px]">
+                {profileName?.split(" ")[0] || ""}
               </span>
 
-              {/* Subtle Level Text Badge */}
-              <span
-                className={`text-[8px] font-black px-1.5 py-0.5 rounded-md border shadow-sm ${
-                  language === "jp"
-                    ? "bg-indigo-50 border-indigo-100 text-indigo-600"
-                    : "bg-orange-50 border-orange-100 text-orange-600"
-                }`}
-              >
-                LVL {currentLevel}
+              {/* Mode Label + Mastery Word */}
+              <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">
+                {t.mastery}
               </span>
             </div>
 
-            {/* Mastery Progress Bar - Now has more horizontal space */}
-            <div className="flex items-center gap-3">
+            {/* Mastery Progress Bar */}
+            <div className="flex items-center gap-2.5">
               <div className="relative flex-1 h-1.5 bg-slate-200/50 rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${accuracyPercent}%` }}
-                  className={`h-full transition-all duration-700 ${
+                  className={`h-full transition-all duration-1000 ${
                     language === "jp" ? "bg-indigo-500" : "bg-orange-500"
                   }`}
                 />
               </div>
-              <span className="text-[8px] font-black text-slate-400 min-w-[24px]">
+              <span className="text-[9px] font-black text-slate-500 min-w-[28px] text-right">
                 {accuracyPercent}%
               </span>
             </div>
@@ -516,42 +530,51 @@ export default function StudyView() {
           >
             <Logo className="w-12 h-14" />
 
-            {/* Desktop Profile Dashboard Pill */}
-            <div className="flex items-center gap-4 bg-white px-5 py-3 rounded-[2rem] border-2 border-slate-50 shadow-xl shadow-slate-200/50 backdrop-blur-md">
-              {/* Level Badge (Calculated from Accuracy) */}
-              <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 shadow-inner ${
-                  language === "jp"
-                    ? "bg-indigo-50 border-indigo-100 text-indigo-600"
-                    : "bg-orange-50 border-orange-100 text-orange-600"
-                }`}
-              >
-                <span className="text-[10px] font-black leading-none">LVL</span>
-                <span className="text-lg font-black tracking-tighter leading-none ml-0.5">
-                  {currentLevel}
-                </span>
-              </div>
+            {/* Desktop Profile Dashboard Pill - Level Removed, Mastery Integrated */}
+            <div className="flex items-center gap-5 bg-white px-6 py-4 rounded-[2rem] border-2 border-slate-50 shadow-xl shadow-slate-200/50 backdrop-blur-md">
+              <div className="flex flex-col gap-2 min-w-[220px]">
+                {/* Profile Name & Mode Label Row */}
+                <div className="flex justify-between items-center px-1">
+                  <span className="text-base font-black uppercase tracking-tighter text-slate-900 italic">
+                    {profileName || ""}
+                  </span>
 
-              <div className="flex flex-col gap-1.5 min-w-[180px]">
-                {/* Profile Name & Mastery Stats */}
-                <div className="flex justify-between items-baseline px-1">
-                  <span className="text-sm font-black uppercase tracking-tighter text-slate-800 italic">
-                    {profileName || "Student"}
-                  </span>
-                  <span className="text-[10px] font-black text-slate-400">
-                    {accuracyPercent}% MASTERY
-                  </span>
+                  {/* Mode Badge - Shows Recognize/Recall + Japanese Term */}
+                  <div
+                    className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest ${
+                      language === "jp"
+                        ? "bg-indigo-50 border-indigo-100 text-indigo-600"
+                        : "bg-orange-50 border-orange-100 text-orange-600"
+                    }`}
+                  >
+                    <span>{t.mastery}</span>
+                  </div>
                 </div>
 
-                {/* Level Up Progress Bar (Wider and bolder) */}
-                <div className="relative w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${accuracyPercent}%` }}
-                    className={`h-full shadow-[0_0_8px_rgba(0,0,0,0.1)] ${
-                      language === "jp" ? "bg-indigo-500" : "bg-orange-500"
-                    }`}
-                  />
+                {/* Accuracy & Progress Bar Row */}
+                <div className="flex items-center gap-4">
+                  <div className="relative flex-1 h-3 bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${accuracyPercent}%` }}
+                      className={`h-full shadow-[0_0_12px_rgba(0,0,0,0.1)] transition-all duration-1000 ${
+                        language === "jp" ? "bg-indigo-500" : "bg-orange-500"
+                      }`}
+                    />
+                  </div>
+
+                  {/* Large Accuracy Percentage */}
+                  <div className="flex flex-col items-end min-w-[45px]">
+                    <span
+                      className={`text-sm font-black leading-none ${
+                        language === "jp"
+                          ? "text-indigo-600"
+                          : "text-orange-600"
+                      }`}
+                    >
+                      {accuracyPercent}%
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
