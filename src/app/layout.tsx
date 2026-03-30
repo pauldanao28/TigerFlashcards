@@ -3,6 +3,13 @@ import "./globals.css";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { AuthProvider } from "@/context/AuthContext"; // Import your new provider
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export const metadata: Metadata = {
   title: "FlashKado | A Flashcard App | Master Japanese",
   description: "Master Japanese with Spaced Repetition and AI",

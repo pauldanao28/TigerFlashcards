@@ -34,6 +34,7 @@ export default function StudyView() {
   const [streak, setStreak] = useState(0);
   const [sessionStreak, setSessionStreak] = useState(0);
   const [dailyProgress, setDailyProgress] = useState(0);
+  const [profileName, setProfileName] = useState<string | null>(null);
 
   const [isFlipped, setIsFlipped] = useState(false);
   const [audioPulse, setAudioPulse] = useState(0);
@@ -69,6 +70,7 @@ export default function StudyView() {
         setAutoPlayEn(p.auto_play_en ?? false);
         setHasOnboarded(p.has_onboarded);
         setStreak(p.max_streak || 0);
+        setProfileName(p.full_name);
 
         // Check if goal already met today
         const today = new Date().toISOString().split("T")[0];
@@ -422,8 +424,15 @@ export default function StudyView() {
       ? "text-indigo-600 bg-indigo-50 border-indigo-100"
       : "text-orange-600 bg-orange-50 border-orange-100";
 
+  // Get the first name from your profileName state, fallback to "Student" or "..."
+  const displayName = profileName ? profileName.split(" ")[0] : "";
+  const currentLevel = useMemo(
+    () => Math.floor(accuracyPercent / 10) + 1,
+    [accuracyPercent],
+  );
+
   return (
-    <main className="fixed inset-0 h-[100dvh] w-full bg-slate-50 flex flex-col items-center p-4 overflow-hidden touch-none font-sans select-none">
+    <main className="fixed inset-0 h-[100dvh] w-full bg-slate-50 flex flex-col items-center overflow-hidden touch-none font-sans select-none">
       {hasOnboarded === false && (
         <OnboardingModal
           defaultName={
@@ -437,22 +446,47 @@ export default function StudyView() {
         />
       )}
       {/* --- MOBILE NAVIGATION (Top-Right Stack) --- */}
-      <div className="md:hidden fixed top-4 left-0 w-full z-50 pointer-events-none px-4 flex justify-between items-start">
-        {/* Left-aligned Group: Increased size and adjusted alignment */}
+      <div className="md:hidden sticky top-0 w-full z-50 px-4 py-4 flex justify-between items-start bg-slate-50/80 backdrop-blur-md">
         <div className="flex items-center gap-3 pointer-events-auto">
-          <Logo className="w-12 h-14 active:scale-95 transition-transform" />
+          <Link href="/" className="active:scale-95 transition-transform">
+            <Logo className="w-10 h-12" />
+          </Link>
 
-          <div
-            className={`px-4 py-2 rounded-2xl border-2 flex items-baseline gap-1 shadow-md transition-colors duration-300 h-fit mt-1.5 ${modeColorClass}`}
-          >
-            {/* Increased from text-base to text-2xl */}
-            <span className="text-2xl font-black tracking-tighter leading-none italic">
-              {accuracyPercent}
-            </span>
-            {/* Increased from text-[8px] to text-xs */}
-            <span className="text-xs font-black opacity-80 uppercase tracking-tighter">
-              %
-            </span>
+          {/* Integrated Profile Card - Increased min-width for a longer bar */}
+          <div className="flex flex-col gap-1.5 bg-white/80 backdrop-blur-md px-3 py-2 rounded-2xl border border-white shadow-sm min-w-[160px]">
+            {/* Name and Level Row */}
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[10px] font-black uppercase tracking-tight text-slate-800 italic leading-none truncate max-w-[90px]">
+                {profileName?.split(" ")[0] || "..."}
+              </span>
+
+              {/* Subtle Level Text Badge */}
+              <span
+                className={`text-[8px] font-black px-1.5 py-0.5 rounded-md border shadow-sm ${
+                  language === "jp"
+                    ? "bg-indigo-50 border-indigo-100 text-indigo-600"
+                    : "bg-orange-50 border-orange-100 text-orange-600"
+                }`}
+              >
+                LVL {currentLevel}
+              </span>
+            </div>
+
+            {/* Mastery Progress Bar - Now has more horizontal space */}
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1 h-1.5 bg-slate-200/50 rounded-full overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${accuracyPercent}%` }}
+                  className={`h-full transition-all duration-700 ${
+                    language === "jp" ? "bg-indigo-500" : "bg-orange-500"
+                  }`}
+                />
+              </div>
+              <span className="text-[8px] font-black text-slate-400 min-w-[24px]">
+                {accuracyPercent}%
+              </span>
+            </div>
           </div>
         </div>
 
@@ -475,26 +509,51 @@ export default function StudyView() {
       </div>
       {/* --- 2. DESKTOP NAVIGATION (Single-Line Layout) --- */}
       <div className="hidden md:flex fixed top-8 left-0 w-full z-50 pointer-events-none px-8 items-center justify-between">
-        {/* Left: Logo + Badge Group (Increased Size) */}
         <div className="pointer-events-auto flex items-center gap-6 h-14">
           <Link
             href="/"
             className="flex items-center gap-5 hover:opacity-80 transition-opacity"
           >
-            {/* Slightly larger logo for desktop balance */}
             <Logo className="w-12 h-14" />
 
-            <div
-              className={`px-5 py-2.5 rounded-[1.5rem] border-2 flex items-baseline gap-1.5 shadow-lg transition-all duration-300 backdrop-blur-sm ${modeColorClass}`}
-            >
-              {/* Increased to text-3xl for high visibility */}
-              <span className="text-3xl font-black tracking-tighter leading-none italic">
-                {accuracyPercent}
-              </span>
-              {/* Larger % sign with extra weight */}
-              <span className="text-sm font-black opacity-80 uppercase tracking-tighter">
-                %
-              </span>
+            {/* Desktop Profile Dashboard Pill */}
+            <div className="flex items-center gap-4 bg-white px-5 py-3 rounded-[2rem] border-2 border-slate-50 shadow-xl shadow-slate-200/50 backdrop-blur-md">
+              {/* Level Badge (Calculated from Accuracy) */}
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 shadow-inner ${
+                  language === "jp"
+                    ? "bg-indigo-50 border-indigo-100 text-indigo-600"
+                    : "bg-orange-50 border-orange-100 text-orange-600"
+                }`}
+              >
+                <span className="text-[10px] font-black leading-none">LVL</span>
+                <span className="text-lg font-black tracking-tighter leading-none ml-0.5">
+                  {currentLevel}
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-1.5 min-w-[180px]">
+                {/* Profile Name & Mastery Stats */}
+                <div className="flex justify-between items-baseline px-1">
+                  <span className="text-sm font-black uppercase tracking-tighter text-slate-800 italic">
+                    {profileName || "Student"}
+                  </span>
+                  <span className="text-[10px] font-black text-slate-400">
+                    {accuracyPercent}% MASTERY
+                  </span>
+                </div>
+
+                {/* Level Up Progress Bar (Wider and bolder) */}
+                <div className="relative w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${accuracyPercent}%` }}
+                    className={`h-full shadow-[0_0_8px_rgba(0,0,0,0.1)] ${
+                      language === "jp" ? "bg-indigo-500" : "bg-orange-500"
+                    }`}
+                  />
+                </div>
+              </div>
             </div>
           </Link>
         </div>
@@ -518,9 +577,8 @@ export default function StudyView() {
           </Link>
         </div>
       </div>
-
       {/* HUD / Progress Area */}
-      <div className="relative flex-1 w-full max-w-md flex flex-col items-center justify-center pt-10 md:pt-0">
+      <div className="relative w-full max-w-md flex flex-col items-center pt-8">
         <div className="w-full h-16 mb-2 flex flex-col items-center justify-end relative md:h-20 md:mb-8">
           {sessionStreak >= 3 && (
             <div className="absolute top-0 flex items-center gap-2 bg-white px-5 py-2 rounded-full shadow-xl border border-orange-100 animate-bounce z-40 md:top-4">
@@ -603,18 +661,20 @@ export default function StudyView() {
                 <CoachMarks onDismiss={() => setShowHints(false)} />
               )}
               <div className={showHints ? "animate-wobble" : ""}>
-                <Flashcard
-                  key={currentCard.id}
-                  card={currentCard}
-                  language={language}
-                  userId={user?.id || ""}
-                  onSwipe={onSwipe}
-                  autoPlayJp={autoPlayJp}
-                  autoPlayEn={autoPlayEn}
-                  isFlipped={isFlipped} // New Prop
-                  onFlip={setIsFlipped} // New Prop
-                  audioPulse={audioPulse}
-                />
+                <div className="w-full max-w-[90vw] md:max-w-md flex flex-col items-center">
+                  <Flashcard
+                    key={currentCard.id}
+                    card={currentCard}
+                    language={language}
+                    userId={user?.id || ""}
+                    onSwipe={onSwipe}
+                    autoPlayJp={autoPlayJp}
+                    autoPlayEn={autoPlayEn}
+                    isFlipped={isFlipped} // New Prop
+                    onFlip={setIsFlipped} // New Prop
+                    audioPulse={audioPulse}
+                  />
+                </div>
               </div>
             </div>
           </div>
