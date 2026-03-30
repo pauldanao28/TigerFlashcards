@@ -1,10 +1,11 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { useLang } from "@/context/LanguageContext";
+import { calculateGlobalStats } from "@/lib/stats";
 
 import Flashcard from "@/components/Flashcard";
 import LanguageToggle from "@/components/LanguageToggle";
@@ -14,7 +15,6 @@ import Auth from "@/components/Auth";
 import Logo from "@/components/Logo";
 import { FlashcardData } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
-
 const DAILY_GOAL = 10;
 
 export default function StudyView() {
@@ -404,6 +404,24 @@ export default function StudyView() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleScore]); // Removed isFlipped because we use the functional update (prev => !prev)
 
+  // 1. Calculate Global Stats using your common function (or inline)
+  const globalStats = useMemo(() => calculateGlobalStats(cards), [cards]);
+
+  // 2. Select the current mode's data
+  const currentMode = language === "jp" ? globalStats.jp : globalStats.en;
+
+  // 3. Simple percentage calculation
+  const accuracyPercent =
+    currentMode.tries > 0
+      ? Math.round((currentMode.pass / currentMode.tries) * 100)
+      : 0;
+
+  // 4. Dynamic Colors based on mode
+  const modeColorClass =
+    language === "jp"
+      ? "text-indigo-600 bg-indigo-50 border-indigo-100"
+      : "text-orange-600 bg-orange-50 border-orange-100";
+
   return (
     <main className="fixed inset-0 h-[100dvh] w-full bg-slate-50 flex flex-col items-center p-4 overflow-hidden touch-none font-sans select-none">
       {hasOnboarded === false && (
@@ -420,7 +438,23 @@ export default function StudyView() {
       )}
       {/* --- MOBILE NAVIGATION (Top-Right Stack) --- */}
       <div className="md:hidden fixed top-4 left-0 w-full z-50 pointer-events-none px-4 flex justify-between items-start">
-        <Logo className="w-10 h-12 pointer-events-auto active:scale-95 transition-transform" />
+        {/* Left-aligned Group: Increased size and adjusted alignment */}
+        <div className="flex items-center gap-3 pointer-events-auto">
+          <Logo className="w-12 h-14 active:scale-95 transition-transform" />
+
+          <div
+            className={`px-4 py-2 rounded-2xl border-2 flex items-baseline gap-1 shadow-md transition-colors duration-300 h-fit mt-1.5 ${modeColorClass}`}
+          >
+            {/* Increased from text-base to text-2xl */}
+            <span className="text-2xl font-black tracking-tighter leading-none italic">
+              {accuracyPercent}
+            </span>
+            {/* Increased from text-[8px] to text-xs */}
+            <span className="text-xs font-black opacity-80 uppercase tracking-tighter">
+              %
+            </span>
+          </div>
+        </div>
 
         <div className="flex flex-col items-end gap-2 pointer-events-auto">
           {/* Matched h-9 for slightly better tap targets than h-8 */}
@@ -441,10 +475,27 @@ export default function StudyView() {
       </div>
       {/* --- 2. DESKTOP NAVIGATION (Single-Line Layout) --- */}
       <div className="hidden md:flex fixed top-8 left-0 w-full z-50 pointer-events-none px-8 items-center justify-between">
-        {/* Left: Logo */}
-        <div className="pointer-events-auto flex items-center h-12">
-          <Link href="/" className="block hover:scale-105 transition-transform">
-            <Logo className="w-10 h-12" />
+        {/* Left: Logo + Badge Group (Increased Size) */}
+        <div className="pointer-events-auto flex items-center gap-6 h-14">
+          <Link
+            href="/"
+            className="flex items-center gap-5 hover:opacity-80 transition-opacity"
+          >
+            {/* Slightly larger logo for desktop balance */}
+            <Logo className="w-12 h-14" />
+
+            <div
+              className={`px-5 py-2.5 rounded-[1.5rem] border-2 flex items-baseline gap-1.5 shadow-lg transition-all duration-300 backdrop-blur-sm ${modeColorClass}`}
+            >
+              {/* Increased to text-3xl for high visibility */}
+              <span className="text-3xl font-black tracking-tighter leading-none italic">
+                {accuracyPercent}
+              </span>
+              {/* Larger % sign with extra weight */}
+              <span className="text-sm font-black opacity-80 uppercase tracking-tighter">
+                %
+              </span>
+            </div>
           </Link>
         </div>
 
@@ -467,8 +518,9 @@ export default function StudyView() {
           </Link>
         </div>
       </div>
+
+      {/* HUD / Progress Area */}
       <div className="relative flex-1 w-full max-w-md flex flex-col items-center justify-center pt-10 md:pt-0">
-        {/* HUD / Progress Area */}
         <div className="w-full h-16 mb-2 flex flex-col items-center justify-end relative md:h-20 md:mb-8">
           {sessionStreak >= 3 && (
             <div className="absolute top-0 flex items-center gap-2 bg-white px-5 py-2 rounded-full shadow-xl border border-orange-100 animate-bounce z-40 md:top-4">

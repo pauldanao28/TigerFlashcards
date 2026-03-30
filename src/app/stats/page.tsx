@@ -7,6 +7,7 @@ import { User } from "@supabase/supabase-js";
 import { useLang } from "@/context/LanguageContext";
 import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
+import { calculateGlobalStats } from "@/lib/stats";
 
 export default function StatsPage() {
   const { t, setLang, lang } = useLang();
@@ -536,33 +537,35 @@ export default function StatsPage() {
   const totalCards = cards.length;
 
   // 1. Global Totals (Tries, Pass, Fail)
+  const globalStats = useMemo(() => calculateGlobalStats(cards), [cards]);
+  // 1. Global Totals (Tries, Pass, Fail)
   // Separate Global Totals for both directions
-  const globalStats = useMemo(() => {
-    return cards.reduce(
-      (acc, card) => {
-        const s = card.scores;
-        if (s) {
-          const jp = s.jp_to_en || { total: 0, pass: 0, fail: 0 };
-          const en = s.en_to_jp || { total: 0, pass: 0, fail: 0 };
+  // const globalStats = useMemo(() => {
+  //   return cards.reduce(
+  //     (acc, card) => {
+  //       const s = card.scores;
+  //       if (s) {
+  //         const jp = s.jp_to_en || { total: 0, pass: 0, fail: 0 };
+  //         const en = s.en_to_jp || { total: 0, pass: 0, fail: 0 };
 
-          // Accumulate Japanese -> English
-          acc.jp.tries += jp.total || 0;
-          acc.jp.pass += jp.pass || 0;
-          acc.jp.fail += jp.fail || 0;
+  //         // Accumulate Japanese -> English
+  //         acc.jp.tries += jp.total || 0;
+  //         acc.jp.pass += jp.pass || 0;
+  //         acc.jp.fail += jp.fail || 0;
 
-          // Accumulate English -> Japanese
-          acc.en.tries += en.total || 0;
-          acc.en.pass += en.pass || 0;
-          acc.en.fail += en.fail || 0;
-        }
-        return acc;
-      },
-      {
-        jp: { tries: 0, pass: 0, fail: 0 },
-        en: { tries: 0, pass: 0, fail: 0 },
-      },
-    );
-  }, [cards]);
+  //         // Accumulate English -> Japanese
+  //         acc.en.tries += en.total || 0;
+  //         acc.en.pass += en.pass || 0;
+  //         acc.en.fail += en.fail || 0;
+  //       }
+  //       return acc;
+  //     },
+  //     {
+  //       jp: { tries: 0, pass: 0, fail: 0 },
+  //       en: { tries: 0, pass: 0, fail: 0 },
+  //     },
+  //   );
+  // }, [cards]);
 
   // 2. Mastered (Avg Accuracy > 80% and has been attempted)
   // 1. Get the lists of objects
