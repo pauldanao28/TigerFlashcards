@@ -223,10 +223,10 @@ export default function Flashcard({
 
     if (info.offset.x > swipeThreshold) {
       onSwipe?.("right");
-      playUISound("success", sfxEnabled);
+      playUISound("success", sfxEnabled ?? true);
     } else if (info.offset.x < -swipeThreshold) {
       onSwipe?.("left");
-      playUISound("fail", sfxEnabled);
+      playUISound("fail", sfxEnabled ?? true);
     }
     setHasVibrated(false);
   };
