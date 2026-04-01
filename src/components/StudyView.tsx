@@ -40,6 +40,7 @@ export default function StudyView() {
   const [audioPulse, setAudioPulse] = useState(0);
   const [autoPlayJp, setAutoPlayJp] = useState(true);
   const [autoPlayEn, setAutoPlayEn] = useState(false);
+  const [sfxEnabled, setSfxEnabled] = useState(true);
   const [showHints, setShowHints] = useState(false);
   const [swipeFeedback, setSwipeFeedback] = useState<{
     percent: number;
@@ -68,6 +69,7 @@ export default function StudyView() {
         setStreak(p.streak_count || 0);
         setAutoPlayJp(p.auto_play_jp ?? true);
         setAutoPlayEn(p.auto_play_en ?? false);
+        setSfxEnabled(p.sfx_enabled ?? true);
         setHasOnboarded(p.has_onboarded);
         setStreak(p.max_streak || 0);
         setProfileName(p.full_name);
@@ -693,6 +695,7 @@ export default function StudyView() {
                     onSwipe={onSwipe}
                     autoPlayJp={autoPlayJp}
                     autoPlayEn={autoPlayEn}
+                    sfxEnabled={sfxEnabled}
                     isFlipped={isFlipped} // New Prop
                     onFlip={setIsFlipped} // New Prop
                     audioPulse={audioPulse}

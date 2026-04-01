@@ -153,6 +153,8 @@ export const translations = {
   delete_account_desc: "Permanently remove your account and all data. This cannot be undone.",
   delete_confirm: "Are you absolutely sure? All your data will be wiped forever.",
   delete_btn: "Delete Forever",
+  sfx_title: "Sound Effects",
+    sfx_desc: "Play sound on pass/fail",
   },
   jp: {
     goal: "今日の目標",
@@ -307,6 +309,8 @@ export const translations = {
   delete_account: "アカウント削除",
   delete_account_desc: "アカウントとすべてのデータを完全に削除します。この操作は取り消せません。",
   delete_confirm: "本当によろしいですか？すべてのデータが永久に削除されます。",
-  delete_btn: "永久に削除する"
+  delete_btn: "永久に削除する",
+  sfx_title: "効果音",
+    sfx_desc: "正解・不正解時に音を鳴らす"
   }
 };

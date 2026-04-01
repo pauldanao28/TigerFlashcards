@@ -142,7 +142,7 @@ export default function AdminDashboard() {
   const startManualEdit = (report: any) => {
     setEditingId(report.id);
     setEditForm({
-      english: report.suggested_meaning || report.master_cards.english,
+      english: report.master_cards.english || "",
       reading: report.master_cards.reading || "",
       partOfSpeech: report.master_cards.partOfSpeech || "noun",
       exampleJp: report.master_cards.exampleSentence?.jp || "",
@@ -374,22 +374,16 @@ export default function AdminDashboard() {
                         <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
                           Part of Speech
                         </label>
-                        <select
+                        <input
                           value={editForm.partOfSpeech}
                           onChange={(e) =>
                             setEditForm({
                               ...editForm,
-                              partOfSpeech: e.target.value,
+                              reading: e.target.value,
                             })
                           }
-                          className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold outline-none"
-                        >
-                          <option value="noun">Noun</option>
-                          <option value="verb">Verb</option>
-                          <option value="adj">Adjective</option>
-                          <option value="adv">Adverb</option>
-                          <option value="phrase">Phrase</option>
-                        </select>
+                          className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase ml-2">

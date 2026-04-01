@@ -53,6 +53,7 @@ export default function StatsPage() {
   const [previewPack, setPreviewPack] = useState<any | null>(null);
   const [addedWordsSummary, setAddedWordsSummary] = useState<any[]>([]);
   const [showSummaryOverlay, setShowSummaryOverlay] = useState(false);
+  const [sfxEnabled, setSfxEnabled] = useState(true);
 
   useEffect(() => {
     const fetchTodayCount = async () => {
@@ -190,7 +191,7 @@ export default function StatsPage() {
     const { data } = await supabase
       .from("profiles")
       .select(
-        "full_name, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, imported_packs, is_admin",
+        "full_name, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, sfx_enabled, imported_packs, is_admin",
       )
       .eq("id", user?.id)
       .single();
@@ -201,6 +202,7 @@ export default function StatsPage() {
       setUserBlocklist(data.blocked_words || []);
       setAutoPlayJp(data.auto_play_jp);
       setAutoPlayEn(data.auto_play_en);
+      setSfxEnabled(data.sfx_enabled);
       setOwnedPacks(data.imported_packs);
       setIsAdmin(data.is_admin);
       setProfileName(data.full_name);
@@ -631,6 +633,7 @@ export default function StatsPage() {
     }
   };
 
+  // 2. Update the function to handle the new sfx_enabled column
   const updateAudioSetting = async (column: string, value: boolean) => {
     const { error } = await supabase
       .from("profiles")
@@ -640,6 +643,10 @@ export default function StatsPage() {
     if (!error) {
       if (column === "auto_play_jp") setAutoPlayJp(value);
       if (column === "auto_play_en") setAutoPlayEn(value);
+      // Add this line:
+      if (column === "sfx_enabled") setSfxEnabled(value);
+    } else {
+      console.error("Error updating setting:", error.message);
     }
   };
 
@@ -893,16 +900,20 @@ export default function StatsPage() {
           {showSettings && (
             <div className="mb-8 p-6 bg-white rounded-3xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-top-4">
               <div className="mb-8">
+                {/* Header Section */}
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
                   <span>🔊</span> {t.audio_prefs}
                 </h3>
+
+                {/* Settings Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  {/* Auto Play JP */}
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
                     <div>
                       <p className="text-sm font-bold text-slate-700">
                         {t.auto_play_jp}
                       </p>
-                      <p className="text-[10px] text-slate-400 font-medium">
+                      <p className="text-[10px] text-slate-400 font-medium leading-tight">
                         {t.audio_desc_jp}
                       </p>
                     </div>
@@ -910,7 +921,7 @@ export default function StatsPage() {
                       onClick={() =>
                         updateAudioSetting("auto_play_jp", !autoPlayJp)
                       }
-                      className={`w-12 h-6 rounded-full transition-all relative ${autoPlayJp ? "bg-indigo-600" : "bg-slate-300"}`}
+                      className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${autoPlayJp ? "bg-indigo-600" : "bg-slate-300"}`}
                     >
                       <div
                         className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${autoPlayJp ? "left-7" : "left-1"}`}
@@ -918,12 +929,13 @@ export default function StatsPage() {
                     </button>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  {/* Auto Play EN */}
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
                     <div>
                       <p className="text-sm font-bold text-slate-700">
                         {t.auto_play_en}
                       </p>
-                      <p className="text-[10px] text-slate-400 font-medium">
+                      <p className="text-[10px] text-slate-400 font-medium leading-tight">
                         {t.audio_desc_en}
                       </p>
                     </div>
@@ -931,10 +943,32 @@ export default function StatsPage() {
                       onClick={() =>
                         updateAudioSetting("auto_play_en", !autoPlayEn)
                       }
-                      className={`w-12 h-6 rounded-full transition-all relative ${autoPlayEn ? "bg-indigo-600" : "bg-slate-300"}`}
+                      className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${autoPlayEn ? "bg-indigo-600" : "bg-slate-300"}`}
                     >
                       <div
                         className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${autoPlayEn ? "left-7" : "left-1"}`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* NEW: Sound Effects Toggle (Now matches the others perfectly) */}
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
+                    <div>
+                      <p className="text-sm font-bold text-slate-700">
+                        {t.sfx_title}
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-medium leading-tight">
+                        {t.sfx_desc}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        updateAudioSetting("sfx_enabled", !sfxEnabled)
+                      }
+                      className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${sfxEnabled ? "bg-indigo-600" : "bg-slate-300"}`}
+                    >
+                      <div
+                        className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${sfxEnabled ? "left-7" : "left-1"}`}
                       />
                     </button>
                   </div>

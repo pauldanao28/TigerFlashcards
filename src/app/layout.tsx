@@ -11,7 +11,7 @@ export const viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "FlashKado | A Flashcard App | Master Japanese",
+  title: "FlashKado | AI Japanese Flashcard ",
   description: "Master Japanese with Spaced Repetition and AI",
   icons: {
     icon: "/logo.svg",

@@ -12,6 +12,7 @@ interface FlashcardProps {
   onSwipe?: (direction: "left" | "right") => void;
   autoPlayJp?: boolean;
   autoPlayEn?: boolean;
+  sfxEnabled?: boolean;
   isFlipped: boolean;
   onFlip: (state: boolean) => void;
   audioPulse?: number;
@@ -80,6 +81,7 @@ export default function Flashcard({
   onSwipe,
   autoPlayJp,
   autoPlayEn,
+  sfxEnabled,
   isFlipped, // Use prop instead of local state
   onFlip, // Use prop setter
   audioPulse,
@@ -99,6 +101,20 @@ export default function Flashcard({
   const failOpacity = useTransform(x, [-20, -120], [0, 1]);
 
   const isAudioUnlocked = useRef(false);
+
+  // 1. Create a simple helper for playing UI sounds
+  const playUISound = (type: "success" | "fail", enabled: boolean) => {
+    if (!enabled || typeof window === "undefined") return;
+
+    const audio = new Audio(
+      type === "success" ? "/sounds/success.mp3" : "/sounds/fail.mp3",
+    );
+
+    audio.volume = 0.4; // Keep it subtle
+    audio
+      .play()
+      .catch((e) => console.log("Audio play blocked until interaction", e));
+  };
 
   const forceUnlock = () => {
     if (isAudioUnlocked.current) return;
@@ -161,7 +177,6 @@ export default function Flashcard({
   }, []);
 
   // 3. Auto-play Audio on Front (When card appears)
-  // 3. Auto-play Audio on Front (When card appears)
   useEffect(() => {
     onFlip(false);
 
@@ -208,10 +223,41 @@ export default function Flashcard({
 
     if (info.offset.x > swipeThreshold) {
       onSwipe?.("right");
+      playUISound("success", sfxEnabled);
     } else if (info.offset.x < -swipeThreshold) {
       onSwipe?.("left");
+      playUISound("fail", sfxEnabled);
     }
     setHasVibrated(false);
+  };
+
+  // --- THE FIX: UNIFIED AUDIO LOGIC ---
+  const handlePlayAudio = (e: React.MouseEvent, isBackSide: boolean) => {
+    e.stopPropagation();
+
+    let textToSpeak = "";
+    let langToUse: "ja-JP" | "en-US" = "en-US";
+
+    if (!isBackSide) {
+      // Front Side Logic
+      if (language === "jp") {
+        textToSpeak = card.reading || card.japanese;
+        langToUse = "ja-JP";
+      } else {
+        textToSpeak = card.english;
+        langToUse = "en-US";
+      }
+    } else {
+      // Back Side Logic
+      // if (language === "jp") {
+      //   textToSpeak = card.english;
+      //   langToUse = "en-US";
+      // } else {
+      textToSpeak = card.reading || card.japanese;
+      langToUse = "ja-JP";
+    }
+
+    speak(textToSpeak, langToUse);
   };
 
   const handleReport = async (e: React.MouseEvent) => {
@@ -251,14 +297,14 @@ export default function Flashcard({
     }
   };
 
-  const handlePlayAudio = (
-    e: React.MouseEvent,
-    text: string,
-    lang: "ja-JP" | "en-US",
-  ) => {
-    e.stopPropagation();
-    speak(text, lang);
-  };
+  // const handlePlayAudio = (
+  //   e: React.MouseEvent,
+  //   text: string,
+  //   lang: "ja-JP" | "en-US",
+  // ) => {
+  //   e.stopPropagation();
+  //   speak(text, lang);
+  // };
 
   const frontText = language === "jp" ? card.japanese : card.english;
   const backText = language === "jp" ? card.english : card.japanese;
@@ -325,13 +371,7 @@ export default function Flashcard({
               </span>
             </div>
             <button
-              onClick={(e) =>
-                handlePlayAudio(
-                  e,
-                  frontText,
-                  language === "jp" ? "ja-JP" : "en-US",
-                )
-              }
+              onClick={(e) => handlePlayAudio(e, false)}
               className="mt-4 p-3 bg-slate-100 rounded-full hover:bg-indigo-100 transition active:scale-95"
             >
               🔊
@@ -374,13 +414,7 @@ export default function Flashcard({
 
               <div className="flex justify-center items-center gap-4 relative">
                 <button
-                  onClick={(e) =>
-                    handlePlayAudio(
-                      e,
-                      backText,
-                      isBackJapanese ? "ja-JP" : "en-US",
-                    )
-                  }
+                  onClick={(e) => handlePlayAudio(e, true)}
                   className="p-3 bg-white/10 hover:bg-white/20 rounded-full transition-all border border-white/20 active:scale-95"
                 >
                   🔊
