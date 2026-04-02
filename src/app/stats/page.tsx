@@ -282,7 +282,7 @@ export default function StatsPage() {
           `
       *,
       deck_cards!inner (
-        deck_id
+        deck_id, added_at
       ),
       user_scores (
         scores_json
@@ -293,7 +293,7 @@ export default function StatsPage() {
         .eq("deck_cards.deck_id", defaultDeckId)
         // 3. This ensures you only get YOUR scores (not someone else's)
         .eq("user_scores.user_id", user.id)
-        .order("created_at", { ascending: false });
+        .order("added_at", { foreignTable: "deck_cards", ascending: false });
 
       if (error) {
         console.error("Fetch Error:", error.message);
@@ -307,6 +307,7 @@ export default function StatsPage() {
 
           return {
             ...card,
+            added_to_deck_at: card.deck_cards?.[0]?.added_at,
             scores: userStats?.scores_json || {
               jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
               en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
@@ -358,13 +359,21 @@ export default function StatsPage() {
     let wordsToProcess: string[] = [];
     const isEnglishInput = /^[A-Za-z0-9\s.,!?-]+$/.test(rawInput);
 
-    if (isEnglishInput) {
+    // NEW: Single Add Bypass
+    // If only one item is provided, we treat it as a deliberate single add
+    // and do NOT chop the kanji/words.
+    if (inputList.length === 1 && inputList[0].trim().length > 0) {
+      wordsToProcess = [inputList[0].trim()];
+    }
+    // Batch Add Logic
+    else if (isEnglishInput) {
       wordsToProcess = inputList
         .map((w) => w.trim())
         .filter((w) => w.length > 0);
     } else if (rawInput.includes(",") || rawInput.includes("-")) {
       wordsToProcess = inputList.map((line) => line.split(/[,-]/)[0].trim());
     } else {
+      // Only use the "Chopper" (Segmenter) if it's a batch add/sentence
       const segmenter = new Intl.Segmenter("ja-JP", { granularity: "word" });
       const segments = segmenter.segment(rawInput);
       wordsToProcess = Array.from(segments)
@@ -410,7 +419,7 @@ export default function StatsPage() {
       }
     };
 
-    let allProcessedCards: any[] = []; // Temporary array to hold summary data
+    let allProcessedCards: any[] = [];
 
     try {
       // --- 2. Step 1: Handle Existing Cards (Instant) ---
@@ -432,12 +441,6 @@ export default function StatsPage() {
       );
       const wordsForAI = uniqueInputWords.filter((w) => !existingMap.has(w));
 
-      // Link what we found immediately
-      // const foundIds = Array.from(existingMap.values());
-      // if (foundIds.length > 0) {
-      //   await performLinking(foundIds);
-      //   fetchCards(); // Refresh UI to show the "already known" words
-      // }
       // --- 3. Step 2: Handle New Words (AI) ---
       if (wordsForAI.length > 0) {
         try {
@@ -473,7 +476,6 @@ export default function StatsPage() {
 
           if (mErr) throw mErr;
           if (newCards) {
-            // Append to the existing cards found in Step 1
             allProcessedCards = [...allProcessedCards, ...newCards];
             await performLinking(newCards.map((c) => c.id));
           }
@@ -484,7 +486,6 @@ export default function StatsPage() {
 
       // --- 3.5 Show Overlay ---
       if (allProcessedCards.length > 0) {
-        // Final check to make sure the summary list doesn't have duplicates
         const finalSummary = Array.from(
           new Map(allProcessedCards.map((c) => [c.japanese, c])).values(),
         );
@@ -603,12 +604,18 @@ export default function StatsPage() {
 
   const filteredCards = useMemo(() => {
     const query = searchQuery.toLowerCase();
-    return cards.filter(
-      (card) =>
-        card.japanese.toLowerCase().includes(query) ||
-        card.reading.toLowerCase().includes(query) ||
-        card.english.toLowerCase().includes(query),
-    );
+    return cards
+      .filter(
+        (card) =>
+          card.japanese.toLowerCase().includes(query) ||
+          card.reading.toLowerCase().includes(query) ||
+          card.english.toLowerCase().includes(query),
+      )
+      .sort((a, b) => {
+        const dateA = new Date(a.added_to_deck_at || 0).getTime();
+        const dateB = new Date(b.added_to_deck_at || 0).getTime();
+        return dateB - dateA;
+      });
   }, [cards, searchQuery]);
 
   const visibleCards = filteredCards.slice(0, displayLimit);
@@ -1970,99 +1977,117 @@ export default function StatsPage() {
 
           {/* List Views (Mobile & Desktop) */}
           <div className="md:hidden space-y-4">
-            {visibleCards.map((card) => (
-              <div
-                key={card.id}
-                className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden"
-              >
-                {/* ACTION BUTTONS (Top Right) */}
-                {/* ACTION BUTTONS (Perfectly Aligned) */}
-                <div className="absolute top-4 right-4 flex items-center gap-1">
-                  {/* REPORT BUTTON */}
-                  <button
-                    onClick={() => handleReport(card.id, card.english)}
-                    className="w-8 h-8 flex items-center justify-center text-amber-500 active:scale-90 transition-all"
-                  >
-                    <span className="text-base leading-none">🚩</span>
-                  </button>
+            {visibleCards.map((card) => {
+              const isNew =
+                new Date().getTime() -
+                  new Date(card.added_to_deck_at).getTime() <
+                86400000;
 
-                  {/* DELETE BUTTON */}
-                  <button
-                    onClick={() => deleteCard(card.id)}
-                    className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-rose-500 active:scale-90 transition-all"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
+              return (
+                <div
+                  key={card.id}
+                  className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden"
+                >
+                  {/* ACTION BUTTONS (Top Right) */}
+                  {/* ACTION BUTTONS (Perfectly Aligned) */}
+                  <div className="absolute top-4 right-4 flex items-center gap-1">
+                    {/* REPORT BUTTON */}
+                    <button
+                      onClick={() => handleReport(card.id, card.english)}
+                      className="w-8 h-8 flex items-center justify-center text-amber-500 active:scale-90 transition-all"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2.5}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
-                </div>
-                <div className="mb-4">
-                  <div className="text-2xl font-black text-slate-800">
-                    {card.japanese}
-                  </div>
-                  {card.partOfSpeech && (
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(card.partOfSpeech)}`}
+                      <span className="text-base leading-none">🚩</span>
+                    </button>
+
+                    {/* DELETE BUTTON */}
+                    <button
+                      onClick={() => deleteCard(card.id)}
+                      className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-rose-500 active:scale-90 transition-all"
                     >
-                      {card.partOfSpeech}
-                    </span>
-                  )}
-                  <div className="text-sm font-bold text-indigo-500">
-                    {card.reading}
-                  </div>
-                  <div className="text-slate-600 mt-1">{card.english}</div>
-                </div>
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50">
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">
-                      🇯🇵 → 🇺🇸
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold">
-                        {card.scores?.jp_to_en?.percent || 0}%
-                      </span>
-                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-emerald-400"
-                          style={{
-                            width: `${card.scores?.jp_to_en?.percent || 0}%`,
-                          }}
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2.5}
+                          d="M6 18L18 6M6 6l12 12"
                         />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="mb-4">
+                    {/* Flex container to keep Japanese and Badge together */}
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <div className="text-2xl font-black text-slate-800 leading-none">
+                        {card.japanese}
+                      </div>
+
+                      {/* 2. NEW BADGE (Indigo + White for a clean tech look) */}
+                      {isNew && (
+                        <span className="bg-indigo-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm border border-indigo-400/20">
+                          New
+                        </span>
+                      )}
+                    </div>
+
+                    {card.partOfSpeech && (
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(card.partOfSpeech)}`}
+                      >
+                        {card.partOfSpeech}
+                      </span>
+                    )}
+                    <div className="text-sm font-bold text-indigo-500">
+                      {card.reading}
+                    </div>
+                    <div className="text-slate-600 mt-1">{card.english}</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50">
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">
+                        🇯🇵 → 🇺🇸
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold">
+                          {card.scores?.jp_to_en?.percent || 0}%
+                        </span>
+                        <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-emerald-400"
+                            style={{
+                              width: `${card.scores?.jp_to_en?.percent || 0}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">
+                        🇺🇸 → 🇯🇵
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold">
+                          {card.scores?.en_to_jp?.percent || 0}%
+                        </span>
+                        <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-orange-400"
+                            style={{
+                              width: `${card.scores?.en_to_jp?.percent || 0}%`,
+                            }}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">
-                      🇺🇸 → 🇯🇵
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold">
-                        {card.scores?.en_to_jp?.percent || 0}%
-                      </span>
-                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-orange-400"
-                          style={{
-                            width: `${card.scores?.en_to_jp?.percent || 0}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="hidden md:block bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
@@ -2077,89 +2102,107 @@ export default function StatsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {visibleCards.map((card) => (
-                  <tr
-                    key={card.id}
-                    className="hover:bg-slate-50/50 transition-colors group"
-                  >
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-lg text-slate-800">
-                        {card.japanese}
-                      </div>
-                      {card.partOfSpeech && (
-                        <span
-                          className={`text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(card.partOfSpeech)}`}
-                        >
-                          {card.partOfSpeech}
-                        </span>
-                      )}
-                      <div className="text-xs text-indigo-500 font-medium">
-                        {card.reading}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-slate-600 font-medium">
-                      {card.english}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-bold">
-                        {card.scores?.jp_to_en?.percent || 0}%
-                      </div>
-                      <div className="w-24 h-1.5 bg-slate-100 rounded-full mt-1 overflow-hidden">
-                        <div
-                          className="h-full bg-emerald-400"
-                          style={{
-                            width: `${card.scores?.jp_to_en?.percent || 0}%`,
-                          }}
-                        />
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-bold">
-                        {card.scores?.en_to_jp?.percent || 0}%
-                      </div>
-                      <div className="w-24 h-1.5 bg-slate-100 rounded-full mt-1 overflow-hidden">
-                        <div
-                          className="h-full bg-orange-400"
-                          style={{
-                            width: `${card.scores?.en_to_jp?.percent || 0}%`,
-                          }}
-                        />
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        {/* REPORT BUTTON */}
-                        <button
-                          onClick={() => handleReport(card.id, card.english)}
-                          className="p-2 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors group relative"
-                          title={t.report_issue}
-                        >
-                          <span className="text-lg">🚩</span>
-                        </button>
+                {visibleCards.map((card) => {
+                  // 1. Logic: Is this card less than 24 hours old?
+                  const isNew =
+                    new Date().getTime() -
+                      new Date(card.added_to_deck_at || 0).getTime() <
+                    86400000;
 
-                        {/* DELETE BUTTON (Existing) */}
-                        <button
-                          onClick={() => deleteCard(card.id)}
-                          className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
-                          title={t.delete}
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
+                  return (
+                    <tr
+                      key={card.id}
+                      className="hover:bg-slate-50/50 transition-colors group"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <div className="font-bold text-lg text-slate-800">
+                            {card.japanese}
+                          </div>
+
+                          {/* 2. NEW BADGE for Table Row */}
+                          {isNew && (
+                            <span className="bg-indigo-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
+                              New
+                            </span>
+                          )}
+                        </div>
+
+                        {card.partOfSpeech && (
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(card.partOfSpeech)}`}
                           >
-                            <path
-                              fillRule="evenodd"
-                              d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                            {card.partOfSpeech}
+                          </span>
+                        )}
+                        <div className="text-xs text-indigo-500 font-medium">
+                          {card.reading}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 font-medium">
+                        {card.english}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-bold">
+                          {card.scores?.jp_to_en?.percent || 0}%
+                        </div>
+                        <div className="w-24 h-1.5 bg-slate-100 rounded-full mt-1 overflow-hidden">
+                          <div
+                            className="h-full bg-emerald-400"
+                            style={{
+                              width: `${card.scores?.jp_to_en?.percent || 0}%`,
+                            }}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-bold">
+                          {card.scores?.en_to_jp?.percent || 0}%
+                        </div>
+                        <div className="w-24 h-1.5 bg-slate-100 rounded-full mt-1 overflow-hidden">
+                          <div
+                            className="h-full bg-orange-400"
+                            style={{
+                              width: `${card.scores?.en_to_jp?.percent || 0}%`,
+                            }}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          {/* REPORT BUTTON */}
+                          <button
+                            onClick={() => handleReport(card.id, card.english)}
+                            className="p-2 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors group relative"
+                            title={t.report_issue}
+                          >
+                            <span className="text-lg">🚩</span>
+                          </button>
+
+                          {/* DELETE BUTTON (Existing) */}
+                          <button
+                            onClick={() => deleteCard(card.id)}
+                            className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                            title={t.delete}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
