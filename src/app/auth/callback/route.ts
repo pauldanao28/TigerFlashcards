@@ -8,9 +8,10 @@ export async function GET(request: NextRequest) {
   const code = requestUrl.searchParams.get('code');
 
   if (code) {
-    const cookieStore = cookies();
+    // If the previous one fails, use this instead:
+    const cookieStore = await cookies(); 
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
-    
+
     // Exchange the temporary code from Google for a real session
     await supabase.auth.exchangeCodeForSession(code);
   }
