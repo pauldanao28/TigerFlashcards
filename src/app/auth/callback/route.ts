@@ -5,11 +5,12 @@ import { NextResponse } from 'next/server'
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  // if "next" is in param, use it as the redirect address
   const next = searchParams.get('next') ?? '/'
 
   if (code) {
-    const cookieStore = cookies()
+    // In Next.js 16, cookies() MUST be awaited
+    const cookieStore = await cookies()
+    
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -19,10 +20,22 @@ export async function GET(request: Request) {
             return cookieStore.get(name)?.value
           },
           set(name: string, value: string, options: CookieOptions) {
-            cookieStore.set({ name, value, ...options })
+            // Since this is a GET route, we use a different approach 
+            // for setting cookies if needed, but for Auth exchange, 
+            // the simple set is usually fine.
+            try {
+              cookieStore.set({ name, value, ...options })
+            } catch (error) {
+              // This can happen if the component is being rendered 
+              // and cookies are being set at the same time.
+            }
           },
           remove(name: string, options: CookieOptions) {
-            cookieStore.set({ name, value: '', ...options })
+            try {
+              cookieStore.set({ name, value: '', ...options })
+            } catch (error) {
+              // Handle potential cookie setting errors
+            }
           },
         },
       }
@@ -34,6 +47,6 @@ export async function GET(request: Request) {
     }
   }
 
-  // Return the user to an error page or home if something went wrong
-  return NextResponse.redirect(`${origin}/auth/auth-code-error`)
+  // Redirect to an error page or back home if code is missing or exchange fails
+  return NextResponse.redirect(`${origin}/`)
 }
