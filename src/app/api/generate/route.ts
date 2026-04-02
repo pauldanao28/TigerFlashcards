@@ -30,7 +30,11 @@ Output ONLY raw JSON as an ARRAY of objects:
   const response = await result.response;
   const text = response.text();
   
-  const cleanJson = text.replace(/```json|```/g, "").trim();
+  //const cleanJson = text.replace(/```json|```/g, "").trim();
+
+  // To this (safer):
+  const jsonMatch = text.match(/\[[\s\S]*\]/); 
+  const cleanJson = jsonMatch ? jsonMatch[0] : text;
 
 try {
   const parsedData = JSON.parse(cleanJson);
