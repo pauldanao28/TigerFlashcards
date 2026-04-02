@@ -14,31 +14,43 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false); // Password Toggle State
+  const [showPassword, setShowPassword] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+
+  const getURL = () => {
+    let url =
+      process?.env?.NEXT_PUBLIC_SITE_URL ??
+      process?.env?.NEXT_PUBLIC_VERCEL_URL ??
+      window.location.origin;
+    url = url.includes("http") ? url : `https://${url}`;
+    return url;
+  };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     let error;
 
     if (isResetting) {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(
         email,
-        { redirectTo: `${window.location.origin}/update-password` },
+        { redirectTo: `${getURL()}/update-password` },
       );
       error = resetError;
       if (!error) alert("Check your email for the reset link!");
     } else if (isRegistering) {
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
       });
       error = signUpError;
       if (!error) {
-        alert("Check your email for the confirmation link!");
+        if (data.user?.identities?.length === 0) {
+          alert("This email is already registered. Try logging in!");
+        } else {
+          alert("Check your email for the confirmation link!");
+        }
         router.push("/");
       }
     } else {
@@ -57,7 +69,7 @@ export default function Auth() {
   const handleGoogleLogin = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo: `${getURL()}/auth/callback` },
     });
     if (error) alert(error.message);
   };
@@ -66,7 +78,7 @@ export default function Auth() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "facebook",
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: `${getURL()}/auth/callback`,
         scopes: "public_profile,email",
       },
     });
@@ -74,16 +86,15 @@ export default function Auth() {
   };
 
   return (
-    /* Background is fixed and non-scrollable. 
-       'touch-pan-y' allows the user to still drag the card vertically.
-    */
+    // Centering Wrapper: Uses h-[100dvh] and flex to center the card on any screen
     <div className="fixed inset-0 h-[100dvh] w-full bg-slate-50 flex flex-col items-center justify-center p-4 overflow-hidden overscroll-none">
-      {/* Top Header */}
-      <div className="mb-6 w-48 h-10 flex-shrink-0 pointer-events-auto">
+      {/* Language Toggle: Floating above the card */}
+      <div className="mb-6 w-48 h-10 flex-shrink-0 z-10">
         <LanguageToggle language={lang} setLanguage={setLang} />
       </div>
-      {/* Main Card */}
-      <div className="w-full max-w-md bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 overflow-y-auto max-h-[80dvh] overscroll-contain flex flex-col no-scrollbar">
+
+      {/* Main Auth Card: Max width keeps it from stretching on Desktop */}
+      <div className="w-full max-w-md bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 overflow-y-auto max-h-[85dvh] flex flex-col no-scrollbar animate-in fade-in zoom-in-95 duration-300">
         <h1 className="text-2xl font-black text-slate-800 mb-6 text-center italic uppercase tracking-tighter">
           {isResetting
             ? t.reset_password
@@ -91,11 +102,12 @@ export default function Auth() {
               ? t.create_account
               : t.welcome_message}
         </h1>
+
         <form onSubmit={handleAuth} className="space-y-4">
           <input
             type="email"
             placeholder={t.email_placeholder}
-            className="w-full p-4 rounded-2xl bg-slate-50 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
+            className="w-full p-4 rounded-2xl bg-slate-50 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-medium"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -106,12 +118,11 @@ export default function Auth() {
               <input
                 type={showPassword ? "text" : "password"}
                 placeholder={t.password_placeholder}
-                className="w-full p-4 pr-12 rounded-2xl bg-slate-50 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
+                className="w-full p-4 pr-12 rounded-2xl bg-slate-50 border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-medium"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
-              {/* Password Toggle Button */}
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
@@ -140,6 +151,7 @@ export default function Auth() {
                   : t.login_button}
           </button>
         </form>
+
         {!isResetting && (
           <div className="w-full">
             <div className="relative my-8">
@@ -159,6 +171,7 @@ export default function Auth() {
                 onClick={handleGoogleLogin}
                 className="w-full flex items-center justify-center gap-3 bg-white text-slate-700 py-3 rounded-2xl font-bold border border-slate-200 shadow-sm hover:bg-slate-50 active:scale-[0.98] transition-all"
               >
+                {/* Google Icon SVG */}
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                   <path
                     fill="#4285F4"
@@ -185,6 +198,7 @@ export default function Auth() {
                 onClick={handleFacebookLogin}
                 className="w-full flex items-center justify-center gap-3 bg-[#1877F2] text-white py-3 rounded-2xl font-bold shadow-sm hover:bg-[#166fe5] active:scale-[0.98] transition-all"
               >
+                {/* Facebook Icon SVG */}
                 <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
                 </svg>
@@ -193,6 +207,7 @@ export default function Auth() {
             </div>
           </div>
         )}
+
         <div className="mt-8 flex flex-col gap-3 border-t border-slate-50 pt-6">
           <button
             type="button"
@@ -217,6 +232,7 @@ export default function Auth() {
           </button>
         </div>
       </div>
+
       <style jsx global>{`
         .no-scrollbar::-webkit-scrollbar {
           display: none;
