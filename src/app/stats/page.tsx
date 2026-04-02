@@ -612,8 +612,8 @@ export default function StatsPage() {
           card.english.toLowerCase().includes(query),
       )
       .sort((a, b) => {
-        const dateA = new Date(a.added_to_deck_at || 0).getTime();
-        const dateB = new Date(b.added_to_deck_at || 0).getTime();
+        const dateA = new Date(a.added_to_deck_at ?? 0).getTime();
+        const dateB = new Date(b.added_to_deck_at ?? 0).getTime();
         return dateB - dateA;
       });
   }, [cards, searchQuery]);
@@ -1980,7 +1980,7 @@ export default function StatsPage() {
             {visibleCards.map((card) => {
               const isNew =
                 new Date().getTime() -
-                  new Date(card.added_to_deck_at).getTime() <
+                  new Date(card.added_to_deck_at ?? 0).getTime() <
                 86400000;
 
               return (
@@ -2106,7 +2106,7 @@ export default function StatsPage() {
                   // 1. Logic: Is this card less than 24 hours old?
                   const isNew =
                     new Date().getTime() -
-                      new Date(card.added_to_deck_at || 0).getTime() <
+                      new Date(card.added_to_deck_at ?? 0).getTime() <
                     86400000;
 
                   return (
