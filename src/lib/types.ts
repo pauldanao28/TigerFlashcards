@@ -43,6 +43,7 @@ export type FlashcardData = MasterCard & {
   score: number;
   scores: UserScore['scores_json'];
   next_review_at: string;
+  added_to_deck_at?: string | null;
 };
 
 export type StudyMode = 'recognition' | 'production';
