@@ -454,49 +454,40 @@ export default function StudyView() {
   );
 
   return (
-    <main className="fixed inset-0 h-[100dvh] w-full bg-slate-50 flex flex-col items-center overflow-hidden touch-none font-sans select-none">
+    <main className="fixed inset-0 h-[100dvh] w-full bg-slate-50 flex flex-col items-center overflow-hidden touch-none font-sans select-none pb-safe">
       {hasOnboarded === false && (
         <OnboardingModal
           defaultName={
-            /* Add the ? after user and a fallback || "" at the end */
             user?.user_metadata?.full_name || user?.user_metadata?.name || ""
           }
-          userId={user?.id || ""} // Also add a fallback for the ID
+          userId={user?.id || ""}
           onComplete={(added) =>
             added ? window.location.reload() : setHasOnboarded(true)
           }
         />
       )}
-      {/* --- MOBILE NAVIGATION (Top-Right Stack) --- */}
+
+      {/* --- 1. MOBILE NAVIGATION --- */}
       <div className="md:hidden sticky top-0 w-full z-50 px-4 py-4 flex justify-between items-start bg-slate-50/80 backdrop-blur-md">
         <div className="flex items-center gap-3 pointer-events-auto">
           <Link href="/" className="active:scale-95 transition-transform">
             <Logo className="w-10 h-12" />
           </Link>
-
-          {/* Integrated Profile Card - Clean Mode Label & Mastery Bar */}
           <div className="flex flex-col gap-1.5 bg-white/80 backdrop-blur-md px-3 py-2 rounded-2xl border border-white shadow-sm min-w-[170px]">
-            {/* Name and Mode/Mastery Row */}
             <div className="flex items-center justify-between gap-3">
               <span className="text-[10px] font-black uppercase tracking-tight text-slate-800 italic leading-none truncate max-w-[80px]">
                 {profileName?.split(" ")[0] || ""}
               </span>
-
-              {/* Mode Label + Mastery Word */}
               <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">
                 {t.mastery}
               </span>
             </div>
-
-            {/* Mastery Progress Bar */}
             <div className="flex items-center gap-2.5">
               <div className="relative flex-1 h-1.5 bg-slate-200/50 rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${accuracyPercent}%` }}
-                  className={`h-full transition-all duration-1000 ${
-                    language === "jp" ? "bg-indigo-500" : "bg-orange-500"
-                  }`}
+                  className={`h-full transition-all duration-1000 ${language === "jp" ? "bg-indigo-500" : "bg-orange-500"}`}
                 />
               </div>
               <span className="text-[9px] font-black text-slate-500 min-w-[28px] text-right">
@@ -505,13 +496,10 @@ export default function StudyView() {
             </div>
           </div>
         </div>
-
         <div className="flex flex-col items-end gap-2 pointer-events-auto">
-          {/* Matched h-9 for slightly better tap targets than h-8 */}
           <div className="h-9 w-32">
             <LanguageToggle language={language} setLanguage={setLanguage} />
           </div>
-
           <Link
             href="/stats"
             className="bg-white h-9 w-32 rounded-full shadow-sm border border-slate-200 flex items-center justify-center gap-1.5 active:scale-95 transition-all"
@@ -523,56 +511,38 @@ export default function StudyView() {
           </Link>
         </div>
       </div>
-      {/* --- 2. DESKTOP NAVIGATION (Single-Line Layout) --- */}
-      <div className="hidden md:flex fixed top-8 left-0 w-full z-50 pointer-events-none px-8 items-center justify-between">
-        <div className="pointer-events-auto flex items-center gap-6 h-14">
+
+      {/* --- 2. DESKTOP NAVIGATION --- */}
+      <div className="hidden md:flex relative top-0 w-full z-50 px-8 py-8 items-center justify-between pointer-events-auto">
+        <div className="flex items-center gap-6 h-14">
           <Link
             href="/"
             className="flex items-center gap-5 hover:opacity-80 transition-opacity"
           >
             <Logo className="w-12 h-14" />
-
-            {/* Desktop Profile Dashboard Pill - Level Removed, Mastery Integrated */}
             <div className="flex items-center gap-5 bg-white px-6 py-4 rounded-[2rem] border-2 border-slate-50 shadow-xl shadow-slate-200/50 backdrop-blur-md">
               <div className="flex flex-col gap-2 min-w-[220px]">
-                {/* Profile Name & Mode Label Row */}
                 <div className="flex justify-between items-center px-1">
                   <span className="text-base font-black uppercase tracking-tighter text-slate-900 italic">
                     {profileName || ""}
                   </span>
-
-                  {/* Mode Badge - Shows Recognize/Recall + Japanese Term */}
                   <div
-                    className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest ${
-                      language === "jp"
-                        ? "bg-indigo-50 border-indigo-100 text-indigo-600"
-                        : "bg-orange-50 border-orange-100 text-orange-600"
-                    }`}
+                    className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest ${language === "jp" ? "bg-indigo-50 border-indigo-100 text-indigo-600" : "bg-orange-50 border-orange-100 text-orange-600"}`}
                   >
                     <span>{t.mastery}</span>
                   </div>
                 </div>
-
-                {/* Accuracy & Progress Bar Row */}
                 <div className="flex items-center gap-4">
                   <div className="relative flex-1 h-3 bg-slate-100 rounded-full overflow-hidden shadow-inner">
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${accuracyPercent}%` }}
-                      className={`h-full shadow-[0_0_12px_rgba(0,0,0,0.1)] transition-all duration-1000 ${
-                        language === "jp" ? "bg-indigo-500" : "bg-orange-500"
-                      }`}
+                      className={`h-full shadow-[0_0_12px_rgba(0,0,0,0.1)] transition-all duration-1000 ${language === "jp" ? "bg-indigo-500" : "bg-orange-500"}`}
                     />
                   </div>
-
-                  {/* Large Accuracy Percentage */}
                   <div className="flex flex-col items-end min-w-[45px]">
                     <span
-                      className={`text-sm font-black leading-none ${
-                        language === "jp"
-                          ? "text-indigo-600"
-                          : "text-orange-600"
-                      }`}
+                      className={`text-sm font-black leading-none ${language === "jp" ? "text-indigo-600" : "text-orange-600"}`}
                     >
                       {accuracyPercent}%
                     </span>
@@ -582,15 +552,10 @@ export default function StudyView() {
             </div>
           </Link>
         </div>
-
-        {/* Right: Controls Group */}
-        <div className="flex items-center gap-6 pointer-events-auto">
-          {/* 1. Language Toggle - Removed width restriction, increased height */}
+        <div className="flex items-center gap-6">
           <div className="h-11 flex items-center min-w-[200px]">
             <LanguageToggle language={language} setLanguage={setLanguage} />
           </div>
-
-          {/* 2. Stats Button - Matched to h-11 with more padding */}
           <Link
             href="/stats"
             className="bg-white h-11 px-8 rounded-full shadow-sm border border-slate-100 flex items-center gap-3 hover:border-slate-300 transition-all active:scale-95"
@@ -602,91 +567,81 @@ export default function StudyView() {
           </Link>
         </div>
       </div>
-      {/* HUD / Progress Area */}
-      <div className="relative w-full max-w-md flex flex-col items-center pt-8">
-        <div className="w-full h-16 mb-2 flex flex-col items-center justify-end relative md:h-20 md:mb-8">
+
+      {/* --- 3. MAIN STUDY AREA (CENTRING FIX) --- */}
+      <div className="flex-1 w-full flex flex-col items-center justify-center min-h-0 px-4 md:mt-[-20px]">
+        {/* HUD / Goal Section - Using mx-auto to force center */}
+        <div className="w-full max-w-md mx-auto flex flex-col items-center mb-6 md:mb-10">
           {sessionStreak >= 3 && (
-            <div className="absolute top-0 flex items-center gap-2 bg-white px-5 py-2 rounded-full shadow-xl border border-orange-100 animate-bounce z-40 md:top-4">
+            <div className="flex items-center gap-2 bg-white px-5 py-2 rounded-full shadow-xl border border-orange-100 animate-bounce mb-4">
               <span className="text-xl">🔥</span>
               <span className="font-black text-slate-800 tracking-tight text-sm uppercase">
                 {sessionStreak} {t.in_a_row}
               </span>
             </div>
           )}
-
-          <div className="pb-2 text-center md:pb-1">
+          <div className="text-center w-full">
             {dailyProgress < DAILY_GOAL ? (
-              <>
-                <div className="w-40 h-2 bg-slate-200 rounded-full overflow-hidden shadow-inner mx-auto mb-2 md:w-32 md:h-1.5 md:mb-1">
+              <div className="flex flex-col items-center">
+                <div className="w-32 h-1.5 bg-slate-200 rounded-full overflow-hidden shadow-inner mb-2">
                   <div
                     className="h-full bg-emerald-500 transition-all duration-500"
                     style={{ width: `${(dailyProgress / DAILY_GOAL) * 100}%` }}
                   />
                 </div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest md:text-[9px]">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
                   {t.goal}: {dailyProgress}/{DAILY_GOAL}
                 </p>
-              </>
+              </div>
             ) : (
-              /* SUCCESS STATE: Non-distracting and compact */
-              <div className="flex items-center justify-center gap-1.5 opacity-80 group">
-                {/* The dot feels more "active" if it's slightly brighter while the text stays neutral */}
+              <div className="flex items-center justify-center gap-1.5 opacity-80">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] md:text-[8px]">
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">
                   {t.daily_goal_met}
                 </p>
               </div>
             )}
           </div>
         </div>
-        {/* Card Main Logic */}
-        {/* 1. LOADING STATE: Only show if an active process is in flight */}
-        {(dataLoading || aiLoading) && !hasLoadedOnce ? (
-          <div className="w-80 h-[28rem] bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse gap-4">
-            <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">
-              {t.syncing_deck}
-            </p>
-          </div>
-        ) : cards.length > 0 && currentCard ? (
-          /* 2. ACTIVE CARD STATE: Show when we have data */
-          <div className="flex flex-col items-center gap-6">
-            <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">
-              {language === "jp" ? `🇯🇵 ${t.recognition}` : `🇺🇸 ${t.recall}`} |{" "}
-              {currentCard.scores?.[language === "jp" ? "jp_to_en" : "en_to_jp"]
-                ?.percent || 0}
-              % {t.accuracy}
-            </span>
-            <div className="relative">
-              {/* --- SWIPE FEEDBACK OVERLAY --- */}
-              <AnimatePresence>
-                {swipeFeedback && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.5, y: 20 }}
-                    animate={{ opacity: 1, scale: 1, y: -40 }}
-                    exit={{ opacity: 0, scale: 1.1, y: -100 }}
-                    className={`absolute inset-0 z-[100] flex items-center justify-center pointer-events-none`}
-                  >
-                    <div
-                      className={`
-                      px-6 py-3 rounded-full font-black text-2xl shadow-2xl border-2
-                      ${
-                        swipeFeedback.isPass
-                          ? "bg-emerald-500 text-white border-emerald-400"
-                          : "bg-rose-500 text-white border-rose-400"
-                      }
-                    `}
+
+        {/* Card Section - Explicit centering */}
+        <div className="w-full flex flex-col items-center justify-center min-h-0">
+          {(dataLoading || aiLoading) && !hasLoadedOnce ? (
+            <div className="w-72 h-96 bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse gap-4 mx-auto">
+              <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">
+                {t.syncing_deck}
+              </p>
+            </div>
+          ) : cards.length > 0 && currentCard ? (
+            <div className="flex flex-col items-center w-full gap-4 mx-auto">
+              <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] text-center">
+                {language === "jp" ? `🇯🇵 ${t.recognition}` : `🇺🇸 ${t.recall}`} |{" "}
+                {currentCard.scores?.[
+                  language === "jp" ? "jp_to_en" : "en_to_jp"
+                ]?.percent || 0}
+                % {t.accuracy}
+              </span>
+              <div className="relative w-full flex justify-center items-center">
+                <AnimatePresence>
+                  {swipeFeedback && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.5, y: 20 }}
+                      animate={{ opacity: 1, scale: 1, y: -40 }}
+                      exit={{ opacity: 0, scale: 1.1, y: -100 }}
+                      className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-none"
                     >
-                      {swipeFeedback.percent}%
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-              {showHints && (
-                <CoachMarks onDismiss={() => setShowHints(false)} />
-              )}
-              <div className={showHints ? "animate-wobble" : ""}>
-                <div className="w-full max-w-[90vw] md:max-w-md flex flex-col items-center">
+                      <div
+                        className={`px-6 py-3 rounded-full font-black text-2xl shadow-2xl border-2 ${swipeFeedback.isPass ? "bg-emerald-500 text-white border-emerald-400" : "bg-rose-500 text-white border-rose-400"}`}
+                      >
+                        {swipeFeedback.percent}%
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <div
+                  className={`w-full max-w-[85vw] sm:max-w-[360px] aspect-[3/4] max-h-[42dvh] sm:max-h-[500px] mx-auto ${showHints ? "animate-wobble" : ""}`}
+                >
                   <Flashcard
                     key={currentCard.id}
                     card={currentCard}
@@ -696,57 +651,53 @@ export default function StudyView() {
                     autoPlayJp={autoPlayJp}
                     autoPlayEn={autoPlayEn}
                     sfxEnabled={sfxEnabled}
-                    isFlipped={isFlipped} // New Prop
-                    onFlip={setIsFlipped} // New Prop
+                    isFlipped={isFlipped}
+                    onFlip={setIsFlipped}
                     audioPulse={audioPulse}
                   />
                 </div>
               </div>
             </div>
-          </div>
-        ) : hasLoadedOnce && cards.length === 0 ? (
-          /* 3. ACTUAL EMPTY STATE: Show when loading is finished AND cards are zero */
-          <div className="text-center p-10 bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 w-80 h-[28rem] flex flex-col justify-center items-center gap-6 animate-in fade-in zoom-in-95 duration-500">
-            <div className="text-5xl opacity-40">📭</div>
-            <div>
-              <h3 className="text-slate-800 font-black text-xl mb-2 italic uppercase tracking-tighter">
+          ) : hasLoadedOnce && cards.length === 0 ? (
+            <div className="text-center p-8 bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 w-72 h-96 flex flex-col justify-center items-center gap-6 mx-auto">
+              <div className="text-5xl opacity-40">📭</div>
+              <h3 className="text-slate-800 font-black text-lg italic uppercase tracking-tighter">
                 {t.empty_deck}
               </h3>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest leading-relaxed">
-                {t.start_journey}
-              </p>
+              <Link
+                href="/stats"
+                className="text-white font-black bg-indigo-600 px-6 py-3 rounded-xl shadow-xl uppercase tracking-widest text-[10px]"
+              >
+                {t.get_started}
+              </Link>
             </div>
-            <Link
-              href="/stats"
-              className="text-white font-black bg-indigo-600 px-8 py-4 rounded-2xl shadow-xl shadow-indigo-100 transition-all active:scale-95 uppercase tracking-widest text-xs"
-            >
-              {t.get_started}
-            </Link>
-          </div>
-        ) : null}
-        {/* 4. NEUTRAL STATE: Prevents flickering before the very first render */}
-        {/* Action Buttons */}
-        {!dataLoading && cards.length > 0 && currentCard && (
-          <div className="flex gap-4 w-full py-6">
+          ) : null}
+        </div>
+      </div>
+
+      {/* --- 4. BOTTOM BUTTONS (CENTRING FIX) --- */}
+      {!dataLoading && cards.length > 0 && currentCard && (
+        <div className="w-full flex justify-center pb-8 md:pb-16 pt-4 mt-auto">
+          <div className="w-full max-w-md flex gap-3 px-6">
             <button
               onClick={() => handleScore(false)}
-              className="flex-1 py-4 bg-rose-50 text-rose-600 rounded-[1.5rem] font-black border-b-4 border-rose-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-sm tracking-widest"
+              className="flex-1 py-3 md:py-4 bg-rose-50 text-rose-600 rounded-2xl font-black border-b-4 border-rose-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] sm:text-xs tracking-widest"
             >
               ✕ {t.fail}
             </button>
             <button
               onClick={() => handleScore(true)}
-              className="flex-1 py-4 bg-emerald-500 text-white rounded-[1.5rem] font-black border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all uppercase text-sm tracking-widest"
+              className="flex-1 py-3 md:py-4 bg-emerald-500 text-white rounded-2xl font-black border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] sm:text-xs tracking-widest"
             >
               ✓ {t.pass}
             </button>
           </div>
-        )}
-      </div>
-      {/* Keyboard Shortcuts Legend - Desktop Only */}
-      <div className="hidden md:flex fixed bottom-6 left-0 w-full justify-center pointer-events-none">
-        <div className="bg-white/80 backdrop-blur-sm px-4 py-2 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-          {/* Flip Controls */}
+        </div>
+      )}
+
+      {/* Keyboard Legend */}
+      <div className="hidden md:flex fixed bottom-6 w-full justify-center pointer-events-none">
+        <div className="bg-white/80 backdrop-blur-sm px-4 py-2 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-6">
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1">
               <kbd className="px-2 py-1 bg-slate-100 border-b-2 border-slate-300 rounded text-[10px] font-black text-slate-500">
@@ -763,10 +714,7 @@ export default function StudyView() {
               {t.flip}
             </span>
           </div>
-
           <div className="w-[1px] h-3 bg-slate-200" />
-
-          {/* NEW: Audio Control */}
           <div className="flex items-center gap-2">
             <kbd className="px-2 py-1 bg-slate-100 border-b-2 border-slate-300 rounded text-[10px] font-black text-slate-500 italic">
               ENTER
@@ -775,10 +723,7 @@ export default function StudyView() {
               🔊
             </span>
           </div>
-
           <div className="w-[1px] h-3 bg-slate-200" />
-
-          {/* Scoring Controls */}
           <div className="flex items-center gap-2">
             <div className="flex gap-1">
               <kbd className="px-1.5 py-1 min-w-[1.5rem] flex justify-center bg-slate-100 border-b-2 border-slate-300 rounded text-[10px] font-black text-slate-500">

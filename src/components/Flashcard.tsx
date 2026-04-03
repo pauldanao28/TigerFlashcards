@@ -311,14 +311,14 @@ export default function Flashcard({
   const isBackJapanese = backText === card.japanese;
 
   return (
-    <div className="w-80 h-96 [perspective:1000px] touch-none">
+    <div className="w-full max-w-[320px] h-96 [perspective:1000px] touch-none mx-auto">
       <motion.div
         style={{ x, rotate, opacity }}
         drag="x"
         dragConstraints={{ left: 0, right: 0 }}
         dragElastic={0.7}
         onDragEnd={handleDragEnd}
-        className="relative w-full h-full cursor-grab active:cursor-grabbing"
+        className="relative w-full h-full cursor-grab active:cursor-grabbing mx-auto"
       >
         {/* --- REFINED: SUBTLE OVERLAYS --- */}
         <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden rounded-3xl">

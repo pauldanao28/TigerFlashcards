@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase"; // Updated to your path
 import GlobalStats from "@/components/GlobalStats";
 import UserTable from "@/components/UserTable";
+import LoadingScreen from "@/components/LoadingScreen";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -55,14 +56,7 @@ export default function AdminUsersPage() {
     checkAdminAndFetch();
   }, [router]);
 
-  if (loading)
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-50">
-        <p className="font-black text-slate-300 animate-pulse tracking-widest uppercase">
-          Securing Session...
-        </p>
-      </div>
-    );
+  if (loading) return <LoadingScreen />;
 
   if (!authorized) return null;
 

@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useLang } from "@/context/LanguageContext";
+import LoadingScreen from "@/components/LoadingScreen";
 import Link from "next/link";
 
 export default function AdminDashboard() {
@@ -190,14 +191,7 @@ export default function AdminDashboard() {
     if (!error) setReports((prev) => prev.filter((r) => r.id !== reportId));
   };
 
-  if (loading)
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-50">
-        <p className="font-black text-slate-300 animate-pulse tracking-widest uppercase">
-          {t.securing_session}
-        </p>
-      </div>
-    );
+  if (loading) return <LoadingScreen />;
 
   return (
     <main className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
