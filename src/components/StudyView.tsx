@@ -571,34 +571,36 @@ export default function StudyView() {
       <div className="flex-1 w-full flex flex-col items-center justify-start md:justify-center min-h-0 px-4 pt-6 md:pt-0">
         {/* HUD & ACCURACY STACK (Now closer to the top on mobile) */}
         <div className="flex flex-col items-center gap-2 mb-6 w-full animate-in fade-in slide-in-from-top-2 duration-700">
-          {/* --- 1. SESSION STREAK (APPLE FLOAT ANIMATION) --- */}
+          {/* --- 1. SESSION STREAK (FIXED PROPERTY NAME) --- */}
           {sessionStreak >= 3 && (
             <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 10 }} // Starts lower
+              initial={{ scale: 0.9, opacity: 0, y: 10 }}
               animate={{
                 scale: 1,
                 opacity: 1,
-                y: [0, -6, 0], // Floats up 6px and back
-                shadow: [
-                  "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)", // Normal Shadow
-                  "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)", // Lifted Shadow
-                  "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)", // Normal Shadow
+                y: [0, -6, 0],
+                boxShadow: [
+                  // <--- Changed from shadow to boxShadow
+                  "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)",
+                  "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
+                  "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)",
                 ],
               }}
               transition={{
                 y: {
-                  duration: 3.5, // Slow float
-                  repeat: Infinity, // Never stops
-                  ease: "easeInOut", // Smooth transitions at peaks
-                },
-                shadow: {
-                  duration: 3.5, // Syncs with y-axis
+                  duration: 3.5,
                   repeat: Infinity,
                   ease: "easeInOut",
                 },
-                default: { duration: 0.7 }, // Initial load speed
+                boxShadow: {
+                  // <--- Changed from shadow to boxShadow
+                  duration: 3.5,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                },
+                default: { duration: 0.7 },
               }}
-              className="flex items-center gap-2 bg-white/70 backdrop-blur-sm px-4 py-1.5 rounded-full shadow-lg border border-orange-100 mb-1"
+              className="flex items-center gap-2 bg-white/70 backdrop-blur-sm px-4 py-1.5 rounded-full border border-orange-100 mb-1"
             >
               <span className="text-lg">🔥</span>
               <span className="font-black text-slate-800 tracking-tight text-[11px] uppercase">
@@ -607,35 +609,38 @@ export default function StudyView() {
             </motion.div>
           )}
 
-          {/* Daily Goal / Goal Met (Subtle Apple Aesthetic) */}
+          {/* Daily Goal / Goal Met (Simple, No Background) */}
           <div className="flex flex-col items-center min-h-[32px] justify-center">
             {dailyProgress < DAILY_GOAL ? (
               <div className="flex flex-col items-center">
-                <div className="w-28 h-1.5 bg-slate-200/50 rounded-full overflow-hidden shadow-inner mb-1.5">
+                <div className="w-24 h-1 bg-slate-200 rounded-full overflow-hidden mb-1.5">
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{
                       width: `${(dailyProgress / DAILY_GOAL) * 100}%`,
                     }}
-                    className="h-full bg-emerald-500 transition-all duration-700 ease-out"
+                    className="h-full bg-emerald-500 transition-all duration-500"
                   />
                 </div>
-                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
+                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">
                   {t.goal}: {dailyProgress}/{DAILY_GOAL}
                 </p>
               </div>
             ) : (
-              /* --- SUBTLE APPLE "GOAL MET" PILL --- */
+              /* --- MINIMALIST STATUS --- */
               <motion.div
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-2 bg-white/40 backdrop-blur-md px-4 py-1.5 rounded-full border border-emerald-500/20 shadow-[0_2px_12px_-3px_rgba(16,185,129,0.1)]"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex items-center gap-2 py-1"
               >
-                <div className="relative flex items-center justify-center">
-                  <div className="absolute w-2 h-2 bg-emerald-400 rounded-full animate-ping opacity-20" />
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+                {/* Minimalist Pulsing Dot */}
+                <div className="relative w-1.5 h-1.5">
+                  <div className="absolute inset-0 bg-emerald-500 rounded-full animate-ping opacity-25" />
+                  <div className="relative w-1.5 h-1.5 rounded-full bg-emerald-500" />
                 </div>
-                <p className="text-[9px] font-black text-emerald-700/80 uppercase tracking-[0.25em]">
+
+                {/* Clean Typography */}
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.25em] leading-none">
                   {t.daily_goal_met}
                 </p>
               </motion.div>
