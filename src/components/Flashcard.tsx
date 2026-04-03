@@ -129,10 +129,11 @@ export default function Flashcard({
   };
 
   useEffect(() => {
+    if (!card) return; // Guard clause: do nothing if card is null
     setIsReady(false);
-    const timer = setTimeout(() => setIsReady(true), 50); // Small delay to let the DOM settle
+    const timer = setTimeout(() => setIsReady(true), 50);
     return () => clearTimeout(timer);
-  }, [card.id]); // Trigger every time a new card appears
+  }, [card?.id]); // Added optional chaining here
 
   useEffect(() => {
     if (audioPulse === 0) return; // Don't play on initial mount
@@ -178,6 +179,7 @@ export default function Flashcard({
 
   // 3. Auto-play Audio on Front (When card appears)
   useEffect(() => {
+    if (!card) return; // 🛡️ Safety Guard
     onFlip(false);
 
     // Check if ANY auto-play is enabled first
@@ -198,10 +200,11 @@ export default function Flashcard({
     }, 50);
 
     return () => clearTimeout(timer);
-  }, [card.id, language, autoPlayJp, autoPlayEn]);
+  }, [card?.id, language, autoPlayJp, autoPlayEn]);
 
   // 4. Auto-play Audio on Flip (When card is turned over)
   useEffect(() => {
+    if (!card || !isFlipped) return; // 🛡️ Safety Guard
     if (isFlipped) {
       // 🔥 ALWAYS speak Japanese on the back if autoPlayJp is enabled
       // regardless of whether the front was English or Japanese.
@@ -213,7 +216,7 @@ export default function Flashcard({
         speak(card.english, "en-US");
       }
     }
-  }, [isFlipped, card.id, autoPlayJp, autoPlayEn]);
+  }, [isFlipped, card?.id, autoPlayJp, autoPlayEn]);
 
   const handleDragEnd = (event: any, info: any) => {
     const swipeThreshold = 100;
@@ -305,10 +308,21 @@ export default function Flashcard({
   //   e.stopPropagation();
   //   speak(text, lang);
   // };
+  // --- SAFETY CHECK FOR TEXT LOGIC ---
+  // Fallback to empty strings if card is null to prevent the crash
+  const frontText = card
+    ? language === "jp"
+      ? card.japanese
+      : card.english
+    : "";
+  const backText = card
+    ? language === "jp"
+      ? card.english
+      : card.japanese
+    : "";
 
-  const frontText = language === "jp" ? card.japanese : card.english;
-  const backText = language === "jp" ? card.english : card.japanese;
-  const isBackJapanese = backText === card.japanese;
+  // Use optional chaining here too
+  const isBackJapanese = card ? backText === card.japanese : false;
 
   return (
     <div className="w-full max-w-[320px] h-96 [perspective:1000px] touch-none mx-auto">
@@ -380,18 +394,18 @@ export default function Flashcard({
 
           {/* BACK SIDE */}
           <div className="absolute inset-0 flex flex-col bg-indigo-600 text-white rounded-3xl shadow-2xl [transform:rotateY(180deg)] [backface-visibility:hidden] p-8 text-center overflow-hidden">
-            {card.partOfSpeech && (
+            {card?.partOfSpeech && (
               <div className="absolute top-4 right-4 z-10">
                 <span className="px-3 py-1 bg-white/20 rounded-full text-[10px] font-bold uppercase tracking-widest border border-white/10">
-                  {card.partOfSpeech}
+                  {card?.partOfSpeech}
                 </span>
               </div>
             )}
 
             <div className="flex-1 flex flex-col items-center justify-center w-full overflow-hidden">
-              {(language === "jp" || language === "en") && card.reading && (
+              {(language === "jp" || language === "en") && card?.reading && (
                 <p className="text-indigo-200 text-lg mb-2 font-medium tracking-wide animate-fade-in truncate w-full">
-                  {card.reading}
+                  {card?.reading}
                 </p>
               )}
 
@@ -406,9 +420,9 @@ export default function Flashcard({
 
             {/* Footer Area */}
             <div className="mt-auto pt-4 border-t border-indigo-400/50 w-full">
-              {card.exampleSentence && (
+              {card?.exampleSentence && (
                 <p className="text-xs italic text-indigo-100 opacity-90 mb-4 line-clamp-2 overflow-hidden break-words px-2">
-                  "{card.exampleSentence.jp}"
+                  "{card?.exampleSentence.jp}"
                 </p>
               )}
 

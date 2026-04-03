@@ -14,8 +14,10 @@ export const metadata: Metadata = {
   title: "FlashKado | AI Japanese Flashcard ",
   description: "Master Japanese with Spaced Repetition and AI",
   icons: {
-    icon: "/logo.svg",
-    apple: "/logo.svg",
+    icon: [
+      { url: "/logo.svg" }, // Favicon for browsers
+    ],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
   },
 };
 

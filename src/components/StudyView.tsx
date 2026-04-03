@@ -567,127 +567,177 @@ export default function StudyView() {
           </Link>
         </div>
       </div>
-
-      {/* --- 3. MAIN STUDY AREA (CENTRING FIX) --- */}
-      <div className="flex-1 w-full flex flex-col items-center justify-center min-h-0 px-4 md:mt-[-20px]">
-        {/* HUD / Goal Section - Using mx-auto to force center */}
-        <div className="w-full max-w-md mx-auto flex flex-col items-center mb-6 md:mb-10">
+      {/* --- 3. MAIN STUDY AREA (PULLED UP FOR MOBILE) --- */}
+      <div className="flex-1 w-full flex flex-col items-center justify-start md:justify-center min-h-0 px-4 pt-6 md:pt-0">
+        {/* HUD & ACCURACY STACK (Now closer to the top on mobile) */}
+        <div className="flex flex-col items-center gap-2 mb-6 w-full animate-in fade-in slide-in-from-top-2 duration-700">
+          {/* --- 1. SESSION STREAK (APPLE FLOAT ANIMATION) --- */}
           {sessionStreak >= 3 && (
-            <div className="flex items-center gap-2 bg-white px-5 py-2 rounded-full shadow-xl border border-orange-100 animate-bounce mb-4">
-              <span className="text-xl">🔥</span>
-              <span className="font-black text-slate-800 tracking-tight text-sm uppercase">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 10 }} // Starts lower
+              animate={{
+                scale: 1,
+                opacity: 1,
+                y: [0, -6, 0], // Floats up 6px and back
+                shadow: [
+                  "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)", // Normal Shadow
+                  "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)", // Lifted Shadow
+                  "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)", // Normal Shadow
+                ],
+              }}
+              transition={{
+                y: {
+                  duration: 3.5, // Slow float
+                  repeat: Infinity, // Never stops
+                  ease: "easeInOut", // Smooth transitions at peaks
+                },
+                shadow: {
+                  duration: 3.5, // Syncs with y-axis
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                },
+                default: { duration: 0.7 }, // Initial load speed
+              }}
+              className="flex items-center gap-2 bg-white/70 backdrop-blur-sm px-4 py-1.5 rounded-full shadow-lg border border-orange-100 mb-1"
+            >
+              <span className="text-lg">🔥</span>
+              <span className="font-black text-slate-800 tracking-tight text-[11px] uppercase">
                 {sessionStreak} {t.in_a_row}
               </span>
-            </div>
+            </motion.div>
           )}
-          <div className="text-center w-full">
+
+          {/* Daily Goal / Goal Met (Subtle Apple Aesthetic) */}
+          <div className="flex flex-col items-center min-h-[32px] justify-center">
             {dailyProgress < DAILY_GOAL ? (
               <div className="flex flex-col items-center">
-                <div className="w-32 h-1.5 bg-slate-200 rounded-full overflow-hidden shadow-inner mb-2">
-                  <div
-                    className="h-full bg-emerald-500 transition-all duration-500"
-                    style={{ width: `${(dailyProgress / DAILY_GOAL) * 100}%` }}
+                <div className="w-28 h-1.5 bg-slate-200/50 rounded-full overflow-hidden shadow-inner mb-1.5">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{
+                      width: `${(dailyProgress / DAILY_GOAL) * 100}%`,
+                    }}
+                    className="h-full bg-emerald-500 transition-all duration-700 ease-out"
                   />
                 </div>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
                   {t.goal}: {dailyProgress}/{DAILY_GOAL}
                 </p>
               </div>
             ) : (
-              <div className="flex items-center justify-center gap-1.5 opacity-80">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">
+              /* --- SUBTLE APPLE "GOAL MET" PILL --- */
+              <motion.div
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-2 bg-white/40 backdrop-blur-md px-4 py-1.5 rounded-full border border-emerald-500/20 shadow-[0_2px_12px_-3px_rgba(16,185,129,0.1)]"
+              >
+                <div className="relative flex items-center justify-center">
+                  <div className="absolute w-2 h-2 bg-emerald-400 rounded-full animate-ping opacity-20" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+                </div>
+                <p className="text-[9px] font-black text-emerald-700/80 uppercase tracking-[0.25em]">
                   {t.daily_goal_met}
                 </p>
-              </div>
+              </motion.div>
             )}
           </div>
-        </div>
 
-        {/* Card Section - Explicit centering */}
-        <div className="w-full flex flex-col items-center justify-center min-h-0">
-          {(dataLoading || aiLoading) && !hasLoadedOnce ? (
-            <div className="w-72 h-96 bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse gap-4 mx-auto">
-              <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-              <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">
-                {t.syncing_deck}
-              </p>
-            </div>
-          ) : cards.length > 0 && currentCard ? (
-            <div className="flex flex-col items-center w-full gap-4 mx-auto">
-              <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] text-center">
-                {language === "jp" ? `🇯🇵 ${t.recognition}` : `🇺🇸 ${t.recall}`} |{" "}
+          {/* Accuracy Label (Directly above the card) */}
+          {!dataLoading && cards.length > 0 && currentCard && (
+            <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] text-center">
+              {language === "jp" ? `🇯🇵 ${t.recognition}` : `🇺🇸 ${t.recall}`} |{" "}
+              <span className="font-black text-slate-300">
                 {currentCard.scores?.[
                   language === "jp" ? "jp_to_en" : "en_to_jp"
                 ]?.percent || 0}
                 % {t.accuracy}
               </span>
-              <div className="relative w-full flex justify-center items-center">
-                <AnimatePresence>
-                  {swipeFeedback && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.5, y: 20 }}
-                      animate={{ opacity: 1, scale: 1, y: -40 }}
-                      exit={{ opacity: 0, scale: 1.1, y: -100 }}
-                      className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-none"
-                    >
-                      <div
-                        className={`px-6 py-3 rounded-full font-black text-2xl shadow-2xl border-2 ${swipeFeedback.isPass ? "bg-emerald-500 text-white border-emerald-400" : "bg-rose-500 text-white border-rose-400"}`}
-                      >
-                        {swipeFeedback.percent}%
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                <div
-                  className={`w-full max-w-[85vw] sm:max-w-[360px] aspect-[3/4] max-h-[42dvh] sm:max-h-[500px] mx-auto ${showHints ? "animate-wobble" : ""}`}
+            </span>
+          )}
+        </div>
+
+        {/* --- 3b. CARD ANCHOR (Locked Position) --- */}
+        <div className="w-full flex justify-center relative">
+          <div className="w-full max-w-[85vw] sm:max-w-[360px] aspect-[3/4] max-h-[40dvh] sm:max-h-[480px] relative">
+            {/* SWIPE FEEDBACK OVERLAY */}
+            <AnimatePresence>
+              {swipeFeedback && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.5, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: -20 }}
+                  exit={{ opacity: 0, scale: 1.1, y: -60 }}
+                  className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-none"
                 >
-                  <Flashcard
-                    key={currentCard.id}
-                    card={currentCard}
-                    language={language}
-                    userId={user?.id || ""}
-                    onSwipe={onSwipe}
-                    autoPlayJp={autoPlayJp}
-                    autoPlayEn={autoPlayEn}
-                    sfxEnabled={sfxEnabled}
-                    isFlipped={isFlipped}
-                    onFlip={setIsFlipped}
-                    audioPulse={audioPulse}
-                  />
-                </div>
+                  <div
+                    className={`px-6 py-3 rounded-full font-black text-2xl shadow-2xl border-2 ${
+                      swipeFeedback.isPass
+                        ? "bg-emerald-500 text-white border-emerald-400"
+                        : "bg-rose-500 text-white border-rose-400"
+                    }`}
+                  >
+                    {swipeFeedback.percent}%
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Flashcard Logic */}
+            {(dataLoading || aiLoading) && !hasLoadedOnce ? (
+              <div className="w-full h-full bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse">
+                <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3" />
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">
+                  {t.syncing_deck}
+                </p>
               </div>
-            </div>
-          ) : hasLoadedOnce && cards.length === 0 ? (
-            <div className="text-center p-8 bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 w-72 h-96 flex flex-col justify-center items-center gap-6 mx-auto">
-              <div className="text-5xl opacity-40">📭</div>
-              <h3 className="text-slate-800 font-black text-lg italic uppercase tracking-tighter">
-                {t.empty_deck}
-              </h3>
-              <Link
-                href="/stats"
-                className="text-white font-black bg-indigo-600 px-6 py-3 rounded-xl shadow-xl uppercase tracking-widest text-[10px]"
-              >
-                {t.get_started}
-              </Link>
-            </div>
-          ) : null}
+            ) : cards.length > 0 && currentCard ? (
+              <Flashcard
+                key={currentCard.id}
+                card={currentCard}
+                language={language}
+                userId={user?.id || ""}
+                onSwipe={onSwipe}
+                autoPlayJp={autoPlayJp}
+                autoPlayEn={autoPlayEn}
+                sfxEnabled={sfxEnabled}
+                isFlipped={isFlipped}
+                onFlip={setIsFlipped}
+                audioPulse={audioPulse}
+              />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 p-8 text-center">
+                <div className="text-4xl mb-3">📭</div>
+                <h3 className="text-slate-800 font-black text-lg mb-1 italic uppercase leading-none">
+                  {t.empty_deck}
+                </h3>
+                <Link
+                  href="/stats"
+                  className="text-white font-black bg-indigo-600 px-6 py-3 rounded-xl shadow-lg uppercase text-[10px] mt-4"
+                >
+                  {t.get_started}
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* --- 4. BOTTOM BUTTONS (CENTRING FIX) --- */}
+      {/* --- 4. BOTTOM BUTTONS (LOWERED) --- */}
       {!dataLoading && cards.length > 0 && currentCard && (
-        <div className="w-full flex justify-center pb-8 md:pb-16 pt-4 mt-auto">
-          <div className="w-full max-w-md flex gap-3 px-6">
+        <div className="w-full flex justify-center pt-4 pb-12 md:pb-16 lg:pb-24">
+          {/* pb-12: Pushes buttons UP on mobile to clear the home bar/keyboard.
+              md:pb-16: Standard desktop height.
+              lg:pb-24: Extra breathing room for larger MacBook screens.
+          */}
+          <div className="w-full max-w-md flex gap-4 px-6 mb-safe">
             <button
               onClick={() => handleScore(false)}
-              className="flex-1 py-3 md:py-4 bg-rose-50 text-rose-600 rounded-2xl font-black border-b-4 border-rose-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] sm:text-xs tracking-widest"
+              className="flex-1 py-4 md:py-5 bg-rose-50 text-rose-600 rounded-2xl font-black border-b-4 border-rose-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] tracking-widest"
             >
               ✕ {t.fail}
             </button>
             <button
               onClick={() => handleScore(true)}
-              className="flex-1 py-3 md:py-4 bg-emerald-500 text-white rounded-2xl font-black border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] sm:text-xs tracking-widest"
+              className="flex-1 py-4 md:py-5 bg-emerald-500 text-white rounded-2xl font-black border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] tracking-widest"
             >
               ✓ {t.pass}
             </button>
@@ -696,7 +746,7 @@ export default function StudyView() {
       )}
 
       {/* Keyboard Legend */}
-      <div className="hidden md:flex fixed bottom-6 w-full justify-center pointer-events-none">
+      <div className="hidden md:flex fixed bottom-8 w-full justify-center pointer-events-none z-0">
         <div className="bg-white/80 backdrop-blur-sm px-4 py-2 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-6">
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1">
