@@ -13,10 +13,12 @@ export const SocialDock = ({
   username,
   friends,
   onClose,
+  fetchFriends,
 }: {
   username: string; // Add this prop
   friends: any[];
   onClose: () => void;
+  fetchFriends?: () => Promise<void>;
 }) => {
   const [newFriend, setNewFriend] = useState("");
   const [activeTab, setActiveTab] = useState<"friends" | "pending">("friends");

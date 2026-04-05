@@ -981,6 +981,7 @@ export default function StudyView() {
             isOpen={isSocialOpen}
             friends={friends}
             onClose={() => setIsSocialOpen(false)}
+            fetchFriends={fetchFriends}
           />
         )}
       </AnimatePresence>
