@@ -47,8 +47,6 @@ export default function AdminUsersPage() {
         .from("admin_user_performance_master")
         .select("*");
 
-      console.log("RAW DATA FROM VIEW:", data);
-
       if (!error) setUsers(data || []);
       setLoading(false);
     }

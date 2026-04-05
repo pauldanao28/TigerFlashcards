@@ -92,6 +92,7 @@ export const SocialDock = ({
   };
 
   const acceptedCount = friends.filter((f) => f.status === "accepted").length;
+  const pendingCount = friends.filter((f) => f.status === "pending").length;
 
   return (
     <>
@@ -156,22 +157,36 @@ export const SocialDock = ({
             className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === "friends" ? "bg-white shadow-sm text-black" : "text-slate-400"}`}
           >
             Circle
-            {/* The Count Badge */}
-            <span
-              className={`px-1.5 py-0.5 rounded-md text-[8px] ${
-                activeTab === "friends"
-                  ? "bg-slate-100 text-black"
-                  : "bg-slate-200/50 text-slate-400"
-              }`}
-            >
-              {acceptedCount}
-            </span>
+            {/* 1. Friends Count Badge (Standardized) */}
+            {acceptedCount > 0 && (
+              <span
+                className={`px-1.5 py-0.5 rounded-md text-[8px] font-bold transition-colors ${
+                  activeTab === "friends"
+                    ? "bg-slate-900 text-white" // Active state
+                    : "bg-slate-100 text-slate-500" // Inactive state
+                }`}
+              >
+                {acceptedCount}
+              </span>
+            )}
           </button>
           <button
             onClick={() => setActiveTab("pending")}
             className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all relative ${activeTab === "pending" ? "bg-white shadow-sm text-black" : "text-slate-400"}`}
           >
             Pending
+            {/* 2. Pending Count Badge (Standardized) */}
+            {pendingCount > 0 && (
+              <span
+                className={`px-1.5 py-0.5 rounded-md text-[8px] font-bold transition-colors ${
+                  activeTab === "pending"
+                    ? "bg-orange-500 text-white" // Active state (Orange stands out)
+                    : "bg-orange-100 text-orange-600" // Inactive state (Subtle tint)
+                }`}
+              >
+                {pendingCount}
+              </span>
+            )}
             {/* Notification Dot for new requests */}
             {friends.some((f) => f.status === "pending" && !f.isSentByMe) && (
               <span className="absolute top-1 right-2 w-1.5 h-1.5 bg-orange-500 rounded-full" />

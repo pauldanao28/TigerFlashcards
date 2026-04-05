@@ -125,7 +125,6 @@ export default function StatsPage() {
 
       // 2. Set the ID so the "Add to Deck" button actually works
       setDefaultDeckId(defaultDeck.id);
-      console.log("Default Deck Found & Set:", defaultDeck.id);
     } else {
       // 3. Optional: If they have NO decks, create one for them
       console.log(

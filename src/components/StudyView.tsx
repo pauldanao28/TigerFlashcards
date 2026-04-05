@@ -226,7 +226,6 @@ export default function StudyView() {
           // --- CRITICAL LOGIC START ---
           // A row's 'user_id' is ALWAYS the person who clicked "Add Friend"
           const isSentByMe = row.user_id === user.id;
-          console.log(isSentByMe);
           // If I sent it, my friend is the 'receiver'.
           // If THEY sent it, my friend is the 'sender'.
           const friendProfile = isSentByMe ? row.receiver : row.sender;
