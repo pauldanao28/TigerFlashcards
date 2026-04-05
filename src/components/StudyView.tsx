@@ -262,11 +262,12 @@ export default function StudyView() {
   };
 
   useEffect(() => {
+    // 1. Initial Load
     fetchFriends();
 
-    // 2. REALTIME SUBSCRIPTION: Profile Updates (Progress bars)
+    // 2. REALTIME: Profile Updates (Online Status & Streaks)
     const profileChannel = supabase
-      .channel("social-updates")
+      .channel("profile-updates")
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "profiles" },
@@ -276,7 +277,6 @@ export default function StudyView() {
               friend.id === payload.new.id
                 ? {
                     ...friend,
-                    dailyProgress: payload.new.cards_completed_today,
                     isOnline: payload.new.is_online,
                     streak: payload.new.streak_count,
                   }
@@ -287,21 +287,39 @@ export default function StudyView() {
       )
       .subscribe();
 
-    // 3. REALTIME SUBSCRIPTION: Friendship Changes (New requests/Accepts)
-    const friendshipChannel = supabase
-      .channel("friendship-changes")
+    // 3. REALTIME: Progress Updates (The New Table)
+    const progressChannel = supabase
+      .channel("progress-updates")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "friendships" },
-        (payload) => {
+        {
+          event: "*",
+          schema: "public",
+          table: "user_review_counts",
+        },
+        () => {
+          // When someone's count changes, we re-fetch to get the new numbers
           fetchFriends();
         },
       )
       .subscribe();
 
-    // CLEANUP: Remove both channels
+    // 4. REALTIME: Friendship Changes (New requests/Accepts)
+    const friendshipChannel = supabase
+      .channel("friendship-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "friendships" },
+        () => {
+          fetchFriends();
+        },
+      )
+      .subscribe();
+
+    // CLEANUP: Remove all three channels
     return () => {
       supabase.removeChannel(profileChannel);
+      supabase.removeChannel(progressChannel);
       supabase.removeChannel(friendshipChannel);
     };
   }, []);
@@ -973,7 +991,7 @@ export default function StudyView() {
       </main>
       {/* 2. Move AnimatePresence here, now it's a sibling to <main> */}
       <AnimatePresence>
-        {isSocialOpen && (
+        {isSocialOpen && profileName && (
           <SocialDock
             username={profileName}
             isOpen={isSocialOpen}
