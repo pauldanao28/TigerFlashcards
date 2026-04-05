@@ -194,19 +194,31 @@ export default function StudyView() {
     } = await supabase.auth.getUser();
     if (!user) return;
 
+    // 1. Get today's date string
+    const today = new Date().toISOString().split("T")[0];
+
     const { data, error } = await supabase
       .from("friendships")
       .select(
         `
-        id,
-        status,
-        user_id,
-        friend_id,
-        sender:profiles!friendships_user_id_fkey (*),
-        receiver:profiles!friendships_friend_id_fkey (*)
-      `,
+    id,
+    status,
+    user_id,
+    friend_id,
+    sender:profiles!friendships_user_id_fkey (
+      *,
+      stats:user_review_counts(count) 
+    ),
+    receiver:profiles!friendships_friend_id_fkey (
+      *,
+      stats:user_review_counts(count)
+    )
+  `,
       )
-      .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
+      .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
+      // 2. Filter the sub-query so it only gets rows for TODAY
+      .eq("sender.stats.study_date", today)
+      .eq("receiver.stats.study_date", today);
 
     if (data) {
       const formatted = data
@@ -231,8 +243,8 @@ export default function StudyView() {
               `https://api.dicebear.com/7.x/avataaars/svg?seed=${friendProfile.id}`,
             status: row.status,
             isSentByMe: isSentByMe,
-            // Add these if you display them in the list
-            dailyProgress: friendProfile.cards_completed_today || 0,
+            // NEW LOGIC: Pull from the stats array we just joined
+            dailyProgress: friendProfile.stats?.[0]?.count || 0,
             goal: friendProfile.daily_goal || 10,
             streak: friendProfile.streak_count || 0,
             isOnline: friendProfile.is_online,
@@ -435,20 +447,6 @@ export default function StudyView() {
         if (prog === DAILY_GOAL) {
           updateStreak();
           alert(t.daily_streak_extended); // Keep alert or use a toast
-        }
-
-        // Update your profile in the DB
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (user) {
-          await supabase
-            .from("profiles")
-            .update({
-              cards_completed_today: cardsCompleted + 1,
-              is_online: true,
-            })
-            .eq("id", user.id);
         }
       }
 
