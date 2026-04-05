@@ -13,6 +13,7 @@ import Logo from "@/components/Logo";
 import Flashcard from "@/components/Flashcard";
 import LanguageToggle from "@/components/LanguageToggle";
 import OnboardingModal from "@/components/OnboardingModal";
+import LoadingScreen from "@/components/LoadingScreen";
 import CoachMarks from "@/components/CoachMarks";
 import { SocialDock } from "@/components/SocialDock";
 import { FlashcardData } from "@/lib/types";
@@ -102,17 +103,20 @@ export default function StudyView() {
 
       if (profileRes.data) {
         const p = profileRes.data;
-        setStreak(p.streak_count || 0);
         setAutoPlayJp(p.auto_play_jp ?? true);
         setAutoPlayEn(p.auto_play_en ?? false);
         setSfxEnabled(p.sfx_enabled ?? true);
         setHasOnboarded(p.has_onboarded);
-        setStreak(p.max_streak || 0);
         setProfileName(p.full_name);
 
-        // Check if goal already met today
-        const today = new Date().toISOString().split("T")[0];
+        // 1. Progress check
+        const today = new Date().toLocaleDateString("en-CA");
         if (p.last_review_date === today) setDailyProgress(DAILY_GOAL);
+
+        // 2. SAFE STREAK DISPLAY (No Auto-Reset)
+        // We simply show whatever is in the DB.
+        // We don't call .update() here anymore.
+        setStreak(p.streak_count || 0);
 
         // Hint Logic
         if (
@@ -364,24 +368,28 @@ export default function StudyView() {
   // --- 6. Interaction Handlers ---
   const updateStreak = async () => {
     if (!user) return;
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date().toLocaleDateString("en-CA");
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split("T")[0];
+    const yesterdayStr = yesterday.toLocaleDateString("en-CA");
 
     const { data: p } = await supabase
       .from("profiles")
       .select("streak_count, last_review_date")
       .eq("id", user?.id)
       .single();
+
     if (!p || p.last_review_date === today) return;
 
-    const newStreak =
-      p.last_review_date === yesterdayStr ? p.streak_count + 1 : 1;
+    // The logic only happens here!
+    const isContinuous = p.last_review_date === yesterdayStr;
+    const newStreak = isContinuous ? (p.streak_count || 0) + 1 : 1;
+
     await supabase
       .from("profiles")
       .update({ streak_count: newStreak, last_review_date: today })
       .eq("id", user?.id);
+
     setStreak(newStreak);
   };
 
@@ -626,7 +634,6 @@ export default function StudyView() {
 
   return (
     <>
-      {" "}
       {/* 1. Add the opening fragment here */}
       <main className="fixed inset-0 h-[100dvh] w-full bg-slate-50 flex flex-col items-center overflow-hidden touch-none font-sans select-none pb-safe">
         {hasOnboarded === false && (
@@ -880,7 +887,8 @@ export default function StudyView() {
               </AnimatePresence>
 
               {/* Flashcard Logic */}
-              {(dataLoading || aiLoading) && !hasLoadedOnce ? (
+              {(dataLoading && !hasLoadedOnce && cards.length === 0) ||
+              aiLoading ? (
                 <div className="w-full h-full bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse">
                   <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3" />
                   <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">
@@ -901,7 +909,7 @@ export default function StudyView() {
                   onFlip={setIsFlipped}
                   audioPulse={audioPulse}
                 />
-              ) : (
+              ) : !dataLoading && cards.length === 0 && hasLoadedOnce ? (
                 <div className="w-full h-full flex flex-col items-center justify-center bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 p-8 text-center">
                   <div className="text-4xl mb-3">📭</div>
                   <h3 className="text-slate-800 font-black text-lg mb-1 italic uppercase leading-none">
@@ -913,6 +921,13 @@ export default function StudyView() {
                   >
                     {t.get_started}
                   </Link>
+                </div>
+              ) : (
+                <div className="w-full h-full bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse">
+                  <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3" />
+                  <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">
+                    {t.syncing_deck}
+                  </p>
                 </div>
               )}
             </div>
@@ -992,6 +1007,7 @@ export default function StudyView() {
       <AnimatePresence>
         {isSocialOpen && profileName && (
           <SocialDock
+            userId={user?.id}
             username={profileName}
             friends={friends}
             onClose={() => setIsSocialOpen(false)}

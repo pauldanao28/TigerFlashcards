@@ -10,11 +10,13 @@ import {
 } from "@/lib/social";
 
 export const SocialDock = ({
+  userId, // Added your unique ID
   username,
   friends,
   onClose,
   fetchFriends,
 }: {
+  userId: string;
   username: string; // Add this prop
   friends: any[];
   onClose: () => void;
@@ -25,16 +27,20 @@ export const SocialDock = ({
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
 
   useEffect(() => {
+    if (!userId) return;
+
     const channel = supabase.channel("online-users", {
-      config: { presence: { key: username } }, // Use the current user's name as the key
+      config: {
+        presence: { key: userId }, // 👈 You are now "User_123" in the room
+      },
     });
 
     channel
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState();
-        // Extract all usernames currently online
-        const names = Object.keys(state);
-        setOnlineUsers(names);
+        // This creates an array of IDs: ['id_1', 'id_2', 'id_3']
+        const onlineIds = Object.keys(state);
+        setOnlineUsers(onlineIds);
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
@@ -45,7 +51,7 @@ export const SocialDock = ({
     return () => {
       channel.unsubscribe();
     };
-  }, [username]);
+  }, [userId]);
 
   // Filter your friends array based on the tab
   const displayFriends = friends.filter((f) => {
@@ -211,9 +217,13 @@ export const SocialDock = ({
                     />
                   </div>
                   {/* UI CHANGE: Check against the real-time presence array */}
-                  {onlineUsers.includes(friend.name) && (
-                    <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full shadow-sm" />
-                  )}
+                  <div
+                    className={`absolute bottom-0 right-0 w-3.5 h-3.5 border-2 border-white rounded-full shadow-sm ${
+                      onlineUsers.includes(friend.id)
+                        ? "bg-emerald-500" // Online Color
+                        : "bg-slate-300" // Offline Color
+                    }`}
+                  />
                 </div>
 
                 <div className="flex-1">
