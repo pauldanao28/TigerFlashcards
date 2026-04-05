@@ -1005,9 +1005,9 @@ export default function StudyView() {
       </main>
       {/* 2. Move AnimatePresence here, now it's a sibling to <main> */}
       <AnimatePresence>
-        {isSocialOpen && profileName && (
+        {isSocialOpen && profileName && user?.id && (
           <SocialDock
-            userId={user?.id}
+            userId={user.id}
             username={profileName}
             friends={friends}
             onClose={() => setIsSocialOpen(false)}
