@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useLang } from "@/context/LanguageContext";
 import LanguageToggle from "@/components/LanguageToggle";
+import { processReferral } from "@/lib/social";
 
 export default function Auth() {
   const router = useRouter();
@@ -45,7 +46,14 @@ export default function Auth() {
         password,
       });
       error = signUpError;
-      if (!error) {
+      if (!error && data.user) {
+        // --- REFERRAL LOGIC START ---
+        const refName = localStorage.getItem("tg_referrer");
+        if (refName) {
+          await processReferral(data.user.id, refName);
+        }
+        // --- REFERRAL LOGIC END ---
+
         if (data.user?.identities?.length === 0) {
           alert("This email is already registered. Try logging in!");
         } else {
