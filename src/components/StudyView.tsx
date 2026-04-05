@@ -994,7 +994,6 @@ export default function StudyView() {
         {isSocialOpen && profileName && (
           <SocialDock
             username={profileName}
-            isOpen={isSocialOpen}
             friends={friends}
             onClose={() => setIsSocialOpen(false)}
             fetchFriends={fetchFriends}
