@@ -188,17 +188,16 @@ export default function StudyView() {
     fetchInitialData();
   }, [fetchInitialData]);
 
-  useEffect(() => {
-    const fetchFriends = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
+  const fetchFriends = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
 
-      const { data, error } = await supabase
-        .from("friendships")
-        .select(
-          `
+    const { data, error } = await supabase
+      .from("friendships")
+      .select(
+        `
         id,
         status,
         user_id,
@@ -206,50 +205,51 @@ export default function StudyView() {
         sender:profiles!friendships_user_id_fkey (*),
         receiver:profiles!friendships_friend_id_fkey (*)
       `,
-        )
-        .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
+      )
+      .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
 
-      if (data) {
-        const formatted = data
-          .map((row: any) => {
-            // --- CRITICAL LOGIC START ---
-            // A row's 'user_id' is ALWAYS the person who clicked "Add Friend"
-            const isSentByMe = row.user_id === user.id;
-            console.log(isSentByMe);
-            // If I sent it, my friend is the 'receiver'.
-            // If THEY sent it, my friend is the 'sender'.
-            const friendProfile = isSentByMe ? row.receiver : row.sender;
-            // --- CRITICAL LOGIC END ---
+    if (data) {
+      const formatted = data
+        .map((row: any) => {
+          // --- CRITICAL LOGIC START ---
+          // A row's 'user_id' is ALWAYS the person who clicked "Add Friend"
+          const isSentByMe = row.user_id === user.id;
+          console.log(isSentByMe);
+          // If I sent it, my friend is the 'receiver'.
+          // If THEY sent it, my friend is the 'sender'.
+          const friendProfile = isSentByMe ? row.receiver : row.sender;
+          // --- CRITICAL LOGIC END ---
 
-            if (!friendProfile) return null;
+          if (!friendProfile) return null;
 
-            return {
-              friendshipId: row.id,
-              id: friendProfile.id,
-              name: friendProfile.full_name,
-              avatar:
-                friendProfile.avatar_url ||
-                `https://api.dicebear.com/7.x/avataaars/svg?seed=${friendProfile.id}`,
-              status: row.status,
-              isSentByMe: isSentByMe,
-              // Add these if you display them in the list
-              dailyProgress: friendProfile.cards_completed_today || 0,
-              goal: friendProfile.daily_goal || 10,
-              streak: friendProfile.streak_count || 0,
-              isOnline: friendProfile.is_online,
-            };
-          })
-          .filter((f): f is any => f !== null)
-          // FINAL FILTER: If there's a duplicate ID, keep only the one we need
-          .filter(
-            (item, index, self) =>
-              index === self.findIndex((t) => t.id === item.id),
-          );
+          return {
+            friendshipId: row.id,
+            id: friendProfile.id,
+            name: friendProfile.full_name,
+            avatar:
+              friendProfile.avatar_url ||
+              `https://api.dicebear.com/7.x/avataaars/svg?seed=${friendProfile.id}`,
+            status: row.status,
+            isSentByMe: isSentByMe,
+            // Add these if you display them in the list
+            dailyProgress: friendProfile.cards_completed_today || 0,
+            goal: friendProfile.daily_goal || 10,
+            streak: friendProfile.streak_count || 0,
+            isOnline: friendProfile.is_online,
+          };
+        })
+        .filter((f): f is any => f !== null)
+        // FINAL FILTER: If there's a duplicate ID, keep only the one we need
+        .filter(
+          (item, index, self) =>
+            index === self.findIndex((t) => t.id === item.id),
+        );
 
-        setFriends(formatted);
-      }
-    };
+      setFriends(formatted);
+    }
+  };
 
+  useEffect(() => {
     fetchFriends();
 
     // 2. REALTIME SUBSCRIPTION: Profile Updates (Progress bars)
