@@ -870,7 +870,7 @@ export default function StudyView() {
               <div className="w-full max-w-[75vw] sm:max-w-[360px] aspect-[3/4] max-h-[35dvh] sm:max-h-[480px] relative transition-all duration-500 ease-out md:my-auto">
                 {/* --- COACHMARKS OVERLAY --- */}
                 <AnimatePresence>
-                  {showHints && (
+                  {showHints && !dataLoading && (
                     <CoachMarks onDismiss={() => setShowHints(false)} />
                   )}
                 </AnimatePresence>
