@@ -872,7 +872,7 @@ export default function StudyView() {
         2. 'overflow-hidden' + 'rounded-[2.5rem]' is the "Cookie Cutter" that 
            clips the CoachMarks so they can't be longer than the card.
     */}
-              <div className="relative w-full max-w-[80vw] sm:max-w-[360px] aspect-[3/4] rounded-[2.5rem] overflow-hidden transition-all duration-500 ease-out shadow-2xl">
+              <div className="relative isolate bg-transparent w-full max-w-[80vw] sm:max-w-[360px] aspect-[3/4] rounded-[2.5rem]">
                 {/* --- COACHMARKS OVERLAY --- */}
                 <AnimatePresence>
                   {showHints && !dataLoading && (
