@@ -22,12 +22,14 @@ export default function OnboardingModal({
   const CONST_DEFAULT_DECK_NAME = "My Deck";
 
   const [lang, setLang] = useState<"en" | "jp">("en"); // Local toggle state
+  const [isChecking, setIsChecking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const t = {
     en: {
       nickname: "Nickname",
       enter_name: "Enter your Cool Username",
-      init: "Initialize Profile →",
+      init: "I'm ready. Let's go. →",
       welcome: "Welcome",
       choose: "Choose your starting point:",
       n5_title: "JLPT N5 KICKSTART",
@@ -38,11 +40,17 @@ export default function OnboardingModal({
       manual_btn: "Start Manual →",
       sync: "Synchronizing Data...",
       placeholder: "e.g. Satoshi",
+      checking: "Checking...",
+      too_short: "Too short! (Min 2)",
+      too_long: "Too long! (Max 10)",
+      taken: "Already taken! Try another.",
+      error_conn: "Connection error. Try again.",
+      no_spaces: "No spaces allowed!",
     },
     jp: {
       nickname: "ニックネーム",
       enter_name: "ユーザー名を入力してください",
-      init: "プロフィールを初期化 →",
+      init: "準備完了。行こう。 →",
       welcome: "ようこそ",
       choose: "開始プロトコルを選択してください：",
       n5_title: "日本語能力試験 N5",
@@ -53,13 +61,48 @@ export default function OnboardingModal({
       manual_btn: "マニュアル開始 →",
       sync: "データを同期中...",
       placeholder: "例：サトシ",
+      checking: "確認中...",
+      too_short: "短すぎます - 2文字以上",
+      too_long: "長すぎます - 最大10文字",
+      taken: "既に使用されています。別の名前を試してください。",
+      error_conn: "接続エラー。もう一度お試しください。",
+      no_spaces: "スペースは使用できません！",
     },
   }[lang];
 
   // --- LOGIC: FINISH NAME SETUP ---
-  const handleNameSubmit = () => {
-    if (name.trim().length < 2) return;
-    setStep(2);
+  const handleNameSubmit = async () => {
+    const trimmedName = name.trim();
+
+    // 1. Basic Validation
+    if (trimmedName.length < 2) return setError(t.too_short);
+    if (trimmedName.length > 10) return setError(t.too_long);
+    if (name.includes(" ")) return setError(t.no_spaces);
+
+    setIsChecking(true);
+    setError(null);
+
+    try {
+      // 2. Check Uniqueness in Supabase
+      const { data, error: fetchError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("full_name", trimmedName)
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
+
+      if (data && data.id !== userId) {
+        setError(t.taken);
+      } else {
+        // Name is unique, proceed to path selection
+        setStep(2);
+      }
+    } catch (err) {
+      setError(t.error_conn);
+    } finally {
+      setIsChecking(false);
+    }
   };
 
   // --- LOGIC: JLPT N5 START ---
@@ -199,19 +242,50 @@ export default function OnboardingModal({
             <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-2 mb-8">
               {t.enter_name}
             </p>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full p-5 rounded-2xl bg-slate-50 border-none ring-2 ring-slate-100 focus:ring-4 focus:ring-indigo-500 text-center font-bold text-xl outline-none transition-all mb-6"
-              placeholder={t.placeholder}
-            />
+            <div className="relative w-full mb-6">
+              <input type="text" style={{ display: "none" }} tabIndex={-1} />
+              <input
+                type="text"
+                autoComplete="off" // Classic "don't help me"
+                data-lpignore="true" // Specifically for LastPass
+                name="nickname" // Giving it a specific name helps
+                spellCheck="false" // Keeps the UI clean
+                value={name}
+                maxLength={10} // Native browser limit
+                onChange={(e) => {
+                  // Remove spaces automatically and reset error
+                  setName(e.target.value.replace(/\s/g, ""));
+                  setError(null);
+                }}
+                // REMOVE mb-6 from the input itself so it stays inside the relative div correctly
+                className={`w-full p-5 rounded-2xl bg-slate-50 border-none ring-2 focus:ring-4 text-center font-bold text-xl outline-none transition-all ${
+                  error
+                    ? "ring-rose-200 focus:ring-rose-500"
+                    : "ring-slate-100 focus:ring-indigo-500"
+                }`}
+                placeholder={t.placeholder}
+              />
+              {/* Character Counter */}
+              <span
+                className={`absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black ${
+                  name.length >= 10 ? "text-rose-500" : "text-slate-300"
+                }`}
+              >
+                {name.length}/10
+              </span>
+            </div>
+            {/* Error Message Display */}
+            {error && (
+              <p className="text-rose-500 text-[10px] font-black uppercase mb-4 italic animate-in fade-in slide-in-from-top-1">
+                ⚠️ {error}
+              </p>
+            )}
             <button
               onClick={handleNameSubmit}
               disabled={name.trim().length < 2}
               className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg active:scale-95 disabled:opacity-30 transition-all"
             >
-              {t.init}
+              {isChecking ? t.checking : t.init}
             </button>
           </motion.div>
         )}

@@ -677,7 +677,11 @@ export default function StudyView() {
               </div>
             </div>
           </div>
-          <div className="flex flex-col items-end gap-2 pointer-events-auto">
+          {/* --- THE FIX: Change this div --- */}
+          <div className="absolute top-4 right-4 flex flex-col items-end gap-2 pointer-events-auto">
+            {/* Using 'absolute' here prevents this stack from "pushing" the header 
+        height down. This keeps the header thin and the cards high.
+    */}
             <div className="h-9 w-32">
               <LanguageToggle language={language} setLanguage={setLanguage} />
             </div>
@@ -690,12 +694,11 @@ export default function StudyView() {
                 {t.stats}
               </span>
             </Link>
-            {/* NEW: Social Toggle */}
             <button
               onClick={() => setIsSocialOpen(!isSocialOpen)}
-              className="bg-white h-9 w-9 md:h-11 md:w-11 rounded-full shadow-sm border border-slate-200 flex items-center justify-center hover:border-black transition-all active:scale-95"
+              className="bg-white h-9 w-9 rounded-full shadow-sm border border-slate-200 flex items-center justify-center hover:border-black transition-all active:scale-95 shadow-indigo-100/50"
             >
-              <span className="text-sm md:text-lg">👥</span>
+              <span className="text-sm">👥</span>
             </button>
           </div>
         </div>
@@ -763,12 +766,12 @@ export default function StudyView() {
           </div>
         </div>
         {/* --- 3. MAIN STUDY AREA (PULLED UP FOR MOBILE) --- */}
-        <div className="flex-1 w-full flex flex-col items-center justify-start md:justify-center min-h-0 px-4 pt-10 md:pt-0">
+        <div className="flex-1 w-full flex flex-col items-center justify-start md:justify-center min-h-0 px-4 pt-10 md:pt-0 gap-2 md:gap-12">
           {/* pt-20: This provides a safe "buffer" for the absolute streak 
             on mobile so it doesn't hide under the header. 
         */}
           {/* HUD & ACCURACY STACK - MUST BE RELATIVE */}
-          <div className="relative z-10 flex flex-col items-center gap-2 mb-6 w-full animate-in fade-in slide-in-from-top-2 duration-700">
+          <div className="relative z-10 flex flex-col items-center gap-2 mb-2 md:mb-6 w-full animate-in fade-in slide-in-from-top-2 duration-700">
             {/* --- 1. SESSION STREAK (FIXED PROPERTY NAME) --- */}
             {sessionStreak >= 3 && (
               <div className="absolute -top-8 left-0 right-0 flex justify-center pointer-events-none">
@@ -862,74 +865,76 @@ export default function StudyView() {
           </div>
 
           {/* --- 3b. CARD ANCHOR (Locked Position) --- */}
-          <div className="w-full flex justify-center relative">
-            <div className="w-full max-w-[85vw] sm:max-w-[360px] aspect-[3/4] max-h-[40dvh] sm:max-h-[480px] relative">
-              {/* SWIPE FEEDBACK OVERLAY */}
-              <AnimatePresence>
-                {swipeFeedback && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.5, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: -20 }}
-                    exit={{ opacity: 0, scale: 1.1, y: -60 }}
-                    className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-none"
-                  >
-                    <div
-                      className={`px-6 py-3 rounded-full font-black text-2xl shadow-2xl border-2 ${
-                        swipeFeedback.isPass
-                          ? "bg-emerald-500 text-white border-emerald-400"
-                          : "bg-rose-500 text-white border-rose-400"
-                      }`}
+          <div className="w-full flex-1 flex flex-col justify-start md:justify-center relative min-h-0 pt-2 md:pt-0">
+            <div className="w-full flex justify-center relative">
+              <div className="w-full max-w-[75vw] sm:max-w-[360px] aspect-[3/4] max-h-[35dvh] sm:max-h-[480px] relative transition-all duration-500 ease-out md:my-auto">
+                {/* SWIPE FEEDBACK OVERLAY */}
+                <AnimatePresence>
+                  {swipeFeedback && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.5, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: -20 }}
+                      exit={{ opacity: 0, scale: 1.1, y: -60 }}
+                      className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-none"
                     >
-                      {swipeFeedback.percent}%
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                      <div
+                        className={`px-6 py-3 rounded-full font-black text-2xl shadow-2xl border-2 ${
+                          swipeFeedback.isPass
+                            ? "bg-emerald-500 text-white border-emerald-400"
+                            : "bg-rose-500 text-white border-rose-400"
+                        }`}
+                      >
+                        {swipeFeedback.percent}%
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-              {/* Flashcard Logic */}
-              {(dataLoading && !hasLoadedOnce && cards.length === 0) ||
-              aiLoading ? (
-                <div className="w-full h-full bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse">
-                  <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3" />
-                  <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">
-                    {t.syncing_deck}
-                  </p>
-                </div>
-              ) : cards.length > 0 && currentCard ? (
-                <Flashcard
-                  key={currentCard.id}
-                  card={currentCard}
-                  language={language}
-                  userId={user?.id || ""}
-                  onSwipe={onSwipe}
-                  autoPlayJp={autoPlayJp}
-                  autoPlayEn={autoPlayEn}
-                  sfxEnabled={sfxEnabled}
-                  isFlipped={isFlipped}
-                  onFlip={setIsFlipped}
-                  audioPulse={audioPulse}
-                />
-              ) : !dataLoading && cards.length === 0 && hasLoadedOnce ? (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 p-8 text-center">
-                  <div className="text-4xl mb-3">📭</div>
-                  <h3 className="text-slate-800 font-black text-lg mb-1 italic uppercase leading-none">
-                    {t.empty_deck}
-                  </h3>
-                  <Link
-                    href="/stats"
-                    className="text-white font-black bg-indigo-600 px-6 py-3 rounded-xl shadow-lg uppercase text-[10px] mt-4"
-                  >
-                    {t.get_started}
-                  </Link>
-                </div>
-              ) : (
-                <div className="w-full h-full bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse">
-                  <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3" />
-                  <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">
-                    {t.syncing_deck}
-                  </p>
-                </div>
-              )}
+                {/* Flashcard Logic */}
+                {(dataLoading && !hasLoadedOnce && cards.length === 0) ||
+                aiLoading ? (
+                  <div className="w-full h-full bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse">
+                    <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3" />
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">
+                      {t.syncing_deck}
+                    </p>
+                  </div>
+                ) : cards.length > 0 && currentCard ? (
+                  <Flashcard
+                    key={currentCard.id}
+                    card={currentCard}
+                    language={language}
+                    userId={user?.id || ""}
+                    onSwipe={onSwipe}
+                    autoPlayJp={autoPlayJp}
+                    autoPlayEn={autoPlayEn}
+                    sfxEnabled={sfxEnabled}
+                    isFlipped={isFlipped}
+                    onFlip={setIsFlipped}
+                    audioPulse={audioPulse}
+                  />
+                ) : !dataLoading && cards.length === 0 && hasLoadedOnce ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 p-8 text-center">
+                    <div className="text-4xl mb-3">📭</div>
+                    <h3 className="text-slate-800 font-black text-lg mb-1 italic uppercase leading-none">
+                      {t.empty_deck}
+                    </h3>
+                    <Link
+                      href="/stats"
+                      className="text-white font-black bg-indigo-600 px-6 py-3 rounded-xl shadow-lg uppercase text-[10px] mt-4"
+                    >
+                      {t.get_started}
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="w-full h-full bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse">
+                    <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3" />
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">
+                      {t.syncing_deck}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1017,4 +1022,9 @@ export default function StudyView() {
       </AnimatePresence>
     </>
   );
+}
+
+{
+  /* <div className="w-full flex justify-center relative">
+            <div className="w-full max-w-[85vw] sm:max-w-[360px] aspect-[3/4] max-h-[40dvh] sm:max-h-[480px] relative"> */
 }

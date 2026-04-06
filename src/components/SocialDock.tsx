@@ -44,7 +44,10 @@ export const SocialDock = ({
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
-          await channel.track({ online_at: new Date().toISOString() });
+          const status = await channel.track({
+            user_id: userId,
+            online_at: new Date().toISOString(),
+          });
         }
       });
 
