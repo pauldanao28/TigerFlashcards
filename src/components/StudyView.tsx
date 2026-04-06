@@ -865,9 +865,14 @@ export default function StudyView() {
           </div>
 
           {/* --- 3b. CARD ANCHOR (Locked Position) --- */}
-          <div className="w-full flex-1 flex flex-col justify-start md:justify-center relative min-h-0 pt-2 md:pt-0">
+          <div className="w-full flex-1 flex flex-col justify-center items-center relative min-h-0 pt-2 md:pt-0">
             <div className="w-full flex justify-center relative">
-              <div className="w-full max-w-[75vw] sm:max-w-[360px] aspect-[3/4] max-h-[35dvh] sm:max-h-[480px] relative transition-all duration-500 ease-out md:my-auto">
+              {/* THE "LOCKED" BOX: 
+        1. 'aspect-[3/4]' + 'w-full' + 'max-w-...' creates the same shape on all screens.
+        2. 'overflow-hidden' + 'rounded-[2.5rem]' is the "Cookie Cutter" that 
+           clips the CoachMarks so they can't be longer than the card.
+    */}
+              <div className="relative w-full max-w-[80vw] sm:max-w-[360px] aspect-[3/4] rounded-[2.5rem] overflow-hidden transition-all duration-500 ease-out shadow-2xl">
                 {/* --- COACHMARKS OVERLAY --- */}
                 <AnimatePresence>
                   {showHints && !dataLoading && (
@@ -895,11 +900,10 @@ export default function StudyView() {
                     </motion.div>
                   )}
                 </AnimatePresence>
-
                 {/* Flashcard Logic */}
                 {(dataLoading && !hasLoadedOnce && cards.length === 0) ||
                 aiLoading ? (
-                  <div className="w-full h-full bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse">
+                  <div className="w-full h-full aspect-[3/4] bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse">
                     <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3" />
                     <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">
                       {t.syncing_deck}

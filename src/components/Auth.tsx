@@ -54,6 +54,8 @@ export default function Auth() {
       });
       error = signUpError;
       if (!error && data.user) {
+        localStorage.setItem("show_first_timer_hint", "true");
+
         // --- REFERRAL LOGIC START ---
         const refName = localStorage.getItem("tg_referrer");
         if (refName) {
@@ -75,7 +77,6 @@ export default function Auth() {
       });
       error = signInError;
       if (!error) {
-        localStorage.setItem("show_first_timer_hint", "true");
         router.push("/");
       }
     }
@@ -85,7 +86,6 @@ export default function Auth() {
   };
 
   const handleGoogleLogin = async () => {
-    localStorage.setItem("show_first_timer_hint", "true");
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: `${getURL()}/auth/callback` },
@@ -94,7 +94,6 @@ export default function Auth() {
   };
 
   const handleFacebookLogin = async () => {
-    localStorage.setItem("show_first_timer_hint", "true");
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "facebook",
       options: {
