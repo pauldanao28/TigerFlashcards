@@ -44,10 +44,12 @@ export default function Auth() {
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
-        // Pass the initial metadata here
-        data: {
-          full_name: "", // Leave empty so OnboardingModal triggers
-          has_onboarded: false,
+        // Nest the metadata inside the options object
+        options: {
+          data: {
+            full_name: "",
+            has_onboarded: false,
+          },
         },
       });
       error = signUpError;
