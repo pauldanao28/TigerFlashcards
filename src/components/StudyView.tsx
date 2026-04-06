@@ -868,6 +868,12 @@ export default function StudyView() {
           <div className="w-full flex-1 flex flex-col justify-start md:justify-center relative min-h-0 pt-2 md:pt-0">
             <div className="w-full flex justify-center relative">
               <div className="w-full max-w-[75vw] sm:max-w-[360px] aspect-[3/4] max-h-[35dvh] sm:max-h-[480px] relative transition-all duration-500 ease-out md:my-auto">
+                {/* --- COACHMARKS OVERLAY --- */}
+                <AnimatePresence>
+                  {showHints && (
+                    <CoachMarks onDismiss={() => setShowHints(false)} />
+                  )}
+                </AnimatePresence>
                 {/* SWIPE FEEDBACK OVERLAY */}
                 <AnimatePresence>
                   {swipeFeedback && (
