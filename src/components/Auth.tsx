@@ -74,7 +74,10 @@ export default function Auth() {
         password,
       });
       error = signInError;
-      if (!error) router.push("/");
+      if (!error) {
+        localStorage.setItem("show_first_timer_hint", "true");
+        router.push("/");
+      }
     }
 
     if (error) alert(error.message);
@@ -82,6 +85,7 @@ export default function Auth() {
   };
 
   const handleGoogleLogin = async () => {
+    localStorage.setItem("show_first_timer_hint", "true");
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: `${getURL()}/auth/callback` },
@@ -90,6 +94,7 @@ export default function Auth() {
   };
 
   const handleFacebookLogin = async () => {
+    localStorage.setItem("show_first_timer_hint", "true");
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "facebook",
       options: {
