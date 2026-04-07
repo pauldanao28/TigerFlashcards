@@ -391,6 +391,45 @@ export default function StatsPage() {
 
     setLoading(true);
 
+    /* --- NEW: PARTIAL DAILY LIMIT LOGIC --- */
+    let wordsToActuallyProcess = uniqueInputWords;
+    const DAILY_LIMIT = 50;
+
+    try {
+      const { data: performance } = await supabase
+        .from("admin_user_performance_master")
+        .select("cards_added_today")
+        .eq("id", user.id)
+        .single();
+
+      const currentToday = performance?.cards_added_today || 0;
+
+      if (currentToday >= DAILY_LIMIT) {
+        setLoading(false);
+        setInput("");
+        setBatchInput("");
+        return alert(
+          t.limit_reached_msg
+            .replace("{{current}}", currentToday.toString())
+            .replace("{{limit}}", DAILY_LIMIT.toString()),
+        );
+      }
+
+      if (currentToday + uniqueInputWords.length > DAILY_LIMIT) {
+        const allowedCount = DAILY_LIMIT - currentToday;
+        // Slice the array to only include what fits in the remaining quota
+        wordsToActuallyProcess = uniqueInputWords.slice(0, allowedCount);
+
+        // Optional: Inform the user we are only doing a partial add
+        alert(
+          t.partial_limit_msg.replace("{{count}}", allowedCount.toString()),
+        );
+      }
+    } catch (limitErr) {
+      console.error("Limit check failed, proceeding anyway:", limitErr);
+    }
+    /* --- END OF PARTIAL LIMIT LOGIC --- */
+
     // Helper inside the function to handle the DB linking
     const performLinking = async (cardIds: string[]) => {
       const currentCardIds = new Set(cards.map((c) => c.id));
@@ -426,7 +465,7 @@ export default function StatsPage() {
       const { data: existingCards, error: searchErr } = await supabase
         .from("master_cards")
         .select("*")
-        .in("japanese", uniqueInputWords);
+        .in("japanese", wordsToActuallyProcess);
 
       if (searchErr) throw searchErr;
 
@@ -439,7 +478,9 @@ export default function StatsPage() {
       const existingMap = new Map(
         existingCards?.map((c) => [c.japanese, c.id]) || [],
       );
-      const wordsForAI = uniqueInputWords.filter((w) => !existingMap.has(w));
+      const wordsForAI = wordsToActuallyProcess.filter(
+        (w) => !existingMap.has(w),
+      );
 
       // --- 3. Step 2: Handle New Words (AI) ---
       if (wordsForAI.length > 0) {
@@ -2191,11 +2232,18 @@ export default function StatsPage() {
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <div>
                   <h2 className="text-xl font-black text-slate-800 uppercase italic tracking-tighter">
-                    Words Added
+                    {t.words_added}
                   </h2>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                    {addedWordsSummary.length} NEW ENTRIES PROCESSED
+                    {addedWordsSummary.length} {t.new_entries}
                   </p>
+
+                  {/* NEW: Conditional Limit Badge */}
+                  {addedWordsSummary.length >= 50 && (
+                    <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-black border border-amber-200 animate-pulse">
+                      {t.limit_notice}
+                    </span>
+                  )}
                 </div>
                 <button
                   onClick={() => setShowSummaryOverlay(false)}
@@ -2273,7 +2321,7 @@ export default function StatsPage() {
                   onClick={() => setShowSummaryOverlay(false)}
                   className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-[0.98] shadow-lg"
                 >
-                  Got it
+                  {t.got_it}
                 </button>
               </div>
             </div>

@@ -47,7 +47,6 @@ const UserTable = ({ users }: { users: any[] }) => {
               <td className="p-6 text-center">
                 <div className="flex flex-col items-center">
                   <div className="flex items-center gap-3">
-                    {/* Today's Count with Active Indicator */}
                     <div className="flex flex-col items-end">
                       <span
                         className={`text-xs font-black ${user.reviews_today > 0 ? "text-indigo-600" : "text-slate-300"}`}
@@ -58,10 +57,7 @@ const UserTable = ({ users }: { users: any[] }) => {
                         Today
                       </span>
                     </div>
-
                     <div className="w-[1px] h-4 bg-slate-200" />
-
-                    {/* Streak Count */}
                     <div className="flex flex-col items-start">
                       <span className="text-lg font-black text-slate-900 flex items-center gap-1">
                         {user.streak_count} <span className="text-sm">🔥</span>
@@ -96,11 +92,33 @@ const UserTable = ({ users }: { users: any[] }) => {
                 </div>
               </td>
 
+              {/* --- UPDATED KNOWLEDGE BASE COLUMN --- */}
               <td className="p-6 text-center">
-                <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-[11px] font-black">
-                  {user.cards_studied}{" "}
-                  <span className="opacity-40 text-[9px]">WORDS</span>
-                </span>
+                <div className="flex flex-col items-center gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-800 text-[11px] font-black">
+                      {user.total_cards_added || 0}
+                      <span className="opacity-40 text-[9px] ml-1">TOTAL</span>
+                    </span>
+
+                    {/* Daily Add Badge - Glows amber if they are hitting the limit */}
+                    {user.cards_added_today > 0 && (
+                      <span
+                        className={`px-2 py-0.5 rounded-md text-[9px] font-black border ${
+                          user.cards_added_today >= 45
+                            ? "bg-amber-50 text-amber-600 border-amber-200 animate-pulse"
+                            : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                        }`}
+                      >
+                        +{user.cards_added_today}
+                      </span>
+                    )}
+                  </div>
+
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                    {user.cards_studied} Studied
+                  </span>
+                </div>
               </td>
 
               <td className="p-6 text-right">
