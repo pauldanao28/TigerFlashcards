@@ -270,7 +270,7 @@ export default function StatsPage() {
   // --- 2. Update processWords to save to Supabase ---
   const fetchCards = async () => {
     if (!user || !defaultDeckId) {
-      console.warn("fetchCards aborted: User or Deck ID missing");
+      //console.warn("fetchCards aborted: User or Deck ID missing");
       return;
     }
 
@@ -498,21 +498,45 @@ export default function StatsPage() {
           const items = await res.json();
           const itemsArray = Array.isArray(items) ? items : [items];
 
+          // --- CRITICAL FIX: DE-DUPLICATE BY KANJI BEFORE UPSERT ---
+          const seen = new Set();
+          const deduplicatedItems = itemsArray
+            .map((item) => ({
+              japanese: String(item.japanese).trim(),
+              reading: String(item.reading || "").replace(/[a-zA-Z\s]/g, ""),
+              english: String(item.english || "").trim(),
+              partOfSpeech: String(item.partOfSpeech || "noun")
+                .trim()
+                .toLowerCase(),
+              exampleSentence: item.exampleSentence || { jp: "", en: "" },
+              creator_id: user.id,
+            }))
+            .filter((item) => {
+              if (seen.has(item.japanese)) return false;
+              seen.add(item.japanese);
+              return true;
+            });
+
+          // const { data: newCards, error: mErr } = await supabase
+          //   .from("master_cards")
+          //   .upsert(
+          //     itemsArray.map((item) => ({
+          //       japanese: String(item.japanese).trim(),
+          //       reading: String(item.reading || "").replace(/[a-zA-Z\s]/g, ""),
+          //       english: String(item.english || "").trim(),
+          //       partOfSpeech: String(item.partOfSpeech || "noun")
+          //         .trim()
+          //         .toLowerCase(),
+          //       exampleSentence: item.exampleSentence || { jp: "", en: "" },
+          //       creator_id: user.id,
+          //     })),
+          //     { onConflict: "japanese" },
+          //   )
+          //   .select("*");
+
           const { data: newCards, error: mErr } = await supabase
             .from("master_cards")
-            .upsert(
-              itemsArray.map((item) => ({
-                japanese: String(item.japanese).trim(),
-                reading: String(item.reading || "").replace(/[a-zA-Z\s]/g, ""),
-                english: String(item.english || "").trim(),
-                partOfSpeech: String(item.partOfSpeech || "noun")
-                  .trim()
-                  .toLowerCase(),
-                exampleSentence: item.exampleSentence || { jp: "", en: "" },
-                creator_id: user.id,
-              })),
-              { onConflict: "japanese" },
-            )
+            .upsert(deduplicatedItems, { onConflict: "japanese" }) // Japanese is the unique constraint
             .select("*");
 
           if (mErr) throw mErr;
@@ -521,7 +545,8 @@ export default function StatsPage() {
             await performLinking(newCards.map((c) => c.id));
           }
         } catch (aiErr: any) {
-          console.error("AI Step Failed:", aiErr);
+          console.error("AI Step Failed:", aiErr.message);
+          alert(`AI processing failed: ${aiErr.message}`);
         }
       }
 
