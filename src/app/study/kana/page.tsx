@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { HIRAGANA_DATA, KATAKANA_DATA, type KanaCharacter } from "@/lib/kana";
 import Link from "next/link";
+import { ChevronLeft, Loader2 } from "lucide-react";
 
 export default function KanaPage() {
   const [mode, setMode] = useState<"hiragana" | "katakana">("hiragana");
@@ -50,6 +51,19 @@ export default function KanaPage() {
   return (
     <>
       <div className="max-w-4xl mx-auto px-6 py-10 min-h-screen bg-slate-50">
+        <Link
+          href="/stats"
+          className="flex items-center gap-1 text-slate-400 hover:text-indigo-600 mb-4 transition-colors w-fit group"
+        >
+          <ChevronLeft
+            size={16}
+            strokeWidth={3}
+            className="transition-transform group-hover:-translate-x-1"
+          />
+          <span className="text-xs font-black uppercase tracking-widest">
+            Back
+          </span>
+        </Link>
         {/* Header & Toggle */}
         <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
           <div>
@@ -61,8 +75,10 @@ export default function KanaPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* Added Practice Mode Button */}
+          <div className="flex items-center gap-3">
+            {" "}
+            {/* Reduced gap slightly for density */}
+            {/* Practice Mode Button */}
             <button
               onClick={startQuiz}
               className="bg-slate-800 text-white px-6 py-3 rounded-2xl font-black text-[10px] tracking-widest hover:bg-slate-700 transition-all active:scale-95 flex items-center gap-2 shadow-lg shadow-slate-200"
@@ -70,7 +86,6 @@ export default function KanaPage() {
               <span>PRACTICE</span>
               <span className="text-amber-400">⚡️</span>
             </button>
-
             <div className="flex bg-white p-1 rounded-2xl border border-slate-100 shadow-sm">
               <button
                 onClick={() => setMode("hiragana")}
@@ -93,6 +108,27 @@ export default function KanaPage() {
                 KATA
               </button>
             </div>
+            {/* New Integrated Back Button */}
+            {/* <Link
+              href="/stats"
+              className="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-2xl shadow-sm text-slate-400 hover:text-rose-500 hover:border-rose-100 transition-all active:scale-90"
+              title="Exit to Dashboard"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2.5}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </Link> */}
           </div>
         </div>
 
@@ -134,15 +170,6 @@ export default function KanaPage() {
               )}
             </div>
           ))}
-        </div>
-
-        <div className="mt-12 flex justify-center">
-          <Link
-            href="/stats"
-            className="text-slate-400 font-bold text-xs hover:text-indigo-600 transition-all uppercase tracking-widest border-b border-transparent hover:border-indigo-600 pb-1"
-          >
-            ← Back to Stats
-          </Link>
         </div>
       </div>
 
