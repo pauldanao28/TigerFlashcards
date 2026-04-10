@@ -169,7 +169,7 @@ export default function KanaPage() {
           <div
             onClick={() => {
               setIsFlipped(!isFlipped);
-              if (!isFlipped) playSound(shuffledData[currentIndex].jp);
+              if (!isFlipped) playSound(shuffledData[currentIndex].jp!);
             }}
             className="relative w-64 h-80 cursor-pointer [perspective:1000px] group"
           >
