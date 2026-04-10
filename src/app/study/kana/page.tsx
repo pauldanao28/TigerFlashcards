@@ -102,7 +102,7 @@ export default function KanaPage() {
             <div key={index}>
               {item.jp ? (
                 <button
-                  onClick={() => playSound(item.jp)}
+                  onClick={() => playSound(item.jp!)}
                   className="group relative w-full aspect-square bg-white border border-slate-100 rounded-[2rem] flex flex-col items-center justify-center shadow-sm hover:shadow-xl hover:border-indigo-200 transition-all hover:-translate-y-1 active:scale-95"
                 >
                   <div className="absolute top-4 left-4 opacity-0 group-hover:opacity-100 transition-opacity">
