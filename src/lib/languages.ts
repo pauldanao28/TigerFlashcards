@@ -182,6 +182,7 @@ export const translations = {
     new_entries: "NEW ENTRIES PROCESSED",
     limit_notice: "DAILY LIMIT APPLIED",
     got_it: "Got it",
+    study_kana: "Study Kana",
   },
   jp: {
     goal: "今日の目標",
@@ -366,5 +367,6 @@ export const translations = {
     new_entries: "個の新規エントリを処理しました",
     limit_notice: "一日の上限適用済み",
     got_it: "了解",
+    study_kana: "仮名学習",
   }
 };

@@ -1351,6 +1351,14 @@ export default function StatsPage() {
 
               {/* UTILITY ROW: Study & Logout - Shared row on mobile */}
               <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+                {/* NEW: Study Kana Button */}
+                <Link
+                  href="/study/kana" // Ensure this matches your actual route
+                  className="flex-1 md:flex-none md:px-5 bg-emerald-50 py-3 rounded-2xl shadow-sm font-bold text-emerald-700 border border-emerald-100 hover:bg-emerald-100 transition-all text-sm whitespace-nowrap flex items-center justify-center gap-2"
+                >
+                  <span className="text-lg">あ</span> {t.study_kana}
+                </Link>
+
                 {/* Mini Games Button */}
                 <Link
                   href="/minigames/focus"
