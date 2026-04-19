@@ -86,7 +86,7 @@ serve(async (req) => {
       'Authorization': `Bearer ${RESEND_API_KEY}`,
     },
     body: JSON.stringify({
-      from: 'Flashcards <onboarding@resend.dev>',
+      from: 'Flashkado <noreply@flashkado.app>',
       to: 'pauldanao28@gmail.com',
       subject: emailSubject,
       html: emailHtml,
