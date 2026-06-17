@@ -94,14 +94,22 @@ export default function StudyView() {
     if (!user) return;
 
     const fetchUserEnvironment = async () => {
-      // Fetch Profile & Deck in parallel for speed
-      const [profileRes, deckRes] = await Promise.all([
+      const today = new Date().toLocaleDateString("en-CA");
+
+      // Fetch Profile, Deck, and today's review count in parallel
+      const [profileRes, deckRes, reviewRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user?.id).maybeSingle(),
         supabase
           .from("decks")
           .select("id")
           .eq("user_id", user?.id)
           .eq("is_default", true)
+          .maybeSingle(),
+        supabase
+          .from("user_review_counts")
+          .select("count")
+          .eq("user_id", user?.id)
+          .eq("study_date", today)
           .maybeSingle(),
       ]);
 
@@ -113,13 +121,20 @@ export default function StudyView() {
         setHasOnboarded(p.has_onboarded);
         setProfileName(p.full_name);
 
-        // 1. Progress check
-        const today = new Date().toLocaleDateString("en-CA");
-        if (p.last_review_date === today) setDailyProgress(DAILY_GOAL);
+        // 1. Progress check — restore from DB so reloads show correct state
+        const todayCount = reviewRes.data?.count || 0;
+        if (p.last_review_date === today || todayCount >= DAILY_GOAL) {
+          setDailyProgress(DAILY_GOAL);
+          goalFired.current = true;
+          // Fix edge case: goal was hit but streak wasn't saved (e.g. hot reload interrupted)
+          if (todayCount >= DAILY_GOAL && p.last_review_date !== today) {
+            updateStreak();
+          }
+        } else {
+          setDailyProgress(todayCount);
+        }
 
         // 2. SAFE STREAK DISPLAY (No Auto-Reset)
-        // We simply show whatever is in the DB.
-        // We don't call .update() here anymore.
         setStreak(p.streak_count || 0);
         setMaxStreak(p.max_streak || 0);
 
@@ -448,7 +463,7 @@ export default function StudyView() {
       // 3. Update Session Logic
       const newSessionStreak = isPass ? sessionStreak + 1 : 0;
       setSessionStreak(newSessionStreak);
-      incrementStudyCount();
+      if (isPass) incrementStudyCount();
 
       // 4. Update Profile Max Streak (Only if current session breaks all-time record)
       if (isPass && newSessionStreak > maxStreak) {
