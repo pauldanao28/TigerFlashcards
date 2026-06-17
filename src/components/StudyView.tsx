@@ -338,8 +338,7 @@ export default function StudyView() {
     const getScore = (c: FlashcardData) => c.scores?.[mode]?.percent || 0;
     const getTries = (c: FlashcardData) => c.scores?.[mode]?.total || 0;
 
-    const sorted = [...allCards].sort((a, b) => getScore(a) - getScore(b));
-    const hardCards = sorted.slice(0, 10);
+    const hardCards = allCards.filter((c) => getScore(c) < 70);
     const easyCards = allCards.filter(
       (c) => getScore(c) >= 85 && getTries(c) >= 15,
     );
