@@ -48,6 +48,13 @@ export default function WelcomeView() {
             {t.get_started || "Get Started"}
           </Link>
 
+          <Link
+            href="/study/kana"
+            className="bg-white text-slate-600 py-4 rounded-2xl font-black uppercase tracking-widest text-xs border border-slate-100 shadow-sm hover:border-indigo-200 hover:text-indigo-600 active:scale-95 transition-all"
+          >
+            {lang === "en" ? "あ Study Kana — Free" : "あ 仮名を学ぶ — 無料"}
+          </Link>
+
           <p className="text-[9px] font-bold uppercase tracking-widest text-slate-300 mt-2 opacity-50">
             Smart Japanese Flashcards with AI
           </p>

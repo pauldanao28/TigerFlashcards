@@ -52,7 +52,7 @@ export default function KanaPage() {
     <>
       <div className="max-w-4xl mx-auto px-6 py-10 min-h-screen bg-slate-50">
         <Link
-          href="/stats"
+          href="/"
           className="flex items-center gap-1 text-slate-400 hover:text-indigo-600 mb-4 transition-colors w-fit group"
         >
           <ChevronLeft
