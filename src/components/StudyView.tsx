@@ -358,9 +358,9 @@ export default function StudyView() {
     const getScore = (c: FlashcardData) => c.scores?.[mode]?.percent || 0;
     const getTries = (c: FlashcardData) => c.scores?.[mode]?.total || 0;
 
-    const hardCards = allCards.filter((c) => getScore(c) < 70);
+    const hardCards = allCards.filter((c) => getScore(c) < 60);
     const easyCards = allCards.filter(
-      (c) => getScore(c) >= 85 && getTries(c) >= 15,
+      (c) => getScore(c) >= 90 && getTries(c) >= 15,
     );
     const mediumCards = allCards.filter(
       (c) =>
@@ -370,9 +370,9 @@ export default function StudyView() {
 
     const roll = Math.random();
     let pool: FlashcardData[];
-    if (roll < 0.7) {
+    if (roll < 0.8) {
       pool = hardCards.length ? hardCards : mediumCards.length ? mediumCards : easyCards.length ? easyCards : allCards;
-    } else if (roll < 0.9) {
+    } else if (roll < 0.95) {
       pool = mediumCards.length ? mediumCards : hardCards.length ? hardCards : easyCards.length ? easyCards : allCards;
     } else {
       pool = easyCards.length ? easyCards : mediumCards.length ? mediumCards : hardCards.length ? hardCards : allCards;
