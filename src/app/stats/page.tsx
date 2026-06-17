@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
+import { isPushSupported, isPushSubscribed, subscribeToPush, unsubscribeFromPush } from "@/lib/push";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FlashcardData } from "@/lib/types";
@@ -57,6 +58,7 @@ export default function StatsPage() {
   const [addedWordsSummary, setAddedWordsSummary] = useState<any[]>([]);
   const [showSummaryOverlay, setShowSummaryOverlay] = useState(false);
   const [sfxEnabled, setSfxEnabled] = useState(true);
+  const [remindersEnabled, setRemindersEnabled] = useState(false);
 
   useEffect(() => {
     const fetchTodayCount = async () => {
@@ -209,6 +211,9 @@ export default function StatsPage() {
       setIsAdmin(data.is_admin);
       setProfileName(data.full_name);
     }
+    // Check if already subscribed to push
+    const subscribed = await isPushSubscribed();
+    setRemindersEnabled(subscribed);
   };
 
   const fetchDefaultDeck = async () => {
@@ -725,6 +730,17 @@ export default function StatsPage() {
     }
   };
 
+  const handleReminderToggle = async () => {
+    if (!user) return;
+    if (remindersEnabled) {
+      await unsubscribeFromPush(user.id);
+      setRemindersEnabled(false);
+    } else {
+      const ok = await subscribeToPush(user.id);
+      setRemindersEnabled(ok);
+    }
+  };
+
   const importPack = async (pack: any) => {
     if (!defaultDeckId) {
       alert(
@@ -990,7 +1006,7 @@ export default function StatsPage() {
                     </button>
                   </div>
 
-                  {/* NEW: Sound Effects Toggle (Now matches the others perfectly) */}
+                  {/* Sound Effects Toggle */}
                   <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
                     <div>
                       <p className="text-sm font-bold text-slate-700">
@@ -1008,6 +1024,33 @@ export default function StatsPage() {
                     >
                       <div
                         className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${sfxEnabled ? "left-7" : "left-1"}`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Streak Reminders */}
+                  <div className="flex items-center justify-between p-4 bg-amber-50 rounded-2xl border border-amber-100 transition-all hover:border-amber-200 md:col-span-2">
+                    <div>
+                      <p className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                        🔔 Streak Reminders
+                        {streak > 0 && (
+                          <span className="text-[9px] font-black uppercase tracking-widest bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full">
+                            🔥 {streak} days
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-medium leading-tight mt-0.5">
+                        {remindersEnabled
+                          ? "You'll get a nudge before your streak breaks"
+                          : "Get notified before you lose your streak"}
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleReminderToggle}
+                      className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${remindersEnabled ? "bg-amber-500" : "bg-slate-300"}`}
+                    >
+                      <div
+                        className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${remindersEnabled ? "left-7" : "left-1"}`}
                       />
                     </button>
                   </div>
