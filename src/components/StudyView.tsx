@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { User } from "@supabase/supabase-js";
@@ -42,6 +42,8 @@ export default function StudyView() {
   const [isSocialOpen, setIsSocialOpen] = useState(false);
   const [friends, setFriends] = useState<any[]>([]);
   const [showGoalAlert, setShowGoalAlert] = useState(false);
+  const [goalStreak, setGoalStreak] = useState(0);
+  const goalFired = useRef(false);
 
   const [isFlipped, setIsFlipped] = useState(false);
   const [audioPulse, setAudioPulse] = useState(0);
@@ -131,6 +133,7 @@ export default function StudyView() {
 
         if (p.preferred_language) {
           setLang(p.preferred_language);
+          setLanguage(p.preferred_language as "en" | "jp");
         }
       }
 
@@ -368,8 +371,8 @@ export default function StudyView() {
   };
 
   // --- 6. Interaction Handlers ---
-  const updateStreak = async () => {
-    if (!user) return;
+  const updateStreak = async (): Promise<number> => {
+    if (!user) return 0;
     const today = new Date().toLocaleDateString("en-CA");
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
@@ -381,9 +384,9 @@ export default function StudyView() {
       .eq("id", user?.id)
       .single();
 
-    if (!p || p.last_review_date === today) return;
+    if (!p) return 0;
+    if (p.last_review_date === today) return p.streak_count || 0;
 
-    // The logic only happens here!
     const isContinuous = p.last_review_date === yesterdayStr;
     const newStreak = isContinuous ? (p.streak_count || 0) + 1 : 1;
 
@@ -393,6 +396,7 @@ export default function StudyView() {
       .eq("id", user?.id);
 
     setStreak(newStreak);
+    return newStreak;
   };
 
   const incrementStudyCount = async () => {
@@ -471,8 +475,10 @@ export default function StudyView() {
       if (isPass) {
         const prog = dailyProgress + 1;
         setDailyProgress(prog);
-        if (prog === DAILY_GOAL) {
-          updateStreak();
+        if (prog === DAILY_GOAL && !goalFired.current) {
+          goalFired.current = true;
+          const newStreak = await updateStreak();
+          setGoalStreak(newStreak);
           setShowGoalAlert(true);
           setTimeout(() => setShowGoalAlert(false), 4000);
         }
@@ -635,6 +641,11 @@ export default function StudyView() {
     [accuracyPercent],
   );
 
+  const handleLanguageChange = (newLang: "en" | "jp") => {
+    setLanguage(newLang);
+    setLang(newLang);
+  };
+
   return (
     <>
       {/* 1. Add the opening fragment here */}
@@ -686,7 +697,7 @@ export default function StudyView() {
         height down. This keeps the header thin and the cards high.
     */}
             <div className="h-9 w-32">
-              <LanguageToggle language={language} setLanguage={setLanguage} />
+              <LanguageToggle language={language} setLanguage={handleLanguageChange} />
             </div>
             <Link
               href="/stats"
@@ -748,7 +759,7 @@ export default function StudyView() {
           </div>
           <div className="flex items-center gap-6">
             <div className="h-11 flex items-center min-w-[200px]">
-              <LanguageToggle language={language} setLanguage={setLanguage} />
+              <LanguageToggle language={language} setLanguage={handleLanguageChange} />
             </div>
             <Link
               href="/stats"
@@ -1056,7 +1067,7 @@ export default function StudyView() {
                   {t.daily_goal_met}
                 </p>
                 <p className="text-emerald-600 font-bold text-[11px] uppercase tracking-wider leading-none mt-1">
-                  🔥 {streak + 1} {t.days} {t.streak}
+                  🔥 {goalStreak} {t.days} {t.streak}
                 </p>
               </div>
             </div>

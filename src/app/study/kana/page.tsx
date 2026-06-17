@@ -10,6 +10,7 @@ export default function KanaPage() {
   const data = mode === "hiragana" ? HIRAGANA_DATA : KATAKANA_DATA;
 
   const [isQuizMode, setIsQuizMode] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [shuffledData, setShuffledData] = useState<KanaCharacter[]>([]);
@@ -43,7 +44,7 @@ export default function KanaPage() {
         setCurrentIndex((prev) => prev + 1);
       } else {
         setIsQuizMode(false);
-        alert("Otsukaresama! You finished the set! 🎉");
+        setIsComplete(true);
       }
     }, 150);
   };
@@ -172,6 +173,33 @@ export default function KanaPage() {
           ))}
         </div>
       </div>
+
+      {/* Completion Overlay */}
+      {isComplete && (
+        <div className="fixed inset-0 z-50 bg-slate-900/95 backdrop-blur-md flex flex-col items-center justify-center p-6">
+          <div className="text-7xl mb-6">🎉</div>
+          <h2 className="text-white font-black text-3xl uppercase tracking-tighter italic mb-2">
+            Otsukaresama!
+          </h2>
+          <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-12">
+            You finished the set!
+          </p>
+          <div className="flex gap-4">
+            <button
+              onClick={() => { setIsComplete(false); startQuiz(); }}
+              className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+            >
+              Practice Again <span className="text-amber-400">⚡️</span>
+            </button>
+            <button
+              onClick={() => setIsComplete(false)}
+              className="px-8 py-4 rounded-2xl font-black text-xs text-white/50 hover:text-white uppercase tracking-widest transition-all"
+            >
+              Back to Grid
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Quiz Overlay */}
       {isQuizMode && shuffledData.length > 0 && (
