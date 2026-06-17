@@ -373,7 +373,7 @@ export default function AdminDashboard() {
                           onChange={(e) =>
                             setEditForm({
                               ...editForm,
-                              reading: e.target.value,
+                              partOfSpeech: e.target.value,
                             })
                           }
                           className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-indigo-500"

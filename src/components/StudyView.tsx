@@ -404,10 +404,12 @@ export default function StudyView() {
     const isContinuous = p.last_review_date === yesterdayStr;
     const newStreak = isContinuous ? (p.streak_count || 0) + 1 : 1;
 
-    await supabase
+    const { error } = await supabase
       .from("profiles")
       .update({ streak_count: newStreak, last_review_date: today })
       .eq("id", user?.id);
+
+    if (error) console.error("updateStreak failed:", error);
 
     setStreak(newStreak);
     return newStreak;
