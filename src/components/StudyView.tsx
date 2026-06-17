@@ -36,10 +36,12 @@ export default function StudyView() {
   const [language, setLanguage] = useState<"en" | "jp">("jp");
   const [streak, setStreak] = useState(0);
   const [sessionStreak, setSessionStreak] = useState(0);
+  const [maxStreak, setMaxStreak] = useState(0);
   const [dailyProgress, setDailyProgress] = useState(0);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [isSocialOpen, setIsSocialOpen] = useState(false);
   const [friends, setFriends] = useState<any[]>([]);
+  const [showGoalAlert, setShowGoalAlert] = useState(false);
 
   const [isFlipped, setIsFlipped] = useState(false);
   const [audioPulse, setAudioPulse] = useState(0);
@@ -117,6 +119,7 @@ export default function StudyView() {
         // We simply show whatever is in the DB.
         // We don't call .update() here anymore.
         setStreak(p.streak_count || 0);
+        setMaxStreak(p.max_streak || 0);
 
         // Hint Logic
         if (
@@ -349,14 +352,14 @@ export default function StudyView() {
     );
 
     const roll = Math.random();
-    let pool =
-      roll < 0.7 && hardCards.length
-        ? hardCards
-        : roll < 0.9 && mediumCards.length
-          ? mediumCards
-          : easyCards.length
-            ? easyCards
-            : allCards;
+    let pool: FlashcardData[];
+    if (roll < 0.7) {
+      pool = hardCards.length ? hardCards : mediumCards.length ? mediumCards : easyCards.length ? easyCards : allCards;
+    } else if (roll < 0.9) {
+      pool = mediumCards.length ? mediumCards : hardCards.length ? hardCards : easyCards.length ? easyCards : allCards;
+    } else {
+      pool = easyCards.length ? easyCards : mediumCards.length ? mediumCards : hardCards.length ? hardCards : allCards;
+    }
 
     const filtered = pool.filter((c) => c.id !== lastCardId);
     return filtered.length
@@ -444,9 +447,9 @@ export default function StudyView() {
       setSessionStreak(newSessionStreak);
       incrementStudyCount();
 
-      // 4. Update Profile Max Streak (Only if current session breaks record)
-      if (isPass && newSessionStreak > streak) {
-        setStreak(newSessionStreak);
+      // 4. Update Profile Max Streak (Only if current session breaks all-time record)
+      if (isPass && newSessionStreak > maxStreak) {
+        setMaxStreak(newSessionStreak);
         await supabase
           .from("profiles")
           .update({ max_streak: newSessionStreak })
@@ -470,7 +473,8 @@ export default function StudyView() {
         setDailyProgress(prog);
         if (prog === DAILY_GOAL) {
           updateStreak();
-          alert(t.daily_streak_extended); // Keep alert or use a toast
+          setShowGoalAlert(true);
+          setTimeout(() => setShowGoalAlert(false), 4000);
         }
       }
 
@@ -493,8 +497,8 @@ export default function StudyView() {
       cards,
       language,
       dailyProgress,
-      streak,
       sessionStreak,
+      maxStreak,
       t,
     ],
   );
@@ -1025,6 +1029,38 @@ export default function StudyView() {
             onClose={() => setIsSocialOpen(false)}
             fetchFriends={fetchFriends}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Daily Goal Toast */}
+      <AnimatePresence>
+        {showGoalAlert && (
+          <motion.div
+            initial={{ opacity: 0, y: 80, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 80, scale: 0.9 }}
+            transition={{ type: "spring", stiffness: 320, damping: 28 }}
+            className="fixed bottom-24 md:bottom-12 left-0 right-0 z-[200] flex justify-center pointer-events-none px-6"
+          >
+            <div className="bg-white rounded-3xl shadow-2xl shadow-emerald-100/60 border border-emerald-100 px-8 py-5 flex items-center gap-5 max-w-sm w-full">
+              <div className="relative shrink-0">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">
+                  🎉
+                </div>
+                <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white">
+                  <div className="w-full h-full rounded-full bg-emerald-500 animate-ping opacity-75" />
+                </div>
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <p className="text-slate-800 font-black text-sm uppercase tracking-widest leading-none">
+                  {t.daily_goal_met}
+                </p>
+                <p className="text-emerald-600 font-bold text-[11px] uppercase tracking-wider leading-none mt-1">
+                  🔥 {streak + 1} {t.days} {t.streak}
+                </p>
+              </div>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </>
