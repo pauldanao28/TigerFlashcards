@@ -133,7 +133,6 @@ export default function StudyView() {
 
         if (p.preferred_language) {
           setLang(p.preferred_language);
-          setLanguage(p.preferred_language as "en" | "jp");
         }
       }
 
@@ -641,11 +640,6 @@ export default function StudyView() {
     [accuracyPercent],
   );
 
-  const handleLanguageChange = (newLang: "en" | "jp") => {
-    setLanguage(newLang);
-    setLang(newLang);
-  };
-
   return (
     <>
       {/* 1. Add the opening fragment here */}
@@ -697,7 +691,7 @@ export default function StudyView() {
         height down. This keeps the header thin and the cards high.
     */}
             <div className="h-9 w-32">
-              <LanguageToggle language={language} setLanguage={handleLanguageChange} />
+              <LanguageToggle language={language} setLanguage={setLanguage} />
             </div>
             <Link
               href="/stats"
@@ -759,7 +753,7 @@ export default function StudyView() {
           </div>
           <div className="flex items-center gap-6">
             <div className="h-11 flex items-center min-w-[200px]">
-              <LanguageToggle language={language} setLanguage={handleLanguageChange} />
+              <LanguageToggle language={language} setLanguage={setLanguage} />
             </div>
             <Link
               href="/stats"
