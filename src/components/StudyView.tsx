@@ -128,14 +128,15 @@ export default function StudyView() {
           goalFired.current = true;
           // Fix edge case: goal was hit but streak wasn't saved (e.g. hot reload interrupted)
           if (todayCount >= DAILY_GOAL && p.last_review_date !== today) {
-            updateStreak();
+            const recovered = await updateStreak();
+            setStreak(recovered);
+          } else {
+            setStreak(p.streak_count || 0);
           }
         } else {
           setDailyProgress(todayCount);
+          setStreak(p.streak_count || 0);
         }
-
-        // 2. SAFE STREAK DISPLAY (No Auto-Reset)
-        setStreak(p.streak_count || 0);
         setMaxStreak(p.max_streak || 0);
 
         // Hint Logic
@@ -399,17 +400,22 @@ export default function StudyView() {
       .single();
 
     if (!p) return 0;
+
+    console.log("[streak] today:", today, "yesterday:", yesterdayStr, "last_review_date:", p.last_review_date, "streak_count:", p.streak_count);
+
     if (p.last_review_date === today) return p.streak_count || 0;
 
     const isContinuous = p.last_review_date === yesterdayStr;
     const newStreak = isContinuous ? (p.streak_count || 0) + 1 : 1;
+
+    console.log("[streak] isContinuous:", isContinuous, "newStreak:", newStreak);
 
     const { error } = await supabase
       .from("profiles")
       .update({ streak_count: newStreak, last_review_date: today })
       .eq("id", user?.id);
 
-    if (error) console.error("updateStreak failed:", error);
+    if (error) console.error("[streak] updateStreak failed:", error);
 
     setStreak(newStreak);
     return newStreak;
