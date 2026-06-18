@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { useLang } from "@/context/LanguageContext";
 import { calculateGlobalStats } from "@/lib/stats";
 import { processReferral } from "@/lib/social";
+import { toISODateLocal } from "@/lib/utils";
 
 import Auth from "@/components/Auth";
 import Logo from "@/components/Logo";
@@ -94,7 +95,7 @@ export default function StudyView() {
     if (!user) return;
 
     const fetchUserEnvironment = async () => {
-      const today = new Date().toLocaleDateString("en-CA");
+      const today = toISODateLocal();
 
       // Fetch Profile, Deck, and today's review count in parallel
       const [profileRes, deckRes, reviewRes] = await Promise.all([
@@ -388,10 +389,10 @@ export default function StudyView() {
   // --- 6. Interaction Handlers ---
   const updateStreak = async (): Promise<number> => {
     if (!user) return 0;
-    const today = new Date().toLocaleDateString("en-CA");
+    const today = toISODateLocal();
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toLocaleDateString("en-CA");
+    const yesterdayStr = toISODateLocal(yesterday);
 
     const { data: p } = await supabase
       .from("profiles")

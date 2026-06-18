@@ -21,7 +21,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const today = new Date().toLocaleDateString('en-CA');
+  const now = new Date();
+  const today = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
 
   // Find all push subscriptions where the user hasn't studied today
   // and has an active streak worth protecting (streak >= 1)

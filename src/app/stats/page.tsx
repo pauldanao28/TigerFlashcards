@@ -11,6 +11,7 @@ import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
 import { calculateGlobalStats } from "@/lib/stats";
 import LoadingScreen from "@/components/LoadingScreen";
+import { toISODateTZ } from "@/lib/utils";
 
 export default function StatsPage() {
   const router = useRouter();
@@ -67,10 +68,7 @@ export default function StatsPage() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get today's date in YYYY-MM-DD format (Singapore Time)
-      const today = new Date().toLocaleDateString("en-CA", {
-        timeZone: "Asia/Singapore",
-      });
+      const today = toISODateTZ("Asia/Singapore");
 
       const { data, error } = await supabase
         .from("user_review_counts")
