@@ -296,7 +296,8 @@ export default function StatsPage() {
         .eq("deck_cards.deck_id", defaultDeckId)
         // 3. This ensures you only get YOUR scores (not someone else's)
         .eq("user_scores.user_id", user.id)
-        .order("added_at", { foreignTable: "deck_cards", ascending: false });
+        .order("added_at", { foreignTable: "deck_cards", ascending: false })
+        .limit(10000);
 
       if (error) {
         console.error("Fetch Error:", error.message);
@@ -398,38 +399,37 @@ export default function StatsPage() {
     let wordsToActuallyProcess = uniqueInputWords;
     const DAILY_LIMIT = 50;
 
-    try {
-      const { data: performance } = await supabase
-        .from("admin_user_performance_master")
-        .select("cards_added_today")
-        .eq("id", user.id)
-        .single();
+    if (!isAdmin) {
+      try {
+        const { data: performance } = await supabase
+          .from("admin_user_performance_master")
+          .select("cards_added_today")
+          .eq("id", user.id)
+          .single();
 
-      const currentToday = performance?.cards_added_today || 0;
+        const currentToday = performance?.cards_added_today || 0;
 
-      if (currentToday >= DAILY_LIMIT) {
-        setLoading(false);
-        setInput("");
-        setBatchInput("");
-        return alert(
-          t.limit_reached_msg
-            .replace("{{current}}", currentToday.toString())
-            .replace("{{limit}}", DAILY_LIMIT.toString()),
-        );
+        if (currentToday >= DAILY_LIMIT) {
+          setLoading(false);
+          setInput("");
+          setBatchInput("");
+          return alert(
+            t.limit_reached_msg
+              .replace("{{current}}", currentToday.toString())
+              .replace("{{limit}}", DAILY_LIMIT.toString()),
+          );
+        }
+
+        if (currentToday + uniqueInputWords.length > DAILY_LIMIT) {
+          const allowedCount = DAILY_LIMIT - currentToday;
+          wordsToActuallyProcess = uniqueInputWords.slice(0, allowedCount);
+          alert(
+            t.partial_limit_msg.replace("{{count}}", allowedCount.toString()),
+          );
+        }
+      } catch (limitErr) {
+        console.error("Limit check failed, proceeding anyway:", limitErr);
       }
-
-      if (currentToday + uniqueInputWords.length > DAILY_LIMIT) {
-        const allowedCount = DAILY_LIMIT - currentToday;
-        // Slice the array to only include what fits in the remaining quota
-        wordsToActuallyProcess = uniqueInputWords.slice(0, allowedCount);
-
-        // Optional: Inform the user we are only doing a partial add
-        alert(
-          t.partial_limit_msg.replace("{{count}}", allowedCount.toString()),
-        );
-      }
-    } catch (limitErr) {
-      console.error("Limit check failed, proceeding anyway:", limitErr);
     }
     /* --- END OF PARTIAL LIMIT LOGIC --- */
 

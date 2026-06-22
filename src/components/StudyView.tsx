@@ -186,7 +186,8 @@ export default function StudyView() {
       `,
       )
       .eq("deck_cards.deck_id", defaultDeckId)
-      .eq("user_scores.user_id", user?.id);
+      .eq("user_scores.user_id", user?.id)
+      .limit(10000);
 
     if (!error && data) {
       const flattened = data.map((card: any) => ({
