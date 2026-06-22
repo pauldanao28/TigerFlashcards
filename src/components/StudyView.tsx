@@ -176,18 +176,27 @@ export default function StudyView() {
       setDataLoading(true);
     }
 
-    const { data, error } = await supabase
-      .from("master_cards")
-      .select(
-        `
-        *,
-        deck_cards!inner (deck_id),
-        user_scores (scores_json)
-      `,
-      )
-      .eq("deck_cards.deck_id", defaultDeckId)
-      .eq("user_scores.user_id", user?.id)
-      .limit(10000);
+    const allData: any[] = [];
+    let error = null;
+    const PAGE_SIZE = 1000;
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data: page, error: pageErr } = await supabase
+        .from("master_cards")
+        .select(
+          `
+          *,
+          deck_cards!inner (deck_id),
+          user_scores (scores_json)
+        `,
+        )
+        .eq("deck_cards.deck_id", defaultDeckId)
+        .eq("user_scores.user_id", user?.id)
+        .range(from, from + PAGE_SIZE - 1);
+      if (pageErr) { error = pageErr; break; }
+      if (page) allData.push(...page);
+      if (!page || page.length < PAGE_SIZE) break;
+    }
+    const data = allData;
 
     if (!error && data) {
       const flattened = data.map((card: any) => ({
