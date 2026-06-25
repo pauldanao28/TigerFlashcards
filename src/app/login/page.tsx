@@ -1,5 +1,11 @@
-"use client";
+import type { Metadata } from "next";
 import Auth from "@/components/Auth";
+
+export const metadata: Metadata = {
+  title: "Sign In",
+  description: "Sign in or create a free FlashKado account to start learning Japanese with AI-powered flashcards.",
+  robots: { index: false, follow: false },
+};
 
 export default function LoginPage() {
   return (
