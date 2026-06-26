@@ -35,11 +35,23 @@ export default function WelcomeView() {
         </h2>
 
         {/* VALUE PROP */}
-        <p className="text-xs font-bold text-slate-500 max-w-xs mx-auto mb-10 leading-relaxed">
+        <p className="text-xs font-bold text-slate-500 max-w-xs mx-auto mb-5 leading-relaxed">
           {lang === "en"
             ? "AI builds your flashcards. Spaced repetition does the rest."
             : "AIがカードを作る。あとは間隔反復が全部やる。"}
         </p>
+
+        {/* FEATURE HIGHLIGHT */}
+        <div className="bg-white border border-slate-100 rounded-2xl px-4 py-3 max-w-xs w-full mb-8 shadow-sm text-left">
+          <p className="text-[9px] font-black uppercase tracking-widest text-indigo-500 mb-1">
+            {lang === "en" ? "Paste anything" : "何でも貼り付けて"}
+          </p>
+          <p className="text-xs font-bold text-slate-600 leading-relaxed">
+            {lang === "en"
+              ? "Song lyrics, articles, sentences — paste any Japanese text and AI extracts the words into flashcards instantly."
+              : "歌詞、記事、文章でもOK。日本語テキストを貼り付けると、AIが単語を抽出してカードに変換します。"}
+          </p>
+        </div>
 
         <div className="flex flex-col w-full max-w-xs gap-4">
           <Link
