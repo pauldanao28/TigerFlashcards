@@ -30,17 +30,18 @@ export default function WelcomeView() {
         </h1>
 
         {/* SUBTITLE */}
-        <h2 className="text-base md:text-lg font-bold text-slate-400 uppercase tracking-[0.2em] mb-12 max-w-sm mx-auto leading-relaxed">
+        <h2 className="text-base md:text-lg font-bold text-slate-400 uppercase tracking-[0.2em] mb-4 max-w-sm mx-auto leading-relaxed">
           {lang === "en" ? <>Master Japanese</> : <>日本語をマスター</>}
         </h2>
 
-        <div className="flex flex-col w-full max-w-xs gap-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.25em] text-indigo-500 mb-2 animate-pulse">
-            {lang === "en"
-              ? "Learn Faster. Forget Less."
-              : "速く学び、忘れにくい。"}
-          </p>
+        {/* VALUE PROP */}
+        <p className="text-xs font-bold text-slate-500 max-w-xs mx-auto mb-10 leading-relaxed">
+          {lang === "en"
+            ? "AI builds your flashcards. Spaced repetition does the rest."
+            : "AIがカードを作る。あとは間隔反復が全部やる。"}
+        </p>
 
+        <div className="flex flex-col w-full max-w-xs gap-4">
           <Link
             href="/login"
             className="bg-indigo-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest text-sm shadow-2xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all"
@@ -55,9 +56,23 @@ export default function WelcomeView() {
             {lang === "en" ? "あ Study Kana — Free" : "あ 仮名を学ぶ — 無料"}
           </Link>
 
-          <p className="text-[9px] font-bold uppercase tracking-widest text-slate-300 mt-2 opacity-50">
-            Smart Japanese Flashcards with AI
-          </p>
+          {/* JLPT LEVEL LINKS */}
+          <div className="mt-1">
+            <p className="text-[9px] font-black uppercase tracking-widest text-slate-300 mb-2">
+              {lang === "en" ? "Study by JLPT Level" : "JLPTレベルで学ぶ"}
+            </p>
+            <div className="flex justify-center gap-2">
+              {["N5", "N4", "N3", "N2", "N1"].map((level) => (
+                <Link
+                  key={level}
+                  href={`/jlpt/${level.toLowerCase()}`}
+                  className="text-[10px] font-black text-slate-400 hover:text-indigo-600 transition-colors px-1"
+                >
+                  {level}
+                </Link>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </main>
