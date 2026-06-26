@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy",
+  description: "FlashKado privacy policy — how we collect, use, and protect your data when you study Japanese with our app.",
+};
 
 export default function PrivacyPolicy() {
   return (
