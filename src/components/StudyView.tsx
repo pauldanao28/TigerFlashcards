@@ -351,9 +351,9 @@ export default function StudyView() {
 
     const roll = Math.random();
     let pool =
-      roll < 0.7 && hardCards.length
+      roll < 0.65 && hardCards.length
         ? hardCards
-        : roll < 0.9 && mediumCards.length
+        : roll < 0.95 && mediumCards.length
           ? mediumCards
           : easyCards.length
             ? easyCards
