@@ -293,7 +293,8 @@ export default function StatsPage() {
         .eq("deck_cards.deck_id", defaultDeckId)
         // 3. This ensures you only get YOUR scores (not someone else's)
         .eq("user_scores.user_id", user.id)
-        .order("added_at", { foreignTable: "deck_cards", ascending: false });
+        .order("added_at", { foreignTable: "deck_cards", ascending: false })
+        .range(0, 9999);
 
       if (error) {
         console.error("Fetch Error:", error.message);
