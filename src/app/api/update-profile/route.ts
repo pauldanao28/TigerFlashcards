@@ -25,14 +25,20 @@ ${conversation}
 
 Based on this conversation, update what you know about the student. Rules:
 - Only update a field if you have clear evidence from this conversation
-- For arrays: ADD new items to existing ones, never remove existing items
+- For arrays: ADD new items to existing ones, never remove existing items, deduplicate
 - level: JLPT estimate (N5 / N4 / N3 / N2 / N1 / unknown)
 - native_language: their native language if revealed
-- hobbies: interests they mention
+- motivation: why they are learning Japanese (e.g. "anime", "work", "travel to Japan", "family")
+- occupation: their job or field if mentioned (e.g. "software engineer", "student", "teacher")
+- learning_goals: specific goals they express (e.g. "pass JLPT N3", "watch anime without subtitles", "hold basic conversations")
+- hobbies: personal interests they mention beyond Japanese study
 - weak_points: grammar/vocab patterns they struggle with (be specific, e.g. "て-form conjugation", "は vs が")
 - strong_points: things they handle correctly and confidently
-- preferred_topics: topics they enjoy or ask about
-- notes: any other useful teaching observations (keep concise)
+- common_errors: recurring specific mistakes observed (e.g. "forgets を after direct objects", "overuses ます in casual speech") — only concrete observed errors
+- preferred_topics: topics they enjoy discussing or ask about often
+- personality: brief learning-style note (e.g. "likes humor", "prefers detailed explanations", "needs encouragement") — update if new evidence, otherwise keep
+- vocabulary_introduced: Japanese words/phrases explicitly taught or explained in this conversation (romaji not needed; keep list under 50 total, drop oldest if over)
+- notes: any other useful teaching observations (keep concise, 1–2 sentences max)
 
 If nothing new is learned about a field, keep its existing value exactly as-is.
 
@@ -40,10 +46,16 @@ Return ONLY valid JSON, no explanation, no markdown:
 {
   "level": "...",
   "native_language": "...",
+  "motivation": "...",
+  "occupation": "...",
+  "learning_goals": [],
   "hobbies": [],
   "weak_points": [],
   "strong_points": [],
+  "common_errors": [],
   "preferred_topics": [],
+  "personality": "...",
+  "vocabulary_introduced": [],
   "notes": "..."
 }`;
 

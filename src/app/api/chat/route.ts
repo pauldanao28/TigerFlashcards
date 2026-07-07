@@ -17,10 +17,16 @@ const BASE_PROMPT = `あなたは「先生」、親切な日本語学習パー�
 interface SenseiProfile {
   level?: string;
   native_language?: string;
+  motivation?: string;
+  occupation?: string;
+  learning_goals?: string[];
   hobbies?: string[];
   weak_points?: string[];
   strong_points?: string[];
+  common_errors?: string[];
   preferred_topics?: string[];
+  personality?: string;
+  vocabulary_introduced?: string[];
   notes?: string;
 }
 
@@ -28,13 +34,19 @@ function buildSystemPrompt(profile: SenseiProfile | null): string {
   if (!profile) return BASE_PROMPT;
 
   const lines: string[] = [];
-  if (profile.level)                lines.push(`レベル: ${profile.level}`);
-  if (profile.native_language)      lines.push(`母国語: ${profile.native_language}`);
-  if (profile.hobbies?.length)      lines.push(`趣味: ${profile.hobbies.join("、")}`);
-  if (profile.weak_points?.length)  lines.push(`弱点: ${profile.weak_points.join("、")}`);
-  if (profile.strong_points?.length)lines.push(`得意: ${profile.strong_points.join("、")}`);
+  if (profile.level)                    lines.push(`レベル: ${profile.level}`);
+  if (profile.native_language)          lines.push(`母国語: ${profile.native_language}`);
+  if (profile.motivation)               lines.push(`学習動機: ${profile.motivation}`);
+  if (profile.occupation)               lines.push(`職業: ${profile.occupation}`);
+  if (profile.learning_goals?.length)   lines.push(`目標: ${profile.learning_goals.join("、")}`);
+  if (profile.hobbies?.length)          lines.push(`趣味: ${profile.hobbies.join("、")}`);
+  if (profile.weak_points?.length)      lines.push(`弱点: ${profile.weak_points.join("、")}`);
+  if (profile.strong_points?.length)    lines.push(`得意: ${profile.strong_points.join("、")}`);
+  if (profile.common_errors?.length)    lines.push(`よくある間違い: ${profile.common_errors.join("、")}`);
   if (profile.preferred_topics?.length) lines.push(`好きなトピック: ${profile.preferred_topics.join("、")}`);
-  if (profile.notes)                lines.push(`メモ: ${profile.notes}`);
+  if (profile.personality)              lines.push(`学習スタイル: ${profile.personality}`);
+  if (profile.vocabulary_introduced?.length) lines.push(`既習語彙: ${profile.vocabulary_introduced.join("、")}`);
+  if (profile.notes)                    lines.push(`メモ: ${profile.notes}`);
 
   if (lines.length === 0) return BASE_PROMPT;
 
@@ -43,7 +55,7 @@ function buildSystemPrompt(profile: SenseiProfile | null): string {
 ## 生徒のプロフィール
 ${lines.join("\n")}
 
-このプロフィールを常に参考にして、生徒のレベル・弱点・興味に合わせて指導してください。`;
+このプロフィールを常に参考にして、生徒のレベル・弱点・興味・学習スタイルに合わせて指導してください。既習語彙は既に知っているので再説明は不要です。よくある間違いは特に注意して指摘してください。`;
 }
 
 export async function POST(req: Request) {

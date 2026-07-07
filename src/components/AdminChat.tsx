@@ -14,10 +14,16 @@ interface Message {
 interface SenseiProfile {
   level?: string;
   native_language?: string;
+  motivation?: string;
+  occupation?: string;
+  learning_goals?: string[];
   hobbies?: string[];
   weak_points?: string[];
   strong_points?: string[];
+  common_errors?: string[];
   preferred_topics?: string[];
+  personality?: string;
+  vocabulary_introduced?: string[];
   notes?: string;
 }
 
@@ -294,7 +300,7 @@ export default function AdminChat({ userId }: { userId: string }) {
 
         {/* Profile summary — shows what Sensei has learned about you */}
         {profile && Object.values(profile).some(v => v && (Array.isArray(v) ? v.length > 0 : true)) && (
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-1.5">
             {profile.level && (
               <span className="text-[10px] font-black uppercase tracking-widest bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-lg border border-indigo-100">
                 {profile.level}
@@ -305,9 +311,29 @@ export default function AdminChat({ userId }: { userId: string }) {
                 {profile.native_language}
               </span>
             )}
+            {profile.motivation && (
+              <span className="text-[10px] font-bold bg-violet-50 text-violet-600 px-2.5 py-1 rounded-lg border border-violet-100">
+                {profile.motivation}
+              </span>
+            )}
+            {profile.occupation && (
+              <span className="text-[10px] font-bold bg-teal-50 text-teal-600 px-2.5 py-1 rounded-lg border border-teal-100">
+                {profile.occupation}
+              </span>
+            )}
+            {profile.learning_goals?.map(g => (
+              <span key={g} className="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-lg border border-emerald-100">
+                🎯 {g}
+              </span>
+            ))}
             {profile.weak_points?.map(w => (
               <span key={w} className="text-[10px] font-bold bg-rose-50 text-rose-500 px-2.5 py-1 rounded-lg border border-rose-100">
                 ⚠ {w}
+              </span>
+            ))}
+            {profile.common_errors?.map(e => (
+              <span key={e} className="text-[10px] font-bold bg-orange-50 text-orange-500 px-2.5 py-1 rounded-lg border border-orange-100">
+                ✗ {e}
               </span>
             ))}
             {profile.hobbies?.map(h => (
