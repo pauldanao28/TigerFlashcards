@@ -30,6 +30,7 @@ interface SenseiProfile {
 interface Tooltip {
   word: string;
   reading: string;
+  editWord: string;
   x: number;
   y: number;
   adding: boolean;
@@ -228,13 +229,14 @@ export default function AdminChat({ userId }: { userId: string }) {
   const handleWordClick = useCallback((word: string, reading: string, e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
     const rect = (e.target as HTMLElement).getBoundingClientRect();
-    const tooltipH = 130;
+    const tooltipH = 170;
     const spaceBelow = window.innerHeight - rect.bottom;
     const y = spaceBelow > tooltipH ? rect.bottom + 8 : rect.top - tooltipH - 8;
     setTooltip({
       word,
       reading,
-      x: Math.min(rect.left, window.innerWidth - 240),
+      editWord: word,
+      x: Math.min(rect.left, window.innerWidth - 260),
       y: Math.max(8, y),
       adding: false,
     });
@@ -248,7 +250,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ words: [tooltip.word] }),
+        body: JSON.stringify({ words: [tooltip.editWord] }),
       });
       const cards = await res.json();
       if (!cards?.[0]) throw new Error("No card data");
@@ -299,20 +301,26 @@ export default function AdminChat({ userId }: { userId: string }) {
     const segments = parseFurigana(text);
     return (
       <>
-        {segments.map((seg, i) =>
-          seg.type === "annotated" ? (
-            <span
-              key={i}
-              className="cursor-pointer underline decoration-dotted decoration-indigo-400 underline-offset-2 active:text-indigo-600 transition-colors"
-              onClick={(e) => handleWordClick(seg.text, seg.reading, e)}
-              onTouchEnd={(e) => { e.preventDefault(); handleWordClick(seg.text, seg.reading, e as unknown as React.MouseEvent); }}
-            >
-              {seg.text}
+        {segments.map((seg, i) => {
+          if (seg.type !== "annotated") return <span key={i}>{seg.text}</span>;
+          // Only show kanji characters as the tappable/underlined part;
+          // trailing hiragana okurigana (e.g. べる in 食べる) renders as plain text.
+          const kanjiMatch = seg.text.match(/^[一-龯㐀-䶿々〻]+/);
+          const kanjiPart = kanjiMatch ? kanjiMatch[0] : seg.text;
+          const suffix = seg.text.slice(kanjiPart.length);
+          return (
+            <span key={i}>
+              <span
+                className="cursor-pointer underline decoration-dotted decoration-indigo-400 underline-offset-2 active:text-indigo-600 transition-colors"
+                onClick={(e) => handleWordClick(seg.text, seg.reading, e)}
+                onTouchEnd={(e) => { e.preventDefault(); handleWordClick(seg.text, seg.reading, e as unknown as React.MouseEvent); }}
+              >
+                {kanjiPart}
+              </span>
+              {suffix}
             </span>
-          ) : (
-            <span key={i}>{seg.text}</span>
-          )
-        )}
+          );
+        })}
       </>
     );
   };
@@ -424,16 +432,26 @@ export default function AdminChat({ userId }: { userId: string }) {
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-xl font-black text-slate-800">{tooltip.word}</div>
-              <div className="text-sm text-indigo-600 font-bold mt-0.5">{tooltip.reading}</div>
+              <div className="text-xs text-indigo-500 font-bold mt-0.5">{tooltip.reading}</div>
             </div>
             <button onClick={() => setTooltip(null)} className="text-slate-300 hover:text-slate-500 shrink-0">
               <X size={14} />
             </button>
           </div>
+          <div className="mt-3">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Word to add</label>
+            <input
+              type="text"
+              value={tooltip.editWord}
+              onChange={(e) => setTooltip((prev) => prev ? { ...prev, editWord: e.target.value } : prev)}
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+              placeholder="e.g. 食べる"
+            />
+          </div>
           <button
             onClick={addWordToDeck}
-            disabled={tooltip.adding}
-            className="mt-3 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-60"
+            disabled={tooltip.adding || !tooltip.editWord.trim()}
+            className="mt-2 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-60"
           >
             {tooltip.adding ? <><Loader2 size={11} className="animate-spin" /> Adding…</> : <><Plus size={11} /> Add to Deck</>}
           </button>
