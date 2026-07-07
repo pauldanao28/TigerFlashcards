@@ -303,21 +303,21 @@ export default function AdminChat({ userId }: { userId: string }) {
       <>
         {segments.map((seg, i) => {
           if (seg.type !== "annotated") return <span key={i}>{seg.text}</span>;
-          // Only show kanji characters as the tappable/underlined part;
-          // trailing hiragana okurigana (e.g. べる in 食べる) renders as plain text.
-          const kanjiMatch = seg.text.match(/^[一-龯㐀-䶿々〻]+/);
-          const kanjiPart = kanjiMatch ? kanjiMatch[0] : seg.text;
-          const suffix = seg.text.slice(kanjiPart.length);
+          // Outer span is the tap target (full word). Only kanji characters
+          // within the word get the dotted underline — hiragana/katakana are plain.
+          const isKanji = (ch: string) => /[一-龯㐀-䶿々〻]/.test(ch);
           return (
-            <span key={i}>
-              <span
-                className="cursor-pointer underline decoration-dotted decoration-indigo-400 underline-offset-2 active:text-indigo-600 transition-colors"
-                onClick={(e) => handleWordClick(seg.text, seg.reading, e)}
-                onTouchEnd={(e) => { e.preventDefault(); handleWordClick(seg.text, seg.reading, e as unknown as React.MouseEvent); }}
-              >
-                {kanjiPart}
-              </span>
-              {suffix}
+            <span
+              key={i}
+              className="cursor-pointer active:opacity-60 transition-opacity"
+              onClick={(e) => handleWordClick(seg.text, seg.reading, e)}
+              onTouchEnd={(e) => { e.preventDefault(); handleWordClick(seg.text, seg.reading, e as unknown as React.MouseEvent); }}
+            >
+              {seg.text.split("").map((ch, ci) =>
+                isKanji(ch)
+                  ? <span key={ci} className="underline decoration-dotted decoration-indigo-400 underline-offset-2">{ch}</span>
+                  : ch
+              )}
             </span>
           );
         })}
