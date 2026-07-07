@@ -74,7 +74,8 @@ export async function POST(req: Request) {
 
     // Gemini requires history to strictly alternate user→model starting with user.
     // Drop leading model messages, then remove any consecutive duplicate roles.
-    const raw = window.slice(0, -1).map((m: { role: string; content: string }) => ({
+    type HistoryEntry = { role: string; parts: { text: string }[] };
+    const raw: HistoryEntry[] = window.slice(0, -1).map((m: { role: string; content: string }) => ({
       role: m.role === "user" ? "user" : "model",
       parts: [{ text: m.content }],
     }));
