@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { Send, Trash2, Plus, X, Loader2, List } from "lucide-react";
+import { Send, Trash2, X, Loader2, List, Plus } from "lucide-react";
 
 interface Message {
   id: string;
@@ -36,13 +36,6 @@ interface Tooltip {
   adding: boolean;
 }
 
-interface AddedCard {
-  id: string;
-  japanese: string;
-  reading: string;
-  english: string;
-  partOfSpeech?: string;
-}
 
 type Segment =
   | { type: "annotated"; text: string; reading: string }
@@ -81,11 +74,12 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(false);
   const [tooltip, setTooltip] = useState<Tooltip | null>(null);
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
-  const [summaryCard, setSummaryCard] = useState<AddedCard | null>(null);
   const [profile, setProfile] = useState<SenseiProfile | null>(null);
   const [wordList, setWordList] = useState<string[]>([]);
   const [showList, setShowList] = useState(false);
   const [batchAdding, setBatchAdding] = useState(false);
+  const [addedSummary, setAddedSummary] = useState<any[]>([]);
+  const [showSummary, setShowSummary] = useState(false);
   // Tracks how many messages have already been analyzed for the profile
   const lastAnalyzedIndexRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -245,56 +239,6 @@ export default function AdminChat({ userId }: { userId: string }) {
     });
   }, []);
 
-  const addWordToDeck = async () => {
-    if (!tooltip || !defaultDeckId) return;
-    setTooltip((prev) => prev ? { ...prev, adding: true } : prev);
-
-    const link = async (cardId: string) => {
-      await Promise.all([
-        supabase.from("deck_cards").upsert([{ deck_id: defaultDeckId, card_id: cardId }], { onConflict: "deck_id,card_id" }),
-        supabase.from("user_scores").upsert([{ user_id: userId, card_id: cardId, scores_json: { jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 }, en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 } } }], { onConflict: "user_id,card_id" }),
-      ]);
-    };
-
-    try {
-      // Check if word already exists — skip AI if it does
-      const { data: existing } = await supabase.from("master_cards").select("id, japanese, reading, english, partOfSpeech").eq("japanese", tooltip.editWord).maybeSingle();
-      if (existing) {
-        await link(existing.id);
-        setTooltip(null);
-        setSummaryCard({ id: existing.id, japanese: existing.japanese, reading: existing.reading, english: existing.english, partOfSpeech: existing.partOfSpeech });
-        return;
-      }
-
-      // New word — call AI
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ words: [tooltip.editWord] }),
-      });
-      const cards = await res.json();
-      if (!cards?.[0]) throw new Error("No card data");
-      const card = cards[0];
-
-      const { data: upserted, error } = await supabase
-        .from("master_cards")
-        .upsert([{ ...card, creator_id: userId, is_public: false }], { onConflict: "japanese" })
-        .select("id").single();
-
-      if (error) throw error;
-      await link(upserted.id);
-      setTooltip(null);
-      setSummaryCard({ id: upserted.id, japanese: card.japanese, reading: card.reading, english: card.english, partOfSpeech: card.partOfSpeech });
-    } catch (err) {
-      console.error("Add to deck failed:", err);
-      setTooltip((prev) => prev ? { ...prev, adding: false } : prev);
-    }
-  };
-
-  const deleteAddedCard = async (cardId: string) => {
-    await supabase.from("deck_cards").delete().eq("deck_id", defaultDeckId).eq("card_id", cardId);
-    setSummaryCard(null);
-  };
 
   const addListToDeck = async (text: string) => {
     const words = [...new Set(text.split("\n").map(w => w.trim()).filter(Boolean))];
@@ -315,11 +259,16 @@ export default function AdminChat({ userId }: { userId: string }) {
     };
 
     try {
-      // Step 1: link words already in master_cards (no AI needed)
-      const { data: existing } = await supabase.from("master_cards").select("id, japanese").in("japanese", words);
-      if (existing?.length) await performLinking(existing.map(c => c.id));
+      let allProcessed: any[] = [];
 
-      const existingSet = new Set(existing?.map(c => c.japanese) ?? []);
+      // Step 1: link words already in master_cards (no AI needed)
+      const { data: existing } = await supabase.from("master_cards").select("*").in("japanese", words);
+      if (existing?.length) {
+        await performLinking(existing.map((c: any) => c.id));
+        allProcessed = [...existing];
+      }
+
+      const existingSet = new Set(existing?.map((c: any) => c.japanese) ?? []);
       const wordsForAI = words.filter(w => !existingSet.has(w));
 
       // Step 2: AI-generate + upsert new words
@@ -345,13 +294,21 @@ export default function AdminChat({ userId }: { userId: string }) {
           }))
           .filter((item: any) => { if (seen.has(item.japanese)) return false; seen.add(item.japanese); return true; });
 
-        const { data: newCards, error: mErr } = await supabase.from("master_cards").upsert(deduped, { onConflict: "japanese" }).select("id");
+        const { data: newCards, error: mErr } = await supabase.from("master_cards").upsert(deduped, { onConflict: "japanese" }).select("*");
         if (mErr) throw mErr;
-        if (newCards?.length) await performLinking(newCards.map(c => c.id));
+        if (newCards?.length) {
+          await performLinking(newCards.map((c: any) => c.id));
+          allProcessed = [...allProcessed, ...newCards];
+        }
       }
 
       setWordList([]);
       setShowList(false);
+      if (allProcessed.length > 0) {
+        const deduped = Array.from(new Map(allProcessed.map(c => [c.japanese, c])).values());
+        setAddedSummary(deduped);
+        setShowSummary(true);
+      }
     } catch (err) {
       console.error("Batch add failed:", err);
     } finally {
@@ -488,85 +445,66 @@ export default function AdminChat({ userId }: { userId: string }) {
               placeholder="e.g. 食べる"
             />
           </div>
-          <div className="mt-2 flex flex-col gap-1.5">
-            <button
-              onClick={() => {
-                const word = tooltip.editWord.trim();
-                if (word && !wordList.includes(word)) setWordList(prev => [...prev, word]);
-                setTooltip(null);
-              }}
-              disabled={!tooltip.editWord.trim()}
-              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black uppercase tracking-widest bg-slate-100 text-slate-600 hover:bg-slate-200 active:scale-95 transition-all disabled:opacity-40"
-            >
-              <List size={11} /> Add to List
-            </button>
-            <button
-              onClick={addWordToDeck}
-              disabled={tooltip.adding || !tooltip.editWord.trim()}
-              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-60"
-            >
-              {tooltip.adding ? <><Loader2 size={11} className="animate-spin" /> Adding…</> : <><Plus size={11} /> Add to Deck</>}
-            </button>
-          </div>
+          <button
+            onClick={() => {
+              const word = tooltip.editWord.trim();
+              if (word && !wordList.includes(word)) setWordList(prev => [...prev, word]);
+              setTooltip(null);
+            }}
+            disabled={!tooltip.editWord.trim()}
+            className="mt-2 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40"
+          >
+            <List size={11} /> Add to List
+          </button>
         </div>
         </>
       )}
 
-      {/* Card summary overlay — same design as Stats page */}
-      {summaryCard && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
-            {/* Header */}
+
+      {/* Added Words Summary Modal */}
+      {showSummary && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 flex flex-col max-h-[80vh] overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <div>
-                <h2 className="text-xl font-black text-slate-800 uppercase italic tracking-tighter">Word Added</h2>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">1 new entry</p>
+                <h2 className="text-xl font-black text-slate-800 uppercase italic tracking-tighter">Words Added</h2>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{addedSummary.length} new {addedSummary.length === 1 ? "entry" : "entries"}</p>
               </div>
-              <button onClick={() => setSummaryCard(null)} className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-slate-200 transition-colors text-slate-400">
-                ✕
-              </button>
+              <button onClick={() => setShowSummary(false)} className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-slate-200 transition-colors text-slate-400">✕</button>
             </div>
-
-            {/* Card row */}
-            <div className="p-4 bg-slate-50/30">
-              <div className="group bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-start gap-4 hover:border-indigo-100 transition-all">
-                <div className="flex-shrink-0 w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100 shadow-sm">
-                  <span className="text-indigo-600 font-black text-xl">{summaryCard.japanese[0]}</span>
-                </div>
-                <div className="flex-1 flex flex-col text-left">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-lg font-black text-slate-800">{summaryCard.japanese}</span>
-                    <span className="text-xs font-bold text-rose-500 uppercase tracking-tighter">{summaryCard.reading}</span>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/30">
+              {addedSummary.map((word, i) => (
+                <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-start gap-4">
+                  <div className="flex-shrink-0 w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100 shadow-sm">
+                    <span className="text-indigo-600 font-black text-xl">{word.japanese[0]}</span>
                   </div>
-                  <p className="text-sm text-slate-600 font-medium mt-0.5 leading-tight pr-10">{summaryCard.english}</p>
-                  {summaryCard.partOfSpeech && (
-                    <div className="mt-2">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
-                        {summaryCard.partOfSpeech}
-                      </span>
+                  <div className="flex-1 flex flex-col text-left">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-lg font-black text-slate-800">{word.japanese}</span>
+                      <span className="text-xs font-bold text-rose-500 uppercase tracking-tighter">{word.reading}</span>
                     </div>
-                  )}
-                </div>
-                <div className="flex-shrink-0 -mt-1 -mr-1">
+                    <p className="text-sm text-slate-600 font-medium mt-0.5 leading-tight pr-10">{word.english}</p>
+                    {word.partOfSpeech && <span className="mt-2 text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md self-start">{word.partOfSpeech}</span>}
+                  </div>
                   <button
-                    onClick={() => deleteAddedCard(summaryCard.id)}
-                    className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all active:scale-90"
-                    title="Remove from deck"
+                    onClick={async () => {
+                      await Promise.all([
+                        supabase.from("deck_cards").delete().eq("deck_id", defaultDeckId).eq("card_id", word.id),
+                        supabase.from("user_scores").delete().eq("card_id", word.id).eq("user_id", userId),
+                      ]);
+                      setAddedSummary(prev => prev.filter(c => c.id !== word.id));
+                    }}
+                    className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all active:scale-90 shrink-0"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
                     </svg>
                   </button>
                 </div>
-              </div>
+              ))}
             </div>
-
-            {/* Footer */}
             <div className="p-4 border-t border-slate-100">
-              <button
-                onClick={() => setSummaryCard(null)}
-                className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-[0.98] shadow-lg"
-              >
+              <button onClick={() => setShowSummary(false)} className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-[0.98] shadow-lg">
                 Got it
               </button>
             </div>
