@@ -276,28 +276,35 @@ export default function StatsPage() {
 
     try {
       // 1. We query master_cards, but we use !inner on the join to filter the results
-      const { data, error } = await supabase
-        .from("master_cards")
-        .select(
-          `
-      *,
-      deck_cards!inner (
-        deck_id, added_at
-      ),
-      user_scores (
-        scores_json
-      )
-    `,
+      const allData: any[] = [];
+      let error = null;
+      const PAGE_SIZE = 1000;
+      for (let from = 0; ; from += PAGE_SIZE) {
+        const { data: page, error: pageErr } = await supabase
+          .from("master_cards")
+          .select(
+            `
+        *,
+        deck_cards!inner (
+          deck_id, added_at
+        ),
+        user_scores (
+          scores_json
         )
-        // 2. This filters the master_cards to ONLY ones in YOUR deck
-        .eq("deck_cards.deck_id", defaultDeckId)
-        // 3. This ensures you only get YOUR scores (not someone else's)
-        .eq("user_scores.user_id", user.id)
-        .order("added_at", { foreignTable: "deck_cards", ascending: false })
-        .range(0, 9999);
+      `,
+          )
+          .eq("deck_cards.deck_id", defaultDeckId)
+          .eq("user_scores.user_id", user.id)
+          .order("added_at", { foreignTable: "deck_cards", ascending: false })
+          .range(from, from + PAGE_SIZE - 1);
+        if (pageErr) { error = pageErr; break; }
+        if (page) allData.push(...page);
+        if (!page || page.length < PAGE_SIZE) break;
+      }
+      const data = allData;
 
       if (error) {
-        console.error("Fetch Error:", error.message);
+        console.error("Fetch Error:", (error as any).message);
         return;
       }
 
