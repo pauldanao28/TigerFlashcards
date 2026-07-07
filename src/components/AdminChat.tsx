@@ -70,6 +70,8 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
   const [summaryCard, setSummaryCard] = useState<AddedCard | null>(null);
   const [profile, setProfile] = useState<SenseiProfile | null>(null);
+  // Tracks how many messages have already been analyzed for the profile
+  const lastAnalyzedIndexRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -115,23 +117,31 @@ export default function AdminChat({ userId }: { userId: string }) {
   }, []);
 
   const updateProfile = async (allMessages: Message[]) => {
+    const from = lastAnalyzedIndexRef.current;
+    const newMessages = allMessages.slice(from);
+    if (newMessages.length < 2) return; // Nothing new to learn from
+
+    // Mark as analyzed immediately to prevent duplicate calls
+    lastAnalyzedIndexRef.current = allMessages.length;
+
     try {
       const res = await fetch("/api/update-profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: allMessages.slice(-20),
+          messages: newMessages, // Only unanalyzed messages — efficient
           currentProfile: profile ?? {},
         }),
       });
       const updated: SenseiProfile = await res.json();
       setProfile(updated);
-      // Upsert to Supabase — fire and forget
       supabase
         .from("sensei_profile")
         .upsert([{ ...updated, user_id: userId }], { onConflict: "user_id" });
     } catch (e) {
       console.error("Profile update failed:", e);
+      // Roll back the index so we retry next time
+      lastAnalyzedIndexRef.current = from;
     }
   };
 
@@ -160,9 +170,12 @@ export default function AdminChat({ userId }: { userId: string }) {
       }];
       setMessages(finalMessages);
 
-      // Auto-update profile every 4 exchanges (8 messages)
       const exchangeCount = finalMessages.filter(m => m.role === "user").length;
-      if (exchangeCount > 0 && exchangeCount % 4 === 0) {
+      const unanalyzedCount = finalMessages.length - lastAnalyzedIndexRef.current;
+
+      // Trigger profile update every 4 exchanges,
+      // OR immediately if unanalyzed messages are about to fall outside the 20-msg window
+      if ((exchangeCount > 0 && exchangeCount % 4 === 0) || unanalyzedCount >= 18) {
         updateProfile(finalMessages);
       }
     } catch {
