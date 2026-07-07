@@ -1346,6 +1346,14 @@ export default function StatsPage() {
                   >
                     <span className="text-sm">📊</span> {t.admin_user_stats}
                   </Link>
+
+                  {/* Sensei Chatbot */}
+                  <Link
+                    href="/admin/chat"
+                    className="w-full md:w-auto bg-violet-600 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-violet-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <span className="text-sm">先生</span> Sensei
+                  </Link>
                 </div>
               )}
 
