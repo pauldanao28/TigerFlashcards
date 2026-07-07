@@ -116,11 +116,6 @@ export default function AdminChat({ userId }: { userId: string }) {
       .then(({ data }) => { if (data) setProfile(data); });
   }, [userId]);
 
-  useEffect(() => {
-    const handler = () => setTooltip(null);
-    document.addEventListener("click", handler);
-    return () => document.removeEventListener("click", handler);
-  }, []);
 
   const updateProfile = async (allMessages: Message[]) => {
     const from = lastAnalyzedIndexRef.current;
@@ -193,18 +188,20 @@ export default function AdminChat({ userId }: { userId: string }) {
       }]);
     } finally {
       setLoading(false);
-      textareaRef.current?.focus();
     }
   };
 
-  const handleWordClick = useCallback((word: string, reading: string, e: React.MouseEvent) => {
+  const handleWordClick = useCallback((word: string, reading: string, e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
     const rect = (e.target as HTMLElement).getBoundingClientRect();
+    const tooltipH = 130;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const y = spaceBelow > tooltipH ? rect.bottom + 8 : rect.top - tooltipH - 8;
     setTooltip({
       word,
       reading,
       x: Math.min(rect.left, window.innerWidth - 240),
-      y: rect.bottom + window.scrollY + 8,
+      y: Math.max(8, y),
       adding: false,
     });
   }, []);
@@ -273,6 +270,7 @@ export default function AdminChat({ userId }: { userId: string }) {
               key={i}
               className="cursor-pointer rounded px-0.5 transition-colors underline decoration-dotted decoration-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
               onClick={(e) => handleWordClick(seg.text, seg.reading, e)}
+              onTouchEnd={(e) => { e.preventDefault(); handleWordClick(seg.text, seg.reading, e as unknown as React.MouseEvent); }}
             >
               {seg.text}
             </span>
@@ -381,6 +379,8 @@ export default function AdminChat({ userId }: { userId: string }) {
 
       {/* Word tooltip — reading only + Add to Deck */}
       {tooltip && (
+        <>
+        <div className="fixed inset-0 z-40" onClick={() => setTooltip(null)} onTouchEnd={() => setTooltip(null)} />
         <div
           className="fixed z-50 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 min-w-[180px]"
           style={{ left: tooltip.x, top: tooltip.y }}
@@ -403,6 +403,7 @@ export default function AdminChat({ userId }: { userId: string }) {
             {tooltip.adding ? <><Loader2 size={11} className="animate-spin" /> Adding…</> : <><Plus size={11} /> Add to Deck</>}
           </button>
         </div>
+        </>
       )}
 
       {/* Card summary overlay — same design as Stats page */}
