@@ -70,12 +70,18 @@ export async function POST(req: Request) {
     // Full window: last 20 messages for conversation context
     // Profile is injected into system prompt on top of this
     const window = messages.slice(-20);
-    const history = window.slice(0, -1).map((m: { role: string; content: string }) => ({
+    const lastMessage = window[window.length - 1];
+
+    // Gemini requires history to strictly alternate user→model starting with user.
+    // Drop leading model messages, then remove any consecutive duplicate roles.
+    const raw = window.slice(0, -1).map((m: { role: string; content: string }) => ({
       role: m.role === "user" ? "user" : "model",
       parts: [{ text: m.content }],
     }));
+    const firstUser = raw.findIndex((m) => m.role === "user");
+    const trimmed = firstUser >= 0 ? raw.slice(firstUser) : [];
+    const history = trimmed.filter((m, i) => i === 0 || m.role !== trimmed[i - 1].role);
 
-    const lastMessage = window[window.length - 1];
     const chat = model.startChat({ history });
     const result = await chat.sendMessage(lastMessage.content);
 
