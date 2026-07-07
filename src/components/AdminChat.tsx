@@ -11,39 +11,42 @@ interface Message {
   timestamp: number;
 }
 
-interface WordInfo {
-  reading: string;
-  meaning: string;
-}
-
 interface Tooltip {
   word: string;
+  reading: string;        // Always available instantly — parsed from （ふりがな）
+  meaning: string | null; // Fetched async from word-info API
+  loadingMeaning: boolean;
   x: number;
   y: number;
-  info: WordInfo | null;
-  loading: boolean;
   added: boolean;
   adding: boolean;
 }
 
-const STORAGE_KEY = "flashkado-sensei-chat";
-const JP_REGEX = /[぀-ゟ゠-ヿ一-鿿＀-￯]+/g;
+// Segment types after parsing Gemini's 漢字（ふりがな） format
+type Segment =
+  | { type: "annotated"; text: string; reading: string }
+  | { type: "plain"; text: string };
 
-function parseJapanese(text: string) {
-  const parts: { text: string; isJapanese: boolean }[] = [];
+const STORAGE_KEY = "flashkado-sensei-chat";
+
+// Parses text like "今日（きょう）はいい天気（てんき）ですね" into segments.
+// Supports both full-width （）and half-width () parentheses.
+function parseFurigana(text: string): Segment[] {
+  const parts: Segment[] = [];
+  // Match: non-whitespace/non-bracket word followed by （kana-only reading）
+  const regex = /([^\s（(、。！？\n「」『』【】〔〕…・　]+)[（(]([ぁ-んァ-ンっーゃゅょ・]+)[）)]/g;
   let lastIndex = 0;
   let match;
-  const regex = new RegExp(JP_REGEX.source, "g");
 
   while ((match = regex.exec(text)) !== null) {
     if (match.index > lastIndex) {
-      parts.push({ text: text.slice(lastIndex, match.index), isJapanese: false });
+      parts.push({ type: "plain", text: text.slice(lastIndex, match.index) });
     }
-    parts.push({ text: match[0], isJapanese: true });
+    parts.push({ type: "annotated", text: match[1], reading: match[2] });
     lastIndex = match.index + match[0].length;
   }
   if (lastIndex < text.length) {
-    parts.push({ text: text.slice(lastIndex), isJapanese: false });
+    parts.push({ type: "plain", text: text.slice(lastIndex) });
   }
   return parts;
 }
@@ -54,7 +57,8 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(false);
   const [tooltip, setTooltip] = useState<Tooltip | null>(null);
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
-  const [wordCache, setWordCache] = useState<Record<string, WordInfo>>({});
+  // Cache meanings so we don't re-fetch the same word
+  const [meaningCache, setMeaningCache] = useState<Record<string, string>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -73,12 +77,12 @@ export default function AdminChat({ userId }: { userId: string }) {
     }
   }, [messages]);
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  // Fetch user's default deck
+  // Fetch user's default deck ID once
   useEffect(() => {
     supabase
       .from("decks")
@@ -86,9 +90,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       .eq("user_id", userId)
       .eq("is_default", true)
       .single()
-      .then(({ data }) => {
-        if (data) setDefaultDeckId(data.id);
-      });
+      .then(({ data }) => { if (data) setDefaultDeckId(data.id); });
   }, [userId]);
 
   // Dismiss tooltip on outside click
@@ -109,29 +111,27 @@ export default function AdminChat({ userId }: { userId: string }) {
       timestamp: Date.now(),
     };
 
-    const updatedMessages = [...messages, userMsg];
-    setMessages(updatedMessages);
+    const updated = [...messages, userMsg];
+    setMessages(updated);
     setInput("");
     setLoading(true);
-
-    // Send last 20 messages as context
-    const context = updatedMessages.slice(-20);
 
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: context }),
+        body: JSON.stringify({ messages: updated.slice(-20) }),
       });
       const data = await res.json();
-
-      const modelMsg: Message = {
-        id: crypto.randomUUID(),
-        role: "model",
-        content: data.content || "エラーが発生しました。",
-        timestamp: Date.now(),
-      };
-      setMessages((prev) => [...prev, modelMsg]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "model",
+          content: data.content || "エラーが発生しました。",
+          timestamp: Date.now(),
+        },
+      ]);
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -149,40 +149,54 @@ export default function AdminChat({ userId }: { userId: string }) {
   };
 
   const handleWordClick = useCallback(
-    async (word: string, e: React.MouseEvent) => {
+    async (word: string, reading: string, e: React.MouseEvent) => {
       e.stopPropagation();
       const rect = (e.target as HTMLElement).getBoundingClientRect();
+      const x = Math.min(rect.left, window.innerWidth - 280);
+      const y = rect.bottom + window.scrollY + 8;
 
-      // Use cached info if available
-      if (wordCache[word]) {
-        setTooltip({ word, x: rect.left, y: rect.bottom + window.scrollY, info: wordCache[word], loading: false, added: false, adding: false });
-        return;
-      }
+      // Show tooltip immediately with the reading already known
+      const cachedMeaning = meaningCache[word] ?? null;
+      setTooltip({
+        word,
+        reading,
+        meaning: cachedMeaning,
+        loadingMeaning: !cachedMeaning,
+        x,
+        y,
+        added: false,
+        adding: false,
+      });
 
-      setTooltip({ word, x: rect.left, y: rect.bottom + window.scrollY, info: null, loading: true, added: false, adding: false });
-
-      try {
-        const res = await fetch("/api/word-info", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ word }),
-        });
-        const info: WordInfo = await res.json();
-        setWordCache((prev) => ({ ...prev, [word]: info }));
-        setTooltip((prev) => prev?.word === word ? { ...prev, info, loading: false } : prev);
-      } catch {
-        setTooltip((prev) => prev?.word === word ? { ...prev, loading: false } : prev);
+      // Fetch meaning in background if not cached
+      if (!cachedMeaning) {
+        try {
+          const res = await fetch("/api/word-info", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ word }),
+          });
+          const data = await res.json();
+          const meaning = data.meaning || "";
+          setMeaningCache((prev) => ({ ...prev, [word]: meaning }));
+          setTooltip((prev) =>
+            prev?.word === word ? { ...prev, meaning, loadingMeaning: false } : prev
+          );
+        } catch {
+          setTooltip((prev) =>
+            prev?.word === word ? { ...prev, loadingMeaning: false } : prev
+          );
+        }
       }
     },
-    [wordCache]
+    [meaningCache]
   );
 
   const addWordToDeck = async () => {
-    if (!tooltip?.info || !defaultDeckId) return;
+    if (!tooltip || !defaultDeckId) return;
     setTooltip((prev) => prev ? { ...prev, adding: true } : prev);
 
     try {
-      // Generate full card data
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -191,28 +205,23 @@ export default function AdminChat({ userId }: { userId: string }) {
       const cards = await res.json();
       if (!cards?.[0]) throw new Error("No card data");
 
-      const card = cards[0];
-
-      // Upsert to master_cards
-      const { data: upserted, error: upsertErr } = await supabase
+      const { data: upserted, error } = await supabase
         .from("master_cards")
-        .upsert([{ ...card, creator_id: userId, is_public: false }], { onConflict: "japanese" })
+        .upsert([{ ...cards[0], creator_id: userId, is_public: false }], { onConflict: "japanese" })
         .select("id")
         .single();
 
-      if (upsertErr) throw upsertErr;
-      const cardId = upserted.id;
+      if (error) throw error;
 
-      // Link to deck + init scores
       await Promise.all([
         supabase.from("deck_cards").upsert(
-          [{ deck_id: defaultDeckId, card_id: cardId }],
+          [{ deck_id: defaultDeckId, card_id: upserted.id }],
           { onConflict: "deck_id,card_id" }
         ),
         supabase.from("user_scores").upsert(
           [{
             user_id: userId,
-            card_id: cardId,
+            card_id: upserted.id,
             scores_json: {
               jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
               en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
@@ -239,20 +248,20 @@ export default function AdminChat({ userId }: { userId: string }) {
   const renderContent = (text: string, role: "user" | "model") => {
     if (role === "user") return <span>{text}</span>;
 
-    const parts = parseJapanese(text);
+    const segments = parseFurigana(text);
     return (
       <>
-        {parts.map((part, i) =>
-          part.isJapanese ? (
+        {segments.map((seg, i) =>
+          seg.type === "annotated" ? (
             <span
               key={i}
-              className="cursor-pointer rounded px-0.5 transition-colors hover:bg-indigo-100 hover:text-indigo-700"
-              onClick={(e) => handleWordClick(part.text, e)}
+              className="cursor-pointer rounded px-0.5 transition-colors underline decoration-dotted decoration-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+              onClick={(e) => handleWordClick(seg.text, seg.reading, e)}
             >
-              {part.text}
+              {seg.text}
             </span>
           ) : (
-            <span key={i}>{part.text}</span>
+            <span key={i}>{seg.text}</span>
           )
         )}
       </>
@@ -289,16 +298,13 @@ export default function AdminChat({ userId }: { userId: string }) {
               日本語で話しかけてください
             </p>
             <p className="text-xs text-slate-300 mt-2">
-              Tap any Japanese word to see its reading and meaning
+              Tap any underlined kanji word to see its reading · meaning · add to deck
             </p>
           </div>
         )}
 
         {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-          >
+          <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
               className={`max-w-[80%] rounded-3xl px-5 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
                 msg.role === "user"
@@ -311,7 +317,6 @@ export default function AdminChat({ userId }: { userId: string }) {
           </div>
         ))}
 
-        {/* Typing indicator */}
         {loading && (
           <div className="flex justify-start">
             <div className="bg-white border border-slate-100 shadow-sm rounded-3xl rounded-bl-lg px-5 py-4 flex gap-1.5 items-center">
@@ -328,49 +333,47 @@ export default function AdminChat({ userId }: { userId: string }) {
       {/* Word tooltip */}
       {tooltip && (
         <div
-          className="fixed z-50 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 min-w-[180px] max-w-[260px]"
-          style={{ left: Math.min(tooltip.x, window.innerWidth - 280), top: tooltip.y + 8 }}
+          className="fixed z-50 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 min-w-[190px] max-w-[260px]"
+          style={{ left: tooltip.x, top: tooltip.y }}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-start justify-between gap-2">
-            <div>
+            <div className="flex-1 min-w-0">
               <div className="text-xl font-black text-slate-800">{tooltip.word}</div>
-              {tooltip.loading ? (
+              {/* Reading is always instant — no loading state */}
+              <div className="text-sm text-indigo-600 font-bold mt-0.5">{tooltip.reading}</div>
+              {/* Meaning loads async */}
+              {tooltip.loadingMeaning ? (
                 <div className="flex items-center gap-1.5 mt-1">
-                  <Loader2 size={12} className="animate-spin text-slate-400" />
-                  <span className="text-xs text-slate-400">Loading…</span>
+                  <Loader2 size={11} className="animate-spin text-slate-400" />
+                  <span className="text-xs text-slate-400">Loading meaning…</span>
                 </div>
-              ) : tooltip.info ? (
-                <>
-                  <div className="text-sm text-indigo-600 font-bold mt-0.5">{tooltip.info.reading}</div>
-                  <div className="text-xs text-slate-500 mt-0.5">{tooltip.info.meaning}</div>
-                </>
+              ) : tooltip.meaning ? (
+                <div className="text-xs text-slate-500 mt-0.5">{tooltip.meaning}</div>
               ) : null}
             </div>
-            <button onClick={() => setTooltip(null)} className="text-slate-300 hover:text-slate-500 mt-0.5 shrink-0">
+            <button onClick={() => setTooltip(null)} className="text-slate-300 hover:text-slate-500 shrink-0 mt-0.5">
               <X size={14} />
             </button>
           </div>
 
-          {tooltip.info && !tooltip.loading && (
-            <button
-              onClick={addWordToDeck}
-              disabled={tooltip.adding || tooltip.added}
-              className={`mt-3 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                tooltip.added
-                  ? "bg-green-50 text-green-600 cursor-default"
-                  : "bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95"
-              }`}
-            >
-              {tooltip.adding ? (
-                <><Loader2 size={11} className="animate-spin" /> Adding…</>
-              ) : tooltip.added ? (
-                "✓ Added to Deck"
-              ) : (
-                <><Plus size={11} /> Add to Deck</>
-              )}
-            </button>
-          )}
+          <button
+            onClick={addWordToDeck}
+            disabled={tooltip.adding || tooltip.added}
+            className={`mt-3 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+              tooltip.added
+                ? "bg-green-50 text-green-600 cursor-default"
+                : "bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95"
+            }`}
+          >
+            {tooltip.adding ? (
+              <><Loader2 size={11} className="animate-spin" /> Adding…</>
+            ) : tooltip.added ? (
+              "✓ Added to Deck"
+            ) : (
+              <><Plus size={11} /> Add to Deck</>
+            )}
+          </button>
         </div>
       )}
 
@@ -401,7 +404,7 @@ export default function AdminChat({ userId }: { userId: string }) {
           </button>
         </div>
         <p className="text-center text-[10px] text-slate-300 mt-2 font-medium uppercase tracking-widest">
-          Tap any Japanese word in responses to see furigana · meanings · add to deck
+          Tap any underlined kanji to see furigana · meaning · add to deck
         </p>
       </div>
     </div>
