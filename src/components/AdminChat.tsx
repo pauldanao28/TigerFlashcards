@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { Send, Trash2, Plus, X, Loader2 } from "lucide-react";
+import { Send, Trash2, Plus, X, Loader2, List } from "lucide-react";
 
 interface Message {
   id: string;
@@ -83,6 +83,9 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
   const [summaryCard, setSummaryCard] = useState<AddedCard | null>(null);
   const [profile, setProfile] = useState<SenseiProfile | null>(null);
+  const [wordList, setWordList] = useState<string[]>([]);
+  const [showList, setShowList] = useState(false);
+  const [batchAdding, setBatchAdding] = useState(false);
   // Tracks how many messages have already been analyzed for the profile
   const lastAnalyzedIndexRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -288,6 +291,38 @@ export default function AdminChat({ userId }: { userId: string }) {
     setSummaryCard(null);
   };
 
+  const addListToDeck = async (text: string) => {
+    const words = text.split("\n").map(w => w.trim()).filter(Boolean);
+    if (!words.length || !defaultDeckId) return;
+    setBatchAdding(true);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ words }),
+      });
+      const cards = await res.json();
+      if (!Array.isArray(cards)) throw new Error("Bad response");
+      await Promise.all(cards.map(async (card: any) => {
+        const { data: upserted, error } = await supabase
+          .from("master_cards")
+          .upsert([{ ...card, creator_id: userId, is_public: false }], { onConflict: "japanese" })
+          .select("id").single();
+        if (error || !upserted) return;
+        await Promise.all([
+          supabase.from("deck_cards").upsert([{ deck_id: defaultDeckId, card_id: upserted.id }], { onConflict: "deck_id,card_id" }),
+          supabase.from("user_scores").upsert([{ user_id: userId, card_id: upserted.id, scores_json: { jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 }, en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 } } }], { onConflict: "user_id,card_id" }),
+        ]);
+      }));
+      setWordList([]);
+      setShowList(false);
+    } catch (err) {
+      console.error("Batch add failed:", err);
+    } finally {
+      setBatchAdding(false);
+    }
+  };
+
   const clearChat = () => {
     if (confirm("会話履歴を全て削除しますか？")) {
       setMessages([]);
@@ -334,56 +369,25 @@ export default function AdminChat({ userId }: { userId: string }) {
             <h1 className="text-lg font-black text-slate-800 uppercase tracking-tight italic">先生 · Sensei</h1>
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Japanese Language Partner · Admin Only</p>
           </div>
-          <button onClick={clearChat} className="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-red-500 transition-colors px-3 py-2 rounded-xl hover:bg-red-50">
-            <Trash2 size={13} /> Clear
-          </button>
+          <div className="flex items-center gap-1">
+            {/* Word list button */}
+            <button
+              onClick={() => setShowList(true)}
+              className="relative flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-indigo-600 transition-colors px-3 py-2 rounded-xl hover:bg-indigo-50"
+            >
+              <List size={13} />
+              {wordList.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 bg-indigo-600 text-white text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">
+                  {wordList.length}
+                </span>
+              )}
+            </button>
+            <button onClick={clearChat} className="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-red-500 transition-colors px-3 py-2 rounded-xl hover:bg-red-50">
+              <Trash2 size={13} />
+            </button>
+          </div>
         </div>
 
-        {/* Profile summary — shows what Sensei has learned about you */}
-        {profile && Object.values(profile).some(v => v && (Array.isArray(v) ? v.length > 0 : true)) && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {profile.level && (
-              <span className="text-[10px] font-black uppercase tracking-widest bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-lg border border-indigo-100">
-                {profile.level}
-              </span>
-            )}
-            {profile.native_language && (
-              <span className="text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-500 px-2.5 py-1 rounded-lg">
-                {profile.native_language}
-              </span>
-            )}
-            {profile.motivation && (
-              <span className="text-[10px] font-bold bg-violet-50 text-violet-600 px-2.5 py-1 rounded-lg border border-violet-100">
-                {profile.motivation}
-              </span>
-            )}
-            {profile.occupation && (
-              <span className="text-[10px] font-bold bg-teal-50 text-teal-600 px-2.5 py-1 rounded-lg border border-teal-100">
-                {profile.occupation}
-              </span>
-            )}
-            {profile.learning_goals?.map(g => (
-              <span key={g} className="text-[10px] font-bold bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-lg border border-emerald-100">
-                🎯 {g}
-              </span>
-            ))}
-            {profile.weak_points?.map(w => (
-              <span key={w} className="text-[10px] font-bold bg-rose-50 text-rose-500 px-2.5 py-1 rounded-lg border border-rose-100">
-                ⚠ {w}
-              </span>
-            ))}
-            {profile.common_errors?.map(e => (
-              <span key={e} className="text-[10px] font-bold bg-orange-50 text-orange-500 px-2.5 py-1 rounded-lg border border-orange-100">
-                ✗ {e}
-              </span>
-            ))}
-            {profile.hobbies?.map(h => (
-              <span key={h} className="text-[10px] font-bold bg-amber-50 text-amber-600 px-2.5 py-1 rounded-lg border border-amber-100">
-                {h}
-              </span>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Messages */}
@@ -448,13 +452,26 @@ export default function AdminChat({ userId }: { userId: string }) {
               placeholder="e.g. 食べる"
             />
           </div>
-          <button
-            onClick={addWordToDeck}
-            disabled={tooltip.adding || !tooltip.editWord.trim()}
-            className="mt-2 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-60"
-          >
-            {tooltip.adding ? <><Loader2 size={11} className="animate-spin" /> Adding…</> : <><Plus size={11} /> Add to Deck</>}
-          </button>
+          <div className="mt-2 flex flex-col gap-1.5">
+            <button
+              onClick={() => {
+                const word = tooltip.editWord.trim();
+                if (word && !wordList.includes(word)) setWordList(prev => [...prev, word]);
+                setTooltip(null);
+              }}
+              disabled={!tooltip.editWord.trim()}
+              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black uppercase tracking-widest bg-slate-100 text-slate-600 hover:bg-slate-200 active:scale-95 transition-all disabled:opacity-40"
+            >
+              <List size={11} /> Add to List
+            </button>
+            <button
+              onClick={addWordToDeck}
+              disabled={tooltip.adding || !tooltip.editWord.trim()}
+              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-60"
+            >
+              {tooltip.adding ? <><Loader2 size={11} className="animate-spin" /> Adding…</> : <><Plus size={11} /> Add to Deck</>}
+            </button>
+          </div>
         </div>
         </>
       )}
@@ -515,6 +532,47 @@ export default function AdminChat({ userId }: { userId: string }) {
                 className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-[0.98] shadow-lg"
               >
                 Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Word List Modal */}
+      {showList && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+              <div>
+                <h2 className="text-base font-black text-slate-800 uppercase italic tracking-tighter">Word List</h2>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{wordList.length} word{wordList.length !== 1 ? "s" : ""} · one per line</p>
+              </div>
+              <button onClick={() => setShowList(false)} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400">
+                <X size={14} />
+              </button>
+            </div>
+            <div className="p-4">
+              <textarea
+                defaultValue={wordList.join("\n")}
+                onChange={(e) => setWordList(e.target.value.split("\n").map(w => w.trim()).filter(Boolean))}
+                rows={8}
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none font-mono"
+                placeholder={"食べる\n勉強\n彼女\n…"}
+              />
+            </div>
+            <div className="p-4 pt-0 flex gap-2">
+              <button
+                onClick={() => setWordList([])}
+                className="px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all"
+              >
+                Clear
+              </button>
+              <button
+                onClick={() => addListToDeck(wordList.join("\n"))}
+                disabled={batchAdding || wordList.length === 0}
+                className="flex-1 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {batchAdding ? <><Loader2 size={13} className="animate-spin" /> Adding…</> : <><Plus size={13} /> Add All to Deck</>}
               </button>
             </div>
           </div>
