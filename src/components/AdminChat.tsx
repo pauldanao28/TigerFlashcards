@@ -292,28 +292,59 @@ export default function AdminChat({ userId }: { userId: string }) {
   };
 
   const addListToDeck = async (text: string) => {
-    const words = text.split("\n").map(w => w.trim()).filter(Boolean);
+    const words = [...new Set(text.split("\n").map(w => w.trim()).filter(Boolean))];
     if (!words.length || !defaultDeckId) return;
     setBatchAdding(true);
+
+    const performLinking = async (cardIds: string[]) => {
+      await Promise.all([
+        supabase.from("deck_cards").upsert(
+          cardIds.map(id => ({ deck_id: defaultDeckId, card_id: id })),
+          { onConflict: "deck_id,card_id" }
+        ),
+        supabase.from("user_scores").upsert(
+          cardIds.map(id => ({ user_id: userId, card_id: id, scores_json: { jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 }, en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 } } })),
+          { onConflict: "user_id,card_id" }
+        ),
+      ]);
+    };
+
     try {
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ words }),
-      });
-      const cards = await res.json();
-      if (!Array.isArray(cards)) throw new Error("Bad response");
-      await Promise.all(cards.map(async (card: any) => {
-        const { data: upserted, error } = await supabase
-          .from("master_cards")
-          .upsert([{ ...card, creator_id: userId, is_public: false }], { onConflict: "japanese" })
-          .select("id").single();
-        if (error || !upserted) return;
-        await Promise.all([
-          supabase.from("deck_cards").upsert([{ deck_id: defaultDeckId, card_id: upserted.id }], { onConflict: "deck_id,card_id" }),
-          supabase.from("user_scores").upsert([{ user_id: userId, card_id: upserted.id, scores_json: { jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 }, en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 } } }], { onConflict: "user_id,card_id" }),
-        ]);
-      }));
+      // Step 1: link words already in master_cards (no AI needed)
+      const { data: existing } = await supabase.from("master_cards").select("id, japanese").in("japanese", words);
+      if (existing?.length) await performLinking(existing.map(c => c.id));
+
+      const existingSet = new Set(existing?.map(c => c.japanese) ?? []);
+      const wordsForAI = words.filter(w => !existingSet.has(w));
+
+      // Step 2: AI-generate + upsert new words
+      if (wordsForAI.length > 0) {
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ words: wordsForAI }),
+        });
+        if (!res.ok) throw new Error("AI error");
+        const items = await res.json();
+        const itemsArray = Array.isArray(items) ? items : [items];
+
+        const seen = new Set<string>();
+        const deduped = itemsArray
+          .map((item: any) => ({
+            japanese: String(item.japanese).trim(),
+            reading: String(item.reading || "").replace(/[a-zA-Z\s]/g, ""),
+            english: String(item.english || "").trim(),
+            partOfSpeech: String(item.partOfSpeech || "noun").trim().toLowerCase(),
+            exampleSentence: item.exampleSentence || { jp: "", en: "" },
+            creator_id: userId,
+          }))
+          .filter((item: any) => { if (seen.has(item.japanese)) return false; seen.add(item.japanese); return true; });
+
+        const { data: newCards, error: mErr } = await supabase.from("master_cards").upsert(deduped, { onConflict: "japanese" }).select("id");
+        if (mErr) throw mErr;
+        if (newCards?.length) await performLinking(newCards.map(c => c.id));
+      }
+
       setWordList([]);
       setShowList(false);
     } catch (err) {
