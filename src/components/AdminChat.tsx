@@ -55,11 +55,17 @@ function parseFurigana(text: string): Segment[] {
   let lastIndex = 0;
   let match;
 
+  const kanji = /[一-龯㐀-䶿]/;
   while ((match = regex.exec(text)) !== null) {
     if (match.index > lastIndex) {
       parts.push({ type: "plain", text: text.slice(lastIndex, match.index) });
     }
-    parts.push({ type: "annotated", text: match[1], reading: match[2] });
+    if (kanji.test(match[1])) {
+      parts.push({ type: "annotated", text: match[1], reading: match[2] });
+    } else {
+      // particle or kana-only word — strip brackets and render as plain
+      parts.push({ type: "plain", text: match[1] });
+    }
     lastIndex = match.index + match[0].length;
   }
   if (lastIndex < text.length) {
