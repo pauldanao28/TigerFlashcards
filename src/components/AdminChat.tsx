@@ -249,7 +249,24 @@ export default function AdminChat({ userId }: { userId: string }) {
     if (!tooltip || !defaultDeckId) return;
     setTooltip((prev) => prev ? { ...prev, adding: true } : prev);
 
+    const link = async (cardId: string) => {
+      await Promise.all([
+        supabase.from("deck_cards").upsert([{ deck_id: defaultDeckId, card_id: cardId }], { onConflict: "deck_id,card_id" }),
+        supabase.from("user_scores").upsert([{ user_id: userId, card_id: cardId, scores_json: { jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 }, en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 } } }], { onConflict: "user_id,card_id" }),
+      ]);
+    };
+
     try {
+      // Check if word already exists — skip AI if it does
+      const { data: existing } = await supabase.from("master_cards").select("id, japanese, reading, english, partOfSpeech").eq("japanese", tooltip.editWord).maybeSingle();
+      if (existing) {
+        await link(existing.id);
+        setTooltip(null);
+        setSummaryCard({ id: existing.id, japanese: existing.japanese, reading: existing.reading, english: existing.english, partOfSpeech: existing.partOfSpeech });
+        return;
+      }
+
+      // New word — call AI
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -262,22 +279,10 @@ export default function AdminChat({ userId }: { userId: string }) {
       const { data: upserted, error } = await supabase
         .from("master_cards")
         .upsert([{ ...card, creator_id: userId, is_public: false }], { onConflict: "japanese" })
-        .select("id")
-        .single();
+        .select("id").single();
 
       if (error) throw error;
-
-      await Promise.all([
-        supabase.from("deck_cards").upsert(
-          [{ deck_id: defaultDeckId, card_id: upserted.id }],
-          { onConflict: "deck_id,card_id" }
-        ),
-        supabase.from("user_scores").upsert(
-          [{ user_id: userId, card_id: upserted.id, scores_json: { jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 }, en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 } } }],
-          { onConflict: "user_id,card_id" }
-        ),
-      ]);
-
+      await link(upserted.id);
       setTooltip(null);
       setSummaryCard({ id: upserted.id, japanese: card.japanese, reading: card.reading, english: card.english, partOfSpeech: card.partOfSpeech });
     } catch (err) {
