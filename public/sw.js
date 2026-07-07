@@ -1,4 +1,5 @@
-const STATIC_CACHE = "flashkado-static-v1";
+// Bump version to purge any previously cached bad responses
+const STATIC_CACHE = "flashkado-static-v2";
 
 self.addEventListener("install", () => self.skipWaiting());
 
@@ -31,14 +32,17 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Cache-first for Next.js static chunks — they're content-hashed and immutable.
+  // Cache-first for Next.js static chunks — content-hashed and immutable.
+  // Only cache successful responses to avoid persisting 404s from deploy transitions.
   if (url.pathname.startsWith("/_next/static/")) {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached;
         return fetch(request).then((response) => {
-          const clone = response.clone();
-          caches.open(STATIC_CACHE).then((cache) => cache.put(request, clone));
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(STATIC_CACHE).then((cache) => cache.put(request, clone));
+          }
           return response;
         });
       })
