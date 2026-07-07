@@ -11,6 +11,16 @@ interface Message {
   timestamp: number;
 }
 
+interface SenseiProfile {
+  level?: string;
+  native_language?: string;
+  hobbies?: string[];
+  weak_points?: string[];
+  strong_points?: string[];
+  preferred_topics?: string[];
+  notes?: string;
+}
+
 interface Tooltip {
   word: string;
   reading: string;
@@ -59,6 +69,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [tooltip, setTooltip] = useState<Tooltip | null>(null);
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
   const [summaryCard, setSummaryCard] = useState<AddedCard | null>(null);
+  const [profile, setProfile] = useState<SenseiProfile | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -87,11 +98,42 @@ export default function AdminChat({ userId }: { userId: string }) {
       .then(({ data }) => { if (data) setDefaultDeckId(data.id); });
   }, [userId]);
 
+  // Load Sensei profile from Supabase
+  useEffect(() => {
+    supabase
+      .from("sensei_profile")
+      .select("*")
+      .eq("user_id", userId)
+      .single()
+      .then(({ data }) => { if (data) setProfile(data); });
+  }, [userId]);
+
   useEffect(() => {
     const handler = () => setTooltip(null);
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
   }, []);
+
+  const updateProfile = async (allMessages: Message[]) => {
+    try {
+      const res = await fetch("/api/update-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: allMessages.slice(-20),
+          currentProfile: profile ?? {},
+        }),
+      });
+      const updated: SenseiProfile = await res.json();
+      setProfile(updated);
+      // Upsert to Supabase — fire and forget
+      supabase
+        .from("sensei_profile")
+        .upsert([{ ...updated, user_id: userId }], { onConflict: "user_id" });
+    } catch (e) {
+      console.error("Profile update failed:", e);
+    }
+  };
 
   const sendMessage = async () => {
     const text = input.trim();
@@ -107,15 +149,22 @@ export default function AdminChat({ userId }: { userId: string }) {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: updated.slice(-20) }),
+        body: JSON.stringify({ messages: updated.slice(-20), profile }),
       });
       const data = await res.json();
-      setMessages((prev) => [...prev, {
+      const finalMessages = [...updated, {
         id: crypto.randomUUID(),
-        role: "model",
+        role: "model" as const,
         content: data.content || "エラーが発生しました。",
         timestamp: Date.now(),
-      }]);
+      }];
+      setMessages(finalMessages);
+
+      // Auto-update profile every 4 exchanges (8 messages)
+      const exchangeCount = finalMessages.filter(m => m.role === "user").length;
+      if (exchangeCount > 0 && exchangeCount % 4 === 0) {
+        updateProfile(finalMessages);
+      }
     } catch {
       setMessages((prev) => [...prev, {
         id: crypto.randomUUID(),
@@ -219,14 +268,42 @@ export default function AdminChat({ userId }: { userId: string }) {
   return (
     <div className="flex flex-col h-screen bg-slate-50">
       {/* Header */}
-      <div className="bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-black text-slate-800 uppercase tracking-tight italic">先生 · Sensei</h1>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Japanese Language Partner · Admin Only</p>
+      <div className="bg-white border-b border-slate-100 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-black text-slate-800 uppercase tracking-tight italic">先生 · Sensei</h1>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Japanese Language Partner · Admin Only</p>
+          </div>
+          <button onClick={clearChat} className="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-red-500 transition-colors px-3 py-2 rounded-xl hover:bg-red-50">
+            <Trash2 size={13} /> Clear
+          </button>
         </div>
-        <button onClick={clearChat} className="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-red-500 transition-colors px-3 py-2 rounded-xl hover:bg-red-50">
-          <Trash2 size={13} /> Clear
-        </button>
+
+        {/* Profile summary — shows what Sensei has learned about you */}
+        {profile && Object.values(profile).some(v => v && (Array.isArray(v) ? v.length > 0 : true)) && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {profile.level && (
+              <span className="text-[10px] font-black uppercase tracking-widest bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-lg border border-indigo-100">
+                {profile.level}
+              </span>
+            )}
+            {profile.native_language && (
+              <span className="text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-500 px-2.5 py-1 rounded-lg">
+                {profile.native_language}
+              </span>
+            )}
+            {profile.weak_points?.map(w => (
+              <span key={w} className="text-[10px] font-bold bg-rose-50 text-rose-500 px-2.5 py-1 rounded-lg border border-rose-100">
+                ⚠ {w}
+              </span>
+            ))}
+            {profile.hobbies?.map(h => (
+              <span key={h} className="text-[10px] font-bold bg-amber-50 text-amber-600 px-2.5 py-1 rounded-lg border border-amber-100">
+                {h}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Messages */}

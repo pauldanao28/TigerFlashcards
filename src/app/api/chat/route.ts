@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
-const SYSTEM_PROMPT = `あなたは「先生」、親切な日本語学習パートナーです。
+const BASE_PROMPT = `あなたは「先生」、親切な日本語学習パートナーです。
 
 ルール:
 1. 常に日本語のみで返答してください。ユーザーが英語で書いても、日本語で返答し、やさしく日本語で話しかけましょう。
@@ -14,21 +14,56 @@ const SYSTEM_PROMPT = `あなたは「先生」、親切な日本語学習パー
 6. 会話を通じて自然に新しい語彙や文法パターンを教えてください。
 7. 返答は簡潔に。ユーザーが詳しい説明を求めた場合のみ長く答えてください。`;
 
+interface SenseiProfile {
+  level?: string;
+  native_language?: string;
+  hobbies?: string[];
+  weak_points?: string[];
+  strong_points?: string[];
+  preferred_topics?: string[];
+  notes?: string;
+}
+
+function buildSystemPrompt(profile: SenseiProfile | null): string {
+  if (!profile) return BASE_PROMPT;
+
+  const lines: string[] = [];
+  if (profile.level)                lines.push(`レベル: ${profile.level}`);
+  if (profile.native_language)      lines.push(`母国語: ${profile.native_language}`);
+  if (profile.hobbies?.length)      lines.push(`趣味: ${profile.hobbies.join("、")}`);
+  if (profile.weak_points?.length)  lines.push(`弱点: ${profile.weak_points.join("、")}`);
+  if (profile.strong_points?.length)lines.push(`得意: ${profile.strong_points.join("、")}`);
+  if (profile.preferred_topics?.length) lines.push(`好きなトピック: ${profile.preferred_topics.join("、")}`);
+  if (profile.notes)                lines.push(`メモ: ${profile.notes}`);
+
+  if (lines.length === 0) return BASE_PROMPT;
+
+  return `${BASE_PROMPT}
+
+## 生徒のプロフィール
+${lines.join("\n")}
+
+このプロフィールを常に参考にして、生徒のレベル・弱点・興味に合わせて指導してください。`;
+}
+
 export async function POST(req: Request) {
   try {
-    const { messages } = await req.json();
+    const { messages, profile } = await req.json();
 
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
-      systemInstruction: SYSTEM_PROMPT,
+      systemInstruction: buildSystemPrompt(profile ?? null),
     });
 
-    const history = messages.slice(0, -1).map((m: { role: string; content: string }) => ({
+    // Full window: last 20 messages for conversation context
+    // Profile is injected into system prompt on top of this
+    const window = messages.slice(-20);
+    const history = window.slice(0, -1).map((m: { role: string; content: string }) => ({
       role: m.role === "user" ? "user" : "model",
       parts: [{ text: m.content }],
     }));
 
-    const lastMessage = messages[messages.length - 1];
+    const lastMessage = window[window.length - 1];
     const chat = model.startChat({ history });
     const result = await chat.sendMessage(lastMessage.content);
 
