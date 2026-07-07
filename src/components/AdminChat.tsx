@@ -81,16 +81,39 @@ export default function AdminChat({ userId }: { userId: string }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Load messages: Supabase first, localStorage as offline fallback
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) setMessages(JSON.parse(saved));
-    } catch {}
-  }, []);
+    const load = async () => {
+      const { data, error } = await supabase
+        .from("sensei_messages")
+        .select("id, role, content, timestamp")
+        .eq("user_id", userId)
+        .order("timestamp", { ascending: true });
 
-  useEffect(() => {
-    if (messages.length > 0) localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-  }, [messages]);
+      if (!error && data && data.length > 0) {
+        const loaded = data as Message[];
+        setMessages(loaded);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded));
+      } else {
+        // Fallback: seed from localStorage if Supabase is empty or unreachable
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved) {
+            const parsed: Message[] = JSON.parse(saved);
+            if (parsed.length > 0) {
+              setMessages(parsed);
+              // Back-fill Supabase with the locally cached messages
+              supabase.from("sensei_messages").upsert(
+                parsed.map((m) => ({ ...m, user_id: userId })),
+                { onConflict: "id" }
+              );
+            }
+          }
+        } catch {}
+      }
+    };
+    load();
+  }, [userId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -153,6 +176,8 @@ export default function AdminChat({ userId }: { userId: string }) {
     const userMsg: Message = { id: crypto.randomUUID(), role: "user", content: text, timestamp: Date.now() };
     const updated = [...messages, userMsg];
     setMessages(updated);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    supabase.from("sensei_messages").insert({ ...userMsg, user_id: userId });
     setInput("");
     setLoading(true);
 
@@ -163,13 +188,16 @@ export default function AdminChat({ userId }: { userId: string }) {
         body: JSON.stringify({ messages: updated.slice(-20), profile }),
       });
       const data = await res.json();
-      const finalMessages = [...updated, {
+      const modelMsg: Message = {
         id: crypto.randomUUID(),
         role: "model" as const,
         content: data.content || "エラーが発生しました。",
         timestamp: Date.now(),
-      }];
+      };
+      const finalMessages = [...updated, modelMsg];
       setMessages(finalMessages);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(finalMessages));
+      supabase.from("sensei_messages").insert({ ...modelMsg, user_id: userId });
 
       const exchangeCount = finalMessages.filter(m => m.role === "user").length;
       const unanalyzedCount = finalMessages.length - lastAnalyzedIndexRef.current;
@@ -256,6 +284,7 @@ export default function AdminChat({ userId }: { userId: string }) {
     if (confirm("会話履歴を全て削除しますか？")) {
       setMessages([]);
       localStorage.removeItem(STORAGE_KEY);
+      supabase.from("sensei_messages").delete().eq("user_id", userId);
     }
   };
 
