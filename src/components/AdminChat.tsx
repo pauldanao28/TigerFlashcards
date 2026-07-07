@@ -297,7 +297,7 @@ export default function AdminChat({ userId }: { userId: string }) {
           seg.type === "annotated" ? (
             <span
               key={i}
-              className="cursor-pointer rounded px-0.5 transition-colors underline decoration-dotted decoration-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+              className="inline-flex items-center cursor-pointer bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md px-1 py-0.5 mx-0.5 text-[0.9em] font-medium leading-none active:bg-indigo-100 transition-colors"
               onClick={(e) => handleWordClick(seg.text, seg.reading, e)}
               onTouchEnd={(e) => { e.preventDefault(); handleWordClick(seg.text, seg.reading, e as unknown as React.MouseEvent); }}
             >
