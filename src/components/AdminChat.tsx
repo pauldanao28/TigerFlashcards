@@ -453,30 +453,33 @@ export default function AdminChat({ userId }: { userId: string }) {
         <div ref={bottomRef} />
       </div>
 
-      {/* ── Word tooltip ── */}
+      {/* ── Word tooltip (bottom sheet) ── */}
       {tooltip && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setTooltip(null)} onTouchEnd={() => setTooltip(null)} />
-          <div className="fixed z-50 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 min-w-[180px]"
-            style={{ left: tooltip.x, top: tooltip.y }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between gap-3">
+          <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setTooltip(null)} />
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
+            style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3 mb-4">
               <div>
-                <div className="text-xl font-black text-slate-800">{tooltip.word}</div>
-                <div className="text-xs text-indigo-500 font-bold mt-0.5">{tooltip.reading}</div>
+                <div className="text-2xl font-black text-slate-800">{tooltip.word}</div>
+                <div className="text-sm text-indigo-500 font-bold mt-0.5">{tooltip.reading}</div>
               </div>
-              <button onClick={() => setTooltip(null)} className="text-slate-300 hover:text-slate-500 shrink-0"><X size={14} /></button>
+              <button onClick={() => setTooltip(null)} className="text-slate-300 hover:text-slate-500 mt-1"><X size={16} /></button>
             </div>
-            <div className="mt-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Word to add</label>
-              <input type="text" value={tooltip.editWord}
-                onChange={(e) => setTooltip((prev) => prev ? { ...prev, editWord: e.target.value } : prev)}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
-                placeholder="e.g. 食べる" />
-            </div>
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Word to add</label>
+            <input
+              type="text"
+              value={tooltip.editWord}
+              onChange={(e) => setTooltip((prev) => prev ? { ...prev, editWord: e.target.value } : prev)}
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+              placeholder="e.g. 食べる"
+              autoFocus
+            />
             <button
               onClick={() => { const word = tooltip.editWord.trim(); if (word && !wordList.includes(word)) setWordList(prev => [...prev, word]); setTooltip(null); }}
               disabled={!tooltip.editWord.trim()}
-              className="mt-2 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40">
+              className="mt-3 w-full flex items-center justify-center gap-1.5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40">
               <List size={11} /> Add to List
             </button>
           </div>
