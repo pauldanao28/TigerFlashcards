@@ -67,6 +67,7 @@ interface SenseiProfile {
   personality?: string;
   vocabulary_introduced?: string[];
   recently_added?: string[];
+  grammar_weak_points?: string[];
   recent_topics?: string[];
   notes?: string;
 }
@@ -90,6 +91,7 @@ function buildSystemPrompt(persona: string, profile: SenseiProfile | null, pendi
     if (profile.personality)                   lines.push(`学習スタイル: ${profile.personality}`);
     if (profile.vocabulary_introduced?.length) lines.push(`既習語彙（再説明不要）: ${profile.vocabulary_introduced.join("、")}`);
     if (profile.recently_added?.length)        lines.push(`【最近デッキに追加した語彙】: ${profile.recently_added.join("、")}`);
+    if (profile.grammar_weak_points?.length)   lines.push(`【文法の弱点】: ${profile.grammar_weak_points.join("、")}`);
     if (profile.recent_topics?.length)         lines.push(`最近の話題: ${profile.recent_topics.join("、")}`);
     if (profile.notes)                         lines.push(`メモ: ${profile.notes}`);
   }
@@ -107,6 +109,7 @@ ${lines.join("\n")}
 - 既習語彙は再説明不要。
 - 【最近デッキに追加した語彙】は会話の中で自然に使い、定着を助けること。例文を作らせたり、使い方を確認したりする。
 - 【今気になっている語彙】もさりげなく会話に織り交ぜてよい。
+- 【文法の弱点】は会話の流れに合う時に自然に練習機会を作ること。無理に押し込まず、文脈に合った時だけ。
 - よくある間違いは特に注意して指摘すること。`;
 }
 
@@ -114,29 +117,52 @@ const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 export async function POST(req: Request) {
   try {
-    const { messages, profile, persona = "senpai", pendingWords = [] } = await req.json();
+    const { messages, profile, persona = "senpai", pendingWords = [], weakCards = [], greeting = false } = await req.json();
 
     const systemInstruction = buildSystemPrompt(persona, profile ?? null, pendingWords);
-
-    const window = messages.slice(-20);
-    const lastMessage = window[window.length - 1];
-
-    type HistoryEntry = { role: string; parts: { text: string }[] };
-    const raw: HistoryEntry[] = window.slice(0, -1).map((m: { role: string; content: string }) => ({
-      role: m.role === "user" ? "user" : "model",
-      parts: [{ text: m.content }],
-    }));
-    const firstUser = raw.findIndex((m) => m.role === "user");
-    const trimmed = firstUser >= 0 ? raw.slice(firstUser) : [];
-    const history = trimmed.filter((m, i) => i === 0 || m.role !== trimmed[i - 1].role);
 
     const tryWithModel = async (modelName: string) => {
       const model = genAI.getGenerativeModel({ model: modelName, systemInstruction });
       let lastError: unknown;
+
+      // Greeting mode: generate an opening message with no user input
+      if (greeting) {
+        const weakHint = weakCards.length > 0 ? `苦手な語彙（${weakCards.slice(0, 5).join("、")}など）` : "";
+        const greetPrompt = `会話を始めてください。生徒のプロフィール・最近の話題・${weakHint}を踏まえて、自然で温かい挨拶と、今日話したいトピックへの誘いを1〜2文で。`;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const result = await model.generateContent(greetPrompt);
+            return result.response.text();
+          } catch (e) {
+            lastError = e;
+            const msg = e instanceof Error ? e.message : String(e);
+            if (!msg.includes("503") && !msg.includes("429") && !msg.includes("overloaded")) break;
+            await sleep(1000 * 2 ** attempt);
+          }
+        }
+        throw lastError;
+      }
+
+      const window = messages.slice(-20);
+      const lastMessage = window[window.length - 1];
+      type HistoryEntry = { role: string; parts: { text: string }[] };
+      const raw: HistoryEntry[] = window.slice(0, -1).map((m: { role: string; content: string }) => ({
+        role: m.role === "user" ? "user" : "model",
+        parts: [{ text: m.content }],
+      }));
+      const firstUser = raw.findIndex((m) => m.role === "user");
+      const trimmed = firstUser >= 0 ? raw.slice(firstUser) : [];
+      const history = trimmed.filter((m, i) => i === 0 || m.role !== trimmed[i - 1].role);
+
+      // Also inject weak cards as a hidden context note in the last user message
+      const userContent = weakCards.length > 0
+        ? `${lastMessage.content}\n\n[CONTEXT: 苦手語彙候補=${weakCards.slice(0, 10).join("、")} — 会話の文脈に合う時のみ使う]`
+        : lastMessage.content;
+
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           const chat = model.startChat({ history });
-          const result = await chat.sendMessage(lastMessage.content);
+          const result = await chat.sendMessage(userContent);
           return result.response.text();
         } catch (e) {
           lastError = e;

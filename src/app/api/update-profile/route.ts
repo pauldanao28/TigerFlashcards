@@ -32,9 +32,10 @@ Based on this conversation, update what you know about the student. Rules:
 - occupation: their job or field if mentioned (e.g. "software engineer", "student", "teacher")
 - learning_goals: specific goals they express (e.g. "pass JLPT N3", "watch anime without subtitles", "hold basic conversations")
 - hobbies: personal interests they mention beyond Japanese study
-- weak_points: grammar/vocab patterns they struggle with (be specific, e.g. "て-form conjugation", "は vs が")
+- weak_points: general areas they struggle with (vocab, reading kanji, etc.)
 - strong_points: things they handle correctly and confidently
 - common_errors: recurring specific mistakes observed (e.g. "forgets を after direct objects", "overuses ます in casual speech") — only concrete observed errors
+- grammar_weak_points: specific grammar patterns they struggle with (e.g. "て-form conjugation", "は vs が distinction", "conditional たら/ば/と", "passive voice", "〜てしまう usage") — be precise, add only patterns with clear evidence from THIS conversation
 - preferred_topics: topics they enjoy discussing or ask about often
 - personality: brief learning-style note (e.g. "likes humor", "prefers detailed explanations", "needs encouragement") — update if new evidence, otherwise keep
 - vocabulary_introduced: Japanese words/phrases explicitly taught or explained in this conversation (romaji not needed; keep list under 50 total, drop oldest if over)
@@ -57,6 +58,7 @@ Return ONLY valid JSON, no explanation, no markdown:
   "preferred_topics": [],
   "personality": "...",
   "vocabulary_introduced": [],
+  "grammar_weak_points": [],
   "recent_topics": [],
   "notes": "..."
 }`;
