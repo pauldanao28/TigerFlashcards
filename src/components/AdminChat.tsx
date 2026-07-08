@@ -613,7 +613,7 @@ export default function AdminChat({ userId }: { userId: string }) {
         <div className="flex items-end gap-3 max-w-3xl mx-auto">
           <textarea ref={textareaRef} value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !loading) { e.preventDefault(); sendMessage(); } }}
             placeholder="日本語で話しかけてください…"
             rows={1}
             className="flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all max-h-40 overflow-y-auto"

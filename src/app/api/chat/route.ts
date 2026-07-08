@@ -98,6 +98,8 @@ ${lines.join("\n")}
 このプロフィールを常に参考���して、生徒のレベル・弱点・興味・学習スタイルに合わせて指導してください��既習語彙は既に知っているので再説明は不要です。よくある間違いは特に注意して指摘してください。`;
 }
 
+const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+
 export async function POST(req: Request) {
   try {
     const { messages, profile, persona = "senpai" } = await req.json();
@@ -117,9 +119,25 @@ export async function POST(req: Request) {
     const history = trimmed.filter((m, i) => i === 0 || m.role !== trimmed[i - 1].role);
 
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite", systemInstruction });
-    const chat = model.startChat({ history });
-    const result = await chat.sendMessage(lastMessage.content);
-    return NextResponse.json({ content: result.response.text() });
+
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const chat = model.startChat({ history });
+        const result = await chat.sendMessage(lastMessage.content);
+        return NextResponse.json({ content: result.response.text() });
+      } catch (e) {
+        lastError = e;
+        const msg = e instanceof Error ? e.message : String(e);
+        const retryable = msg.includes("503") || msg.includes("429") || msg.includes("overloaded");
+        if (!retryable || attempt === 2) break;
+        await sleep(1000 * 2 ** attempt); // 1s, 2s
+      }
+    }
+
+    const detail = lastError instanceof Error ? lastError.message : String(lastError);
+    console.error("Chat API error:", detail);
+    return NextResponse.json({ error: "Failed to get response", detail }, { status: 500 });
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
     console.error("Chat API error:", detail);
