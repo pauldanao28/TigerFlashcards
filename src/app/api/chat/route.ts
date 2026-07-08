@@ -118,26 +118,39 @@ export async function POST(req: Request) {
     const trimmed = firstUser >= 0 ? raw.slice(firstUser) : [];
     const history = trimmed.filter((m, i) => i === 0 || m.role !== trimmed[i - 1].role);
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite", systemInstruction });
+    const tryWithModel = async (modelName: string) => {
+      const model = genAI.getGenerativeModel({ model: modelName, systemInstruction });
+      let lastError: unknown;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const chat = model.startChat({ history });
+          const result = await chat.sendMessage(lastMessage.content);
+          return result.response.text();
+        } catch (e) {
+          lastError = e;
+          const msg = e instanceof Error ? e.message : String(e);
+          const retryable = msg.includes("503") || msg.includes("429") || msg.includes("overloaded");
+          if (!retryable || attempt === 2) break;
+          await sleep(1000 * 2 ** attempt);
+        }
+      }
+      throw lastError;
+    };
 
-    let lastError: unknown;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const content = await tryWithModel("gemini-2.5-flash-lite");
+      return NextResponse.json({ content });
+    } catch {
+      // Lite model exhausted — fall back to full flash
       try {
-        const chat = model.startChat({ history });
-        const result = await chat.sendMessage(lastMessage.content);
-        return NextResponse.json({ content: result.response.text() });
+        const content = await tryWithModel("gemini-2.5-flash");
+        return NextResponse.json({ content });
       } catch (e) {
-        lastError = e;
-        const msg = e instanceof Error ? e.message : String(e);
-        const retryable = msg.includes("503") || msg.includes("429") || msg.includes("overloaded");
-        if (!retryable || attempt === 2) break;
-        await sleep(1000 * 2 ** attempt); // 1s, 2s
+        const detail = e instanceof Error ? e.message : String(e);
+        console.error("Chat API error (both models failed):", detail);
+        return NextResponse.json({ error: "Failed to get response", detail }, { status: 500 });
       }
     }
-
-    const detail = lastError instanceof Error ? lastError.message : String(lastError);
-    console.error("Chat API error:", detail);
-    return NextResponse.json({ error: "Failed to get response", detail }, { status: 500 });
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
     console.error("Chat API error:", detail);
