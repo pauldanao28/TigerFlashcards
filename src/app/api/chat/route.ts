@@ -116,21 +116,10 @@ export async function POST(req: Request) {
     const trimmed = firstUser >= 0 ? raw.slice(firstUser) : [];
     const history = trimmed.filter((m, i) => i === 0 || m.role !== trimmed[i - 1].role);
 
-    // Try lite first, fall back to full flash if unavailable
-    for (const modelId of ["gemini-2.5-flash-lite", "gemini-2.5-flash"]) {
-      try {
-        const model = genAI.getGenerativeModel({ model: modelId, systemInstruction });
-        const chat = model.startChat({ history });
-        const result = await chat.sendMessage(lastMessage.content);
-        return NextResponse.json({ content: result.response.text() });
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        if (modelId === "gemini-2.5-flash") throw e; // last resort — rethrow
-        console.warn(`${modelId} failed (${msg}), trying fallback…`);
-      }
-    }
-
-    throw new Error("All models failed");
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite", systemInstruction });
+    const chat = model.startChat({ history });
+    const result = await chat.sendMessage(lastMessage.content);
+    return NextResponse.json({ content: result.response.text() });
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
     console.error("Chat API error:", detail);
