@@ -38,6 +38,7 @@ Based on this conversation, update what you know about the student. Rules:
 - preferred_topics: topics they enjoy discussing or ask about often
 - personality: brief learning-style note (e.g. "likes humor", "prefers detailed explanations", "needs encouragement") — update if new evidence, otherwise keep
 - vocabulary_introduced: Japanese words/phrases explicitly taught or explained in this conversation (romaji not needed; keep list under 50 total, drop oldest if over)
+- recent_topics: the last 5–10 topics or themes discussed (e.g. "anime", "weekend plans", "food", "JLPT prep") — keep most recent, drop oldest beyond 10
 - notes: any other useful teaching observations (keep concise, 1–2 sentences max)
 
 If nothing new is learned about a field, keep its existing value exactly as-is.
@@ -56,6 +57,7 @@ Return ONLY valid JSON, no explanation, no markdown:
   "preferred_topics": [],
   "personality": "...",
   "vocabulary_introduced": [],
+  "recent_topics": [],
   "notes": "..."
 }`;
 

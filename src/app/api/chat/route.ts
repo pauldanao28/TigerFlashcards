@@ -4,11 +4,12 @@ import { NextResponse } from "next/server";
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
 const FURIGANA_RULES = `
-## ふりがなルール（全ペルソナ共通・絶対厳守）
+## ルール（全ペルソナ共通・絶対厳守）
 - 難しい漢字語（N3以上、またはユーザーが知らない可能性がある語）にのみ括弧でふりがなを付ける。形式：漢字（ふりがな）。例：彼女（かのじょ）、勉強（べんきょう）。
 - 【絶対】漢字を一字も含まない語（ひらがな・カタカナのみの語、助詞など）にはふりがなを一切付けないこと。
 - 常に日本語のみで返答すること。ユーザーが英語で書いても日本語で返す。
-- 【絶対】返答は2〜3文以内に収めること。箇条書きや長い段落は禁止。ユーザーが「詳しく」「説明して」と明示した場合のみ長く答えてよい。`;
+- 普通の会話・返答は2〜3文以内に収める。ただし、ユーザーの間違いを指摘・訂正する時は、引用・正しい形・理由・例文を含む詳しい説明をすること。
+- 会話が途切れそうな時や自然なタイミングで、ユーザーの趣味・目標・最近の話題に関連した新しい話題を提案したり、質問したりすること。`;
 
 const PERSONAS: Record<string, string> = {
   senpai: `あなたは「先輩」、日本語学習を応援する頼れる年上の友達キャラです。
@@ -65,6 +66,7 @@ interface SenseiProfile {
   preferred_topics?: string[];
   personality?: string;
   vocabulary_introduced?: string[];
+  recent_topics?: string[];
   notes?: string;
 }
 
@@ -86,6 +88,7 @@ function buildSystemPrompt(persona: string, profile: SenseiProfile | null): stri
   if (profile.preferred_topics?.length)    lines.push(`好きなトピック: ${profile.preferred_topics.join("、")}`);
   if (profile.personality)                 lines.push(`学習スタイル: ${profile.personality}`);
   if (profile.vocabulary_introduced?.length) lines.push(`既習語彙: ${profile.vocabulary_introduced.join("、")}`);
+  if (profile.recent_topics?.length)       lines.push(`最近の話題: ${profile.recent_topics.join("、")}`);
   if (profile.notes)                       lines.push(`メモ: ${profile.notes}`);
 
   if (lines.length === 0) return base;
@@ -106,7 +109,7 @@ export async function POST(req: Request) {
 
     const systemInstruction = buildSystemPrompt(persona, profile ?? null);
 
-    const window = messages.slice(-10);
+    const window = messages.slice(-20);
     const lastMessage = window[window.length - 1];
 
     type HistoryEntry = { role: string; parts: { text: string }[] };
