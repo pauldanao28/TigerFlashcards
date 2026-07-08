@@ -70,12 +70,12 @@ type Segment =
 function parseFurigana(text: string): Segment[] {
   const parts: Segment[] = [];
   const regex = /([^\s（(、。！？\n「」『』【】〔〕…・　]+)[（(]([ぁ-んァ-ンっーゃゅょ・]+)[）)]/g;
-  const startsWithKanji = /^[一-龯々〻㐀-䶿ヶ]/;
+  const containsKanji = /[一-龯々〻㐀-䶿ヶ]/;
   let lastIndex = 0;
   let match;
   while ((match = regex.exec(text)) !== null) {
     if (match.index > lastIndex) parts.push({ type: "plain", text: text.slice(lastIndex, match.index) });
-    if (startsWithKanji.test(match[1])) {
+    if (containsKanji.test(match[1])) {
       parts.push({ type: "annotated", text: match[1], reading: match[2] });
     } else {
       parts.push({ type: "plain", text: match[1] }); // strip furigana, show word as-is
