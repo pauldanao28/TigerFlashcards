@@ -12,6 +12,21 @@ function uuid(): string {
   });
 }
 
+// ── Persona definitions ───────────────────────────────────────────────────────
+export type PersonaKey = "senpai" | "sensei" | "samurai" | "idol";
+
+const PERSONAS: Record<PersonaKey, { label: string; kanji: string; emoji: string; color: string; bg: string; ring: string; desc: string }> = {
+  senpai:  { label: "先輩",     kanji: "先輩", emoji: "🧑‍🎓", color: "text-indigo-600",  bg: "bg-indigo-50",   ring: "ring-indigo-400",  desc: "Friendly senpai" },
+  sensei:  { label: "先生",     kanji: "先生", emoji: "👨‍🏫", color: "text-slate-700",   bg: "bg-slate-100",   ring: "ring-slate-400",   desc: "Strict teacher" },
+  samurai: { label: "侍",       kanji: "侍",   emoji: "⚔️",  color: "text-rose-700",    bg: "bg-rose-50",     ring: "ring-rose-400",    desc: "Samurai philosopher" },
+  idol:    { label: "アイドル", kanji: "☆",   emoji: "��",  color: "text-pink-600",    bg: "bg-pink-50",     ring: "ring-pink-400",    desc: "Idol coach" },
+};
+
+const PERSONA_ORDER: PersonaKey[] = ["senpai", "sensei", "samurai", "idol"];
+const PERSONA_STORAGE_KEY = "flashkado-sensei-persona";
+const chatStorageKey = (p: PersonaKey) => `flashkado-sensei-chat-${p}`;
+
+// ── Types ��──────────────────────────────────────────────────────────────────���─
 interface Message {
   id: string;
   role: "user" | "model";
@@ -44,39 +59,40 @@ interface Tooltip {
   adding: boolean;
 }
 
-
 type Segment =
   | { type: "annotated"; text: string; reading: string }
   | { type: "plain"; text: string };
 
-const STORAGE_KEY = "flashkado-sensei-chat";
-
+// ── Furigana parser ───────────────────────────────────────────────────────────
 function parseFurigana(text: string): Segment[] {
   const parts: Segment[] = [];
   const regex = /([^\s（(、。！？\n「」『』【】〔〕…・　]+)[（(]([ぁ-んァ-ンっーゃゅょ・]+)[）)]/g;
   let lastIndex = 0;
   let match;
-
   const kanji = /[一-龯㐀-䶿]/;
   while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push({ type: "plain", text: text.slice(lastIndex, match.index) });
-    }
+    if (match.index > lastIndex) parts.push({ type: "plain", text: text.slice(lastIndex, match.index) });
     if (kanji.test(match[1])) {
       parts.push({ type: "annotated", text: match[1], reading: match[2] });
     } else {
-      // particle or kana-only word — strip brackets and render as plain
       parts.push({ type: "plain", text: match[1] });
     }
     lastIndex = match.index + match[0].length;
   }
-  if (lastIndex < text.length) {
-    parts.push({ type: "plain", text: text.slice(lastIndex) });
-  }
+  if (lastIndex < text.length) parts.push({ type: "plain", text: text.slice(lastIndex) });
   return parts;
 }
 
+// ── Component ─────────────────────────────────────────────────────────────────
 export default function AdminChat({ userId }: { userId: string }) {
+  const [activePersona, setActivePersona] = useState<PersonaKey>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(PERSONA_STORAGE_KEY) as PersonaKey | null;
+      if (saved && PERSONA_ORDER.includes(saved)) return saved;
+    }
+    return "senpai";
+  });
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -89,99 +105,98 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [addedSummary, setAddedSummary] = useState<any[]>([]);
   const [showSummary, setShowSummary] = useState(false);
   const [geminiStatus, setGeminiStatus] = useState<"idle" | "checking" | "ok" | "error">("idle");
-  // Tracks how many messages have already been analyzed for the profile
+  const [messagesLoading, setMessagesLoading] = useState(false);
+
   const lastAnalyzedIndexRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Load messages: Supabase first, localStorage as offline fallback
+  const persona = PERSONAS[activePersona];
+
+  // ── Switch persona ──────────────────────────────────────────────────────────
+  const switchPersona = (key: PersonaKey) => {
+    if (key === activePersona) return;
+    localStorage.setItem(PERSONA_STORAGE_KEY, key);
+    setActivePersona(key);
+    setMessages([]);
+    lastAnalyzedIndexRef.current = 0;
+  };
+
+  // ── Load messages for active persona ───────────────────────────────────���───
   useEffect(() => {
     const load = async () => {
+      setMessagesLoading(true);
       const { data, error } = await supabase
         .from("sensei_messages")
         .select("id, role, content, timestamp")
         .eq("user_id", userId)
+        .eq("persona", activePersona)
         .order("timestamp", { ascending: true });
 
       if (!error && data && data.length > 0) {
         const loaded = data as Message[];
         setMessages(loaded);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded));
+        localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(loaded));
       } else {
-        // Fallback: seed from localStorage if Supabase is empty or unreachable
         try {
-          const saved = localStorage.getItem(STORAGE_KEY);
+          const saved = localStorage.getItem(chatStorageKey(activePersona));
           if (saved) {
             const parsed: Message[] = JSON.parse(saved);
             if (parsed.length > 0) {
               setMessages(parsed);
-              // Back-fill Supabase with the locally cached messages
               supabase.from("sensei_messages").upsert(
-                parsed.map((m) => ({ ...m, user_id: userId })),
+                parsed.map((m) => ({ ...m, user_id: userId, persona: activePersona })),
                 { onConflict: "id" }
               );
+            } else {
+              setMessages([]);
             }
+          } else {
+            setMessages([]);
           }
-        } catch {}
+        } catch { setMessages([]); }
       }
+      setMessagesLoading(false);
     };
     load();
-  }, [userId]);
+  }, [userId, activePersona]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
   useEffect(() => {
-    supabase
-      .from("decks")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("is_default", true)
-      .single()
+    supabase.from("decks").select("id").eq("user_id", userId).eq("is_default", true).single()
       .then(({ data }) => { if (data) setDefaultDeckId(data.id); });
   }, [userId]);
 
-  // Load Sensei profile from Supabase
   useEffect(() => {
-    supabase
-      .from("sensei_profile")
-      .select("*")
-      .eq("user_id", userId)
-      .single()
+    supabase.from("sensei_profile").select("*").eq("user_id", userId).single()
       .then(({ data }) => { if (data) setProfile(data); });
   }, [userId]);
 
-
+  // ── Profile update ──────────────────────────────────────────────────────────
   const updateProfile = async (allMessages: Message[]) => {
     const from = lastAnalyzedIndexRef.current;
     const newMessages = allMessages.slice(from);
-    if (newMessages.length < 2) return; // Nothing new to learn from
-
-    // Mark as analyzed immediately to prevent duplicate calls
+    if (newMessages.length < 2) return;
     lastAnalyzedIndexRef.current = allMessages.length;
-
     try {
       const res = await fetch("/api/update-profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: newMessages, // Only unanalyzed messages — efficient
-          currentProfile: profile ?? {},
-        }),
+        body: JSON.stringify({ messages: newMessages, currentProfile: profile ?? {} }),
       });
       const updated: SenseiProfile = await res.json();
       setProfile(updated);
-      supabase
-        .from("sensei_profile")
-        .upsert([{ ...updated, user_id: userId }], { onConflict: "user_id" });
+      supabase.from("sensei_profile").upsert([{ ...updated, user_id: userId }], { onConflict: "user_id" });
     } catch (e) {
       console.error("Profile update failed:", e);
-      // Roll back the index so we retry next time
       lastAnalyzedIndexRef.current = from;
     }
   };
 
+  // ── Send message ────────────────────────────────────────────────────────────
   const sendMessage = async () => {
     const text = input.trim();
     if (!text || loading) return;
@@ -189,8 +204,8 @@ export default function AdminChat({ userId }: { userId: string }) {
     const userMsg: Message = { id: uuid(), role: "user", content: text, timestamp: Date.now() };
     const updated = [...messages, userMsg];
     setMessages(updated);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    supabase.from("sensei_messages").insert({ ...userMsg, user_id: userId });
+    localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(updated));
+    supabase.from("sensei_messages").insert({ ...userMsg, user_id: userId, persona: activePersona });
     setInput("");
     setLoading(true);
 
@@ -198,59 +213,40 @@ export default function AdminChat({ userId }: { userId: string }) {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: updated.slice(-20), profile }),
+        body: JSON.stringify({ messages: updated.slice(-20), profile, persona: activePersona }),
       });
       if (!res.ok) throw new Error(`API ${res.status}`);
       const data = await res.json();
       if (!data.content) throw new Error("Empty response");
-      const modelMsg: Message = {
-        id: uuid(),
-        role: "model" as const,
-        content: data.content,
-        timestamp: Date.now(),
-      };
+      const modelMsg: Message = { id: uuid(), role: "model" as const, content: data.content, timestamp: Date.now() };
       const finalMessages = [...updated, modelMsg];
       setMessages(finalMessages);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(finalMessages));
-      supabase.from("sensei_messages").insert({ ...modelMsg, user_id: userId });
+      localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(finalMessages));
+      supabase.from("sensei_messages").insert({ ...modelMsg, user_id: userId, persona: activePersona });
 
       const exchangeCount = finalMessages.filter(m => m.role === "user").length;
       const unanalyzedCount = finalMessages.length - lastAnalyzedIndexRef.current;
-
-      // Trigger profile update every 4 exchanges,
-      // OR immediately if unanalyzed messages are about to fall outside the 20-msg window
       if ((exchangeCount > 0 && exchangeCount % 4 === 0) || unanalyzedCount >= 18) {
         updateProfile(finalMessages);
       }
     } catch {
-      setMessages((prev) => [...prev, {
-        id: uuid(),
-        role: "model",
-        content: "エラーが発生しました。もう一度試してください。",
-        timestamp: Date.now(),
-      }]);
+      setMessages((prev) => [...prev, { id: uuid(), role: "model", content: "エラ��が発生しました。もう一度試してください。", timestamp: Date.now() }]);
     } finally {
       setLoading(false);
     }
   };
 
+  // ── Word tooltip ────────────────────────────────────────────────────────────
   const handleWordClick = useCallback((word: string, reading: string, e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     const tooltipH = 170;
     const spaceBelow = window.innerHeight - rect.bottom;
     const y = spaceBelow > tooltipH ? rect.bottom + 8 : rect.top - tooltipH - 8;
-    setTooltip({
-      word,
-      reading,
-      editWord: word,
-      x: Math.min(rect.left, window.innerWidth - 260),
-      y: Math.max(8, y),
-      adding: false,
-    });
+    setTooltip({ word, reading, editWord: word, x: Math.min(rect.left, window.innerWidth - 260), y: Math.max(8, y), adding: false });
   }, []);
 
-
+  // ── Batch add ───────────────────────────────────────────────────────────────
   const addListToDeck = async (text: string) => {
     const words = [...new Set(text.split("\n").map(w => w.trim()).filter(Boolean))];
     if (!words.length || !defaultDeckId) return;
@@ -258,66 +254,37 @@ export default function AdminChat({ userId }: { userId: string }) {
 
     const performLinking = async (cardIds: string[]) => {
       await Promise.all([
-        supabase.from("deck_cards").upsert(
-          cardIds.map(id => ({ deck_id: defaultDeckId, card_id: id })),
-          { onConflict: "deck_id,card_id" }
-        ),
-        supabase.from("user_scores").upsert(
-          cardIds.map(id => ({ user_id: userId, card_id: id, scores_json: { jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 }, en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 } } })),
-          { onConflict: "user_id,card_id" }
-        ),
+        supabase.from("deck_cards").upsert(cardIds.map(id => ({ deck_id: defaultDeckId, card_id: id })), { onConflict: "deck_id,card_id" }),
+        supabase.from("user_scores").upsert(cardIds.map(id => ({ user_id: userId, card_id: id, scores_json: { jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 }, en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 } } })), { onConflict: "user_id,card_id" }),
       ]);
     };
 
     try {
       let allProcessed: any[] = [];
-
-      // Step 1: link words already in master_cards (no AI needed)
       const { data: existing } = await supabase.from("master_cards").select("*").in("japanese", words);
-      if (existing?.length) {
-        await performLinking(existing.map((c: any) => c.id));
-        allProcessed = [...existing];
-      }
+      if (existing?.length) { await performLinking(existing.map((c: any) => c.id)); allProcessed = [...existing]; }
 
       const existingSet = new Set(existing?.map((c: any) => c.japanese) ?? []);
       const wordsForAI = words.filter(w => !existingSet.has(w));
 
-      // Step 2: AI-generate + upsert new words
       if (wordsForAI.length > 0) {
-        const res = await fetch("/api/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ words: wordsForAI }),
-        });
+        const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ words: wordsForAI }) });
         if (!res.ok) throw new Error("AI error");
         const items = await res.json();
         const itemsArray = Array.isArray(items) ? items : [items];
-
         const seen = new Set<string>();
         const deduped = itemsArray
-          .map((item: any) => ({
-            japanese: String(item.japanese).trim(),
-            reading: String(item.reading || "").replace(/[a-zA-Z\s]/g, ""),
-            english: String(item.english || "").trim(),
-            partOfSpeech: String(item.partOfSpeech || "noun").trim().toLowerCase(),
-            exampleSentence: item.exampleSentence || { jp: "", en: "" },
-            creator_id: userId,
-          }))
+          .map((item: any) => ({ japanese: String(item.japanese).trim(), reading: String(item.reading || "").replace(/[a-zA-Z\s]/g, ""), english: String(item.english || "").trim(), partOfSpeech: String(item.partOfSpeech || "noun").trim().toLowerCase(), exampleSentence: item.exampleSentence || { jp: "", en: "" }, creator_id: userId }))
           .filter((item: any) => { if (seen.has(item.japanese)) return false; seen.add(item.japanese); return true; });
-
         const { data: newCards, error: mErr } = await supabase.from("master_cards").upsert(deduped, { onConflict: "japanese" }).select("*");
         if (mErr) throw mErr;
-        if (newCards?.length) {
-          await performLinking(newCards.map((c: any) => c.id));
-          allProcessed = [...allProcessed, ...newCards];
-        }
+        if (newCards?.length) { await performLinking(newCards.map((c: any) => c.id)); allProcessed = [...allProcessed, ...newCards]; }
       }
 
       setWordList([]);
       setShowList(false);
       if (allProcessed.length > 0) {
-        const deduped = Array.from(new Map(allProcessed.map(c => [c.japanese, c])).values());
-        setAddedSummary(deduped);
+        setAddedSummary(Array.from(new Map(allProcessed.map(c => [c.japanese, c])).values()));
         setShowSummary(true);
       }
     } catch (err) {
@@ -327,30 +294,27 @@ export default function AdminChat({ userId }: { userId: string }) {
     }
   };
 
+  // ── Gemini test ��────────────────────────────────────────────────────────────
   const checkGemini = async () => {
     setGeminiStatus("checking");
     try {
       const probe: Message = { id: uuid(), role: "user", content: "テスト", timestamp: Date.now() };
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [probe], profile: null }),
-      });
+      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: [probe], profile: null, persona: activePersona }) });
       setGeminiStatus(res.ok ? "ok" : "error");
-    } catch {
-      setGeminiStatus("error");
-    }
+    } catch { setGeminiStatus("error"); }
     setTimeout(() => setGeminiStatus("idle"), 5000);
   };
 
+  // ── Clear chat for current persona ─────────────────────────────────────────
   const clearChat = () => {
-    if (confirm("会話履歴を全て削除しますか？")) {
+    if (confirm(`${persona.label}との会話履歴を全て削除しますか？`)) {
       setMessages([]);
-      localStorage.removeItem(STORAGE_KEY);
-      supabase.from("sensei_messages").delete().eq("user_id", userId);
+      localStorage.removeItem(chatStorageKey(activePersona));
+      supabase.from("sensei_messages").delete().eq("user_id", userId).eq("persona", activePersona);
     }
   };
 
+  // ── Render message content ──────────────────────────────────────────────────
   const renderContent = (text: string, role: "user" | "model") => {
     if (role === "user") return <span>{text}</span>;
     const segments = parseFurigana(text);
@@ -358,20 +322,13 @@ export default function AdminChat({ userId }: { userId: string }) {
       <>
         {segments.map((seg, i) => {
           if (seg.type !== "annotated") return <span key={i}>{seg.text}</span>;
-          // Outer span is the tap target (full word). Only kanji characters
-          // within the word get the dotted underline — hiragana/katakana are plain.
           const isKanji = (ch: string) => /[一-龯㐀-䶿々〻]/.test(ch);
           return (
-            <span
-              key={i}
-              className="cursor-pointer active:opacity-60 transition-opacity"
+            <span key={i} className="cursor-pointer active:opacity-60 transition-opacity"
               onClick={(e) => handleWordClick(seg.text, seg.reading, e)}
-              onTouchEnd={(e) => { e.preventDefault(); handleWordClick(seg.text, seg.reading, e as unknown as React.MouseEvent); }}
-            >
+              onTouchEnd={(e) => { e.preventDefault(); handleWordClick(seg.text, seg.reading, e as unknown as React.MouseEvent); }}>
               {seg.text.split("").map((ch, ci) =>
-                isKanji(ch)
-                  ? <span key={ci} className="underline decoration-dotted decoration-indigo-400 underline-offset-2">{ch}</span>
-                  : ch
+                isKanji(ch) ? <span key={ci} className="underline decoration-dotted decoration-indigo-400 underline-offset-2">{ch}</span> : ch
               )}
             </span>
           );
@@ -382,76 +339,87 @@ export default function AdminChat({ userId }: { userId: string }) {
 
   return (
     <div className="flex flex-col h-screen bg-slate-50">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-100 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-black text-slate-800 uppercase tracking-tight italic">先生 · Sensei</h1>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Japanese Language Partner · Admin Only</p>
-          </div>
+
+      {/* ── Persona selector ── */}
+      <div className="bg-white border-b border-slate-100 px-4 pt-4 pb-3">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[9px] font-black uppercase tracking-widest text-slate-300">Choose your sensei</p>
           <div className="flex items-center gap-1">
-            {/* Gemini status test */}
-            <button
-              onClick={checkGemini}
-              disabled={geminiStatus === "checking"}
-              title="Test Gemini API"
-              className={`flex items-center gap-1 text-xs font-bold px-2 py-2 rounded-xl transition-colors ${
-                geminiStatus === "ok" ? "text-emerald-500 bg-emerald-50" :
-                geminiStatus === "error" ? "text-rose-500 bg-rose-50" :
-                geminiStatus === "checking" ? "text-slate-300" :
-                "text-slate-300 hover:text-violet-500 hover:bg-violet-50"
-              }`}
-            >
-              {geminiStatus === "checking"
-                ? <Loader2 size={13} className="animate-spin" />
-                : <Activity size={13} />}
+            <button onClick={checkGemini} disabled={geminiStatus === "checking"} title="Test Gemini API"
+              className={`flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-xl transition-colors ${geminiStatus === "ok" ? "text-emerald-500 bg-emerald-50" : geminiStatus === "error" ? "text-rose-500 bg-rose-50" : geminiStatus === "checking" ? "text-slate-300" : "text-slate-300 hover:text-violet-500 hover:bg-violet-50"}`}>
+              {geminiStatus === "checking" ? <Loader2 size={12} className="animate-spin" /> : <Activity size={12} />}
               {geminiStatus === "ok" && <span className="text-[9px] font-black uppercase">OK</span>}
               {geminiStatus === "error" && <span className="text-[9px] font-black uppercase">ERR</span>}
             </button>
-            {/* Word list button */}
-            <button
-              onClick={() => setShowList(true)}
-              className="relative flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-indigo-600 transition-colors px-3 py-2 rounded-xl hover:bg-indigo-50"
-            >
+            <button onClick={() => setShowList(true)} className="relative flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-indigo-600 transition-colors px-2 py-1.5 rounded-xl hover:bg-indigo-50">
               <List size={13} />
               {wordList.length > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 bg-indigo-600 text-white text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">
-                  {wordList.length}
-                </span>
+                <span className="absolute -top-0.5 -right-0.5 bg-indigo-600 text-white text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">{wordList.length}</span>
               )}
             </button>
-            <button onClick={clearChat} className="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-red-500 transition-colors px-3 py-2 rounded-xl hover:bg-red-50">
+            <button onClick={clearChat} className="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-red-500 transition-colors px-2 py-1.5 rounded-xl hover:bg-red-50">
               <Trash2 size={13} />
             </button>
           </div>
         </div>
 
+        {/* Avatar row */}
+        <div className="flex gap-3">
+          {PERSONA_ORDER.map((key) => {
+            const p = PERSONAS[key];
+            const isActive = key === activePersona;
+            return (
+              <button key={key} onClick={() => switchPersona(key)}
+                className={`flex flex-col items-center gap-1.5 flex-1 py-2 px-1 rounded-2xl transition-all active:scale-95 ${isActive ? `${p.bg} ring-2 ${p.ring}` : "hover:bg-slate-50"}`}>
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl ${isActive ? "bg-white shadow-sm" : "bg-slate-100"}`}>
+                  {p.emoji}
+                </div>
+                <span className={`text-[10px] font-black uppercase tracking-tight leading-none ${isActive ? p.color : "text-slate-400"}`}>
+                  {p.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Messages */}
+      {/* ── Messages ── */}
       <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
-        {messages.length === 0 && (
-          <div className="text-center py-20">
-            <div className="text-4xl mb-3">先生</div>
-            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">日本語で話しかけてください</p>
-            <p className="text-xs text-slate-300 mt-2">Tap any underlined kanji to see its reading · add to deck</p>
+        {messagesLoading ? (
+          <div className="flex justify-center py-20">
+            <Loader2 size={20} className="animate-spin text-slate-300" />
           </div>
-        )}
-
-        {messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[80%] rounded-3xl px-5 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-              msg.role === "user"
-                ? "bg-indigo-600 text-white rounded-br-lg"
-                : "bg-white border border-slate-100 text-slate-800 shadow-sm rounded-bl-lg"
-            }`}>
-              {renderContent(msg.content, msg.role)}
+        ) : messages.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="text-5xl mb-3">{persona.emoji}</div>
+            <p className={`text-base font-black uppercase tracking-widest ${persona.color}`}>{persona.label}</p>
+            <p className="text-xs text-slate-400 font-bold mt-1">{persona.desc}</p>
+            <p className="text-[10px] text-slate-300 mt-3 uppercase tracking-widest">日本語で話しかけてください</p>
+          </div>
+        ) : (
+          messages.map((msg) => (
+            <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              {msg.role === "model" && (
+                <div className="w-7 h-7 rounded-xl flex items-center justify-center text-sm shrink-0 mr-2 mt-1 bg-white border border-slate-100 shadow-sm">
+                  {persona.emoji}
+                </div>
+              )}
+              <div className={`max-w-[80%] rounded-3xl px-5 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                msg.role === "user"
+                  ? "bg-indigo-600 text-white rounded-br-lg"
+                  : "bg-white border border-slate-100 text-slate-800 shadow-sm rounded-bl-lg"
+              }`}>
+                {renderContent(msg.content, msg.role)}
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
 
         {loading && (
           <div className="flex justify-start">
+            <div className="w-7 h-7 rounded-xl flex items-center justify-center text-sm shrink-0 mr-2 mt-1 bg-white border border-slate-100 shadow-sm">
+              {persona.emoji}
+            </div>
             <div className="bg-white border border-slate-100 shadow-sm rounded-3xl rounded-bl-lg px-5 py-4 flex gap-1.5 items-center">
               <span className="w-2 h-2 bg-slate-300 rounded-full animate-bounce [animation-delay:0ms]" />
               <span className="w-2 h-2 bg-slate-300 rounded-full animate-bounce [animation-delay:150ms]" />
@@ -462,51 +430,37 @@ export default function AdminChat({ userId }: { userId: string }) {
         <div ref={bottomRef} />
       </div>
 
-      {/* Word tooltip — reading only + Add to Deck */}
+      {/* ── Word tooltip ── */}
       {tooltip && (
         <>
-        <div className="fixed inset-0 z-40" onClick={() => setTooltip(null)} onTouchEnd={() => setTooltip(null)} />
-        <div
-          className="fixed z-50 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 min-w-[180px]"
-          style={{ left: tooltip.x, top: tooltip.y }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-xl font-black text-slate-800">{tooltip.word}</div>
-              <div className="text-xs text-indigo-500 font-bold mt-0.5">{tooltip.reading}</div>
+          <div className="fixed inset-0 z-40" onClick={() => setTooltip(null)} onTouchEnd={() => setTooltip(null)} />
+          <div className="fixed z-50 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 min-w-[180px]"
+            style={{ left: tooltip.x, top: tooltip.y }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-xl font-black text-slate-800">{tooltip.word}</div>
+                <div className="text-xs text-indigo-500 font-bold mt-0.5">{tooltip.reading}</div>
+              </div>
+              <button onClick={() => setTooltip(null)} className="text-slate-300 hover:text-slate-500 shrink-0"><X size={14} /></button>
             </div>
-            <button onClick={() => setTooltip(null)} className="text-slate-300 hover:text-slate-500 shrink-0">
-              <X size={14} />
+            <div className="mt-3">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Word to add</label>
+              <input type="text" value={tooltip.editWord}
+                onChange={(e) => setTooltip((prev) => prev ? { ...prev, editWord: e.target.value } : prev)}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+                placeholder="e.g. 食べる" />
+            </div>
+            <button
+              onClick={() => { const word = tooltip.editWord.trim(); if (word && !wordList.includes(word)) setWordList(prev => [...prev, word]); setTooltip(null); }}
+              disabled={!tooltip.editWord.trim()}
+              className="mt-2 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40">
+              <List size={11} /> Add to List
             </button>
           </div>
-          <div className="mt-3">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Word to add</label>
-            <input
-              type="text"
-              value={tooltip.editWord}
-              onChange={(e) => setTooltip((prev) => prev ? { ...prev, editWord: e.target.value } : prev)}
-              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
-              placeholder="e.g. 食べる"
-            />
-          </div>
-          <button
-            onClick={() => {
-              const word = tooltip.editWord.trim();
-              if (word && !wordList.includes(word)) setWordList(prev => [...prev, word]);
-              setTooltip(null);
-            }}
-            disabled={!tooltip.editWord.trim()}
-            className="mt-2 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40"
-          >
-            <List size={11} /> Add to List
-          </button>
-        </div>
         </>
       )}
 
-
-      {/* Added Words Summary Modal */}
+      {/* ── Summary modal ── */}
       {showSummary && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 flex flex-col max-h-[80vh] overflow-hidden">
@@ -531,16 +485,13 @@ export default function AdminChat({ userId }: { userId: string }) {
                     <p className="text-sm text-slate-600 font-medium mt-0.5 leading-tight pr-10">{word.english}</p>
                     {word.partOfSpeech && <span className="mt-2 text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md self-start">{word.partOfSpeech}</span>}
                   </div>
-                  <button
-                    onClick={async () => {
-                      await Promise.all([
-                        supabase.from("deck_cards").delete().eq("deck_id", defaultDeckId).eq("card_id", word.id),
-                        supabase.from("user_scores").delete().eq("card_id", word.id).eq("user_id", userId),
-                      ]);
-                      setAddedSummary(prev => prev.filter(c => c.id !== word.id));
-                    }}
-                    className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all active:scale-90 shrink-0"
-                  >
+                  <button onClick={async () => {
+                    await Promise.all([
+                      supabase.from("deck_cards").delete().eq("deck_id", defaultDeckId).eq("card_id", word.id),
+                      supabase.from("user_scores").delete().eq("card_id", word.id).eq("user_id", userId),
+                    ]);
+                    setAddedSummary(prev => prev.filter(c => c.id !== word.id));
+                  }} className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all active:scale-90 shrink-0">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
                     </svg>
@@ -549,15 +500,13 @@ export default function AdminChat({ userId }: { userId: string }) {
               ))}
             </div>
             <div className="p-4 border-t border-slate-100">
-              <button onClick={() => setShowSummary(false)} className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-[0.98] shadow-lg">
-                Got it
-              </button>
+              <button onClick={() => setShowSummary(false)} className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-[0.98] shadow-lg">Got it</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Word List Modal */}
+      {/* ── Word list modal ── */}
       {showList && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
@@ -566,31 +515,19 @@ export default function AdminChat({ userId }: { userId: string }) {
                 <h2 className="text-base font-black text-slate-800 uppercase italic tracking-tighter">Word List</h2>
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{wordList.length} word{wordList.length !== 1 ? "s" : ""} · one per line</p>
               </div>
-              <button onClick={() => setShowList(false)} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400">
-                <X size={14} />
-              </button>
+              <button onClick={() => setShowList(false)} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400"><X size={14} /></button>
             </div>
             <div className="p-4">
-              <textarea
-                defaultValue={wordList.join("\n")}
+              <textarea defaultValue={wordList.join("\n")}
                 onChange={(e) => setWordList(e.target.value.split("\n").map(w => w.trim()).filter(Boolean))}
                 rows={8}
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none font-mono"
-                placeholder={"食べる\n勉強\n彼女\n…"}
-              />
+                placeholder={"食べる\n勉強\n彼女\n…"} />
             </div>
             <div className="p-4 pt-0 flex gap-2">
-              <button
-                onClick={() => setWordList([])}
-                className="px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all"
-              >
-                Clear
-              </button>
-              <button
-                onClick={() => addListToDeck(wordList.join("\n"))}
-                disabled={batchAdding || wordList.length === 0}
-                className="flex-1 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
-              >
+              <button onClick={() => setWordList([])} className="px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all">Clear</button>
+              <button onClick={() => addListToDeck(wordList.join("\n"))} disabled={batchAdding || wordList.length === 0}
+                className="flex-1 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
                 {batchAdding ? <><Loader2 size={13} className="animate-spin" /> Adding…</> : <><Plus size={13} /> Add All to Deck</>}
               </button>
             </div>
@@ -598,29 +535,23 @@ export default function AdminChat({ userId }: { userId: string }) {
         </div>
       )}
 
-      {/* Input */}
+      {/* ── Input ── */}
       <div className="bg-white border-t border-slate-100 px-4 py-4">
         <div className="flex items-end gap-3 max-w-3xl mx-auto">
-          <textarea
-            ref={textareaRef}
-            value={input}
+          <textarea ref={textareaRef} value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-            placeholder="日本語で話しかけてください… (Enter to send, Shift+Enter for new line)"
+            placeholder="日本語で話しかけて��ださい…"
             rows={1}
             className="flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all max-h-40 overflow-y-auto"
-            style={{ fieldSizing: "content" } as React.CSSProperties}
-          />
-          <button
-            onClick={sendMessage}
-            disabled={!input.trim() || loading}
-            className="bg-indigo-600 text-white w-12 h-12 rounded-2xl flex items-center justify-center hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-          >
+            style={{ fieldSizing: "content" } as React.CSSProperties} />
+          <button onClick={sendMessage} disabled={!input.trim() || loading}
+            className="bg-indigo-600 text-white w-12 h-12 rounded-2xl flex items-center justify-center hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
             <Send size={16} />
           </button>
         </div>
         <p className="text-center text-[10px] text-slate-300 mt-2 font-medium uppercase tracking-widest">
-          Tap any underlined kanji to see furigana · add to deck
+          Tap underlined kanji · Add to deck
         </p>
       </div>
     </div>
