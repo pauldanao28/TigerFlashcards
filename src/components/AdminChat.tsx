@@ -338,7 +338,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-slate-50">
+    <div className="fixed inset-0 flex flex-col bg-slate-50">
 
       {/* ── Persona selector ── */}
       <div className="sticky top-0 z-10 bg-white border-b border-slate-100 px-4 pt-4 pb-3">
