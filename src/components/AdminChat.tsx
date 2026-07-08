@@ -269,7 +269,9 @@ export default function AdminChat({ userId }: { userId: string }) {
     const tooltipH = 170;
     const spaceBelow = window.innerHeight - rect.bottom;
     const y = spaceBelow > tooltipH ? rect.bottom + 8 : rect.top - tooltipH - 8;
-    setTooltip({ word, reading, editWord: word, x: Math.min(rect.left, window.innerWidth - 260), y: Math.max(8, y), adding: false });
+    // Strip trailing kana (okurigana) so editWord contains only the kanji root
+    const kanjiOnly = word.replace(/[぀-ゟ゠-ヿ]+$/, "") || word;
+    setTooltip({ word, reading, editWord: kanjiOnly, x: Math.min(rect.left, window.innerWidth - 260), y: Math.max(8, y), adding: false });
   }, []);
 
   // ── Batch add ───────────────────────────────────────────────────────────────
