@@ -19,7 +19,7 @@ const PERSONAS: Record<PersonaKey, { label: string; kanji: string; emoji: string
   senpai:  { label: "先輩",     kanji: "先輩", emoji: "🧑‍🎓", color: "text-indigo-600",  bg: "bg-indigo-50",   ring: "ring-indigo-400",  desc: "Friendly senpai" },
   sensei:  { label: "先生",     kanji: "先生", emoji: "👨‍🏫", color: "text-slate-700",   bg: "bg-slate-100",   ring: "ring-slate-400",   desc: "Strict teacher" },
   samurai: { label: "侍",       kanji: "侍",   emoji: "⚔️",  color: "text-rose-700",    bg: "bg-rose-50",     ring: "ring-rose-400",    desc: "Samurai philosopher" },
-  idol:    { label: "アイドル", kanji: "☆",   emoji: "��",  color: "text-pink-600",    bg: "bg-pink-50",     ring: "ring-pink-400",    desc: "Idol coach" },
+  idol:    { label: "アイドル", kanji: "☆", emoji: "⭐", color: "text-pink-600", bg: "bg-pink-50", ring: "ring-pink-400", desc: "Idol coach" },
 };
 
 const PERSONA_ORDER: PersonaKey[] = ["senpai", "sensei", "samurai", "idol"];
