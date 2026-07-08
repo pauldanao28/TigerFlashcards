@@ -38,8 +38,10 @@ export default function StudyView() {
   const [sessionStreak, setSessionStreak] = useState(0);
   const [dailyProgress, setDailyProgress] = useState(0);
   const [profileName, setProfileName] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isSocialOpen, setIsSocialOpen] = useState(false);
   const [friends, setFriends] = useState<any[]>([]);
+  const [showStreakBanner, setShowStreakBanner] = useState(false);
 
   const [isFlipped, setIsFlipped] = useState(false);
   const [audioPulse, setAudioPulse] = useState(0);
@@ -108,6 +110,7 @@ export default function StudyView() {
         setSfxEnabled(p.sfx_enabled ?? true);
         setHasOnboarded(p.has_onboarded);
         setProfileName(p.full_name);
+        setIsAdmin(p.is_admin ?? false);
 
         // 1. Progress check
         const today = new Date().toLocaleDateString("en-CA");
@@ -481,7 +484,8 @@ export default function StudyView() {
         setDailyProgress(prog);
         if (prog === DAILY_GOAL) {
           updateStreak();
-          alert(t.daily_streak_extended); // Keep alert or use a toast
+          setShowStreakBanner(true);
+          setTimeout(() => setShowStreakBanner(false), 4000);
         }
       }
 
@@ -658,9 +662,25 @@ export default function StudyView() {
           />
         )}
 
+        {/* Streak Banner */}
+        <AnimatePresence>
+          {showStreakBanner && (
+            <motion.div
+              initial={{ opacity: 0, y: -40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -40 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="fixed top-4 left-1/2 -translate-x-1/2 z-[200] bg-slate-900 text-white px-6 py-3.5 rounded-2xl shadow-2xl pointer-events-none max-w-[90vw] text-center"
+            >
+              <p className="text-xs font-black uppercase tracking-widest leading-snug">{t.daily_streak_extended}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* --- 1. MOBILE NAVIGATION --- */}
         <div className="md:hidden sticky top-0 w-full z-50 px-4 py-4 flex justify-between items-start bg-slate-50/80 backdrop-blur-md">
-          <div className="flex items-center gap-3 pointer-events-auto">
+          <div className="flex flex-col gap-1.5 pointer-events-auto">
+            <div className="flex items-center gap-3">
             <Link href="/" className="active:scale-95 transition-transform">
               <Logo className="w-10 h-12" />
             </Link>
@@ -686,6 +706,15 @@ export default function StudyView() {
                 </span>
               </div>
             </div>
+            </div>
+            {isAdmin && (
+              <Link
+                href="/admin/chat"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all w-fit shadow-sm"
+              >
+                <span className="text-xs leading-none">先生</span> Sensei
+              </Link>
+            )}
           </div>
           {/* --- THE FIX: Change this div --- */}
           <div className="absolute top-4 right-4 flex flex-col items-end gap-2 pointer-events-auto">

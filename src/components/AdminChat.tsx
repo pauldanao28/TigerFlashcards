@@ -2,7 +2,15 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { Send, Trash2, X, Loader2, List, Plus } from "lucide-react";
+import { Send, Trash2, X, Loader2, List, Plus, Activity } from "lucide-react";
+
+function uuid(): string {
+  try { return self.crypto.randomUUID(); } catch { /* fall through */ }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
 
 interface Message {
   id: string;
@@ -80,6 +88,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [batchAdding, setBatchAdding] = useState(false);
   const [addedSummary, setAddedSummary] = useState<any[]>([]);
   const [showSummary, setShowSummary] = useState(false);
+  const [geminiStatus, setGeminiStatus] = useState<"idle" | "checking" | "ok" | "error">("idle");
   // Tracks how many messages have already been analyzed for the profile
   const lastAnalyzedIndexRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -177,7 +186,7 @@ export default function AdminChat({ userId }: { userId: string }) {
     const text = input.trim();
     if (!text || loading) return;
 
-    const userMsg: Message = { id: crypto.randomUUID(), role: "user", content: text, timestamp: Date.now() };
+    const userMsg: Message = { id: uuid(), role: "user", content: text, timestamp: Date.now() };
     const updated = [...messages, userMsg];
     setMessages(updated);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
@@ -191,11 +200,13 @@ export default function AdminChat({ userId }: { userId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: updated.slice(-20), profile }),
       });
+      if (!res.ok) throw new Error(`API ${res.status}`);
       const data = await res.json();
+      if (!data.content) throw new Error("Empty response");
       const modelMsg: Message = {
-        id: crypto.randomUUID(),
+        id: uuid(),
         role: "model" as const,
-        content: data.content || "エラーが発生しました。",
+        content: data.content,
         timestamp: Date.now(),
       };
       const finalMessages = [...updated, modelMsg];
@@ -213,7 +224,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       }
     } catch {
       setMessages((prev) => [...prev, {
-        id: crypto.randomUUID(),
+        id: uuid(),
         role: "model",
         content: "エラーが発生しました。もう一度試してください。",
         timestamp: Date.now(),
@@ -316,6 +327,22 @@ export default function AdminChat({ userId }: { userId: string }) {
     }
   };
 
+  const checkGemini = async () => {
+    setGeminiStatus("checking");
+    try {
+      const probe: Message = { id: uuid(), role: "user", content: "テスト", timestamp: Date.now() };
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: [probe], profile: null }),
+      });
+      setGeminiStatus(res.ok ? "ok" : "error");
+    } catch {
+      setGeminiStatus("error");
+    }
+    setTimeout(() => setGeminiStatus("idle"), 5000);
+  };
+
   const clearChat = () => {
     if (confirm("会話履歴を全て削除しますか？")) {
       setMessages([]);
@@ -363,6 +390,24 @@ export default function AdminChat({ userId }: { userId: string }) {
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Japanese Language Partner · Admin Only</p>
           </div>
           <div className="flex items-center gap-1">
+            {/* Gemini status test */}
+            <button
+              onClick={checkGemini}
+              disabled={geminiStatus === "checking"}
+              title="Test Gemini API"
+              className={`flex items-center gap-1 text-xs font-bold px-2 py-2 rounded-xl transition-colors ${
+                geminiStatus === "ok" ? "text-emerald-500 bg-emerald-50" :
+                geminiStatus === "error" ? "text-rose-500 bg-rose-50" :
+                geminiStatus === "checking" ? "text-slate-300" :
+                "text-slate-300 hover:text-violet-500 hover:bg-violet-50"
+              }`}
+            >
+              {geminiStatus === "checking"
+                ? <Loader2 size={13} className="animate-spin" />
+                : <Activity size={13} />}
+              {geminiStatus === "ok" && <span className="text-[9px] font-black uppercase">OK</span>}
+              {geminiStatus === "error" && <span className="text-[9px] font-black uppercase">ERR</span>}
+            </button>
             {/* Word list button */}
             <button
               onClick={() => setShowList(true)}
