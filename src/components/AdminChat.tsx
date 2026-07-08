@@ -466,7 +466,7 @@ export default function AdminChat({ userId }: { userId: string }) {
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3 mb-4">
               <div>
-                <div className="text-2xl font-black text-slate-800">{tooltip.word}</div>
+                <div className="text-2xl font-black text-slate-800">{tooltip.editWord}</div>
                 <div className="text-sm text-indigo-500 font-bold mt-0.5">{tooltip.reading}</div>
               </div>
               <button onClick={() => setTooltip(null)} className="text-slate-300 hover:text-slate-500 mt-1"><X size={16} /></button>
