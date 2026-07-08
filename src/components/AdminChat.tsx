@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { Send, Trash2, X, Loader2, List, Plus, Activity } from "lucide-react";
+import { Send, Trash2, X, Loader2, List, Plus } from "lucide-react";
 
 function uuid(): string {
   try { return self.crypto.randomUUID(); } catch { /* fall through */ }
@@ -108,7 +108,6 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [batchAdding, setBatchAdding] = useState(false);
   const [addedSummary, setAddedSummary] = useState<any[]>([]);
   const [showSummary, setShowSummary] = useState(false);
-  const [geminiStatus, setGeminiStatus] = useState<"idle" | "checking" | "ok" | "error">("idle");
   const [messagesLoading, setMessagesLoading] = useState(false);
 
   const lastAnalyzedIndexRef = useRef(0);
@@ -326,16 +325,6 @@ export default function AdminChat({ userId }: { userId: string }) {
     }
   };
 
-  // ── Gemini test ��────────────────────────────────────────────────────────────
-  const checkGemini = async () => {
-    setGeminiStatus("checking");
-    try {
-      const probe: Message = { id: uuid(), role: "user", content: "テスト", timestamp: Date.now() };
-      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: [probe], profile: null, persona: activePersona }) });
-      setGeminiStatus(res.ok ? "ok" : "error");
-    } catch { setGeminiStatus("error"); }
-    setTimeout(() => setGeminiStatus("idle"), 5000);
-  };
 
   // ── Clear chat for current persona ─────────────────────────────────────────
   const clearChat = () => {
@@ -377,12 +366,6 @@ export default function AdminChat({ userId }: { userId: string }) {
         <div className="flex items-center justify-between mb-3">
           <p className="text-[9px] font-black uppercase tracking-widest text-slate-300">Choose your sensei</p>
           <div className="flex items-center gap-1">
-            <button onClick={checkGemini} disabled={geminiStatus === "checking"} title="Test Gemini API"
-              className={`flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-xl transition-colors ${geminiStatus === "ok" ? "text-emerald-500 bg-emerald-50" : geminiStatus === "error" ? "text-rose-500 bg-rose-50" : geminiStatus === "checking" ? "text-slate-300" : "text-slate-300 hover:text-violet-500 hover:bg-violet-50"}`}>
-              {geminiStatus === "checking" ? <Loader2 size={12} className="animate-spin" /> : <Activity size={12} />}
-              {geminiStatus === "ok" && <span className="text-[9px] font-black uppercase">OK</span>}
-              {geminiStatus === "error" && <span className="text-[9px] font-black uppercase">ERR</span>}
-            </button>
             <button onClick={() => setShowList(true)} className="relative flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-indigo-600 transition-colors px-2 py-1.5 rounded-xl hover:bg-indigo-50">
               <List size={13} />
               {wordList.length > 0 && (
