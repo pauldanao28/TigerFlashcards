@@ -47,6 +47,7 @@ interface SenseiProfile {
   preferred_topics?: string[];
   personality?: string;
   vocabulary_introduced?: string[];
+  recently_added?: string[];
   recent_topics?: string[];
   notes?: string;
 }
@@ -251,7 +252,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: updated.slice(-20), profile, persona: activePersona }),
+        body: JSON.stringify({ messages: updated.slice(-20), profile, persona: activePersona, pendingWords: wordList }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -338,8 +339,19 @@ export default function AdminChat({ userId }: { userId: string }) {
       setWordList([]);
       setShowList(false);
       if (allProcessed.length > 0) {
-        setAddedSummary(Array.from(new Map(allProcessed.map(c => [c.japanese, c])).values()));
+        const deduped = Array.from(new Map(allProcessed.map(c => [c.japanese, c])).values());
+        setAddedSummary(deduped);
         setShowSummary(true);
+
+        // Update Sensei profile: append to vocabulary_introduced, keep recently_added as last 20
+        const newWords = deduped.map((c: any) => c.japanese);
+        setProfile((prev) => {
+          const allVocab = [...new Set([...(prev?.vocabulary_introduced ?? []), ...newWords])];
+          const recentlyAdded = [...new Set([...newWords, ...(prev?.recently_added ?? [])])].slice(0, 20);
+          const updated = { ...(prev ?? {}), vocabulary_introduced: allVocab, recently_added: recentlyAdded };
+          supabase.from("sensei_profile").upsert([{ ...updated, user_id: userId }], { onConflict: "user_id" });
+          return updated;
+        });
       }
     } catch (err) {
       console.error("Batch add failed:", err);

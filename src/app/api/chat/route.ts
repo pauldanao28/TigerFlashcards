@@ -66,30 +66,35 @@ interface SenseiProfile {
   preferred_topics?: string[];
   personality?: string;
   vocabulary_introduced?: string[];
+  recently_added?: string[];
   recent_topics?: string[];
   notes?: string;
 }
 
-function buildSystemPrompt(persona: string, profile: SenseiProfile | null): string {
+function buildSystemPrompt(persona: string, profile: SenseiProfile | null, pendingWords: string[]): string {
   const base = PERSONAS[persona] ?? PERSONAS.senpai;
 
-  if (!profile) return base;
-
   const lines: string[] = [];
-  if (profile.level)                       lines.push(`レベル: ${profile.level}`);
-  if (profile.native_language)             lines.push(`母国語: ${profile.native_language}`);
-  if (profile.motivation)                  lines.push(`学習動機: ${profile.motivation}`);
-  if (profile.occupation)                  lines.push(`職業: ${profile.occupation}`);
-  if (profile.learning_goals?.length)      lines.push(`目標: ${profile.learning_goals.join("、")}`);
-  if (profile.hobbies?.length)             lines.push(`趣味: ${profile.hobbies.join("、")}`);
-  if (profile.weak_points?.length)         lines.push(`弱点: ${profile.weak_points.join("、")}`);
-  if (profile.strong_points?.length)       lines.push(`得意: ${profile.strong_points.join("、")}`);
-  if (profile.common_errors?.length)       lines.push(`よくある間違い: ${profile.common_errors.join("、")}`);
-  if (profile.preferred_topics?.length)    lines.push(`好きなトピック: ${profile.preferred_topics.join("、")}`);
-  if (profile.personality)                 lines.push(`学習スタイル: ${profile.personality}`);
-  if (profile.vocabulary_introduced?.length) lines.push(`既習語彙: ${profile.vocabulary_introduced.join("、")}`);
-  if (profile.recent_topics?.length)       lines.push(`最近の話題: ${profile.recent_topics.join("、")}`);
-  if (profile.notes)                       lines.push(`メモ: ${profile.notes}`);
+
+  if (profile) {
+    if (profile.level)                         lines.push(`レベル: ${profile.level}`);
+    if (profile.native_language)               lines.push(`母国語: ${profile.native_language}`);
+    if (profile.motivation)                    lines.push(`学習動機: ${profile.motivation}`);
+    if (profile.occupation)                    lines.push(`職業: ${profile.occupation}`);
+    if (profile.learning_goals?.length)        lines.push(`目標: ${profile.learning_goals.join("、")}`);
+    if (profile.hobbies?.length)               lines.push(`趣味: ${profile.hobbies.join("、")}`);
+    if (profile.weak_points?.length)           lines.push(`弱点: ${profile.weak_points.join("、")}`);
+    if (profile.strong_points?.length)         lines.push(`得意: ${profile.strong_points.join("、")}`);
+    if (profile.common_errors?.length)         lines.push(`よくある間違い: ${profile.common_errors.join("、")}`);
+    if (profile.preferred_topics?.length)      lines.push(`好きなトピック: ${profile.preferred_topics.join("、")}`);
+    if (profile.personality)                   lines.push(`学習スタイル: ${profile.personality}`);
+    if (profile.vocabulary_introduced?.length) lines.push(`既習語彙（再説明不要）: ${profile.vocabulary_introduced.join("、")}`);
+    if (profile.recently_added?.length)        lines.push(`【最近デッキに追加した語彙】: ${profile.recently_added.join("、")}`);
+    if (profile.recent_topics?.length)         lines.push(`最近の話題: ${profile.recent_topics.join("、")}`);
+    if (profile.notes)                         lines.push(`メモ: ${profile.notes}`);
+  }
+
+  if (pendingWords.length > 0) lines.push(`【今気になっている語彙（まだデッキ未追加）】: ${pendingWords.join("、")}`);
 
   if (lines.length === 0) return base;
 
@@ -98,16 +103,20 @@ function buildSystemPrompt(persona: string, profile: SenseiProfile | null): stri
 ## 生徒のプロフィール
 ${lines.join("\n")}
 
-このプロフィールを常に参考���して、生徒のレベル・弱点・興味・学習スタイルに合わせて指導してください��既習語彙は既に知っているので再説明は不要です。よくある間違いは特に注意して指摘してください。`;
+このプロフィールを常に参考にして指導してください。
+- 既習語彙は再説明不要。
+- 【最近デッキに追加した語彙】は会話の中で自然に使い、定着を助けること。例文を作らせたり、使い方を確認したりする。
+- 【今気になっている語彙】もさりげなく会話に織り交ぜてよい。
+- よくある間違いは特に注意して指摘すること。`;
 }
 
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 export async function POST(req: Request) {
   try {
-    const { messages, profile, persona = "senpai" } = await req.json();
+    const { messages, profile, persona = "senpai", pendingWords = [] } = await req.json();
 
-    const systemInstruction = buildSystemPrompt(persona, profile ?? null);
+    const systemInstruction = buildSystemPrompt(persona, profile ?? null, pendingWords);
 
     const window = messages.slice(-20);
     const lastMessage = window[window.length - 1];
