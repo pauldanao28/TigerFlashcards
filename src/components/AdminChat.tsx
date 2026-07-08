@@ -111,6 +111,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [messagesLoading, setMessagesLoading] = useState(false);
 
   const lastAnalyzedIndexRef = useRef(0);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const lastProfileUpdateRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -353,7 +354,15 @@ export default function AdminChat({ userId }: { userId: string }) {
           return (
             <span key={i} className="cursor-pointer active:opacity-60 transition-opacity"
               onClick={(e) => handleWordClick(seg.text, seg.reading, e)}
-              onTouchEnd={(e) => { e.preventDefault(); handleWordClick(seg.text, seg.reading, e as unknown as React.MouseEvent); }}>
+              onTouchStart={(e) => { touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
+              onTouchEnd={(e) => {
+                const start = touchStartRef.current;
+                touchStartRef.current = null;
+                if (!start) return;
+                const dx = Math.abs(e.changedTouches[0].clientX - start.x);
+                const dy = Math.abs(e.changedTouches[0].clientY - start.y);
+                if (dx < 8 && dy < 8) { e.preventDefault(); handleWordClick(seg.text, seg.reading, e as unknown as React.MouseEvent); }
+              }}>
               {seg.text.split("").map((ch, ci) =>
                 isKanji(ch) ? <span key={ci} className="underline decoration-dotted decoration-indigo-400 underline-offset-2">{ch}</span> : ch
               )}
