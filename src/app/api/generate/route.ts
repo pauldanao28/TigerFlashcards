@@ -13,13 +13,18 @@ const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 2. If the input is English: Provide the most common Kanji, reading, and example.
 3. Identify the Part of Speech (e.g., noun, verb, adjective, adverb).
 
+Rules for the "english" field:
+- Plain, concise translation only. No parentheses, no brackets, no qualifiers, no "to " prefix for verbs.
+- Good: "eat", "challenge", "mistake", "beautiful"
+- Bad: "(to) eat", "eat (food)", "challenge (suru verb)", "mistake (error)"
+
 Output ONLY raw JSON as an ARRAY of objects:
 [
   {
     "japanese": "...",
     "reading": "...",
     "english": "...",
-    "partOfSpeech": "...", 
+    "partOfSpeech": "...",
     "alternatives": [],
     "contextNote": "...",
     "exampleSentence": { "jp": "...", "en": "..." }
@@ -38,7 +43,14 @@ Output ONLY raw JSON as an ARRAY of objects:
 
 try {
   const parsedData = JSON.parse(cleanJson);
-  return NextResponse.json(parsedData);
+  // Strip any parenthetical qualifiers the AI still adds (e.g. "eat (food)" → "eat")
+  const cleaned = parsedData.map((item: Record<string, unknown>) => ({
+    ...item,
+    english: typeof item.english === "string"
+      ? item.english.replace(/\s*[\(\[（【][^)\]）】]*[\)\]）】]/g, "").trim()
+      : item.english,
+  }));
+  return NextResponse.json(cleaned);
 } catch (e) {
   console.error("Gemini returned invalid JSON:", text);
   return NextResponse.json({ error: "Invalid AI response" }, { status: 500 });
