@@ -106,7 +106,7 @@ export async function POST(req: Request) {
 
     const systemInstruction = buildSystemPrompt(persona, profile ?? null);
 
-    const window = messages.slice(-20);
+    const window = messages.slice(-10);
     const lastMessage = window[window.length - 1];
 
     type HistoryEntry = { role: string; parts: { text: string }[] };
