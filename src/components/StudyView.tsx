@@ -701,7 +701,7 @@ export default function StudyView() {
 
         {/* --- 1. MOBILE NAVIGATION --- */}
         <div className="md:hidden sticky top-0 w-full z-50 px-4 py-4 flex justify-between items-start bg-slate-50/80 backdrop-blur-md">
-          <div className="flex flex-col gap-1.5 pointer-events-auto">
+          <div className="flex flex-col gap-2 pointer-events-auto">
             <div className="flex items-center gap-3">
             <Link href="/" className="active:scale-95 transition-transform">
               <Logo className="w-10 h-12" />
@@ -732,9 +732,10 @@ export default function StudyView() {
             {isAdmin && (
               <Link
                 href="/admin/chat"
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all w-fit shadow-sm"
+                className="bg-white h-9 px-4 rounded-full shadow-sm border border-violet-200 flex items-center justify-center gap-2 active:scale-95 transition-all w-fit"
               >
-                <span className="text-xs leading-none">先生</span> Sensei
+                <span className="text-sm leading-none">先生</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-violet-600">Sensei</span>
               </Link>
             )}
           </div>
