@@ -102,10 +102,7 @@ export async function POST(req: Request) {
   try {
     const { messages, profile, persona = "senpai" } = await req.json();
 
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash-lite",
-      systemInstruction: buildSystemPrompt(persona, profile ?? null),
-    });
+    const systemInstruction = buildSystemPrompt(persona, profile ?? null);
 
     const window = messages.slice(-20);
     const lastMessage = window[window.length - 1];
@@ -119,12 +116,24 @@ export async function POST(req: Request) {
     const trimmed = firstUser >= 0 ? raw.slice(firstUser) : [];
     const history = trimmed.filter((m, i) => i === 0 || m.role !== trimmed[i - 1].role);
 
-    const chat = model.startChat({ history });
-    const result = await chat.sendMessage(lastMessage.content);
+    // Try lite first, fall back to full flash if unavailable
+    for (const modelId of ["gemini-2.5-flash-lite", "gemini-2.5-flash"]) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelId, systemInstruction });
+        const chat = model.startChat({ history });
+        const result = await chat.sendMessage(lastMessage.content);
+        return NextResponse.json({ content: result.response.text() });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (modelId === "gemini-2.5-flash") throw e; // last resort — rethrow
+        console.warn(`${modelId} failed (${msg}), trying fallback…`);
+      }
+    }
 
-    return NextResponse.json({ content: result.response.text() });
+    throw new Error("All models failed");
   } catch (e) {
-    console.error("Chat API error:", e);
-    return NextResponse.json({ error: "Failed to get response" }, { status: 500 });
+    const detail = e instanceof Error ? e.message : String(e);
+    console.error("Chat API error:", detail);
+    return NextResponse.json({ error: "Failed to get response", detail }, { status: 500 });
   }
 }

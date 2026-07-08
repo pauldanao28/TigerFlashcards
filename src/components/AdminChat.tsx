@@ -234,7 +234,10 @@ export default function AdminChat({ userId }: { userId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: updated.slice(-20), profile, persona: activePersona }),
       });
-      if (!res.ok) throw new Error(`API ${res.status}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
       const data = await res.json();
       if (!data.content) throw new Error("Empty response");
       const modelMsg: Message = { id: uuid(), role: "model" as const, content: data.content, timestamp: Date.now() };
@@ -248,8 +251,9 @@ export default function AdminChat({ userId }: { userId: string }) {
       if ((exchangeCount > 0 && exchangeCount % 4 === 0) || unanalyzedCount >= 18) {
         updateProfile(finalMessages);
       }
-    } catch {
-      setMessages((prev) => [...prev, { id: uuid(), role: "model", content: "エラ��が発生しました。もう一度試してください。", timestamp: Date.now() }]);
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : "";
+      setMessages((prev) => [...prev, { id: uuid(), role: "model", content: `エラーが発生しました。もう一度試してください。${detail ? `\n[${detail}]` : ""}`, timestamp: Date.now() }]);
     } finally {
       setLoading(false);
     }
