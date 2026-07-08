@@ -338,10 +338,10 @@ export default function AdminChat({ userId }: { userId: string }) {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50">
+    <div className="flex flex-col h-[100dvh] bg-slate-50">
 
       {/* ── Persona selector ── */}
-      <div className="bg-white border-b border-slate-100 px-4 pt-4 pb-3">
+      <div className="sticky top-0 z-10 bg-white border-b border-slate-100 px-4 pt-4 pb-3">
         <div className="flex items-center justify-between mb-3">
           <p className="text-[9px] font-black uppercase tracking-widest text-slate-300">Choose your sensei</p>
           <div className="flex items-center gap-1">
