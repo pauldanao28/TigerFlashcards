@@ -43,12 +43,11 @@ Output ONLY raw JSON as an ARRAY of objects:
 
 try {
   const parsedData = JSON.parse(cleanJson);
-  // Strip any parenthetical qualifiers the AI still adds (e.g. "eat (food)" → "eat")
+  const stripParens = (s: string) => s.replace(/\s*[\(\[（【][^)\]）】]*[\)\]）】]/g, "").trim();
   const cleaned = parsedData.map((item: Record<string, unknown>) => ({
     ...item,
-    english: typeof item.english === "string"
-      ? item.english.replace(/\s*[\(\[（【][^)\]）】]*[\)\]）】]/g, "").trim()
-      : item.english,
+    english: typeof item.english === "string" ? stripParens(item.english) : item.english,
+    reading: typeof item.reading === "string" ? stripParens(item.reading) : item.reading,
   }));
   return NextResponse.json(cleaned);
 } catch (e) {
