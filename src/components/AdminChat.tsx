@@ -108,6 +108,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [messagesLoading, setMessagesLoading] = useState(false);
 
   const lastAnalyzedIndexRef = useRef(0);
+  const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -164,6 +165,25 @@ export default function AdminChat({ userId }: { userId: string }) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  // Track visual viewport so the layout stays above the keyboard on iOS + Android
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv || !containerRef.current) return;
+    const update = () => {
+      if (!containerRef.current) return;
+      containerRef.current.style.height = `${vv.height}px`;
+      containerRef.current.style.top = `${vv.offsetTop}px`;
+      requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: "instant" }));
+    };
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    update();
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, []);
 
   useEffect(() => {
     supabase.from("decks").select("id").eq("user_id", userId).eq("is_default", true).single()
@@ -338,7 +358,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   };
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-slate-50">
+    <div ref={containerRef} className="fixed left-0 right-0 top-0 flex flex-col bg-slate-50" style={{ height: "100dvh" }}>
 
       {/* ── Persona selector ── */}
       <div className="sticky top-0 z-10 bg-white border-b border-slate-100 px-4 pt-4 pb-3">
@@ -536,7 +556,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       )}
 
       {/* ── Input ── */}
-      <div className="bg-white border-t border-slate-100 px-4 py-4">
+      <div className="bg-white border-t border-slate-100 px-4 pt-4" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
         <div className="flex items-end gap-3 max-w-3xl mx-auto">
           <textarea ref={textareaRef} value={input}
             onChange={(e) => setInput(e.target.value)}

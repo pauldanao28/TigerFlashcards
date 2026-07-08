@@ -10,6 +10,8 @@ export const viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: "cover",          // enables env(safe-area-inset-*) for notch/home bar
+  interactiveWidget: "resizes-content", // Android: keyboard resizes the layout viewport
 };
 
 export const metadata: Metadata = {
