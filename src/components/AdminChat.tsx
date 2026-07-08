@@ -57,6 +57,7 @@ interface Tooltip {
   x: number;
   y: number;
   adding: boolean;
+  knownEnglish?: string | null; // set after vocab lookup
 }
 
 type Segment =
@@ -281,8 +282,15 @@ export default function AdminChat({ userId }: { userId: string }) {
     const spaceBelow = window.innerHeight - rect.bottom;
     const y = spaceBelow > tooltipH ? rect.bottom + 8 : rect.top - tooltipH - 8;
     const editWord = word.replace(/^[ぁ-んァ-ヿ]+/, "") || word;
-    setTooltip({ word, reading, editWord, x: Math.min(rect.left, window.innerWidth - 260), y: Math.max(8, y), adding: false });
-  }, []);
+    setTooltip({ word, reading, editWord, x: Math.min(rect.left, window.innerWidth - 260), y: Math.max(8, y), adding: false, knownEnglish: undefined });
+    // Async vocab lookup — no extra Gemini call, just Supabase
+    (async () => {
+      const { data: card } = await supabase.from("master_cards").select("id, english").eq("japanese", editWord).maybeSingle();
+      if (!card) { setTooltip(prev => prev ? { ...prev, knownEnglish: null } : prev); return; }
+      const { data: score } = await supabase.from("user_scores").select("id").eq("user_id", userId).eq("card_id", card.id).maybeSingle();
+      setTooltip(prev => prev ? { ...prev, knownEnglish: score ? card.english : null } : prev);
+    })();
+  }, [userId]);
 
   // ── Batch add ───────────────────────────────────────────────────────────────
   const addListToDeck = async (text: string) => {
@@ -471,6 +479,11 @@ export default function AdminChat({ userId }: { userId: string }) {
               <div>
                 <div className="text-2xl font-black text-slate-800">{tooltip.editWord}</div>
                 <div className="text-sm text-indigo-500 font-bold mt-0.5">{tooltip.reading}</div>
+                {tooltip.knownEnglish && (
+                  <div className="mt-1.5 inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                    ✓ {tooltip.knownEnglish}
+                  </div>
+                )}
               </div>
               <button onClick={() => setTooltip(null)} className="text-slate-300 hover:text-slate-500 mt-1"><X size={16} /></button>
             </div>
@@ -481,7 +494,6 @@ export default function AdminChat({ userId }: { userId: string }) {
               onChange={(e) => setTooltip((prev) => prev ? { ...prev, editWord: e.target.value } : prev)}
               className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
               placeholder="e.g. 食べる"
-              autoFocus
             />
             <button
               onClick={() => { const word = tooltip.editWord.trim(); if (word && !wordList.includes(word)) setWordList(prev => [...prev, word]); setTooltip(null); }}
