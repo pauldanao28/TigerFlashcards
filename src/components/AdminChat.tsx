@@ -64,18 +64,21 @@ type Segment =
   | { type: "plain"; text: string };
 
 // ── Furigana parser ───────────────────────────────────────────────────────────
+// Tappable if word STARTS with kanji — allows okurigana suffix (食べる, 頑張って).
+// Rejects words where kana precedes kanji (お願い) or no kanji at all (ありがとう).
+// Furigana parentheses are always stripped so they never appear in chat text.
 function parseFurigana(text: string): Segment[] {
   const parts: Segment[] = [];
   const regex = /([^\s（(、。！？\n「」『』【】〔〕…・　]+)[（(]([ぁ-んァ-ンっーゃゅょ・]+)[）)]/g;
+  const startsWithKanji = /^[一-龯々〻㐀-䶿ヶ]/;
   let lastIndex = 0;
   let match;
-  const kanji = /[一-龯㐀-䶿]/;
   while ((match = regex.exec(text)) !== null) {
     if (match.index > lastIndex) parts.push({ type: "plain", text: text.slice(lastIndex, match.index) });
-    if (kanji.test(match[1])) {
+    if (startsWithKanji.test(match[1])) {
       parts.push({ type: "annotated", text: match[1], reading: match[2] });
     } else {
-      parts.push({ type: "plain", text: match[1] });
+      parts.push({ type: "plain", text: match[1] }); // strip furigana, show word as-is
     }
     lastIndex = match.index + match[0].length;
   }
