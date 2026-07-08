@@ -100,6 +100,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [tooltip, setTooltip] = useState<Tooltip | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
   const [profile, setProfile] = useState<SenseiProfile | null>(null);
   const [wordList, setWordList] = useState<string[]>([]);
@@ -255,8 +256,8 @@ export default function AdminChat({ userId }: { userId: string }) {
         updateProfile(finalMessages);
       }
     } catch (e) {
-      const detail = e instanceof Error ? e.message : "";
-      setMessages((prev) => [...prev, { id: uuid(), role: "model", content: `エラーが発生しました。もう一度試してください。${detail ? `\n[${detail}]` : ""}`, timestamp: Date.now() }]);
+      const detail = e instanceof Error ? e.message : String(e);
+      setErrorMsg(detail || "Unknown error");
     } finally {
       setLoading(false);
     }
@@ -485,6 +486,27 @@ export default function AdminChat({ userId }: { userId: string }) {
               disabled={!tooltip.editWord.trim()}
               className="mt-3 w-full flex items-center justify-center gap-1.5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40">
               <List size={11} /> Add to List
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* ── Error modal ── */}
+      {errorMsg && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setErrorMsg(null)} />
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
+            style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="text-base font-black text-red-500">エラーが発生しました</div>
+              <button onClick={() => setErrorMsg(null)} className="text-slate-300 hover:text-slate-500"><X size={16} /></button>
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed break-all">{errorMsg}</p>
+            <button
+              onClick={() => setErrorMsg(null)}
+              className="mt-4 w-full py-3 rounded-2xl text-xs font-black uppercase tracking-widest bg-slate-100 text-slate-600 hover:bg-slate-200 active:scale-95 transition-all">
+              閉じる
             </button>
           </div>
         </>
