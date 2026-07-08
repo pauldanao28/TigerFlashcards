@@ -111,7 +111,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [messagesLoading, setMessagesLoading] = useState(false);
 
   const lastAnalyzedIndexRef = useRef(0);
-  const lastProfileUpdateRef = useRef(0); // timestamp of last profile update call
+  const lastProfileUpdateRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -128,6 +128,11 @@ export default function AdminChat({ userId }: { userId: string }) {
   };
 
   // ── Load messages for active persona ───────────────────────────────────���───
+  useEffect(() => {
+    const stored = localStorage.getItem("sensei_profile_updated_at");
+    if (stored) lastProfileUpdateRef.current = parseInt(stored, 10);
+  }, []);
+
   useEffect(() => {
     const load = async () => {
       setMessagesLoading(true);
@@ -256,6 +261,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       const cooldownOk = msSinceLastUpdate > 3 * 60 * 1000; // 3 minute cooldown
       if (cooldownOk && ((exchangeCount > 0 && exchangeCount % 8 === 0) || unanalyzedCount >= 24)) {
         lastProfileUpdateRef.current = Date.now();
+        localStorage.setItem("sensei_profile_updated_at", String(lastProfileUpdateRef.current));
         updateProfile(finalMessages);
       }
     } catch (e) {
