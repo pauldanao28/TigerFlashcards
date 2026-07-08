@@ -114,6 +114,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   const lastAnalyzedIndexRef = useRef(0);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const lastProfileUpdateRef = useRef(0);
+  const sheetOpenRef = useRef(false); // true while bottom sheet is open — suppress auto-scroll
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -177,6 +178,9 @@ export default function AdminChat({ userId }: { userId: string }) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
+  // Keep sheetOpenRef in sync so the viewport effect can read it without a stale closure
+  useEffect(() => { sheetOpenRef.current = !!tooltip; }, [tooltip]);
+
   // Track visual viewport so the layout stays above the keyboard on iOS + Android
   useEffect(() => {
     const vv = window.visualViewport;
@@ -184,7 +188,10 @@ export default function AdminChat({ userId }: { userId: string }) {
     const update = () => {
       if (!containerRef.current) return;
       containerRef.current.style.height = `${vv.height}px`;
-      requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: "instant" }));
+      // Don't scroll the chat when the word sheet is open — user is reading
+      if (!sheetOpenRef.current) {
+        requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: "instant" }));
+      }
     };
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
