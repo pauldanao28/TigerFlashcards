@@ -112,6 +112,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [messagesLoading, setMessagesLoading] = useState(false);
 
   const lastAnalyzedIndexRef = useRef(0);
+  const lastProfileUpdateRef = useRef(0); // timestamp of last profile update call
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -252,7 +253,10 @@ export default function AdminChat({ userId }: { userId: string }) {
 
       const exchangeCount = finalMessages.filter(m => m.role === "user").length;
       const unanalyzedCount = finalMessages.length - lastAnalyzedIndexRef.current;
-      if ((exchangeCount > 0 && exchangeCount % 4 === 0) || unanalyzedCount >= 18) {
+      const msSinceLastUpdate = Date.now() - lastProfileUpdateRef.current;
+      const cooldownOk = msSinceLastUpdate > 3 * 60 * 1000; // 3 minute cooldown
+      if (cooldownOk && ((exchangeCount > 0 && exchangeCount % 8 === 0) || unanalyzedCount >= 24)) {
+        lastProfileUpdateRef.current = Date.now();
         updateProfile(finalMessages);
       }
     } catch (e) {
