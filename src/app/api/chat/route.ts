@@ -116,7 +116,7 @@ export async function POST(req: Request) {
     const trimmed = firstUser >= 0 ? raw.slice(firstUser) : [];
     const history = trimmed.filter((m, i) => i === 0 || m.role !== trimmed[i - 1].role);
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite", systemInstruction });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite", systemInstruction });
     const chat = model.startChat({ history });
     const result = await chat.sendMessage(lastMessage.content);
     return NextResponse.json({ content: result.response.text() });
