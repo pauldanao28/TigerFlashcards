@@ -173,7 +173,6 @@ export default function AdminChat({ userId }: { userId: string }) {
     const update = () => {
       if (!containerRef.current) return;
       containerRef.current.style.height = `${vv.height}px`;
-      containerRef.current.style.top = `${vv.offsetTop}px`;
       requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: "instant" }));
     };
     vv.addEventListener("resize", update);
