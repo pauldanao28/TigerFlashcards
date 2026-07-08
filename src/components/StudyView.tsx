@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { User } from "@supabase/supabase-js";
@@ -42,6 +42,8 @@ export default function StudyView() {
   const [isSocialOpen, setIsSocialOpen] = useState(false);
   const [friends, setFriends] = useState<any[]>([]);
   const [showStreakBanner, setShowStreakBanner] = useState(false);
+  const [goalStreak, setGoalStreak] = useState(0);
+  const goalFired = useRef(false);
 
   const [isFlipped, setIsFlipped] = useState(false);
   const [audioPulse, setAudioPulse] = useState(0);
@@ -404,6 +406,7 @@ export default function StudyView() {
       .eq("id", user?.id);
 
     setStreak(newStreak);
+    return newStreak;
   };
 
   const incrementStudyCount = async () => {
@@ -482,8 +485,10 @@ export default function StudyView() {
       if (isPass) {
         const prog = dailyProgress + 1;
         setDailyProgress(prog);
-        if (prog === DAILY_GOAL) {
-          updateStreak();
+        if (prog === DAILY_GOAL && !goalFired.current) {
+          goalFired.current = true;
+          const newStreak = await updateStreak();
+          setGoalStreak(newStreak ?? streak);
           setShowStreakBanner(true);
           setTimeout(() => setShowStreakBanner(false), 4000);
         }
@@ -666,13 +671,30 @@ export default function StudyView() {
         <AnimatePresence>
           {showStreakBanner && (
             <motion.div
-              initial={{ opacity: 0, y: -40 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -40 }}
-              transition={{ duration: 0.4, ease: "easeOut" }}
-              className="fixed top-4 left-1/2 -translate-x-1/2 z-[200] bg-slate-900 text-white px-6 py-3.5 rounded-2xl shadow-2xl pointer-events-none max-w-[90vw] text-center"
+              initial={{ opacity: 0, y: 80, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 80, scale: 0.9 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-24 md:bottom-12 left-0 right-0 z-[200] flex justify-center pointer-events-none px-6"
             >
-              <p className="text-xs font-black uppercase tracking-widest leading-snug">{t.daily_streak_extended}</p>
+              <div className="bg-white rounded-3xl shadow-2xl shadow-emerald-100/60 border border-emerald-100 px-8 py-5 flex items-center gap-5 max-w-sm w-full">
+                <div className="relative shrink-0">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">
+                    🎉
+                  </div>
+                  <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white">
+                    <div className="w-full h-full rounded-full bg-emerald-500 animate-ping opacity-75" />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <p className="text-slate-800 font-black text-sm uppercase tracking-widest leading-none">
+                    {t.daily_goal_met}
+                  </p>
+                  <p className="text-emerald-600 font-bold text-[11px] uppercase tracking-wider leading-none mt-1">
+                    🔥 {goalStreak} {t.days} {t.streak}
+                  </p>
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
