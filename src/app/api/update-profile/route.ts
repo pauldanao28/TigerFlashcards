@@ -7,7 +7,7 @@ export async function POST(req: Request) {
   try {
     const { messages, currentProfile } = await req.json();
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     const conversation = messages
       .map((m: { role: string; content: string }) =>

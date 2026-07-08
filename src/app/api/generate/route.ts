@@ -6,7 +6,7 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 export async function POST(req: Request) {
   const { words } = await req.json();
 
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
   const prompt = `Task: Analyze or translate this list of terms: [${words.join(", ")}].
 1. If the input is Japanese (Kanji/Kana): Provide the reading, English translation, and example.

@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     const { word } = await req.json();
     if (!word) return NextResponse.json({ error: "No word provided" }, { status: 400 });
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     const result = await model.generateContent(
       `For the Japanese word or phrase "${word}", provide the hiragana reading and a brief English meaning.
