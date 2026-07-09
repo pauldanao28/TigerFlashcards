@@ -10,7 +10,7 @@ import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
 import { calculateGlobalStats } from "@/lib/stats";
 import LoadingScreen from "@/components/LoadingScreen";
-import { List } from "lucide-react";
+import { List, X, Plus, Loader2 } from "lucide-react";
 
 export default function StatsPage() {
   const router = useRouter();
@@ -59,6 +59,8 @@ export default function StatsPage() {
   const [showSummaryOverlay, setShowSummaryOverlay] = useState(false);
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [pendingWords, setPendingWords] = useState<string[]>([]);
+  const [showWordList, setShowWordList] = useState(false);
+  const [wordListAdding, setWordListAdding] = useState(false);
 
   useEffect(() => {
     const fetchTodayCount = async () => {
@@ -584,12 +586,21 @@ export default function StatsPage() {
     }
   };
 
-  const togglePendingWord = async (japanese: string) => {
-    const updated = pendingWords.includes(japanese)
-      ? pendingWords.filter(w => w !== japanese)
-      : [...pendingWords, japanese];
-    setPendingWords(updated);
-    await supabase.from("profiles").update({ pending_words: updated }).eq("id", user!.id);
+  const syncWordList = (newList: string[]) => {
+    setPendingWords(newList);
+    if (user) supabase.from("profiles").update({ pending_words: newList }).eq("id", user.id);
+  };
+
+  const addWordListToDeck = async () => {
+    if (!pendingWords.length) return;
+    setWordListAdding(true);
+    try {
+      await processWords(pendingWords);
+      syncWordList([]);
+      setShowWordList(false);
+    } finally {
+      setWordListAdding(false);
+    }
   };
 
   const deleteCard = async (id: string, isFromSummary = false) => {
@@ -913,13 +924,16 @@ export default function StatsPage() {
               {showBatch ? t.close : t.batch_upload}
             </button>
 
-            {pendingWords.length > 0 && (
-              <Link href="/admin/chat" className="relative flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-100 transition-all">
-                <List size={14} />
-                <span>Saved List</span>
+            <button
+              onClick={() => setShowWordList(true)}
+              className="relative flex items-center gap-1.5 px-4 py-2 bg-slate-800 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-700 transition-all"
+            >
+              <List size={13} />
+              <span>Word List</span>
+              {pendingWords.length > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 bg-indigo-600 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center">{pendingWords.length}</span>
-              </Link>
-            )}
+              )}
+            </button>
           </div>
 
           {/* Batch Area */}
@@ -2063,17 +2077,7 @@ export default function StatsPage() {
                   className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden"
                 >
                   {/* ACTION BUTTONS (Top Right) */}
-                  {/* ACTION BUTTONS (Perfectly Aligned) */}
                   <div className="absolute top-4 right-4 flex items-center gap-1">
-                    {/* SAVE TO LIST BUTTON */}
-                    <button
-                      onClick={() => togglePendingWord(card.japanese)}
-                      className={`w-8 h-8 flex items-center justify-center active:scale-90 transition-all ${pendingWords.includes(card.japanese) ? "text-indigo-600" : "text-slate-400 hover:text-indigo-400"}`}
-                      title={pendingWords.includes(card.japanese) ? "Remove from list" : "Save to Sensei list"}
-                    >
-                      <List size={14} />
-                    </button>
-
                     {/* REPORT BUTTON */}
                     <button
                       onClick={() => handleReport(card.id, card.english)}
@@ -2253,15 +2257,6 @@ export default function StatsPage() {
                       </td>
                       <td className="px-4 py-4 text-right">
                         <div className="flex justify-end gap-2">
-                          {/* SAVE TO LIST BUTTON */}
-                          <button
-                            onClick={() => togglePendingWord(card.japanese)}
-                            className={`p-2 rounded-lg transition-all ${pendingWords.includes(card.japanese) ? "text-indigo-600 bg-indigo-50" : "text-slate-400 hover:text-indigo-500 hover:bg-indigo-50"}`}
-                            title={pendingWords.includes(card.japanese) ? "Remove from Sensei list" : "Save to Sensei list"}
-                          >
-                            <List size={16} />
-                          </button>
-
                           {/* REPORT BUTTON */}
                           <button
                             onClick={() => handleReport(card.id, card.english)}
@@ -2311,6 +2306,40 @@ export default function StatsPage() {
             </div>
           )}
         </div>
+
+        {/* ── Word List Modal ── */}
+        {showWordList && (
+          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
+              <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+                <div>
+                  <h2 className="text-base font-black text-slate-800 uppercase italic tracking-tighter">Word List</h2>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{pendingWords.length} word{pendingWords.length !== 1 ? "s" : ""} · one per line</p>
+                </div>
+                <button onClick={() => setShowWordList(false)} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400"><X size={14} /></button>
+              </div>
+              <div className="p-4">
+                <textarea
+                  value={pendingWords.join("\n")}
+                  onChange={(e) => syncWordList(e.target.value.split("\n").map(w => w.trim()).filter(Boolean))}
+                  rows={8}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none font-mono"
+                  placeholder={"食べる\n勉強\n彼女\n…"}
+                />
+              </div>
+              <div className="p-4 pt-0 flex gap-2">
+                <button onClick={() => syncWordList([])} className="px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all">Clear</button>
+                <button
+                  onClick={addWordListToDeck}
+                  disabled={wordListAdding || pendingWords.length === 0}
+                  className="flex-1 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {wordListAdding ? <><Loader2 size={13} className="animate-spin" /> Adding…</> : <><Plus size={13} /> Add All to Deck</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {showSummaryOverlay && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
