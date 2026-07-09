@@ -295,10 +295,28 @@ export default function AdminChat({ userId }: { userId: string }) {
     return () => { if (jishoDebounceRef.current) clearTimeout(jishoDebounceRef.current); };
   }, [tooltip?.editWord]);
 
+  const WORD_LIST_KEY = `flashkado-word-list-${userId}`;
+
   useEffect(() => {
-    supabase.from("profiles").select("pending_words").eq("id", userId).single()
-      .then(({ data }) => {
-        setWordList(data?.pending_words ?? []);
+    supabase.from("profiles").select("pending_words").eq("id", userId).maybeSingle()
+      .then(({ data, error }) => {
+        if (error) console.error("[DB word-list load]", error.code, error.message);
+        const dbWords: string[] | null = data?.pending_words ?? null;
+        if (dbWords && dbWords.length > 0) {
+          setWordList(dbWords);
+          localStorage.setItem(WORD_LIST_KEY, JSON.stringify(dbWords));
+        } else {
+          // Fall back to localStorage if DB returned nothing
+          try {
+            const saved = localStorage.getItem(WORD_LIST_KEY);
+            const parsed: string[] = saved ? JSON.parse(saved) : [];
+            setWordList(parsed);
+            if (parsed.length > 0) {
+              supabase.from("profiles").update({ pending_words: parsed }).eq("id", userId)
+                .then(({ error: e }) => { if (e) console.error("[DB word-list restore]", e.code, e.message); });
+            }
+          } catch { setWordList([]); }
+        }
         wordListLoadedRef.current = true;
       });
   }, [userId]);
@@ -306,9 +324,11 @@ export default function AdminChat({ userId }: { userId: string }) {
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncWordList = useCallback((newList: string[]) => {
     setWordList(newList);
+    localStorage.setItem(`flashkado-word-list-${userId}`, JSON.stringify(newList));
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     syncTimerRef.current = setTimeout(() => {
-      supabase.from("profiles").update({ pending_words: newList }).eq("id", userId);
+      supabase.from("profiles").update({ pending_words: newList }).eq("id", userId)
+        .then(({ error }) => { if (error) console.error("[DB word-list sync]", error.code, error.message); });
     }, 1000);
   }, [userId]);
 
