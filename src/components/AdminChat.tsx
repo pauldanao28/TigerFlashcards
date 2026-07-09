@@ -244,8 +244,7 @@ export default function AdminChat({ userId }: { userId: string }) {
         const greetMsg: Message = { id: uuid(), role: "model", content: data.content, timestamp: Date.now() };
         setMessages([greetMsg]);
         localStorage.setItem(chatStorageKey(activePersona), JSON.stringify([greetMsg]));
-        supabase.from("sensei_messages").upsert({ ...greetMsg, user_id: userId, persona: activePersona }, { onConflict: "id" })
-          .then(({ error }) => { if (error) console.error("[sensei_messages] greeting upsert:", error); });
+        supabase.from("sensei_messages").upsert({ ...greetMsg, user_id: userId, persona: activePersona }, { onConflict: "id" });
       } catch { /* silent — greeting is best-effort */ }
       finally { setLoading(false); }
     };
@@ -338,8 +337,7 @@ export default function AdminChat({ userId }: { userId: string }) {
     const updated = [...messages, userMsg];
     setMessages(updated);
     localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(updated));
-    supabase.from("sensei_messages").upsert({ ...userMsg, user_id: userId, persona: activePersona }, { onConflict: "id" })
-      .then(({ error }) => { if (error) console.error("[sensei_messages] user upsert:", error); });
+    supabase.from("sensei_messages").upsert({ ...userMsg, user_id: userId, persona: activePersona }, { onConflict: "id" });
     setInput("");
     setLoading(true);
 
