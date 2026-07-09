@@ -363,6 +363,10 @@ export default function AdminChat({ userId }: { userId: string }) {
       setMessages(finalMessages);
       localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(finalMessages));
       supabase.from("sensei_messages").upsert({ ...modelMsg, user_id: userId, persona: activePersona }, { onConflict: "id" });
+      if (corrections.length > 0) {
+        const patchedUser = patchedUpdated[patchedUpdated.length - 1];
+        supabase.from("sensei_messages").upsert({ ...patchedUser, user_id: userId, persona: activePersona }, { onConflict: "id" });
+      }
 
       const exchangeCount = finalMessages.filter(m => m.role === "user").length;
       const unanalyzedCount = finalMessages.length - lastAnalyzedIndexRef.current;
