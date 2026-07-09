@@ -37,6 +37,7 @@ interface Message {
 
 const SCENARIOS: { id: string; emoji: string; labelEn: string; labelJp: string; prompt: string }[] = [
   { id: "free",       emoji: "💬", labelEn: "Free Chat",    labelJp: "自由会話",  prompt: "" },
+  { id: "drill",      emoji: "🎯", labelEn: "Drill",        labelJp: "ドリル",    prompt: "" }, // prompt built dynamically from weak cards
   { id: "ramen",      emoji: "🍜", labelEn: "Ramen Shop",   labelJp: "ラーメン屋", prompt: "今日はラーメン屋のロールプレイシナリオです。生徒はお客として来店しています。注文・メニュー確認・お会計などの場面を自然に展開し、食べ物に関する語彙を積極的に使ってください。" },
   { id: "basketball", emoji: "🏀", labelEn: "Basketball",   labelJp: "バスケ練習",  prompt: "今日はバスケットボールの練習後のシナリオです。チームメートとの会話・励まし・作戦・反省などのカジュアルな日本語を中心に使ってください。" },
   { id: "konbini",    emoji: "🏪", labelEn: "Convenience",  labelJp: "コンビニ",   prompt: "今日はコンビニでのシナリオです。生徒はお客として来店。商品を探す・店員に質問・レジで会計するシーンを練習してください。" },
@@ -146,6 +147,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [showSummary, setShowSummary] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(true);
   const [weakCards, setWeakCards] = useState<string[]>([]);
+  const [weakCardDetails, setWeakCardDetails] = useState<{ japanese: string; reading: string; english: string }[]>([]);
   const [activeScenario, setActiveScenario] = useState("free");
   const [recap, setRecap] = useState<any | null>(null);
   const [recapLoading, setRecapLoading] = useState(false);
@@ -238,20 +240,42 @@ export default function AdminChat({ userId }: { userId: string }) {
     const fetchWeak = async () => {
       const { data } = await supabase
         .from("user_scores")
-        .select("scores_json, master_cards!card_id(japanese)")
+        .select("scores_json, master_cards!card_id(japanese, reading, english)")
         .eq("user_id", userId)
         .limit(300);
       if (!data) return;
-      const weak = data
+      const sorted = data
         .filter((s: any) => (s.scores_json?.jp_to_en?.total ?? 0) >= 3)
         .sort((a: any, b: any) => (a.scores_json?.jp_to_en?.percent ?? 100) - (b.scores_json?.jp_to_en?.percent ?? 100))
-        .slice(0, 20)
-        .map((s: any) => s.master_cards?.japanese)
-        .filter(Boolean);
-      setWeakCards(weak);
+        .slice(0, 20);
+      setWeakCards(sorted.map((s: any) => s.master_cards?.japanese).filter(Boolean));
+      setWeakCardDetails(
+        sorted
+          .map((s: any) => ({
+            japanese: s.master_cards?.japanese ?? "",
+            reading: s.master_cards?.reading ?? "",
+            english: s.master_cards?.english ?? "",
+          }))
+          .filter((c: any) => c.japanese)
+      );
     };
     fetchWeak();
   }, [userId]);
+
+  // Build the active scenario, injecting weak card details for drill mode
+  const getActiveScenario = () => {
+    const base = SCENARIOS.find(s => s.id === activeScenario);
+    if (activeScenario === "drill") {
+      const cardList = weakCardDetails.length > 0
+        ? weakCardDetails.map(c => `・${c.japanese}（${c.reading}）= ${c.english}`).join("\n")
+        : "（まだ苦手な語彙がありません）";
+      return {
+        ...base,
+        prompt: `今日はドリルモードです。以下はこの生徒の苦手語彙リストです：\n${cardList}\n\nこれらの単語を使って、自然な会話の流れの中でテストしてください。一度に1単語ずつ取り上げ、例文の中で使わせたり、英語→日本語、日本語→英語で聞いたりしてください。堅苦しいテスト形式にせず、友達と話すような自然なトーンで進めてください。正解・不正解に関わらず、優しくフィードバックをしてください。セッション中に全単語をカバーすることを目標にしてください。`,
+      };
+    }
+    return base;
+  };
 
   // ── Auto-greeting when chat is empty ───────────────────────────────────────
   useEffect(() => {
@@ -263,7 +287,7 @@ export default function AdminChat({ userId }: { userId: string }) {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: [], profile, persona: activePersona, pendingWords: [], weakCards, greeting: true, scenario: SCENARIOS.find(s => s.id === activeScenario) }),
+          body: JSON.stringify({ messages: [], profile, persona: activePersona, pendingWords: [], weakCards, greeting: true, scenario: getActiveScenario() }),
         });
         if (!res.ok) return;
         const data = await res.json();
@@ -416,7 +440,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: updated.slice(-20), profile, persona: activePersona, pendingWords: wordList, weakCards, scenario: SCENARIOS.find(s => s.id === activeScenario) }),
+        body: JSON.stringify({ messages: updated.slice(-20), profile, persona: activePersona, pendingWords: wordList, weakCards, scenario: getActiveScenario() }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -746,6 +770,11 @@ export default function AdminChat({ userId }: { userId: string }) {
             >
               <span>{s.emoji}</span>
               <span>{s.labelEn}</span>
+              {s.id === "drill" && weakCardDetails.length > 0 && (
+                <span className={`text-[9px] font-black rounded-full px-1 ${activeScenario === "drill" ? "bg-white/20 text-white" : "bg-rose-100 text-rose-500"}`}>
+                  {weakCardDetails.length}
+                </span>
+              )}
             </button>
           ))}
         </div>
