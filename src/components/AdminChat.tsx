@@ -107,7 +107,12 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
   const [profile, setProfile] = useState<SenseiProfile | null>(null);
-  const [wordList, setWordList] = useState<string[]>([]);
+  const [wordList, setWordList] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try { return JSON.parse(localStorage.getItem("flashkado-word-list") || "[]"); } catch { return []; }
+    }
+    return [];
+  });
   const [showList, setShowList] = useState(false);
   const [batchAdding, setBatchAdding] = useState(false);
   const [addedSummary, setAddedSummary] = useState<any[]>([]);
@@ -155,7 +160,8 @@ export default function AdminChat({ userId }: { userId: string }) {
         .order("timestamp", { ascending: true });
 
       if (!error && data && data.length > 0) {
-        const loaded = data as Message[];
+        const seen = new Set<string>();
+        const loaded = (data as Message[]).filter(m => !seen.has(m.id) && seen.add(m.id));
         setMessages(loaded);
         localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(loaded));
       } else {
@@ -234,6 +240,10 @@ export default function AdminChat({ userId }: { userId: string }) {
   // Keep sheetOpenRef in sync so the viewport effect can read it without a stale closure
   useEffect(() => { sheetOpenRef.current = !!tooltip; }, [tooltip]);
 
+  useEffect(() => {
+    localStorage.setItem("flashkado-word-list", JSON.stringify(wordList));
+  }, [wordList]);
+
   // Track visual viewport so the layout stays above the keyboard on iOS + Android
   useEffect(() => {
     const vv = window.visualViewport;
@@ -241,6 +251,7 @@ export default function AdminChat({ userId }: { userId: string }) {
     const update = () => {
       if (!containerRef.current) return;
       containerRef.current.style.height = `${vv.height}px`;
+      containerRef.current.style.top = `${vv.offsetTop}px`;
       // Don't scroll the chat when the word sheet is open — user is reading
       if (!sheetOpenRef.current) {
         requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: "instant" }));
@@ -289,13 +300,13 @@ export default function AdminChat({ userId }: { userId: string }) {
   // ── Send message ────────────────────────────────────────────────────────────
   const sendMessage = async () => {
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || loading || messagesLoading) return;
 
     const userMsg: Message = { id: uuid(), role: "user", content: text, timestamp: Date.now() };
     const updated = [...messages, userMsg];
     setMessages(updated);
     localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(updated));
-    supabase.from("sensei_messages").insert({ ...userMsg, user_id: userId, persona: activePersona });
+    supabase.from("sensei_messages").upsert({ ...userMsg, user_id: userId, persona: activePersona }, { onConflict: "id" });
     setInput("");
     setLoading(true);
 
@@ -315,7 +326,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       const finalMessages = [...updated, modelMsg];
       setMessages(finalMessages);
       localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(finalMessages));
-      supabase.from("sensei_messages").insert({ ...modelMsg, user_id: userId, persona: activePersona });
+      supabase.from("sensei_messages").upsert({ ...modelMsg, user_id: userId, persona: activePersona }, { onConflict: "id" });
 
       const exchangeCount = finalMessages.filter(m => m.role === "user").length;
       const unanalyzedCount = finalMessages.length - lastAnalyzedIndexRef.current;
@@ -388,6 +399,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       }
 
       setWordList([]);
+      localStorage.removeItem("flashkado-word-list");
       setShowList(false);
       if (allProcessed.length > 0) {
         const deduped = Array.from(new Map(allProcessed.map(c => [c.japanese, c])).values());
@@ -763,7 +775,7 @@ export default function AdminChat({ userId }: { userId: string }) {
             rows={1}
             className="flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all max-h-40 overflow-y-auto"
             style={{ fieldSizing: "content" } as React.CSSProperties} />
-          <button onClick={sendMessage} disabled={!input.trim() || loading}
+          <button onClick={sendMessage} disabled={!input.trim() || loading || messagesLoading}
             className="bg-indigo-600 text-white w-12 h-12 rounded-2xl flex items-center justify-center hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
             <Send size={16} />
           </button>
