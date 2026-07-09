@@ -647,8 +647,12 @@ export default function AdminChat({ userId }: { userId: string }) {
       setSpeakingId(null);
       return;
     }
-    const clean = text.replace(/[（(][ぁ-んァ-ンっーゃゅょ・]+[）)]/g, "")
-                      .replace(/---CORRECTIONS---[\s\S]*?---END---/g, "").trim();
+    const clean = text
+      .replace(/\n?---CORRECTIONS---[\s\S]*?---END---/g, "")
+      .replace(/[（(][ぁ-んァ-ンっーゃゅょ・]+[）)]/g, "")
+      .replace(/\*+/g, "")
+      .replace(/_{1,2}([^_]+)_{1,2}/g, "$1")
+      .trim();
     setSpeakingId(msgId);
     playTTS(clean, "ja-JP", { onEnd: () => setSpeakingId(null) });
   };
@@ -853,7 +857,12 @@ export default function AdminChat({ userId }: { userId: string }) {
                       ? "bg-indigo-600 text-white rounded-br-lg"
                       : "bg-white border border-slate-100 text-slate-800 shadow-sm rounded-bl-lg"
                   }`}>
-                    {renderContent(msg.content, msg.role)}
+                    {renderContent(
+                      msg.role === "model"
+                        ? msg.content.replace(/\n?---CORRECTIONS---[\s\S]*?---END---/g, "").trim()
+                        : msg.content,
+                      msg.role
+                    )}
                   </div>
                   {msg.role === "model" && (
                     <button
