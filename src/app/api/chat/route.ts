@@ -192,19 +192,36 @@ export async function POST(req: Request) {
     };
 
     const parseResponse = (raw: string): { content: string; corrections: string[] } => {
-      try {
-        const cleaned = raw
-          .replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/gm, "")
-          .replace(/^JSON\s*/i, "").replace(/\s*JSON\s*$/i, "")
-          .trim();
-        const parsed = JSON.parse(cleaned);
+      const tryParse = (s: string) => {
+        try {
+          const p = JSON.parse(s);
+          if (typeof p?.content === "string") return p;
+        } catch {}
+        return null;
+      };
+
+      const cleaned = raw
+        .replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/gm, "")
+        .replace(/^JSON\s*/i, "").replace(/\s*JSON\s*$/i, "")
+        .trim();
+
+      // First try the whole cleaned string, then fall back to first {...} block
+      // (handles the model adding extra text before/after the JSON)
+      const parsed =
+        tryParse(cleaned) ??
+        (() => {
+          const start = cleaned.indexOf("{");
+          const end = cleaned.lastIndexOf("}");
+          return start !== -1 && end > start ? tryParse(cleaned.slice(start, end + 1)) : null;
+        })();
+
+      if (parsed) {
         return {
           content: typeof parsed.content === "string" ? parsed.content : raw,
           corrections: Array.isArray(parsed.corrections) ? parsed.corrections : [],
         };
-      } catch {
-        return { content: raw, corrections: [] };
       }
+      return { content: raw, corrections: [] };
     };
 
     try {

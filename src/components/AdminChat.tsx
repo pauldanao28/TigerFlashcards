@@ -592,22 +592,64 @@ export default function AdminChat({ userId }: { userId: string }) {
       </span>
     );
 
-    const elements: React.ReactNode[] = [];
-    parseFurigana(text).forEach((seg, i) => {
-      if (seg.type === "annotated") {
-        elements.push(makeWordSpan(seg.text, seg.reading, `a${i}`));
-      } else {
-        // Make kanji words in plain (unannotated) text tappable too; reading comes from Jisho on tap
-        [...jaSegmenter.segment(seg.text)].forEach((sub, si) => {
-          if (sub.isWordLike && kanjiRe.test(sub.segment)) {
-            elements.push(makeWordSpan(sub.segment, "", `p${i}-${si}`));
-          } else {
-            elements.push(<span key={`p${i}-${si}`}>{sub.segment}</span>);
+    // Render a plain text chunk through furigana + kanji-tapping
+    const renderChunk = (chunk: string, kp: string): React.ReactNode[] => {
+      const nodes: React.ReactNode[] = [];
+      parseFurigana(chunk).forEach((seg, si) => {
+        if (seg.type === "annotated") {
+          nodes.push(makeWordSpan(seg.text, seg.reading, `${kp}-a${si}`));
+        } else {
+          [...jaSegmenter.segment(seg.text)].forEach((sub, subI) => {
+            if (sub.isWordLike && kanjiRe.test(sub.segment)) {
+              nodes.push(makeWordSpan(sub.segment, "", `${kp}-p${si}-${subI}`));
+            } else {
+              nodes.push(<span key={`${kp}-p${si}-${subI}`}>{sub.segment}</span>);
+            }
+          });
+        }
+      });
+      return nodes;
+    };
+
+    // Render a line with inline **bold** support
+    const renderInline = (line: string, kp: string): React.ReactNode[] => {
+      const nodes: React.ReactNode[] = [];
+      line.split(/(\*\*[^*]+\*\*)/).forEach((part, pi) => {
+        const bold = part.match(/^\*\*([^*]+)\*\*$/);
+        if (bold) {
+          nodes.push(<strong key={`${kp}-b${pi}`}>{renderChunk(bold[1], `${kp}-b${pi}`)}</strong>);
+        } else {
+          renderChunk(part, `${kp}-t${pi}`).forEach(n => nodes.push(n));
+        }
+      });
+      return nodes;
+    };
+
+    // Split into lines and handle bullet prefixes
+    const lines = text.split("\n");
+    return (
+      <>
+        {lines.map((line, li) => {
+          const isBullet = /^[*•\-] /.test(line);
+          const content = isBullet ? line.replace(/^[*•\-] /, "") : line;
+          const addBreak = li < lines.length - 1;
+          if (isBullet) {
+            return (
+              <span key={li} className="flex gap-1.5 items-baseline">
+                <span className="text-indigo-400 shrink-0 font-bold">•</span>
+                <span>{renderInline(content, `l${li}`)}{addBreak && <br />}</span>
+              </span>
+            );
           }
-        });
-      }
-    });
-    return <>{elements}</>;
+          return (
+            <span key={li}>
+              {renderInline(line, `l${li}`)}
+              {addBreak && <br />}
+            </span>
+          );
+        })}
+      </>
+    );
   };
 
   return (
