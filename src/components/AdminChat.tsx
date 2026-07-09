@@ -76,6 +76,7 @@ interface Tooltip {
   jishoMeanings?: { definition: string; pos: string }[];
   jlpt?: string[];
   isCommon?: boolean;
+  example?: { jp: string; en: string } | null;
 }
 
 type Segment =
@@ -383,7 +384,19 @@ export default function AdminChat({ userId }: { userId: string }) {
     const tooltipH = 240;
     const spaceBelow = window.innerHeight - rect.bottom;
     const y = spaceBelow > tooltipH ? rect.bottom + 8 : rect.top - tooltipH - 8;
-    const editWord = word.replace(/^[ぁ-んァ-ヿ]+/, "") || word;
+    // Extract just the kanji compound being tapped.
+    // Handles mixed phrases like "今日も元気に日本語" → "日本語",
+    // and verbs with okurigana like "食べる" → "食べる".
+    const extractWord = (text: string): string => {
+      const noLeading = text.replace(/^[ぁ-んァ-ヿっー]+/, "");
+      // Clean compound: starts with kanji, optional trailing kana (okurigana)
+      if (/^[一-龯々〻㐀-䶿][一-龯々〻㐀-䶿ぁ-んァ-ヿっー]*$/.test(noLeading)) return noLeading || text;
+      // Mixed phrase: split on kana that precede kanji, take the last kanji segment
+      const segs = noLeading.split(/[ぁ-んっー]+(?=[一-龯々〻㐀-䶿])/);
+      const last = segs.filter(s => /[一-龯々〻㐀-䶿]/.test(s)).at(-1);
+      return last ?? noLeading ?? text;
+    };
+    const editWord = extractWord(word);
     setTooltip({ word, reading, editWord, x: Math.min(rect.left, window.innerWidth - 260), y: Math.max(8, y), adding: false, knownEnglish: undefined, jishoLoading: true });
 
     // Supabase deck check
@@ -394,7 +407,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       setTooltip(prev => prev ? { ...prev, knownEnglish: score ? card.english : null } : prev);
     })();
 
-    // Jisho dictionary lookup
+    // Jisho + example lookup
     fetch(`/api/jisho?word=${encodeURIComponent(editWord)}`)
       .then(r => r.json())
       .then(d => setTooltip(prev => prev ? {
@@ -403,6 +416,7 @@ export default function AdminChat({ userId }: { userId: string }) {
         jishoMeanings: d.found ? d.meanings : [],
         jlpt: d.found ? d.jlpt : [],
         isCommon: d.found ? d.is_common : false,
+        example: d.example ?? null,
       } : prev))
       .catch(() => setTooltip(prev => prev ? { ...prev, jishoLoading: false } : prev));
   }, [userId]);
