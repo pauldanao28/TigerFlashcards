@@ -2068,7 +2068,7 @@ export default function StatsPage() {
                     {/* SAVE TO LIST BUTTON */}
                     <button
                       onClick={() => togglePendingWord(card.japanese)}
-                      className={`w-8 h-8 flex items-center justify-center active:scale-90 transition-all ${pendingWords.includes(card.japanese) ? "text-indigo-600" : "text-slate-300 hover:text-indigo-400"}`}
+                      className={`w-8 h-8 flex items-center justify-center active:scale-90 transition-all ${pendingWords.includes(card.japanese) ? "text-indigo-600" : "text-slate-400 hover:text-indigo-400"}`}
                       title={pendingWords.includes(card.japanese) ? "Remove from list" : "Save to Sensei list"}
                     >
                       <List size={14} />
@@ -2256,7 +2256,7 @@ export default function StatsPage() {
                           {/* SAVE TO LIST BUTTON */}
                           <button
                             onClick={() => togglePendingWord(card.japanese)}
-                            className={`p-2 rounded-lg transition-all ${pendingWords.includes(card.japanese) ? "text-indigo-600 bg-indigo-50" : "text-slate-300 hover:text-indigo-500 hover:bg-indigo-50"}`}
+                            className={`p-2 rounded-lg transition-all ${pendingWords.includes(card.japanese) ? "text-indigo-600 bg-indigo-50" : "text-slate-400 hover:text-indigo-500 hover:bg-indigo-50"}`}
                             title={pendingWords.includes(card.japanese) ? "Remove from Sensei list" : "Save to Sensei list"}
                           >
                             <List size={16} />
