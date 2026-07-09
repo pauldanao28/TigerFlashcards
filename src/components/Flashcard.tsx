@@ -4,6 +4,7 @@ import { motion, useMotionValue, useTransform } from "framer-motion";
 import { FlashcardData } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { useLang } from "@/context/LanguageContext";
+import { speak, stopTTS } from "@/lib/tts";
 
 interface FlashcardProps {
   card: FlashcardData;
@@ -24,55 +25,6 @@ const triggerHaptic = (ms = 10) => {
   }
 };
 
-// const speak = (text: string, lang: "ja-JP" | "en-US") => {
-//   if (typeof window !== "undefined" && window.speechSynthesis) {
-//     window.speechSynthesis.cancel();
-//     const utterance = new SpeechSynthesisUtterance(text);
-//     utterance.lang = lang;
-//     utterance.rate = 0.9;
-//     window.speechSynthesis.speak(utterance);
-//   }
-// };
-
-// const speak = (text: string, lang: "ja-JP" | "en-US") => {
-//   if (typeof window !== "undefined" && window.speechSynthesis) {
-//     window.speechSynthesis.cancel();
-
-//     const utterance = new SpeechSynthesisUtterance(text);
-//     utterance.lang = lang;
-//     utterance.rate = 0.9;
-//     utterance.pitch = 1.0;
-
-//     // Optional: Pick a specific Japanese voice if it exists on the system
-//     const voices = window.speechSynthesis.getVoices();
-//     const jaVoice = voices.find(
-//       (v) => v.lang === "ja-JP" && v.name.includes("Google"),
-//     );
-//     if (jaVoice) utterance.voice = jaVoice;
-
-//     window.speechSynthesis.speak(utterance);
-//   }
-// };
-
-const speak = (text: string, lang: "ja-JP" | "en-US") => {
-  const synth = window.speechSynthesis;
-  if (typeof window !== "undefined" && synth) {
-    // 🔥 MANDATORY FOR IOS: Resume every single time
-    synth.resume();
-    synth.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = lang;
-    utterance.rate = 0.85; // Slightly slower for better N5/N4 recognition
-
-    // iOS sometimes ignores the voice if it's not explicitly set from the loaded list
-    const voices = synth.getVoices();
-    const voice = voices.find((v) => v.lang === lang);
-    if (voice) utterance.voice = voice;
-
-    synth.speak(utterance);
-  }
-};
 
 export default function Flashcard({
   card,
@@ -118,14 +70,11 @@ export default function Flashcard({
 
   const forceUnlock = () => {
     if (isAudioUnlocked.current) return;
-
-    const synth = window.speechSynthesis;
-    const utterance = new SpeechSynthesisUtterance("");
-    utterance.volume = 0;
-    synth.speak(utterance);
-
+    // Unlock Audio context on iOS with a silent play
+    const silent = new Audio("/sounds/success.mp3");
+    silent.volume = 0;
+    silent.play().catch(() => {});
     isAudioUnlocked.current = true;
-    console.log("iOS Protocol: Audio Latched");
   };
 
   useEffect(() => {
@@ -162,20 +111,6 @@ export default function Flashcard({
     });
     return () => unsubscribe();
   }, [x, hasVibrated]);
-
-  useEffect(() => {
-    const synth = window.speechSynthesis;
-
-    const loadVoices = () => {
-      synth.getVoices(); // Force population of the list
-    };
-
-    if (synth.onvoiceschanged !== undefined) {
-      synth.onvoiceschanged = loadVoices;
-    }
-
-    loadVoices();
-  }, []);
 
   // 3. Auto-play Audio on Front (When card appears)
   useEffect(() => {
