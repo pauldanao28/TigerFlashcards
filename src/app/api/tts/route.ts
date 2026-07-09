@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 const DEFAULT_VOICE = "Aoede";
-const TTS_MODEL = "gemini-2.5-flash-preview-tts";
+const TTS_MODEL = "gemini-2.5-flash-lite-preview-tts";
 
 export async function POST(req: Request) {
   const { text, voice } = await req.json();
