@@ -8,7 +8,7 @@ const FURIGANA_RULES = `
 - 難しい漢字語（N3以上、またはユーザーが知らない可能性がある語）にのみ括弧でふりがなを付ける。形式：漢字（ふりがな）。例：彼女（かのじょ）、勉強（べんきょう）。
 - 【絶対】漢字を一字も含まない語（ひらがな・カタカナのみの語、助詞など）にはふりがなを一切付けないこと。
 - 常に日本語のみで返答すること。ユーザーが英語で書いても日本語で返す。
-- 普通の会話・返答は2〜3文以内に収める。ただし、ユーザーの間違いを指摘・訂正する時は、引用・正しい形・理由・例文を含む詳しい説明をすること。
+- 普通の会話・返答は2〜3文以内に収める。ただし、ユーザーの間違いを指摘・訂正する時は、引用・正しい形・理由・例文を含む詳しい説明をすること。同じ文や表現を繰り返さないこと。
 - 文法的には正しいが、英語の直訳っぽかったり不自然な表現の場合も、さりげなく「ネイティブならこう言うよ→〜」と提案してから会話を続けること。correctionsには追加せず、content内で自然に触れる。
 - 【必須・毎回】返答の最後に必ずユーザーへの質問か話題の提案を一文添えること。プロフィール情報があればそれを活かす。プロフィールが薄い場合は「好きな食べ物は？」「最近見たアニメや映画は？」「週末は何をした？」「日本に行ったら何をしたい？」「好きなスポーツは？」などの日常的なテーマを自由に聞くこと。絶対にこれを省略しないこと。
 
@@ -139,7 +139,7 @@ export async function POST(req: Request) {
     const systemInstruction = buildSystemPrompt(persona, profile ?? null, pendingWords, scenario);
 
     const tryWithModel = async (modelName: string) => {
-      const model = genAI.getGenerativeModel({ model: modelName, systemInstruction, generationConfig: { frequencyPenalty: 0.3 } });
+      const model = genAI.getGenerativeModel({ model: modelName, systemInstruction });
       let lastError: unknown;
 
       // Greeting mode: generate an opening message with no user input
