@@ -169,12 +169,22 @@ export default function AdminChat({ userId }: { userId: string }) {
   useEffect(() => {
     const load = async () => {
       setMessagesLoading(true);
-      const { data, error } = await supabase
+      // Try with corrections column; fall back to without it if the column doesn't exist yet
+      let result = await supabase
         .from("sensei_messages")
         .select("id, role, content, timestamp, corrections")
         .eq("user_id", userId)
         .eq("persona", activePersona)
         .order("timestamp", { ascending: true });
+      if (result.error?.message?.includes("corrections")) {
+        result = await (supabase
+          .from("sensei_messages")
+          .select("id, role, content, timestamp")
+          .eq("user_id", userId)
+          .eq("persona", activePersona)
+          .order("timestamp", { ascending: true }) as any);
+      }
+      const { data, error } = result;
 
       const validMsg = (m: Message) => m && typeof m.content === "string" && m.content.length > 0;
       if (!error && data && data.length > 0) {
