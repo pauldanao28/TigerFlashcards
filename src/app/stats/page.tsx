@@ -61,6 +61,8 @@ export default function StatsPage() {
   const [pendingWords, setPendingWords] = useState<string[]>([]);
   const [showWordList, setShowWordList] = useState(false);
   const [wordListAdding, setWordListAdding] = useState(false);
+  const [wordListText, setWordListText] = useState("");
+  useEffect(() => { if (showWordList) setWordListText(pendingWords.join("\n")); }, [showWordList]);
 
   useEffect(() => {
     const fetchTodayCount = async () => {
@@ -2324,18 +2326,19 @@ export default function StatsPage() {
               </div>
               <div className="p-4">
                 <textarea
-                  value={pendingWords.join("\n")}
-                  onChange={(e) => syncWordList(e.target.value.split("\n").map(w => w.trim()).filter(Boolean))}
+                  value={wordListText}
+                  onChange={(e) => setWordListText(e.target.value)}
+                  onBlur={(e) => syncWordList(e.target.value.split("\n").map(w => w.trim()).filter(Boolean))}
                   rows={8}
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none font-mono"
                   placeholder={"食べる\n勉強\n彼女\n…"}
                 />
               </div>
               <div className="p-4 pt-0 flex gap-2">
-                <button onClick={() => syncWordList([])} className="px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all">Clear</button>
+                <button onClick={() => { syncWordList([]); setWordListText(""); }} className="px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all">Clear</button>
                 <button
-                  onClick={addWordListToDeck}
-                  disabled={wordListAdding || pendingWords.length === 0}
+                  onClick={() => { syncWordList(wordListText.split("\n").map(w => w.trim()).filter(Boolean)); addWordListToDeck(); }}
+                  disabled={wordListAdding || !wordListText.trim()}
                   className="flex-1 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {wordListAdding ? <><Loader2 size={13} className="animate-spin" /> Adding…</> : <><Plus size={13} /> Add All to Deck</>}
