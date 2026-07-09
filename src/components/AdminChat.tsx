@@ -188,15 +188,19 @@ export default function AdminChat({ userId }: { userId: string }) {
         .select("id, role, content, timestamp, corrections")
         .eq("user_id", userId)
         .eq("persona", activePersona)
-        .order("timestamp", { ascending: true });
+        .order("timestamp", { ascending: false })
+        .limit(100);
       if (result.error?.message?.includes("corrections")) {
         result = await (supabase
           .from("sensei_messages")
           .select("id, role, content, timestamp")
           .eq("user_id", userId)
           .eq("persona", activePersona)
-          .order("timestamp", { ascending: true }) as any);
+          .order("timestamp", { ascending: false })
+          .limit(100) as any);
       }
+      // Re-sort ascending for display (we fetched desc to get the latest 100)
+      if (result.data) result = { ...result, data: [...result.data].reverse() };
       const { data, error } = result;
 
       const validMsg = (m: Message) => m && typeof m.content === "string" && m.content.length > 0;
@@ -431,6 +435,22 @@ export default function AdminChat({ userId }: { userId: string }) {
       localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(finalMessages));
       supabase.from("sensei_messages").upsert({ ...modelMsg, user_id: userId, persona: activePersona }, { onConflict: "id" })
         .then(({ error }) => { if (error) console.error("[DB model]", error.code, error.message); });
+
+      // Trim DB to latest 100 messages every 10 exchanges to avoid unbounded growth
+      if (finalMessages.filter(m => m.role === "user").length % 10 === 0) {
+        supabase.from("sensei_messages")
+          .select("id, timestamp")
+          .eq("user_id", userId)
+          .eq("persona", activePersona)
+          .order("timestamp", { ascending: false })
+          .limit(200)
+          .then(({ data: rows }) => {
+            if (rows && rows.length > 100) {
+              const toDelete = rows.slice(100).map((r: any) => r.id);
+              supabase.from("sensei_messages").delete().in("id", toDelete);
+            }
+          });
+      }
       if (corrections.length > 0) {
         const patchedUser = patchedUpdated[patchedUpdated.length - 1];
         supabase.from("sensei_messages").upsert({ ...patchedUser, user_id: userId, persona: activePersona }, { onConflict: "id" });
