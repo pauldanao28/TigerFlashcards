@@ -50,7 +50,7 @@ export async function POST(req: Request) {
   const sampleRate = rateMatch ? parseInt(rateMatch[1]) : 24000;
   const wav = pcmToWav(pcm, sampleRate, 1, 16);
 
-  return new Response(wav, {
+  return new Response(new Uint8Array(wav), {
     headers: {
       "Content-Type": "audio/wav",
       "Cache-Control": "public, max-age=86400",
