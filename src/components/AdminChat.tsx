@@ -146,6 +146,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const lastProfileUpdateRef = useRef(0);
   const sheetOpenRef = useRef(false); // true while bottom sheet is open — suppress auto-scroll
+  const jishoDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -271,6 +272,28 @@ export default function AdminChat({ userId }: { userId: string }) {
 
   // Keep sheetOpenRef in sync so the viewport effect can read it without a stale closure
   useEffect(() => { sheetOpenRef.current = !!tooltip; }, [tooltip]);
+
+  // Debounced Jisho re-lookup when the user edits the word in the tooltip input
+  useEffect(() => {
+    const word = tooltip?.editWord?.trim();
+    if (!word || !kanjiRe.test(word)) return;
+    if (jishoDebounceRef.current) clearTimeout(jishoDebounceRef.current);
+    jishoDebounceRef.current = setTimeout(() => {
+      setTooltip(prev => prev ? { ...prev, jishoLoading: true, jishoMeanings: [], jlpt: [], isCommon: false } : prev);
+      fetch(`/api/jisho?word=${encodeURIComponent(word)}`)
+        .then(r => r.json())
+        .then(d => setTooltip(prev => prev ? {
+          ...prev,
+          jishoLoading: false,
+          reading: d.found ? d.reading : "",
+          jishoMeanings: d.found ? d.meanings : [],
+          jlpt: d.found ? d.jlpt : [],
+          isCommon: d.found ? d.is_common : false,
+        } : prev))
+        .catch(() => setTooltip(prev => prev ? { ...prev, jishoLoading: false } : prev));
+    }, 500);
+    return () => { if (jishoDebounceRef.current) clearTimeout(jishoDebounceRef.current); };
+  }, [tooltip?.editWord]);
 
   useEffect(() => {
     supabase.from("profiles").select("pending_words").eq("id", userId).single()
