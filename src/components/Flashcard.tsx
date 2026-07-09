@@ -4,7 +4,7 @@ import { motion, useMotionValue, useTransform } from "framer-motion";
 import { FlashcardData } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { useLang } from "@/context/LanguageContext";
-import { speak, stopTTS } from "@/lib/tts";
+import { speak } from "@/lib/tts";
 
 interface FlashcardProps {
   card: FlashcardData;
