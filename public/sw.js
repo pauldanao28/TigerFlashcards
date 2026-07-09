@@ -1,5 +1,5 @@
 // Bump version to purge any previously cached bad responses
-const STATIC_CACHE = "flashkado-static-v2";
+const STATIC_CACHE = "flashkado-static-v3";
 
 self.addEventListener("install", () => self.skipWaiting());
 
@@ -27,7 +27,7 @@ self.addEventListener("fetch", (event) => {
   // after a new Vercel deploy, preventing stale CSS/JS references.
   if (request.mode === "navigate" || url.pathname.startsWith("/api/")) {
     event.respondWith(
-      fetch(request).catch(() => caches.match(request))
+      fetch(request).catch(() => caches.match(request).then(r => r ?? Response.error()))
     );
     return;
   }
@@ -52,6 +52,6 @@ self.addEventListener("fetch", (event) => {
 
   // Network-first for everything else (fonts, public assets, etc.)
   event.respondWith(
-    fetch(request).catch(() => caches.match(request))
+    fetch(request).catch(() => caches.match(request).then(r => r ?? Response.error()))
   );
 });
