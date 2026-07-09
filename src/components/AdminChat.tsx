@@ -444,7 +444,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: updated.slice(-20), profile, persona: activePersona, pendingWords: wordList, weakCards, scenario: getActiveScenario() }),
+        body: JSON.stringify({ messages: updated.slice(-20), profile, persona: activePersona, pendingWords: activeScenario === "drill" ? wordList : [], weakCards, scenario: getActiveScenario() }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
