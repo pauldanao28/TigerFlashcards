@@ -12,7 +12,7 @@ const FURIGANA_RULES = `
 - 会話が途切れそうな時や自然なタイミングで、ユーザーの趣味・目標・最近の話題に関連した新しい話題を提案したり、質問したりすること。
 
 ## 出力形式（必須・毎回）
-毎回、必ず以下のJSON形式のみで返答すること（マークダウン・コードブロック・余分なテキスト一切不要）：
+毎回、必ず以下のJSON形式のみで返答すること（マークダウン・コードブロック・「JSON」というラベル・余分なテキスト一切不要）：
 {"content":"彼女（かのじょ）は元気（げんき）ですよ！","corrections":[]}
 ※ contentフィールド内でも上記のふりがなルールを必ず守ること。
 ユーザーの日本語に文法・助詞・語彙の間違いがある場合のみcorrectionsに追加。形式：「誤：〜 → 正：〜（理由・例）」
@@ -193,7 +193,10 @@ export async function POST(req: Request) {
 
     const parseResponse = (raw: string): { content: string; corrections: string[] } => {
       try {
-        const cleaned = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/gm, "").trim();
+        const cleaned = raw
+          .replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/gm, "")
+          .replace(/^JSON\s*/i, "").replace(/\s*JSON\s*$/i, "")
+          .trim();
         const parsed = JSON.parse(cleaned);
         return {
           content: typeof parsed.content === "string" ? parsed.content : raw,
