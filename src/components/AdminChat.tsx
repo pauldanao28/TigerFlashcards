@@ -261,9 +261,13 @@ export default function AdminChat({ userId }: { userId: string }) {
       });
   }, [userId]);
 
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncWordList = useCallback((newList: string[]) => {
     setWordList(newList);
-    supabase.from("profiles").update({ pending_words: newList }).eq("id", userId);
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => {
+      supabase.from("profiles").update({ pending_words: newList }).eq("id", userId);
+    }, 1000);
   }, [userId]);
 
   // Track visual viewport so the layout stays above the keyboard on iOS + Android

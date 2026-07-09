@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FlashcardData } from "@/lib/types";
@@ -586,10 +586,14 @@ export default function StatsPage() {
     }
   };
 
-  const syncWordList = (newList: string[]) => {
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncWordList = useCallback((newList: string[]) => {
     setPendingWords(newList);
-    if (user) supabase.from("profiles").update({ pending_words: newList }).eq("id", user.id);
-  };
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => {
+      if (user) supabase.from("profiles").update({ pending_words: newList }).eq("id", user.id);
+    }, 1000);
+  }, [user]);
 
   const addWordListToDeck = async () => {
     if (!pendingWords.length) return;
