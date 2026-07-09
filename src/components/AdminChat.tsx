@@ -171,7 +171,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       setMessagesLoading(true);
       const { data, error } = await supabase
         .from("sensei_messages")
-        .select("id, role, content, timestamp")
+        .select("id, role, content, timestamp, corrections")
         .eq("user_id", userId)
         .eq("persona", activePersona)
         .order("timestamp", { ascending: true });
