@@ -384,19 +384,14 @@ export default function AdminChat({ userId }: { userId: string }) {
     const tooltipH = 240;
     const spaceBelow = window.innerHeight - rect.bottom;
     const y = spaceBelow > tooltipH ? rect.bottom + 8 : rect.top - tooltipH - 8;
-    // Use Intl.Segmenter to extract the best kanji word from the tapped segment.
+    // Use Intl.Segmenter to extract the first kanji-containing word from the tapped segment.
+    // "First" correctly handles both verb conjugations (食べてください → 食べ)
+    // and greedy furigana phrases (今日も元気に日本語 → 今日).
     const extractWord = (text: string): string => {
       const segmenter = new Intl.Segmenter("ja", { granularity: "word" });
-      const segments = [...segmenter.segment(text)]
-        .filter(s => s.isWordLike)
-        .map(s => s.segment);
       const kanjiRe = /[一-龯々〻㐀-䶿]/;
-      const withKanji = segments.filter(s => kanjiRe.test(s));
-      if (withKanji.length === 0) return text;
-      // Pick the segment with the most kanji characters
-      return withKanji.reduce((a, b) =>
-        (b.split("").filter(c => kanjiRe.test(c)).length >= a.split("").filter(c => kanjiRe.test(c)).length ? b : a)
-      );
+      const first = [...segmenter.segment(text)].find(s => s.isWordLike && kanjiRe.test(s.segment));
+      return first?.segment ?? text;
     };
     const editWord = extractWord(word);
     setTooltip({ word, reading, editWord, x: Math.min(rect.left, window.innerWidth - 260), y: Math.max(8, y), adding: false, knownEnglish: undefined, jishoLoading: true });
