@@ -466,12 +466,8 @@ export default function AdminChat({ userId }: { userId: string }) {
       const data = await res.json();
       if (!data.content) throw new Error("Empty response");
       const modelMsg: Message = { id: uuid(), role: "model" as const, content: data.content, timestamp: Date.now() };
-      // Attach grammar corrections to the user message that triggered them
-      const corrections: string[] = data.corrections ?? [];
-      const patchedUpdated: Message[] = corrections.length > 0
-        ? [...updated.slice(0, -1), { ...updated[updated.length - 1], corrections }]
-        : updated;
-      const finalMessages: Message[] = [...patchedUpdated, modelMsg];
+      const corrections: { mistake: string; correct: string; reason: string }[] = data.corrections ?? [];
+      const finalMessages: Message[] = [...updated, modelMsg];
       setMessages(finalMessages);
       localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(finalMessages));
       supabase.from("sensei_messages").upsert({ ...modelMsg, user_id: userId, persona: activePersona }, { onConflict: "id" })
@@ -493,8 +489,9 @@ export default function AdminChat({ userId }: { userId: string }) {
           });
       }
       if (corrections.length > 0) {
-        const patchedUser = patchedUpdated[patchedUpdated.length - 1];
-        supabase.from("sensei_messages").upsert({ ...patchedUser, user_id: userId, persona: activePersona }, { onConflict: "id" });
+        supabase.from("grammar_corrections").insert(
+          corrections.map(c => ({ user_id: userId, persona: activePersona, mistake: c.mistake, correct: c.correct, reason: c.reason }))
+        );
       }
 
       const exchangeCount = finalMessages.filter(m => m.role === "user").length;
@@ -874,16 +871,6 @@ export default function AdminChat({ userId }: { userId: string }) {
                   )}
                 </div>
               </div>
-              {msg.role === "user" && Array.isArray(msg.corrections) && msg.corrections.length > 0 && (
-                <div className="flex justify-end mt-1.5">
-                  <div className="max-w-[85%] bg-rose-50 border border-rose-100 rounded-2xl rounded-tr-sm px-4 py-3">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-rose-400 mb-2">📝 Grammar Note</p>
-                    {msg.corrections.map((c, i) => (
-                      <p key={i} className="text-xs text-rose-700 font-medium leading-relaxed">{c}</p>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           ))
         )}

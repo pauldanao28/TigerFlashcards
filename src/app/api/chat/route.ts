@@ -13,12 +13,11 @@ const FURIGANA_RULES = `
 - 【必須・毎回】返答の最後に必ずユーザーへの質問か話題の提案を一文添えること。プロフィール情報があればそれを活かす。プロフィールが薄い場合は「好きな食べ物は？」「最近見たアニメや映画は？」「週末は何をした？」「日本に行ったら何をしたい？」「好きなスポーツは？」などの日常的なテーマを自由に聞くこと。絶対にこれを省略しないこと。
 
 ## 出力形式（必須・毎回）
-毎回、必ず以下のJSON形式のみで返答すること（マークダウン・コードブロック・「JSON」というラベル・余分なテキスト一切不要）：
-{"content":"彼女（かのじょ）は元気（げんき）ですよ！","corrections":[]}
-※ contentフィールド内でも上記のふりがなルールを必ず守ること。
+必ず以下のJSON形式のみで返答すること。マークダウン・コードブロック・余分なテキスト一切不要：
+{"content":"会話の返答（ふりがなルール厳守）","corrections":[]}
 ユーザーの日本語に文法・助詞・語彙の間違いがある場合：
-- contentの中で自然に訂正に触れること。例：「あ、「食べました」じゃなくて「食べた」の方が自然だよ！」のように、会話の流れの中でさりげなく。
-- correctionsにも追加。形式：「誤：〜 → 正：〜（理由・例）」
+- contentの中で友達のように自然に訂正すること。例：「あ、「食べました」じゃなくて「食べた」の方が自然だよ！」
+- correctionsには構造化データで追加：[{"mistake":"食べました","correct":"食べた","reason":"カジュアル"}]
 間違いがなければcorrections:[]のまま。`;
 
 const PERSONAS: Record<string, string> = {
@@ -194,7 +193,8 @@ export async function POST(req: Request) {
       throw lastError;
     };
 
-    const parseResponse = (raw: string): { content: string; corrections: string[] } => {
+    type Correction = { mistake: string; correct: string; reason: string };
+    const parseResponse = (raw: string): { content: string; corrections: Correction[] } => {
       const tryParse = (s: string) => {
         try {
           const p = JSON.parse(s);
@@ -203,37 +203,37 @@ export async function POST(req: Request) {
         return null;
       };
 
+      const normalize = (corrections: unknown): Correction[] => {
+        if (!Array.isArray(corrections)) return [];
+        return corrections.flatMap((c) => {
+          if (c && typeof c === "object" && "mistake" in c) {
+            return [{ mistake: String(c.mistake ?? ""), correct: String((c as any).correct ?? ""), reason: String((c as any).reason ?? "") }];
+          }
+          // Legacy string format "誤：X → 正：Y（Z）"
+          if (typeof c === "string") {
+            const m = c.match(/誤[：:](.+?)[→＞]正[：:](.+?)(?:[（(](.+?)[）)])?$/);
+            if (m) return [{ mistake: m[1].trim(), correct: m[2].trim(), reason: m[3]?.trim() ?? "" }];
+          }
+          return [];
+        });
+      };
+
       const cleaned = raw
         .replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/gm, "")
-        .replace(/^JSON\s*/i, "").replace(/\s*JSON\s*$/i, "")
         .trim();
 
-      // Try whole string first
       const single = tryParse(cleaned);
-      if (single) return { content: single.content, corrections: Array.isArray(single.corrections) ? single.corrections : [] };
+      if (single) return { content: single.content, corrections: normalize(single.corrections) };
 
-      // Extract ALL complete {...} objects by tracking brace depth, then merge
-      const objects: { content: string; corrections: string[] }[] = [];
-      let i = 0;
-      while (i < cleaned.length) {
-        const start = cleaned.indexOf("{", i);
-        if (start === -1) break;
-        let depth = 0, j = start;
-        while (j < cleaned.length) {
-          if (cleaned[j] === "{") depth++;
-          else if (cleaned[j] === "}") { depth--; if (depth === 0) break; }
-          j++;
-        }
-        const parsed = tryParse(cleaned.slice(start, j + 1));
-        if (parsed) objects.push({ content: parsed.content, corrections: Array.isArray(parsed.corrections) ? parsed.corrections : [] });
-        i = j + 1;
-      }
-
-      if (objects.length > 0) {
-        return {
-          content: objects.map(o => o.content).join("\n"),
-          corrections: objects.flatMap(o => o.corrections),
-        };
+      // Extract first valid JSON object by brace depth
+      let depth = 0, start = -1;
+      for (let i = 0; i < cleaned.length; i++) {
+        if (cleaned[i] === "{") { if (depth === 0) start = i; depth++; }
+        else if (cleaned[i] === "}") { depth--; if (depth === 0 && start !== -1) {
+          const parsed = tryParse(cleaned.slice(start, i + 1));
+          if (parsed) return { content: parsed.content, corrections: normalize(parsed.corrections) };
+          start = -1;
+        }}
       }
 
       return { content: raw, corrections: [] };
