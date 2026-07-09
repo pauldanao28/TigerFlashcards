@@ -206,17 +206,23 @@ export default function AdminChat({ userId }: { userId: string }) {
       if (result.data) result = { ...result, data: [...result.data].reverse() };
       const { data, error } = result;
 
+      const normalizeMsg = (m: any): Message => ({
+        ...m,
+        corrections: Array.isArray(m.corrections) ? m.corrections
+          : typeof m.corrections === "string" ? (() => { try { return JSON.parse(m.corrections); } catch { return []; } })()
+          : [],
+      });
       const validMsg = (m: Message) => m && typeof m.content === "string" && m.content.length > 0;
       if (!error && data && data.length > 0) {
         const seen = new Set<string>();
-        const loaded = (data as Message[]).filter(m => !seen.has(m.id) && seen.add(m.id)).filter(validMsg);
+        const loaded = (data as Message[]).map(normalizeMsg).filter(m => !seen.has(m.id) && seen.add(m.id)).filter(validMsg);
         setMessages(loaded);
         localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(loaded));
       } else {
         try {
           const saved = localStorage.getItem(chatStorageKey(activePersona));
           if (saved) {
-            const parsed: Message[] = JSON.parse(saved).filter(validMsg);
+            const parsed: Message[] = JSON.parse(saved).map(normalizeMsg).filter(validMsg);
             if (parsed.length > 0) {
               setMessages(parsed);
               supabase.from("sensei_messages").upsert(
@@ -824,7 +830,7 @@ export default function AdminChat({ userId }: { userId: string }) {
                   {renderContent(msg.content, msg.role)}
                 </div>
               </div>
-              {msg.role === "user" && msg.corrections && msg.corrections.length > 0 && (
+              {msg.role === "user" && Array.isArray(msg.corrections) && msg.corrections.length > 0 && (
                 <div className="flex justify-end mt-1.5">
                   <div className="max-w-[85%] bg-rose-50 border border-rose-100 rounded-2xl rounded-tr-sm px-4 py-3">
                     <p className="text-[9px] font-black uppercase tracking-widest text-rose-400 mb-2">📝 Grammar Note</p>
