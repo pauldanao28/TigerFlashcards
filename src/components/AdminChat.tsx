@@ -374,7 +374,8 @@ export default function AdminChat({ userId }: { userId: string }) {
       const finalMessages: Message[] = [...patchedUpdated, modelMsg];
       setMessages(finalMessages);
       localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(finalMessages));
-      supabase.from("sensei_messages").upsert({ ...modelMsg, user_id: userId, persona: activePersona }, { onConflict: "id" });
+      supabase.from("sensei_messages").upsert({ ...modelMsg, user_id: userId, persona: activePersona }, { onConflict: "id" })
+        .then(({ error }) => { if (error) console.error("[DB model]", error.code, error.message); });
       if (corrections.length > 0) {
         const patchedUser = patchedUpdated[patchedUpdated.length - 1];
         supabase.from("sensei_messages").upsert({ ...patchedUser, user_id: userId, persona: activePersona }, { onConflict: "id" });
