@@ -314,7 +314,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   }, [messagesLoading, messages.length, activePersona]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView({ behavior: "instant" });
   }, [messages, loading]);
 
   // Keep sheetOpenRef in sync so the viewport effect can read it without a stale closure
@@ -379,25 +379,26 @@ export default function AdminChat({ userId }: { userId: string }) {
     }, 1000);
   }, [userId]);
 
-  // Track visual viewport so the layout stays above the keyboard on iOS + Android
+  // Track visual viewport so the layout stays above the keyboard on iOS + Android.
+  // cancelAnimationFrame prevents layout thrash from rapid-fire resize events during keyboard animation.
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv || !containerRef.current) return;
+    let rafId: number;
     const update = () => {
-      if (!containerRef.current) return;
-      containerRef.current.style.height = `${vv.height}px`;
-      containerRef.current.style.top = `${vv.offsetTop}px`;
-      // Don't scroll the chat when the word sheet is open — user is reading
-      if (!sheetOpenRef.current) {
-        requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: "instant" }));
-      }
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        if (!containerRef.current) return;
+        containerRef.current.style.height = `${vv.height}px`;
+        containerRef.current.style.top = `${vv.offsetTop}px`;
+        if (!sheetOpenRef.current) bottomRef.current?.scrollIntoView({ behavior: "instant" });
+      });
     };
     vv.addEventListener("resize", update);
-    vv.addEventListener("scroll", update);
     update();
     return () => {
       vv.removeEventListener("resize", update);
-      vv.removeEventListener("scroll", update);
+      cancelAnimationFrame(rafId);
     };
   }, []);
 
@@ -444,6 +445,7 @@ export default function AdminChat({ userId }: { userId: string }) {
     supabase.from("sensei_messages").upsert({ ...userMsg, user_id: userId, persona: activePersona }, { onConflict: "id" })
       .then(({ error }) => { if (error) console.error("[DB]", error.code, error.message); });
     setInput("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
     setLoading(true);
 
     try {
@@ -1083,12 +1085,19 @@ export default function AdminChat({ userId }: { userId: string }) {
       <div className="bg-white border-t border-slate-100 px-4 pt-4" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
         <div className="flex items-end gap-3 max-w-3xl mx-auto">
           <textarea ref={textareaRef} value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              e.target.style.height = "auto";
+              e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`;
+            }}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !loading) { e.preventDefault(); sendMessage(); } }}
             placeholder="日本語で話しかけてください…"
             rows={1}
-            className="flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all max-h-40 overflow-y-auto"
-            style={{ fieldSizing: "content" } as React.CSSProperties} />
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            className="flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-colors overflow-y-auto"
+            style={{ maxHeight: "10rem" }} />
           <button onClick={sendMessage} disabled={!input.trim() || loading || messagesLoading}
             className="bg-indigo-600 text-white w-12 h-12 rounded-2xl flex items-center justify-center hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
             <Send size={16} />
