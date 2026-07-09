@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 const VOICES: Record<string, string> = {
-  "ja-JP": "ja-JP-Wavenet-D",
+  "ja-JP": "ja-JP-Wavenet-A",
   "en-US": "en-US-Standard-C",
 };
 
