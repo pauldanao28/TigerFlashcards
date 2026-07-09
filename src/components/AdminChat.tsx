@@ -151,6 +151,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [activeScenario, setActiveScenario] = useState("free");
   const [recap, setRecap] = useState<any | null>(null);
   const [recapLoading, setRecapLoading] = useState(false);
+  const [recapConfirm, setRecapConfirm] = useState(false);
   const greetingFiredRef = useRef(false);
 
   const lastAnalyzedIndexRef = useRef(0);
@@ -724,10 +725,20 @@ export default function AdminChat({ userId }: { userId: string }) {
           <p className="text-[9px] font-black uppercase tracking-widest text-slate-300">Choose your sensei</p>
           <div className="flex items-center gap-1">
             {/* Session recap */}
-            <button onClick={generateRecap} disabled={recapLoading || messages.length < 2} title="Session recap"
-              className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-xl transition-colors text-slate-300 hover:text-amber-500 hover:bg-amber-50 disabled:opacity-30">
-              {recapLoading ? <Loader2 size={13} className="animate-spin" /> : <ScrollText size={13} />}
-            </button>
+            {recapConfirm ? (
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] text-slate-500 font-bold">Recap?</span>
+                <button onClick={() => { setRecapConfirm(false); generateRecap(); }}
+                  className="text-[11px] font-black text-emerald-600 hover:text-emerald-700 px-1.5 py-1 rounded-lg hover:bg-emerald-50 transition-colors">Yes</button>
+                <button onClick={() => setRecapConfirm(false)}
+                  className="text-[11px] font-black text-slate-400 hover:text-slate-600 px-1.5 py-1 rounded-lg hover:bg-slate-100 transition-colors">No</button>
+              </div>
+            ) : (
+              <button onClick={() => setRecapConfirm(true)} disabled={recapLoading || messages.length < 2} title="Session recap"
+                className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-xl transition-colors text-slate-300 hover:text-amber-500 hover:bg-amber-50 disabled:opacity-30">
+                {recapLoading ? <Loader2 size={13} className="animate-spin" /> : <ScrollText size={13} />}
+              </button>
+            )}
             <button onClick={() => setShowList(true)} className="relative flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-indigo-600 transition-colors px-2 py-1.5 rounded-xl hover:bg-indigo-50">
               <List size={13} />
               {wordList.length > 0 && (
