@@ -83,6 +83,9 @@ type Segment =
   | { type: "annotated"; text: string; reading: string }
   | { type: "plain"; text: string };
 
+const jaSegmenter = new Intl.Segmenter("ja", { granularity: "word" });
+const kanjiRe = /[一-龯㐀-䶿々〻]/;
+
 // ── Furigana parser ───────────────────────────────────────────────────────────
 // Tappable if word STARTS with kanji — allows okurigana suffix (食べる, 頑張って).
 // Rejects words where kana precedes kanji (お願い) or no kanji at all (ありがとう).
@@ -431,6 +434,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       .then(d => setTooltip(prev => prev ? {
         ...prev,
         jishoLoading: false,
+        reading: prev.reading || (d.found ? d.reading : ""),
         jishoMeanings: d.found ? d.meanings : [],
         jlpt: d.found ? d.jlpt : [],
         isCommon: d.found ? d.is_common : false,
@@ -526,32 +530,41 @@ export default function AdminChat({ userId }: { userId: string }) {
   // ── Render message content ──────────────────────────────────────────────────
   const renderContent = (text: string, role: "user" | "model") => {
     if (role === "user") return <span>{text}</span>;
-    const segments = parseFurigana(text);
-    return (
-      <>
-        {segments.map((seg, i) => {
-          if (seg.type !== "annotated") return <span key={i}>{seg.text}</span>;
-          const isKanji = (ch: string) => /[一-龯㐀-䶿々〻]/.test(ch);
-          return (
-            <span key={i} className="cursor-pointer active:opacity-60 transition-opacity"
-              onClick={(e) => handleWordClick(seg.text, seg.reading, e)}
-              onTouchStart={(e) => { touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
-              onTouchEnd={(e) => {
-                const start = touchStartRef.current;
-                touchStartRef.current = null;
-                if (!start) return;
-                const dx = Math.abs(e.changedTouches[0].clientX - start.x);
-                const dy = Math.abs(e.changedTouches[0].clientY - start.y);
-                if (dx < 8 && dy < 8) { e.preventDefault(); handleWordClick(seg.text, seg.reading, e as unknown as React.MouseEvent); }
-              }}>
-              {seg.text.split("").map((ch, ci) =>
-                isKanji(ch) ? <span key={ci} className="underline decoration-dotted decoration-indigo-400 underline-offset-2">{ch}</span> : ch
-              )}
-            </span>
-          );
-        })}
-      </>
+
+    const makeWordSpan = (word: string, reading: string, key: string) => (
+      <span key={key} className="cursor-pointer active:opacity-60 transition-opacity"
+        onClick={(e) => handleWordClick(word, reading, e)}
+        onTouchStart={(e) => { touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
+        onTouchEnd={(e) => {
+          const start = touchStartRef.current;
+          touchStartRef.current = null;
+          if (!start) return;
+          const dx = Math.abs(e.changedTouches[0].clientX - start.x);
+          const dy = Math.abs(e.changedTouches[0].clientY - start.y);
+          if (dx < 8 && dy < 8) { e.preventDefault(); handleWordClick(word, reading, e as unknown as React.MouseEvent); }
+        }}>
+        {word.split("").map((ch, ci) =>
+          kanjiRe.test(ch) ? <span key={ci} className="underline decoration-dotted decoration-indigo-400 underline-offset-2">{ch}</span> : ch
+        )}
+      </span>
     );
+
+    const elements: React.ReactNode[] = [];
+    parseFurigana(text).forEach((seg, i) => {
+      if (seg.type === "annotated") {
+        elements.push(makeWordSpan(seg.text, seg.reading, `a${i}`));
+      } else {
+        // Make kanji words in plain (unannotated) text tappable too; reading comes from Jisho on tap
+        [...jaSegmenter.segment(seg.text)].forEach((sub, si) => {
+          if (sub.isWordLike && kanjiRe.test(sub.segment)) {
+            elements.push(makeWordSpan(sub.segment, "", `p${i}-${si}`));
+          } else {
+            elements.push(<span key={`p${i}-${si}`}>{sub.segment}</span>);
+          }
+        });
+      }
+    });
+    return <>{elements}</>;
   };
 
   return (
