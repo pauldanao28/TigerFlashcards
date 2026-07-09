@@ -83,8 +83,17 @@ type Segment =
   | { type: "annotated"; text: string; reading: string }
   | { type: "plain"; text: string };
 
-const jaSegmenter = new Intl.Segmenter("ja", { granularity: "word" });
 const kanjiRe = /[一-龯㐀-䶿々〻]/;
+
+// Lazy-init: avoid module-level Intl.Segmenter which crashes during Next.js SSR
+let _jaSegmenter: Intl.Segmenter | null = null;
+function getSegmenter(): Intl.Segmenter | null {
+  if (typeof window === "undefined") return null;
+  if (!_jaSegmenter) {
+    try { _jaSegmenter = new Intl.Segmenter("ja", { granularity: "word" }); } catch { return null; }
+  }
+  return _jaSegmenter;
+}
 
 // ── Furigana parser ───────────────────────────────────────────────────────────
 // Tappable if word STARTS with kanji — allows okurigana suffix (食べる, 頑張って).
@@ -455,9 +464,9 @@ export default function AdminChat({ userId }: { userId: string }) {
     // "First" correctly handles both verb conjugations (食べてください → 食べ)
     // and greedy furigana phrases (今日も元気に日本語 → 今日).
     const extractWord = (text: string): string => {
-      const segmenter = new Intl.Segmenter("ja", { granularity: "word" });
-      const kanjiRe = /[一-龯々〻㐀-䶿]/;
-      const first = [...segmenter.segment(text)].find(s => s.isWordLike && kanjiRe.test(s.segment));
+      const seg = getSegmenter();
+      if (!seg) return text;
+      const first = [...seg.segment(text)].find(s => s.isWordLike && kanjiRe.test(s.segment));
       return first?.segment ?? text;
     };
     const editWord = extractWord(word);
@@ -573,6 +582,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   // ── Render message content ──────────────────────────────────────────────────
   const renderContent = (text: string, role: "user" | "model") => {
     if (role === "user") return <span>{text}</span>;
+    try {
 
     const makeWordSpan = (word: string, reading: string, key: string) => (
       <span key={key} className="cursor-pointer active:opacity-60 transition-opacity"
@@ -599,7 +609,9 @@ export default function AdminChat({ userId }: { userId: string }) {
         if (seg.type === "annotated") {
           nodes.push(makeWordSpan(seg.text, seg.reading, `${kp}-a${si}`));
         } else {
-          [...jaSegmenter.segment(seg.text)].forEach((sub, subI) => {
+          const segmenter = getSegmenter();
+          const subSegs = segmenter ? [...segmenter.segment(seg.text)] : [{ segment: seg.text, isWordLike: false }];
+          subSegs.forEach((sub, subI) => {
             if (sub.isWordLike && kanjiRe.test(sub.segment)) {
               nodes.push(makeWordSpan(sub.segment, "", `${kp}-p${si}-${subI}`));
             } else {
@@ -650,6 +662,10 @@ export default function AdminChat({ userId }: { userId: string }) {
         })}
       </>
     );
+    } catch {
+      // Fallback: render plain text so a bad message never crashes the app
+      return <span>{text}</span>;
+    }
   };
 
   return (
