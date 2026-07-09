@@ -138,7 +138,7 @@ export async function POST(req: Request) {
     const systemInstruction = buildSystemPrompt(persona, profile ?? null, pendingWords, scenario);
 
     const tryWithModel = async (modelName: string) => {
-      const model = genAI.getGenerativeModel({ model: modelName, systemInstruction });
+      const model = genAI.getGenerativeModel({ model: modelName, systemInstruction, generationConfig: { frequencyPenalty: 0.3 } });
       let lastError: unknown;
 
       // Greeting mode: generate an opening message with no user input
