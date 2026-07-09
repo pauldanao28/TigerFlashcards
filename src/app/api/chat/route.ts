@@ -205,22 +205,34 @@ export async function POST(req: Request) {
         .replace(/^JSON\s*/i, "").replace(/\s*JSON\s*$/i, "")
         .trim();
 
-      // First try the whole cleaned string, then fall back to first {...} block
-      // (handles the model adding extra text before/after the JSON)
-      const parsed =
-        tryParse(cleaned) ??
-        (() => {
-          const start = cleaned.indexOf("{");
-          const end = cleaned.lastIndexOf("}");
-          return start !== -1 && end > start ? tryParse(cleaned.slice(start, end + 1)) : null;
-        })();
+      // Try whole string first
+      const single = tryParse(cleaned);
+      if (single) return { content: single.content, corrections: Array.isArray(single.corrections) ? single.corrections : [] };
 
-      if (parsed) {
+      // Extract ALL complete {...} objects by tracking brace depth, then merge
+      const objects: { content: string; corrections: string[] }[] = [];
+      let i = 0;
+      while (i < cleaned.length) {
+        const start = cleaned.indexOf("{", i);
+        if (start === -1) break;
+        let depth = 0, j = start;
+        while (j < cleaned.length) {
+          if (cleaned[j] === "{") depth++;
+          else if (cleaned[j] === "}") { depth--; if (depth === 0) break; }
+          j++;
+        }
+        const parsed = tryParse(cleaned.slice(start, j + 1));
+        if (parsed) objects.push({ content: parsed.content, corrections: Array.isArray(parsed.corrections) ? parsed.corrections : [] });
+        i = j + 1;
+      }
+
+      if (objects.length > 0) {
         return {
-          content: typeof parsed.content === "string" ? parsed.content : raw,
-          corrections: Array.isArray(parsed.corrections) ? parsed.corrections : [],
+          content: objects.map(o => o.content).join("\n"),
+          corrections: objects.flatMap(o => o.corrections),
         };
       }
+
       return { content: raw, corrections: [] };
     };
 
