@@ -32,7 +32,18 @@ interface Message {
   role: "user" | "model";
   content: string;
   timestamp: number;
+  corrections?: string[];
 }
+
+const SCENARIOS: { id: string; emoji: string; labelEn: string; labelJp: string; prompt: string }[] = [
+  { id: "free",       emoji: "💬", labelEn: "Free Chat",    labelJp: "自由会話",  prompt: "" },
+  { id: "ramen",      emoji: "🍜", labelEn: "Ramen Shop",   labelJp: "ラーメン屋", prompt: "今日はラーメン屋のロールプレイシナリオです。生徒はお客として来店しています。注文・メニュー確認・お会計などの場面を自然に展開し、食べ物に関する語彙を積極的に使ってください。" },
+  { id: "basketball", emoji: "🏀", labelEn: "Basketball",   labelJp: "バスケ練習",  prompt: "今日はバスケットボールの練習後のシナリオです。チームメートとの会話・励まし・作戦・反省などのカジュアルな日本語を中心に使ってください。" },
+  { id: "konbini",    emoji: "🏪", labelEn: "Convenience",  labelJp: "コンビニ",   prompt: "今日はコンビニでのシナリオです。生徒はお客として来店。商品を探す・店員に質問・レジで会計するシーンを練習してください。" },
+  { id: "interview",  emoji: "💼", labelEn: "Interview",    labelJp: "就職面接",   prompt: "今日は就職面接のロールプレイです。敬語（尊敬語・謙譲語）を中心に、自己紹介・志望動機・強み弱みなど面接定番の質問と答え方を練習してください。" },
+  { id: "travel",     emoji: "✈️", labelEn: "Travel",       labelJp: "旅行",      prompt: "今日は日本旅行のシナリオです。ホテルのチェックイン・観光地での道案内・お土産屋での買い物など、旅行中に使う日本語を練習してください。" },
+  { id: "doctor",     emoji: "🏥", labelEn: "Doctor Visit", labelJp: "病院",      prompt: "今日は病院でのシナリオです。受付・医師への症状説明・薬局での対応など、医療・健康に関する語彙と表現を練習してください。" },
+];
 
 interface SenseiProfile {
   level?: string;
@@ -60,7 +71,11 @@ interface Tooltip {
   x: number;
   y: number;
   adding: boolean;
-  knownEnglish?: string | null; // set after vocab lookup
+  knownEnglish?: string | null;
+  jishoLoading?: boolean;
+  jishoMeanings?: { definition: string; pos: string }[];
+  jlpt?: string[];
+  isCommon?: boolean;
 }
 
 type Segment =
@@ -115,6 +130,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [showSummary, setShowSummary] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(true);
   const [weakCards, setWeakCards] = useState<string[]>([]);
+  const [activeScenario, setActiveScenario] = useState("free");
   const [recap, setRecap] = useState<any | null>(null);
   const [recapLoading, setRecapLoading] = useState(false);
   const greetingFiredRef = useRef(false);
@@ -215,7 +231,7 @@ export default function AdminChat({ userId }: { userId: string }) {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: [], profile, persona: activePersona, pendingWords: [], weakCards, greeting: true }),
+          body: JSON.stringify({ messages: [], profile, persona: activePersona, pendingWords: [], weakCards, greeting: true, scenario: SCENARIOS.find(s => s.id === activeScenario) }),
         });
         if (!res.ok) return;
         const data = await res.json();
@@ -320,7 +336,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: updated.slice(-20), profile, persona: activePersona, pendingWords: wordList, weakCards }),
+        body: JSON.stringify({ messages: updated.slice(-20), profile, persona: activePersona, pendingWords: wordList, weakCards, scenario: SCENARIOS.find(s => s.id === activeScenario) }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -329,7 +345,12 @@ export default function AdminChat({ userId }: { userId: string }) {
       const data = await res.json();
       if (!data.content) throw new Error("Empty response");
       const modelMsg: Message = { id: uuid(), role: "model" as const, content: data.content, timestamp: Date.now() };
-      const finalMessages = [...updated, modelMsg];
+      // Attach grammar corrections to the user message that triggered them
+      const corrections: string[] = data.corrections ?? [];
+      const patchedUpdated: Message[] = corrections.length > 0
+        ? [...updated.slice(0, -1), { ...updated[updated.length - 1], corrections }]
+        : updated;
+      const finalMessages: Message[] = [...patchedUpdated, modelMsg];
       setMessages(finalMessages);
       localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(finalMessages));
       supabase.from("sensei_messages").upsert({ ...modelMsg, user_id: userId, persona: activePersona }, { onConflict: "id" });
@@ -355,18 +376,31 @@ export default function AdminChat({ userId }: { userId: string }) {
   const handleWordClick = useCallback((word: string, reading: string, e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
     const rect = (e.target as HTMLElement).getBoundingClientRect();
-    const tooltipH = 170;
+    const tooltipH = 240;
     const spaceBelow = window.innerHeight - rect.bottom;
     const y = spaceBelow > tooltipH ? rect.bottom + 8 : rect.top - tooltipH - 8;
     const editWord = word.replace(/^[ぁ-んァ-ヿ]+/, "") || word;
-    setTooltip({ word, reading, editWord, x: Math.min(rect.left, window.innerWidth - 260), y: Math.max(8, y), adding: false, knownEnglish: undefined });
-    // Async vocab lookup — no extra Gemini call, just Supabase
+    setTooltip({ word, reading, editWord, x: Math.min(rect.left, window.innerWidth - 260), y: Math.max(8, y), adding: false, knownEnglish: undefined, jishoLoading: true });
+
+    // Supabase deck check
     (async () => {
       const { data: card } = await supabase.from("master_cards").select("id, english").eq("japanese", editWord).maybeSingle();
       if (!card) { setTooltip(prev => prev ? { ...prev, knownEnglish: null } : prev); return; }
       const { data: score } = await supabase.from("user_scores").select("id").eq("user_id", userId).eq("card_id", card.id).maybeSingle();
       setTooltip(prev => prev ? { ...prev, knownEnglish: score ? card.english : null } : prev);
     })();
+
+    // Jisho dictionary lookup
+    fetch(`/api/jisho?word=${encodeURIComponent(editWord)}`)
+      .then(r => r.json())
+      .then(d => setTooltip(prev => prev ? {
+        ...prev,
+        jishoLoading: false,
+        jishoMeanings: d.found ? d.meanings : [],
+        jlpt: d.found ? d.jlpt : [],
+        isCommon: d.found ? d.is_common : false,
+      } : prev))
+      .catch(() => setTooltip(prev => prev ? { ...prev, jishoLoading: false } : prev));
   }, [userId]);
 
   // ── Batch add ───────────────────────────────────────────────────────────────
@@ -527,6 +561,24 @@ export default function AdminChat({ userId }: { userId: string }) {
             );
           })}
         </div>
+
+        {/* Scenario pills */}
+        <div className="flex gap-2 overflow-x-auto mt-2.5 pb-0.5 -mx-1 px-1" style={{ scrollbarWidth: "none" }}>
+          {SCENARIOS.map(s => (
+            <button
+              key={s.id}
+              onClick={() => setActiveScenario(s.id)}
+              className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 ${
+                activeScenario === s.id
+                  ? "bg-slate-800 text-white"
+                  : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+              }`}
+            >
+              <span>{s.emoji}</span>
+              <span>{s.labelEn}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── Messages ── */}
@@ -544,19 +596,31 @@ export default function AdminChat({ userId }: { userId: string }) {
           </div>
         ) : (
           messages.map((msg) => (
-            <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              {msg.role === "model" && (
-                <div className="w-7 h-7 rounded-xl flex items-center justify-center text-sm shrink-0 mr-2 mt-1 bg-white border border-slate-100 shadow-sm">
-                  {persona.emoji}
+            <div key={msg.id}>
+              <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                {msg.role === "model" && (
+                  <div className="w-7 h-7 rounded-xl flex items-center justify-center text-sm shrink-0 mr-2 mt-1 bg-white border border-slate-100 shadow-sm">
+                    {persona.emoji}
+                  </div>
+                )}
+                <div className={`max-w-[80%] rounded-3xl px-5 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                  msg.role === "user"
+                    ? "bg-indigo-600 text-white rounded-br-lg"
+                    : "bg-white border border-slate-100 text-slate-800 shadow-sm rounded-bl-lg"
+                }`}>
+                  {renderContent(msg.content, msg.role)}
+                </div>
+              </div>
+              {msg.role === "user" && msg.corrections && msg.corrections.length > 0 && (
+                <div className="flex justify-end mt-1.5">
+                  <div className="max-w-[85%] bg-rose-50 border border-rose-100 rounded-2xl rounded-tr-sm px-4 py-3">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-rose-400 mb-2">📝 Grammar Note</p>
+                    {msg.corrections.map((c, i) => (
+                      <p key={i} className="text-xs text-rose-700 font-medium leading-relaxed">{c}</p>
+                    ))}
+                  </div>
                 </div>
               )}
-              <div className={`max-w-[80%] rounded-3xl px-5 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-                msg.role === "user"
-                  ? "bg-indigo-600 text-white rounded-br-lg"
-                  : "bg-white border border-slate-100 text-slate-800 shadow-sm rounded-bl-lg"
-              }`}>
-                {renderContent(msg.content, msg.role)}
-              </div>
             </div>
           ))
         )}
@@ -583,18 +647,44 @@ export default function AdminChat({ userId }: { userId: string }) {
           <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
             style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
             onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="flex items-start justify-between gap-3 mb-3">
               <div>
-                <div className="text-2xl font-black text-slate-800">{tooltip.editWord}</div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="text-2xl font-black text-slate-800">{tooltip.editWord}</div>
+                  {tooltip.jlpt && tooltip.jlpt.length > 0 && (
+                    <span className="bg-amber-100 text-amber-700 text-[9px] font-black px-1.5 py-0.5 rounded-full">{tooltip.jlpt[0].toUpperCase()}</span>
+                  )}
+                  {tooltip.isCommon && (
+                    <span className="bg-emerald-100 text-emerald-700 text-[9px] font-black px-1.5 py-0.5 rounded-full">common</span>
+                  )}
+                </div>
                 <div className="text-sm text-indigo-500 font-bold mt-0.5">{tooltip.reading}</div>
                 {tooltip.knownEnglish && (
-                  <div className="mt-1.5 inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full">
-                    ✓ {tooltip.knownEnglish}
+                  <div className="mt-1 inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                    ✓ in your deck
                   </div>
                 )}
               </div>
-              <button onClick={() => setTooltip(null)} className="text-slate-300 hover:text-slate-500 mt-1"><X size={16} /></button>
+              <button onClick={() => setTooltip(null)} className="text-slate-300 hover:text-slate-500 mt-1 shrink-0"><X size={16} /></button>
             </div>
+
+            {/* Jisho meanings */}
+            {tooltip.jishoLoading && (
+              <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-3">
+                <Loader2 size={11} className="animate-spin" />
+                <span>Looking up definition…</span>
+              </div>
+            )}
+            {!tooltip.jishoLoading && tooltip.jishoMeanings && tooltip.jishoMeanings.length > 0 && (
+              <div className="mb-3 pb-3 border-b border-slate-100">
+                {tooltip.jishoMeanings.map((m, i) => (
+                  <div key={i} className="mb-1">
+                    {m.pos && <span className="text-[9px] text-slate-400 font-bold mr-1">{m.pos}</span>}
+                    <span className="text-xs text-slate-700">{m.definition}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Word to add</label>
             <input
               type="text"

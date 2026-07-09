@@ -9,7 +9,13 @@ const FURIGANA_RULES = `
 - 【絶対】漢字を一字も含まない語（ひらがな・カタカナのみの語、助詞など）にはふりがなを一切付けないこと。
 - 常に日本語のみで返答すること。ユーザーが英語で書いても日本語で返す。
 - 普通の会話・返答は2〜3文以内に収める。ただし、ユーザーの間違いを指摘・訂正する時は、引用・正しい形・理由・例文を含む詳しい説明をすること。
-- 会話が途切れそうな時や自然なタイミングで、ユーザーの趣味・目標・最近の話題に関連した新しい話題を提案したり、質問したりすること。`;
+- 会話が途切れそうな時や自然なタイミングで、ユーザーの趣味・目標・最近の話題に関連した新しい話題を提案したり、質問したりすること。
+
+## 出力形式（必須・毎回）
+毎回、必ず以下のJSON形式のみで返答すること（マークダウン・コードブロック・余分なテキスト一切不要）：
+{"content":"[日本語の返答文]","corrections":[]}
+ユーザーの日本語に文法・助詞・語彙の間違いがある場合のみcorrectionsに追加。形式：「誤：〜 → 正：〜（理由・例）」
+間違いがなければcorrections:[]のまま。`;
 
 const PERSONAS: Record<string, string> = {
   senpai: `あなたは「先輩」、日本語学習を応援する頼れる年上の友達キャラです。
@@ -72,8 +78,17 @@ interface SenseiProfile {
   notes?: string;
 }
 
-function buildSystemPrompt(persona: string, profile: SenseiProfile | null, pendingWords: string[]): string {
-  const base = PERSONAS[persona] ?? PERSONAS.senpai;
+interface Scenario {
+  id: string;
+  prompt: string;
+}
+
+function buildSystemPrompt(persona: string, profile: SenseiProfile | null, pendingWords: string[], scenario?: Scenario): string {
+  let base = PERSONAS[persona] ?? PERSONAS.senpai;
+
+  if (scenario?.prompt) {
+    base += `\n\n## 今日のシナリオ\n${scenario.prompt}\nこのシナリオに合った語彙・表現を積極的に使い、リアルな会話練習を展開してください。`;
+  }
 
   const lines: string[] = [];
 
@@ -117,9 +132,9 @@ const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 export async function POST(req: Request) {
   try {
-    const { messages, profile, persona = "senpai", pendingWords = [], weakCards = [], greeting = false } = await req.json();
+    const { messages, profile, persona = "senpai", pendingWords = [], weakCards = [], greeting = false, scenario } = await req.json();
 
-    const systemInstruction = buildSystemPrompt(persona, profile ?? null, pendingWords);
+    const systemInstruction = buildSystemPrompt(persona, profile ?? null, pendingWords, scenario);
 
     const tryWithModel = async (modelName: string) => {
       const model = genAI.getGenerativeModel({ model: modelName, systemInstruction });
@@ -175,14 +190,26 @@ export async function POST(req: Request) {
       throw lastError;
     };
 
-    try {
-      const content = await tryWithModel("gemini-2.5-flash-lite");
-      return NextResponse.json({ content });
-    } catch {
-      // Lite model exhausted — fall back to full flash
+    const parseResponse = (raw: string): { content: string; corrections: string[] } => {
       try {
-        const content = await tryWithModel("gemini-2.5-flash");
-        return NextResponse.json({ content });
+        const cleaned = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/gm, "").trim();
+        const parsed = JSON.parse(cleaned);
+        return {
+          content: typeof parsed.content === "string" ? parsed.content : raw,
+          corrections: Array.isArray(parsed.corrections) ? parsed.corrections : [],
+        };
+      } catch {
+        return { content: raw, corrections: [] };
+      }
+    };
+
+    try {
+      const raw = await tryWithModel("gemini-2.5-flash-lite");
+      return NextResponse.json(parseResponse(raw));
+    } catch {
+      try {
+        const raw = await tryWithModel("gemini-2.5-flash");
+        return NextResponse.json(parseResponse(raw));
       } catch (e) {
         const detail = e instanceof Error ? e.message : String(e);
         console.error("Chat API error (both models failed):", detail);
