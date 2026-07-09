@@ -89,7 +89,9 @@ type Segment =
 // Furigana parentheses are always stripped so they never appear in chat text.
 function parseFurigana(text: string): Segment[] {
   const parts: Segment[] = [];
-  const regex = /([^\s（(、。！？\n「」『』【】〔〕…・　]+)[（(]([ぁ-んァ-ンっーゃゅょ・]+)[）)]/g;
+  // Match kanji word (with optional okurigana) + reading. First char must be kanji so particles
+  // like の between two words don't get swallowed into the annotated segment.
+  const regex = /([一-龯々〻㐀-䶿][一-龯々〻㐀-䶿ぁ-ん]*)[（(]([ぁ-んァ-ンっーゃゅょ・]+)[）)]/g;
   const containsKanji = /[一-龯々〻㐀-䶿ヶ]/;
   let lastIndex = 0;
   let match;
