@@ -384,17 +384,19 @@ export default function AdminChat({ userId }: { userId: string }) {
     const tooltipH = 240;
     const spaceBelow = window.innerHeight - rect.bottom;
     const y = spaceBelow > tooltipH ? rect.bottom + 8 : rect.top - tooltipH - 8;
-    // Extract just the kanji compound being tapped.
-    // Handles mixed phrases like "今日も元気に日本語" → "日本語",
-    // and verbs with okurigana like "食べる" → "食べる".
+    // Use Intl.Segmenter to extract the best kanji word from the tapped segment.
     const extractWord = (text: string): string => {
-      const noLeading = text.replace(/^[ぁ-んァ-ヿっー]+/, "");
-      // Clean compound: starts with kanji, optional trailing kana (okurigana)
-      if (/^[一-龯々〻㐀-䶿][一-龯々〻㐀-䶿ぁ-んァ-ヿっー]*$/.test(noLeading)) return noLeading || text;
-      // Mixed phrase: split on kana that precede kanji, take the last kanji segment
-      const segs = noLeading.split(/[ぁ-んっー]+(?=[一-龯々〻㐀-䶿])/);
-      const last = segs.filter(s => /[一-龯々〻㐀-䶿]/.test(s)).at(-1);
-      return last ?? noLeading ?? text;
+      const segmenter = new Intl.Segmenter("ja", { granularity: "word" });
+      const segments = [...segmenter.segment(text)]
+        .filter(s => s.isWordLike)
+        .map(s => s.segment);
+      const kanjiRe = /[一-龯々〻㐀-䶿]/;
+      const withKanji = segments.filter(s => kanjiRe.test(s));
+      if (withKanji.length === 0) return text;
+      // Pick the segment with the most kanji characters
+      return withKanji.reduce((a, b) =>
+        (b.split("").filter(c => kanjiRe.test(c)).length >= a.split("").filter(c => kanjiRe.test(c)).length ? b : a)
+      );
     };
     const editWord = extractWord(word);
     setTooltip({ word, reading, editWord, x: Math.min(rect.left, window.innerWidth - 260), y: Math.max(8, y), adding: false, knownEnglish: undefined, jishoLoading: true });
