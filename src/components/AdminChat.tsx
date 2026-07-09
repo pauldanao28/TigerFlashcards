@@ -88,6 +88,7 @@ type Segment =
 // Rejects words where kana precedes kanji (お願い) or no kanji at all (ありがとう).
 // Furigana parentheses are always stripped so they never appear in chat text.
 function parseFurigana(text: string): Segment[] {
+  if (!text) return [];
   const parts: Segment[] = [];
   // Match kanji word (with optional okurigana) + reading. First char must be kanji so particles
   // like の between two words don't get swallowed into the annotated segment.
@@ -175,16 +176,17 @@ export default function AdminChat({ userId }: { userId: string }) {
         .eq("persona", activePersona)
         .order("timestamp", { ascending: true });
 
+      const validMsg = (m: Message) => m && typeof m.content === "string" && m.content.length > 0;
       if (!error && data && data.length > 0) {
         const seen = new Set<string>();
-        const loaded = (data as Message[]).filter(m => !seen.has(m.id) && seen.add(m.id));
+        const loaded = (data as Message[]).filter(m => !seen.has(m.id) && seen.add(m.id)).filter(validMsg);
         setMessages(loaded);
         localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(loaded));
       } else {
         try {
           const saved = localStorage.getItem(chatStorageKey(activePersona));
           if (saved) {
-            const parsed: Message[] = JSON.parse(saved);
+            const parsed: Message[] = JSON.parse(saved).filter(validMsg);
             if (parsed.length > 0) {
               setMessages(parsed);
               supabase.from("sensei_messages").upsert(
