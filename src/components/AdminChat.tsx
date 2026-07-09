@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { Send, Trash2, X, Loader2, List, Plus, ScrollText } from "lucide-react";
+import { Send, Trash2, X, Loader2, List, Plus, ScrollText, Volume2, VolumeX } from "lucide-react";
 
 function uuid(): string {
   try { return self.crypto.randomUUID(); } catch { /* fall through */ }
@@ -152,6 +152,9 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [recap, setRecap] = useState<any | null>(null);
   const [recapLoading, setRecapLoading] = useState(false);
   const [recapConfirm, setRecapConfirm] = useState(false);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [jaVoices, setJaVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState<string>("");
   const greetingFiredRef = useRef(false);
 
   const lastAnalyzedIndexRef = useRef(0);
@@ -174,6 +177,30 @@ export default function AdminChat({ userId }: { userId: string }) {
     setMessagesLoading(true);
     lastAnalyzedIndexRef.current = 0;
     greetingFiredRef.current = false;
+  };
+
+  // ── Load available Japanese TTS voices ────────────────────────────────────
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    const STORAGE_KEY = "flashkado-tts-voice";
+    const saved = localStorage.getItem(STORAGE_KEY) ?? "";
+    const load = () => {
+      const all = window.speechSynthesis.getVoices();
+      const ja = all.filter(v => v.lang.startsWith("ja"));
+      if (ja.length > 0) {
+        setJaVoices(ja);
+        const valid = ja.find(v => v.voiceURI === saved);
+        setSelectedVoiceURI(valid ? saved : "");
+      }
+    };
+    load();
+    window.speechSynthesis.onvoiceschanged = load;
+    return () => { window.speechSynthesis.onvoiceschanged = null; };
+  }, []);
+
+  const handleVoiceChange = (uri: string) => {
+    setSelectedVoiceURI(uri);
+    localStorage.setItem("flashkado-tts-voice", uri);
   };
 
   // ── Load messages for active persona ───────────────────────────────────���───
@@ -635,6 +662,28 @@ export default function AdminChat({ userId }: { userId: string }) {
     }
   };
 
+  // ── Text-to-speech ─────────────────────────────────────────────────────────
+  const speakMessage = (msgId: string, text: string) => {
+    if (!window.speechSynthesis) return;
+    if (speakingId === msgId) {
+      window.speechSynthesis.cancel();
+      setSpeakingId(null);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    // Strip furigana annotations before speaking
+    const clean = text.replace(/[（(][ぁ-んァ-ンっーゃゅょ・]+[）)]/g, "");
+    const utter = new SpeechSynthesisUtterance(clean);
+    utter.lang = "ja-JP";
+    utter.rate = 0.9;
+    const voice = jaVoices.find(v => v.voiceURI === selectedVoiceURI) ?? jaVoices[0] ?? null;
+    if (voice) utter.voice = voice;
+    utter.onend = () => setSpeakingId(null);
+    utter.onerror = () => setSpeakingId(null);
+    setSpeakingId(msgId);
+    window.speechSynthesis.speak(utter);
+  };
+
   // ── Render message content ──────────────────────────────────────────────────
   const renderContent = (text: string, role: "user" | "model") => {
     if (role === "user") return <span>{text}</span>;
@@ -800,6 +849,24 @@ export default function AdminChat({ userId }: { userId: string }) {
             </button>
           ))}
         </div>
+
+        {/* Voice picker — only shown when device has multiple Japanese TTS voices */}
+        {jaVoices.length > 1 && (
+          <div className="flex items-center gap-2 mt-2.5">
+            <Volume2 size={11} className="text-slate-300 shrink-0" />
+            <select
+              value={selectedVoiceURI}
+              onChange={(e) => handleVoiceChange(e.target.value)}
+              className="flex-1 text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-100 rounded-xl px-2 py-1 appearance-none outline-none"
+            >
+              {jaVoices.map(v => (
+                <option key={v.voiceURI} value={v.voiceURI}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* ── Messages ── */}
@@ -824,12 +891,22 @@ export default function AdminChat({ userId }: { userId: string }) {
                     {persona.emoji}
                   </div>
                 )}
-                <div className={`max-w-[80%] rounded-3xl px-5 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-                  msg.role === "user"
-                    ? "bg-indigo-600 text-white rounded-br-lg"
-                    : "bg-white border border-slate-100 text-slate-800 shadow-sm rounded-bl-lg"
-                }`}>
-                  {renderContent(msg.content, msg.role)}
+                <div className="flex flex-col items-start gap-1">
+                  <div className={`max-w-full rounded-3xl px-5 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                    msg.role === "user"
+                      ? "bg-indigo-600 text-white rounded-br-lg"
+                      : "bg-white border border-slate-100 text-slate-800 shadow-sm rounded-bl-lg"
+                  }`}>
+                    {renderContent(msg.content, msg.role)}
+                  </div>
+                  {msg.role === "model" && (
+                    <button
+                      onClick={() => speakMessage(msg.id, msg.content)}
+                      className={`ml-1 flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-xl transition-colors ${speakingId === msg.id ? "text-indigo-500 bg-indigo-50" : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"}`}>
+                      {speakingId === msg.id ? <VolumeX size={11} /> : <Volume2 size={11} />}
+                      {speakingId === msg.id ? "Stop" : "Listen"}
+                    </button>
+                  )}
                 </div>
               </div>
               {msg.role === "user" && Array.isArray(msg.corrections) && msg.corrections.length > 0 && (
