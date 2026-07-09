@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { Send, Trash2, X, Loader2, List, Plus, ScrollText, Volume2, VolumeX, BookOpen } from "lucide-react";
-import { playTTS, stopTTS } from "@/lib/tts";
+import { Send, Trash2, X, Loader2, List, Plus, ScrollText, Volume2, VolumeX, BookOpen, SlidersHorizontal } from "lucide-react";
+import { playTTS, stopTTS, getVoice, setVoice, VOICE_OPTIONS, VoiceId } from "@/lib/tts";
 
 function uuid(): string {
   try { return self.crypto.randomUUID(); } catch { /* fall through */ }
@@ -154,6 +154,8 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [recapLoading, setRecapLoading] = useState(false);
   const [recapConfirm, setRecapConfirm] = useState(false);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [showVoicePicker, setShowVoicePicker] = useState(false);
+  const [selectedVoice, setSelectedVoice] = useState<VoiceId>(() => getVoice());
   const greetingFiredRef = useRef(false);
 
   const lastAnalyzedIndexRef = useRef(0);
@@ -769,6 +771,10 @@ export default function AdminChat({ userId }: { userId: string }) {
                 <span className="absolute -top-0.5 -right-0.5 bg-indigo-600 text-white text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">{wordList.length}</span>
               )}
             </button>
+            <button onClick={() => setShowVoicePicker(true)} title="Change voice"
+              className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-xl transition-colors text-slate-300 hover:text-violet-500 hover:bg-violet-50">
+              <SlidersHorizontal size={13} />
+            </button>
             <button onClick={clearChat} className="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-red-500 transition-colors px-2 py-1.5 rounded-xl hover:bg-red-50">
               <Trash2 size={13} />
             </button>
@@ -1074,6 +1080,42 @@ export default function AdminChat({ userId }: { userId: string }) {
             )}
             <div className="p-4 border-t border-slate-100">
               <button onClick={() => setRecap(null)} className="w-full py-3 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-700 transition-all active:scale-[0.98]">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Voice picker modal ── */}
+      {showVoicePicker && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+              <div>
+                <h2 className="text-base font-black text-slate-800 uppercase italic tracking-tighter">Voice</h2>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Japanese TTS · affects all audio</p>
+              </div>
+              <button onClick={() => setShowVoicePicker(false)} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400"><X size={14} /></button>
+            </div>
+            <div className="p-4 grid grid-cols-2 gap-3">
+              {VOICE_OPTIONS.map((v) => {
+                const isActive = selectedVoice === v.id;
+                return (
+                  <div key={v.id} onClick={() => { setSelectedVoice(v.id); setVoice(v.id); }}
+                    className={`cursor-pointer rounded-2xl border-2 p-4 transition-all active:scale-95 ${isActive ? "border-violet-400 bg-violet-50" : "border-slate-100 bg-slate-50 hover:border-slate-200"}`}>
+                    <div className={`text-xs font-black uppercase tracking-widest ${isActive ? "text-violet-600" : "text-slate-700"}`}>{v.label}</div>
+                    <div className={`text-[10px] font-bold mt-0.5 ${v.gender === "Female" ? "text-pink-500" : "text-blue-500"}`}>{v.gender}</div>
+                    <div className="text-[10px] text-slate-400 mt-1">{v.desc}</div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); playTTS("こんにちは！よろしくお願いします。", "ja-JP", { voice: v.id }); }}
+                      className="mt-3 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-violet-600 transition-colors">
+                      ▶ Preview
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="p-4 pt-0">
+              <button onClick={() => setShowVoicePicker(false)} className="w-full py-3 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-700 transition-all active:scale-[0.98]">Done</button>
             </div>
           </div>
         </div>

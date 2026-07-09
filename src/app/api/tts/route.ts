@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
 
-const VOICES: Record<string, string> = {
+const DEFAULT_VOICES: Record<string, string> = {
   "ja-JP": "ja-JP-Wavenet-A",
   "en-US": "en-US-Standard-C",
 };
 
 export async function POST(req: Request) {
-  const { text, lang = "ja-JP" } = await req.json();
+  const { text, lang = "ja-JP", voice } = await req.json();
   if (!text) return NextResponse.json({ error: "No text" }, { status: 400 });
 
   const apiKey = process.env.GOOGLE_TTS_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "TTS not configured" }, { status: 503 });
+
+  const voiceName = voice ?? DEFAULT_VOICES[lang] ?? DEFAULT_VOICES["ja-JP"];
 
   const res = await fetch(
     `https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`,
@@ -19,7 +21,7 @@ export async function POST(req: Request) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         input: { text },
-        voice: { languageCode: lang, name: VOICES[lang] ?? VOICES["ja-JP"] },
+        voice: { languageCode: lang, name: voiceName },
         audioConfig: { audioEncoding: "MP3", speakingRate: 0.9 },
       }),
     }
