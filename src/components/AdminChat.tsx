@@ -124,13 +124,13 @@ function parseFurigana(text: string): Segment[] {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function AdminChat({ userId }: { userId: string }) {
-  const [activePersona, setActivePersona] = useState<PersonaKey>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem(PERSONA_STORAGE_KEY) as PersonaKey | null;
-      if (saved && PERSONA_ORDER.includes(saved)) return saved;
-    }
-    return "senpai";
-  });
+  const [activePersona, setActivePersona] = useState<PersonaKey>("senpai");
+  // Sync from localStorage after hydration to avoid SSR/client mismatch
+  useEffect(() => {
+    const saved = localStorage.getItem(PERSONA_STORAGE_KEY) as PersonaKey | null;
+    if (saved && PERSONA_ORDER.includes(saved) && saved !== activePersona) setActivePersona(saved);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -239,7 +239,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       }
       setMessagesLoading(false);
     };
-    load();
+    load().catch(e => { console.error("Message load error:", e); setMessagesLoading(false); });
   }, [userId, activePersona]);
 
   // ── Fetch weak cards once on mount ─────────────────────────────────────────
@@ -266,7 +266,7 @@ export default function AdminChat({ userId }: { userId: string }) {
           .filter((c: any) => c.japanese)
       );
     };
-    fetchWeak();
+    fetchWeak().catch(e => console.error("fetchWeak error:", e));
   }, [userId]);
 
   // Build the active scenario, injecting weak card details for drill mode
