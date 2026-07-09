@@ -10,6 +10,7 @@ import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
 import { calculateGlobalStats } from "@/lib/stats";
 import LoadingScreen from "@/components/LoadingScreen";
+import { List } from "lucide-react";
 
 export default function StatsPage() {
   const router = useRouter();
@@ -57,6 +58,7 @@ export default function StatsPage() {
   const [addedWordsSummary, setAddedWordsSummary] = useState<any[]>([]);
   const [showSummaryOverlay, setShowSummaryOverlay] = useState(false);
   const [sfxEnabled, setSfxEnabled] = useState(true);
+  const [pendingWords, setPendingWords] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchTodayCount = async () => {
@@ -166,11 +168,13 @@ export default function StatsPage() {
         try {
           // Promise.all waits for all functions to finish
           // Note: Make sure your fetch functions are "async" and return the supabase promise!
-          await Promise.all([
+          const [, , , pendingData] = await Promise.all([
             fetchProfile(),
             fetchDefaultDeck(),
             fetchStarterPacks(),
+            supabase.from("profiles").select("pending_words").eq("id", user.id).single(),
           ]);
+          if (pendingData.data?.pending_words) setPendingWords(pendingData.data.pending_words);
         } catch (error) {
           console.error("Error loading stats:", error);
         } finally {
@@ -580,6 +584,14 @@ export default function StatsPage() {
     }
   };
 
+  const togglePendingWord = async (japanese: string) => {
+    const updated = pendingWords.includes(japanese)
+      ? pendingWords.filter(w => w !== japanese)
+      : [...pendingWords, japanese];
+    setPendingWords(updated);
+    await supabase.from("profiles").update({ pending_words: updated }).eq("id", user!.id);
+  };
+
   const deleteCard = async (id: string, isFromSummary = false) => {
     // Only show the browser confirm if it's NOT from the quick-summary overlay
     if (!isFromSummary && !confirm("Remove this card from your collection?"))
@@ -900,6 +912,14 @@ export default function StatsPage() {
             >
               {showBatch ? t.close : t.batch_upload}
             </button>
+
+            {pendingWords.length > 0 && (
+              <Link href="/admin/chat" className="relative flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-100 transition-all">
+                <List size={14} />
+                <span>Saved List</span>
+                <span className="absolute -top-1.5 -right-1.5 bg-indigo-600 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center">{pendingWords.length}</span>
+              </Link>
+            )}
           </div>
 
           {/* Batch Area */}
@@ -2045,6 +2065,15 @@ export default function StatsPage() {
                   {/* ACTION BUTTONS (Top Right) */}
                   {/* ACTION BUTTONS (Perfectly Aligned) */}
                   <div className="absolute top-4 right-4 flex items-center gap-1">
+                    {/* SAVE TO LIST BUTTON */}
+                    <button
+                      onClick={() => togglePendingWord(card.japanese)}
+                      className={`w-8 h-8 flex items-center justify-center active:scale-90 transition-all ${pendingWords.includes(card.japanese) ? "text-indigo-600" : "text-slate-300 hover:text-indigo-400"}`}
+                      title={pendingWords.includes(card.japanese) ? "Remove from list" : "Save to Sensei list"}
+                    >
+                      <List size={14} />
+                    </button>
+
                     {/* REPORT BUTTON */}
                     <button
                       onClick={() => handleReport(card.id, card.english)}
@@ -2224,6 +2253,15 @@ export default function StatsPage() {
                       </td>
                       <td className="px-4 py-4 text-right">
                         <div className="flex justify-end gap-2">
+                          {/* SAVE TO LIST BUTTON */}
+                          <button
+                            onClick={() => togglePendingWord(card.japanese)}
+                            className={`p-2 rounded-lg transition-all ${pendingWords.includes(card.japanese) ? "text-indigo-600 bg-indigo-50" : "text-slate-300 hover:text-indigo-500 hover:bg-indigo-50"}`}
+                            title={pendingWords.includes(card.japanese) ? "Remove from Sensei list" : "Save to Sensei list"}
+                          >
+                            <List size={16} />
+                          </button>
+
                           {/* REPORT BUTTON */}
                           <button
                             onClick={() => handleReport(card.id, card.english)}

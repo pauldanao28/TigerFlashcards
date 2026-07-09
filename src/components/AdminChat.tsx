@@ -107,17 +107,13 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
   const [profile, setProfile] = useState<SenseiProfile | null>(null);
-  const [wordList, setWordList] = useState<string[]>(() => {
-    if (typeof window !== "undefined") {
-      try { return JSON.parse(localStorage.getItem("flashkado-word-list") || "[]"); } catch { return []; }
-    }
-    return [];
-  });
+  const [wordList, setWordList] = useState<string[]>([]);
+  const wordListLoadedRef = useRef(false);
   const [showList, setShowList] = useState(false);
   const [batchAdding, setBatchAdding] = useState(false);
   const [addedSummary, setAddedSummary] = useState<any[]>([]);
   const [showSummary, setShowSummary] = useState(false);
-  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [messagesLoading, setMessagesLoading] = useState(true);
   const [weakCards, setWeakCards] = useState<string[]>([]);
   const [recap, setRecap] = useState<any | null>(null);
   const [recapLoading, setRecapLoading] = useState(false);
@@ -139,6 +135,7 @@ export default function AdminChat({ userId }: { userId: string }) {
     localStorage.setItem(PERSONA_STORAGE_KEY, key);
     setActivePersona(key);
     setMessages([]);
+    setMessagesLoading(true);
     lastAnalyzedIndexRef.current = 0;
     greetingFiredRef.current = false;
   };
@@ -226,7 +223,7 @@ export default function AdminChat({ userId }: { userId: string }) {
         const greetMsg: Message = { id: uuid(), role: "model", content: data.content, timestamp: Date.now() };
         setMessages([greetMsg]);
         localStorage.setItem(chatStorageKey(activePersona), JSON.stringify([greetMsg]));
-        supabase.from("sensei_messages").insert({ ...greetMsg, user_id: userId, persona: activePersona });
+        supabase.from("sensei_messages").upsert({ ...greetMsg, user_id: userId, persona: activePersona }, { onConflict: "id" });
       } catch { /* silent — greeting is best-effort */ }
       finally { setLoading(false); }
     };
@@ -241,8 +238,17 @@ export default function AdminChat({ userId }: { userId: string }) {
   useEffect(() => { sheetOpenRef.current = !!tooltip; }, [tooltip]);
 
   useEffect(() => {
-    localStorage.setItem("flashkado-word-list", JSON.stringify(wordList));
-  }, [wordList]);
+    supabase.from("profiles").select("pending_words").eq("id", userId).single()
+      .then(({ data }) => {
+        setWordList(data?.pending_words ?? []);
+        wordListLoadedRef.current = true;
+      });
+  }, [userId]);
+
+  const syncWordList = useCallback((newList: string[]) => {
+    setWordList(newList);
+    supabase.from("profiles").update({ pending_words: newList }).eq("id", userId);
+  }, [userId]);
 
   // Track visual viewport so the layout stays above the keyboard on iOS + Android
   useEffect(() => {
@@ -398,8 +404,7 @@ export default function AdminChat({ userId }: { userId: string }) {
         if (newCards?.length) { await performLinking(newCards.map((c: any) => c.id)); allProcessed = [...allProcessed, ...newCards]; }
       }
 
-      setWordList([]);
-      localStorage.removeItem("flashkado-word-list");
+      syncWordList([]);
       setShowList(false);
       if (allProcessed.length > 0) {
         const deduped = Array.from(new Map(allProcessed.map(c => [c.japanese, c])).values());
@@ -599,7 +604,7 @@ export default function AdminChat({ userId }: { userId: string }) {
               placeholder="e.g. 食べる"
             />
             <button
-              onClick={() => { const word = tooltip.editWord.trim(); if (word && !wordList.includes(word)) setWordList(prev => [...prev, word]); setTooltip(null); }}
+              onClick={() => { const word = tooltip.editWord.trim(); if (word && !wordList.includes(word)) syncWordList([...wordList, word]); setTooltip(null); }}
               disabled={!tooltip.editWord.trim()}
               className="mt-3 w-full flex items-center justify-center gap-1.5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40">
               <List size={11} /> Add to List
@@ -749,13 +754,13 @@ export default function AdminChat({ userId }: { userId: string }) {
             </div>
             <div className="p-4">
               <textarea defaultValue={wordList.join("\n")}
-                onChange={(e) => setWordList(e.target.value.split("\n").map(w => w.trim()).filter(Boolean))}
+                onChange={(e) => syncWordList(e.target.value.split("\n").map(w => w.trim()).filter(Boolean))}
                 rows={8}
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none font-mono"
                 placeholder={"食べる\n勉強\n彼女\n…"} />
             </div>
             <div className="p-4 pt-0 flex gap-2">
-              <button onClick={() => setWordList([])} className="px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all">Clear</button>
+              <button onClick={() => syncWordList([])} className="px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all">Clear</button>
               <button onClick={() => addListToDeck(wordList.join("\n"))} disabled={batchAdding || wordList.length === 0}
                 className="flex-1 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
                 {batchAdding ? <><Loader2 size={13} className="animate-spin" /> Adding…</> : <><Plus size={13} /> Add All to Deck</>}
