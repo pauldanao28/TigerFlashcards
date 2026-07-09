@@ -314,7 +314,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   }, [userId]);
 
   useEffect(() => {
-    supabase.from("sensei_profile").select("*").eq("user_id", userId).single()
+    supabase.from("sensei_profile").select("*").eq("user_id", userId).maybeSingle()
       .then(({ data }) => { if (data) setProfile(data); });
   }, [userId]);
 
