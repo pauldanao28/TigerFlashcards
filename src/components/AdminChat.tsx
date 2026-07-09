@@ -247,7 +247,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       const sorted = data
         .filter((s: any) => (s.scores_json?.jp_to_en?.total ?? 0) >= 3)
         .sort((a: any, b: any) => (a.scores_json?.jp_to_en?.percent ?? 100) - (b.scores_json?.jp_to_en?.percent ?? 100))
-        .slice(0, 20);
+        .slice(0, 50);
       setWeakCards(sorted.map((s: any) => s.master_cards?.japanese).filter(Boolean));
       setWeakCardDetails(
         sorted
@@ -266,8 +266,11 @@ export default function AdminChat({ userId }: { userId: string }) {
   const getActiveScenario = () => {
     const base = SCENARIOS.find(s => s.id === activeScenario);
     if (activeScenario === "drill") {
-      const cardList = weakCardDetails.length > 0
-        ? weakCardDetails.map(c => `・${c.japanese}（${c.reading}）= ${c.english}`).join("\n")
+      const sample = weakCardDetails.length > 15
+        ? [...weakCardDetails].sort(() => Math.random() - 0.5).slice(0, 15)
+        : weakCardDetails;
+      const cardList = sample.length > 0
+        ? sample.map(c => `・${c.japanese}（${c.reading}）= ${c.english}`).join("\n")
         : "（まだ苦手な語彙がありません）";
       return {
         ...base,
