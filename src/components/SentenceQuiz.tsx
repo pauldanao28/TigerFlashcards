@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
-import { X } from "lucide-react";
+import { X, Loader2, List } from "lucide-react";
 
 interface QuizCard {
   id: string;
@@ -15,6 +15,22 @@ interface QuizCard {
   };
   sentence_jp: string;
   sentence_en: string;
+}
+
+interface AddWordConfirm {
+  word: string;
+}
+
+const kanjiRe = /[一-龯㐀-䶿々〻]/;
+
+// Lazy-init: avoid module-level Intl.Segmenter which crashes during Next.js SSR
+let _jaSegmenter: Intl.Segmenter | null = null;
+function getSegmenter(): Intl.Segmenter | null {
+  if (typeof window === "undefined") return null;
+  if (!_jaSegmenter) {
+    try { _jaSegmenter = new Intl.Segmenter("ja", { granularity: "word" }); } catch { return null; }
+  }
+  return _jaSegmenter;
 }
 
 interface SentenceQuizProps {
@@ -41,18 +57,76 @@ function incrementDailyCount(): void {
   localStorage.setItem(QUIZ_DAILY_KEY, JSON.stringify({ date: today, count: getDailyCount() + 1 }));
 }
 
-function HighlightedSentence({ sentence, word }: { sentence: string; word: string }) {
+type WordTapHandler = (word: string, reading: string, e: React.MouseEvent | React.TouchEvent) => void;
+
+// Renders a plain (non-highlighted) text chunk with tappable kanji words, dotted-underlined —
+// mirrors the chatbot's tap-to-lookup behavior (no inline furigana, reading fetched on tap).
+function TappableText({ text, keyPrefix, onWordTap }: { text: string; keyPrefix: string; onWordTap: WordTapHandler }) {
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const segmenter = getSegmenter();
+  const subSegs = segmenter ? [...segmenter.segment(text)] : [{ segment: text, isWordLike: false }];
+  return (
+    <>
+      {subSegs.map((sub, i) => {
+        if (sub.isWordLike && kanjiRe.test(sub.segment)) {
+          const word = sub.segment;
+          return (
+            <span key={`${keyPrefix}-${i}`} className="cursor-pointer active:opacity-60 transition-opacity"
+              onClick={(e) => { e.stopPropagation(); onWordTap(word, "", e); }}
+              onTouchStart={(e) => { touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
+              onTouchEnd={(e) => {
+                const start = touchStartRef.current;
+                touchStartRef.current = null;
+                if (!start) return;
+                const dx = Math.abs(e.changedTouches[0].clientX - start.x);
+                const dy = Math.abs(e.changedTouches[0].clientY - start.y);
+                if (dx < 8 && dy < 8) { e.preventDefault(); e.stopPropagation(); onWordTap(word, "", e as unknown as React.MouseEvent); }
+              }}>
+              {word.split("").map((ch, ci) =>
+                kanjiRe.test(ch) ? <span key={ci} className="underline decoration-dotted decoration-indigo-400 underline-offset-2">{ch}</span> : ch
+              )}
+            </span>
+          );
+        }
+        return <span key={`${keyPrefix}-${i}`}>{sub.segment}</span>;
+      })}
+    </>
+  );
+}
+
+// Highlighted (target) word span — tappable, but never shows its furigana inline; the reading
+// is only revealed via the tap tooltip, same as the rest of the sentence.
+function HighlightedWord({ word, reading, onWordTap }: { word: string; reading: string; onWordTap: WordTapHandler }) {
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  return (
+    <mark
+      className="bg-amber-200 dark:bg-amber-700 text-amber-900 dark:text-amber-100 rounded-sm px-0.5 not-italic font-black cursor-pointer active:opacity-70 transition-opacity"
+      onClick={(e) => { e.stopPropagation(); onWordTap(word, reading, e); }}
+      onTouchStart={(e) => { touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
+      onTouchEnd={(e) => {
+        const start = touchStartRef.current;
+        touchStartRef.current = null;
+        if (!start) return;
+        const dx = Math.abs(e.changedTouches[0].clientX - start.x);
+        const dy = Math.abs(e.changedTouches[0].clientY - start.y);
+        if (dx < 8 && dy < 8) { e.preventDefault(); e.stopPropagation(); onWordTap(word, reading, e as unknown as React.MouseEvent); }
+      }}
+    >
+      {word}
+    </mark>
+  );
+}
+
+function HighlightedSentence({ sentence, word, reading, onWordTap }: { sentence: string; word: string; reading: string; onWordTap: WordTapHandler }) {
   if (sentence.includes("【")) {
     const parts = sentence.split(/【(.*?)】/);
     return (
       <>
         {parts.map((part, i) =>
           i % 2 === 1 ? (
-            <mark key={i} className="bg-amber-200 dark:bg-amber-700 text-amber-900 dark:text-amber-100 rounded-sm px-0.5 not-italic font-black">
-              {part}
-            </mark>
+            <HighlightedWord key={i} word={part} reading={reading} onWordTap={onWordTap} />
           ) : (
-            <span key={i}>{part}</span>
+            <TappableText key={i} text={part} keyPrefix={`p${i}`} onWordTap={onWordTap} />
           )
         )}
       </>
@@ -63,26 +137,70 @@ function HighlightedSentence({ sentence, word }: { sentence: string; word: strin
   if (idx >= 0) {
     return (
       <>
-        <span>{sentence.slice(0, idx)}</span>
-        <mark className="bg-amber-200 dark:bg-amber-700 text-amber-900 dark:text-amber-100 rounded-sm px-0.5 not-italic font-black">
-          {word}
-        </mark>
-        <span>{sentence.slice(idx + word.length)}</span>
+        <TappableText text={sentence.slice(0, idx)} keyPrefix="pre" onWordTap={onWordTap} />
+        <HighlightedWord word={word} reading={reading} onWordTap={onWordTap} />
+        <TappableText text={sentence.slice(idx + word.length)} keyPrefix="post" onWordTap={onWordTap} />
       </>
     );
   }
-  return <span>{sentence}</span>;
+  return <TappableText text={sentence} keyPrefix="full" onWordTap={onWordTap} />;
 }
 
 export default function SentenceQuiz({ userId, isAdmin = false, onClose }: SentenceQuizProps) {
-  const [phase, setPhase] = useState<"loading" | "quiz" | "done">("loading");
+  const [phase, setPhase] = useState<"intro" | "loading" | "quiz" | "done">("intro");
   const [quizCards, setQuizCards] = useState<QuizCard[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [results, setResults] = useState<{ card: QuizCard; passed: boolean }[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<AddWordConfirm | null>(null);
+  const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
+
+  // ── Pending word list — shared with the Sensei chat's list (same profiles.pending_words field) ──
+  const [wordList, setWordList] = useState<string[]>([]);
+  const [showList, setShowList] = useState(false);
+  const [batchAdding, setBatchAdding] = useState(false);
+  const [addedSummary, setAddedSummary] = useState<any[]>([]);
+  const [showSummary, setShowSummary] = useState(false);
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const WORD_LIST_KEY = `flashkado-word-list-${userId}`;
+
   const scoringRef = useRef(false);
   const loadingRef = useRef(false);
+
+  useEffect(() => {
+    supabase.from("decks").select("id").eq("user_id", userId).eq("is_default", true).single()
+      .then(({ data }) => { if (data) setDefaultDeckId(data.id); });
+  }, [userId]);
+
+  useEffect(() => {
+    supabase.from("profiles").select("pending_words").eq("id", userId).maybeSingle()
+      .then(({ data, error: dbErr }) => {
+        if (dbErr) { console.error("[DB word-list load]", dbErr.code, dbErr.message); return; }
+        const dbWords: string[] | null = data?.pending_words ?? null;
+        if (dbWords && dbWords.length > 0) {
+          setWordList(dbWords);
+          localStorage.setItem(WORD_LIST_KEY, JSON.stringify(dbWords));
+        } else {
+          try {
+            const saved = localStorage.getItem(WORD_LIST_KEY);
+            setWordList(saved ? JSON.parse(saved) : []);
+          } catch { setWordList([]); }
+        }
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  const syncWordList = useCallback((newList: string[]) => {
+    setWordList(newList);
+    localStorage.setItem(WORD_LIST_KEY, JSON.stringify(newList));
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => {
+      supabase.from("profiles").update({ pending_words: newList }).eq("id", userId)
+        .then(({ error: e }) => { if (e) console.error("[DB word-list sync]", e.code, e.message); });
+    }, 1000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
   const load = useCallback(async () => {
     if (loadingRef.current) return;
@@ -91,6 +209,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
       setPhase("loading"); // show error state (error takes priority in render)
       return;
     }
+    setConfirm(null);
     loadingRef.current = true;
     scoringRef.current = false;
     if (!isAdmin) incrementDailyCount();
@@ -161,7 +280,71 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
     }
   }, [userId]);
 
-  useEffect(() => { load(); }, [load]);
+  // ── Tap a kanji word → ask before adding to the list (no API call until confirmed) ──
+  const handleWordClick = useCallback((word: string, _reading: string, e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    const extractWord = (text: string): string => {
+      const seg = getSegmenter();
+      if (!seg) return text;
+      const first = [...seg.segment(text)].find(s => s.isWordLike && kanjiRe.test(s.segment));
+      return first?.segment ?? text;
+    };
+    setConfirm({ word: extractWord(word) });
+  }, []);
+
+  const confirmAddWord = () => {
+    if (!confirm) return;
+    if (!wordList.includes(confirm.word)) syncWordList([...wordList, confirm.word]);
+    setConfirm(null);
+  };
+
+  // ── Batch add — same logic as the Sensei chat's "Add All" ────────────────────
+  const addListToDeck = async (text: string) => {
+    const words = [...new Set(text.split("\n").map(w => w.trim()).filter(Boolean))];
+    if (!words.length || !defaultDeckId) return;
+    setBatchAdding(true);
+
+    const performLinking = async (cardIds: string[]) => {
+      await Promise.all([
+        supabase.from("deck_cards").upsert(cardIds.map(id => ({ deck_id: defaultDeckId, card_id: id })), { onConflict: "deck_id,card_id" }),
+        supabase.from("user_scores").upsert(cardIds.map(id => ({ user_id: userId, card_id: id, scores_json: { jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 }, en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 } } })), { onConflict: "user_id,card_id" }),
+      ]);
+    };
+
+    try {
+      let allProcessed: any[] = [];
+      const { data: existing } = await supabase.from("master_cards").select("*").in("japanese", words);
+      if (existing?.length) { await performLinking(existing.map((c: any) => c.id)); allProcessed = [...existing]; }
+
+      const existingSet = new Set(existing?.map((c: any) => c.japanese) ?? []);
+      const wordsForAI = words.filter(w => !existingSet.has(w));
+
+      if (wordsForAI.length > 0) {
+        const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ words: wordsForAI }) });
+        if (!res.ok) throw new Error("AI error");
+        const items = await res.json();
+        const itemsArray = Array.isArray(items) ? items : [items];
+        const seen = new Set<string>();
+        const deduped = itemsArray
+          .map((item: any) => ({ japanese: String(item.japanese).trim(), reading: String(item.reading || "").replace(/[a-zA-Z\s]/g, ""), english: String(item.english || "").trim(), partOfSpeech: String(item.partOfSpeech || "noun").trim().toLowerCase(), exampleSentence: item.exampleSentence || { jp: "", en: "" }, creator_id: userId }))
+          .filter((item: any) => { if (seen.has(item.japanese)) return false; seen.add(item.japanese); return true; });
+        const { data: newCards, error: mErr } = await supabase.from("master_cards").upsert(deduped, { onConflict: "japanese" }).select("*");
+        if (mErr) throw mErr;
+        if (newCards?.length) { await performLinking(newCards.map((c: any) => c.id)); allProcessed = [...allProcessed, ...newCards]; }
+      }
+
+      syncWordList([]);
+      setShowList(false);
+      if (allProcessed.length > 0) {
+        setAddedSummary(Array.from(new Map(allProcessed.map(c => [c.japanese, c])).values()));
+        setShowSummary(true);
+      }
+    } catch (err) {
+      console.error("Batch add failed:", err);
+    } finally {
+      setBatchAdding(false);
+    }
+  };
 
   const handleScore = async (passed: boolean) => {
     if (scoringRef.current) return;
@@ -217,10 +400,49 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
             </span>
           )}
         </div>
-        <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 transition-colors active:scale-90">
-          <X size={16} className="text-slate-500" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button onClick={() => setShowList(true)} className="relative p-2 rounded-full hover:bg-slate-100 transition-colors active:scale-90">
+            <List size={16} className="text-slate-500" />
+            {wordList.length > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 bg-indigo-600 text-white text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">{wordList.length}</span>
+            )}
+          </button>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 transition-colors active:scale-90">
+            <X size={16} className="text-slate-500" />
+          </button>
+        </div>
       </div>
+
+      {/* Intro */}
+      {phase === "intro" && !error && (
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 max-w-lg mx-auto w-full text-center gap-5">
+          <span className="text-5xl">📝</span>
+          <div>
+            <h2 className="text-xl font-black text-slate-900 mb-2">How it works</h2>
+            <p className="text-slate-500 font-medium text-sm leading-relaxed">
+              You&apos;ll see a Japanese sentence with a word from your deck highlighted. Read it, guess what the
+              highlighted word means from context, then reveal the answer to check yourself.
+            </p>
+          </div>
+          <div className="w-full bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 text-left">
+            <p className="text-amber-800 font-bold text-xs leading-relaxed">
+              ⚠️ Marking Pass or Fail here updates that card&apos;s grade — same as a regular study session.
+            </p>
+          </div>
+          {!isAdmin && (
+            <p className="text-slate-300 font-black uppercase tracking-widest text-[10px]">
+              {Math.max(0, QUIZ_DAILY_LIMIT - getDailyCount())}/{QUIZ_DAILY_LIMIT} quizzes left today
+            </p>
+          )}
+          <button
+            onClick={load}
+            disabled={!isAdmin && getDailyCount() >= QUIZ_DAILY_LIMIT}
+            className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all shadow-sm disabled:opacity-40"
+          >
+            Start Quiz
+          </button>
+        </div>
+      )}
 
       {/* Loading */}
       {phase === "loading" && !error && (
@@ -272,15 +494,21 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
               <div className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5">
                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3">Read the sentence</p>
                 <p className="text-xl leading-relaxed text-slate-800 font-medium">
-                  <HighlightedSentence sentence={currentCard.sentence_jp} word={currentCard.japanese} />
+                  <HighlightedSentence sentence={currentCard.sentence_jp} word={currentCard.japanese} reading={currentCard.reading} onWordTap={handleWordClick} />
                 </p>
               </div>
 
               {/* Word card */}
               <div className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5">
                 <div className="flex items-baseline gap-2 mb-1">
-                  <span className="text-2xl font-black text-slate-900">{currentCard.japanese}</span>
-                  <span className="text-sm text-slate-400 font-medium">{currentCard.reading}</span>
+                  <span
+                    className="text-2xl font-black text-slate-900 cursor-pointer active:opacity-60 transition-opacity"
+                    onClick={(e) => handleWordClick(currentCard.japanese, currentCard.reading, e)}
+                  >
+                    {currentCard.japanese.split("").map((ch, ci) =>
+                      kanjiRe.test(ch) ? <span key={ci} className="underline decoration-dotted decoration-indigo-400 underline-offset-4">{ch}</span> : ch
+                    )}
+                  </span>
                 </div>
                 <AnimatePresence>
                   {revealed && (
@@ -290,8 +518,10 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
                       exit={{ opacity: 0, height: 0 }}
                       transition={{ duration: 0.15 }}
                     >
-                      <p className="text-indigo-600 font-bold text-base mt-2">{currentCard.english}</p>
-                      <p className="text-slate-400 text-xs mt-1 italic">{currentCard.sentence_en}</p>
+                      <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-3">Meaning</p>
+                      <p className="text-indigo-600 font-bold text-base">{currentCard.english}</p>
+                      <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-2">Translation</p>
+                      <p className="text-slate-500 text-sm italic">{currentCard.sentence_en}</p>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -378,6 +608,97 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
                 Play Again
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Add-to-list confirmation ── */}
+      {confirm && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setConfirm(null)} />
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
+            style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
+            onClick={(e) => e.stopPropagation()}>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Add to your list?</p>
+            <p className="text-2xl font-black text-slate-800 mb-4">{confirm.word}</p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirm(null)}
+                className="flex-1 py-3.5 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all">
+                No
+              </button>
+              <button onClick={confirmAddWord}
+                className="flex-1 py-3.5 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all shadow-sm">
+                Yes, add
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Word list panel ── */}
+      {showList && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden max-h-[80vh]">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div>
+                <h2 className="text-base font-black text-slate-800 uppercase italic tracking-tighter">Word List</h2>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{wordList.length} word{wordList.length !== 1 ? "s" : ""} · one per line</p>
+              </div>
+              <button onClick={() => setShowList(false)} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400"><X size={14} /></button>
+            </div>
+            <div className="p-4 flex-1 overflow-y-auto">
+              <textarea
+                defaultValue={wordList.join("\n")}
+                onChange={(e) => syncWordList(e.target.value.split("\n").map(w => w.trim()).filter(Boolean))}
+                placeholder="Tap kanji in the quiz to add words here…"
+                className="w-full min-h-[160px] rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none"
+              />
+            </div>
+            <div className="p-4 border-t border-slate-100 flex gap-3">
+              <button onClick={() => syncWordList([])} disabled={wordList.length === 0}
+                className="px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all disabled:opacity-40">
+                Clear
+              </button>
+              <button onClick={() => addListToDeck(wordList.join("\n"))} disabled={batchAdding || wordList.length === 0}
+                className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40">
+                {batchAdding ? <Loader2 size={13} className="animate-spin" /> : null}
+                {batchAdding ? "Adding…" : "Add All to Deck"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Summary modal ── */}
+      {showSummary && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 flex flex-col max-h-[80vh] overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div>
+                <h2 className="text-xl font-black text-slate-800 uppercase italic tracking-tighter">Words Added</h2>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{addedSummary.length} new {addedSummary.length === 1 ? "entry" : "entries"}</p>
+              </div>
+              <button onClick={() => setShowSummary(false)} className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-slate-200 transition-colors text-slate-400">✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/30">
+              {addedSummary.map((word, i) => (
+                <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-start gap-4">
+                  <div className="flex-shrink-0 w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100 shadow-sm">
+                    <span className="text-indigo-600 font-black text-xl">{word.japanese[0]}</span>
+                  </div>
+                  <div className="flex-1 flex flex-col text-left">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-lg font-black text-slate-800">{word.japanese}</span>
+                      <span className="text-xs font-bold text-rose-500 uppercase tracking-tighter">{word.reading}</span>
+                    </div>
+                    <p className="text-sm text-slate-600 font-medium mt-0.5 leading-tight pr-10">{word.english}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="p-4 border-t border-slate-100">
+              <button onClick={() => setShowSummary(false)} className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-[0.98] shadow-lg">Got it</button>
+            </div>
           </div>
         </div>
       )}
