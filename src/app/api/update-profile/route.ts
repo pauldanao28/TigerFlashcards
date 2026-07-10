@@ -4,8 +4,11 @@ import { NextResponse } from "next/server";
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
 export async function POST(req: Request) {
+  let currentProfile: Record<string, unknown> = {};
   try {
-    const { messages, currentProfile } = await req.json();
+    const body = await req.json();
+    const { messages } = body;
+    currentProfile = body.currentProfile ?? {};
 
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
@@ -75,8 +78,6 @@ Return ONLY valid JSON, no explanation, no markdown:
     return NextResponse.json(JSON.parse(match[0]));
   } catch (e) {
     console.error("update-profile error:", e);
-    // Return the existing profile unchanged on failure
-    const { currentProfile } = await req.json().catch(() => ({ currentProfile: {} }));
-    return NextResponse.json(currentProfile ?? {});
+    return NextResponse.json(currentProfile);
   }
 }

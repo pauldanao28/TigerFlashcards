@@ -158,7 +158,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [showVoicePicker, setShowVoicePicker] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<VoiceId>(() => getVoice());
   const [profileSyncing, setProfileSyncing] = useState(false);
-  const [profileSynced, setProfileSynced] = useState(false);
+  const [profileSynced, setProfileSynced] = useState<"ok" | "err" | false>(false);
   const greetingFiredRef = useRef(false);
 
   const lastAnalyzedIndexRef = useRef(0);
@@ -445,10 +445,15 @@ export default function AdminChat({ userId }: { userId: string }) {
   const syncProfile = async () => {
     if (profileSyncing || messages.length < 2) return;
     setProfileSyncing(true);
-    await updateProfile(messages);
-    setProfileSyncing(false);
-    setProfileSynced(true);
-    setTimeout(() => setProfileSynced(false), 2000);
+    try {
+      await updateProfile(messages);
+      setProfileSynced("ok");
+    } catch {
+      setProfileSynced("err");
+    } finally {
+      setProfileSyncing(false);
+      setTimeout(() => setProfileSynced(false), 2500);
+    }
   };
 
   // ── Send message ────────────────────────────────────────────────────────────
@@ -840,9 +845,11 @@ export default function AdminChat({ userId }: { userId: string }) {
               className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-xl transition-colors disabled:opacity-30 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50">
               {profileSyncing
                 ? <Loader2 size={13} className="animate-spin text-emerald-500" />
-                : profileSynced
+                : profileSynced === "ok"
                   ? <span className="text-[11px] font-black text-emerald-500">✓</span>
-                  : <BookOpen size={13} />}
+                  : profileSynced === "err"
+                    ? <span className="text-[11px] font-black text-red-400">✕</span>
+                    : <BookOpen size={13} />}
             </button>
             {/* Session recap */}
             {recapConfirm ? (
