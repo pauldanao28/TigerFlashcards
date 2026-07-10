@@ -412,6 +412,7 @@ export default function StatsPage() {
     const DAILY_LIMIT = 50;
 
     try {
+      if (isAdmin) throw new Error("skip"); // admins have no limit
       const { data: performance } = await supabase
         .from("admin_user_performance_master")
         .select("cards_added_today")
