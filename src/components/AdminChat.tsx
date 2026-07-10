@@ -213,6 +213,7 @@ export default function AdminChat({ userId }: { userId: string }) {
 
       const normalizeMsg = (m: any): Message => ({
         ...m,
+        content: m.role === "model" ? cleanContent(m.content ?? "") : (m.content ?? ""),
         corrections: Array.isArray(m.corrections) ? m.corrections
           : typeof m.corrections === "string" ? (() => { try { return JSON.parse(m.corrections); } catch { return []; } })()
           : [],
@@ -465,7 +466,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       }
       const data = await res.json();
       if (!data.content) throw new Error("Empty response");
-      const modelMsg: Message = { id: uuid(), role: "model" as const, content: data.content, timestamp: Date.now() };
+      const modelMsg: Message = { id: uuid(), role: "model" as const, content: cleanContent(data.content), timestamp: Date.now() };
       const corrections: { mistake: string; correct: string; reason: string }[] = data.corrections ?? [];
       const finalMessages: Message[] = [...updated, modelMsg];
       setMessages(finalMessages);
