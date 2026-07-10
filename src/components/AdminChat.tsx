@@ -1076,8 +1076,9 @@ export default function AdminChat({ userId }: { userId: string }) {
                       </div>
                       <button
                         onClick={() => { if (!wordList.includes(c.word)) syncWordList([...wordList, c.word]); }}
-                        className="shrink-0 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors active:scale-95">
-                        + Add
+                        disabled={wordList.includes(c.word)}
+                        className={`shrink-0 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg transition-colors active:scale-95 ${wordList.includes(c.word) ? "bg-emerald-50 text-emerald-600 cursor-default" : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"}`}>
+                        {wordList.includes(c.word) ? "Added" : "+ Add"}
                       </button>
                     </div>
                   ))}
