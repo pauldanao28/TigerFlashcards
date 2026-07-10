@@ -34,6 +34,7 @@ interface Message {
   content: string;
   timestamp: number;
   corrections?: string[];
+  natural?: string;
 }
 
 const SCENARIOS: { id: string; emoji: string; labelEn: string; labelJp: string; prompt: string }[] = [
@@ -486,17 +487,19 @@ export default function AdminChat({ userId }: { userId: string }) {
       if (!data.content) throw new Error("Empty response");
       const modelMsg: Message = { id: uuid(), role: "model" as const, content: cleanContent(data.content), timestamp: Date.now() };
       const corrections: { mistake: string; correct: string; reason: string }[] = data.corrections ?? [];
-      // Attach corrections to the user message so they display as a Grammar Note bubble
       const correctionStrings = corrections.map(c =>
         `${c.mistake} → ${c.correct}${c.reason ? `（${c.reason}）` : ""}`
       );
-      const finalUserMsg: Message = correctionStrings.length > 0 ? { ...userMsg, corrections: correctionStrings } : userMsg;
+      const natural: string = data.natural ?? "";
+      const finalUserMsg: Message = (correctionStrings.length > 0 || natural)
+        ? { ...userMsg, ...(correctionStrings.length > 0 ? { corrections: correctionStrings } : {}), ...(natural ? { natural } : {}) }
+        : userMsg;
       const finalMessages: Message[] = [...messages, finalUserMsg, modelMsg];
       setMessages(finalMessages);
       localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(finalMessages));
       supabase.from("sensei_messages").upsert({ ...modelMsg, user_id: userId, persona: activePersona }, { onConflict: "id" })
         .then(({ error }) => { if (error) console.error("[DB model]", error.code, error.message); });
-      if (correctionStrings.length > 0) {
+      if (correctionStrings.length > 0 || natural) {
         supabase.from("sensei_messages").upsert({ ...finalUserMsg, user_id: userId, persona: activePersona }, { onConflict: "id" });
       }
 
@@ -971,13 +974,23 @@ export default function AdminChat({ userId }: { userId: string }) {
                   )}
                 </div>
               </div>
-              {msg.role === "user" && Array.isArray(msg.corrections) && msg.corrections.length > 0 && (
+              {msg.role === "user" && ((Array.isArray(msg.corrections) && msg.corrections.length > 0) || msg.natural) && (
                 <div className="flex justify-end mt-1.5">
-                  <div className="max-w-[85%] bg-rose-50 border border-rose-100 rounded-2xl rounded-tr-sm px-4 py-3">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-rose-400 mb-2">📝 Grammar Note</p>
-                    {msg.corrections.map((c, i) => (
-                      <p key={i} className="text-xs text-rose-700 font-medium leading-relaxed">{c}</p>
-                    ))}
+                  <div className="max-w-[85%] bg-rose-50 border border-rose-100 rounded-2xl rounded-tr-sm px-4 py-3 space-y-2">
+                    {Array.isArray(msg.corrections) && msg.corrections.length > 0 && (
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-rose-400 mb-1.5">📝 Grammar Note</p>
+                        {msg.corrections.map((c, i) => (
+                          <p key={i} className="text-xs text-rose-700 font-medium leading-relaxed">{c}</p>
+                        ))}
+                      </div>
+                    )}
+                    {msg.natural && (
+                      <div className={Array.isArray(msg.corrections) && msg.corrections.length > 0 ? "pt-2 border-t border-rose-100" : ""}>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-indigo-400 mb-1.5">🗣 More Natural</p>
+                        <p className="text-xs text-indigo-700 font-medium leading-relaxed">{msg.natural}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
