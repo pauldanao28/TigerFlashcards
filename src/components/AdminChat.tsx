@@ -166,6 +166,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [quizSelected, setQuizSelected] = useState<string | null>(null);
   const [quizScore, setQuizScore] = useState(0);
   const [quizDone, setQuizDone] = useState(false);
+  const [quizWrong, setQuizWrong] = useState<{ mistake: string; correct: string; reason: string }[]>([]);
   const [profileSyncing, setProfileSyncing] = useState(false);
   const [profileSynced, setProfileSynced] = useState<"ok" | "err" | false>(false);
   const greetingFiredRef = useRef(false);
@@ -693,12 +694,12 @@ export default function AdminChat({ userId }: { userId: string }) {
     setQuizSelected(null);
     setQuizScore(0);
     setQuizDone(false);
+    setQuizWrong([]);
     try {
       const { data: mistakes } = await supabase
         .from("grammar_corrections")
         .select("mistake, correct, reason")
         .eq("user_id", userId)
-        .order("created_at", { ascending: false })
         .limit(20);
       const res = await fetch("/api/quiz", {
         method: "POST",
@@ -1321,11 +1322,15 @@ export default function AdminChat({ userId }: { userId: string }) {
                 <p className="text-sm text-slate-400 text-center py-8">Failed to generate quiz. Try again.</p>
               ) : quizDone ? (
                 <div className="flex flex-col items-center gap-4 py-4">
-                  <div className="text-5xl">{quizScore >= 8 ? "🏆" : quizScore >= 5 ? "👍" : "💪"}</div>
+                  {(() => { const pct = quizScore / quizQuestions.length; return (
+                  <>
+                  <div className="text-5xl">{pct >= 0.8 ? "🏆" : pct >= 0.5 ? "👍" : "💪"}</div>
                   <p className="text-2xl font-black text-slate-800">{quizScore} / {quizQuestions.length}</p>
                   <p className="text-sm text-slate-500 font-bold">
-                    {quizScore >= 8 ? "Excellent!" : quizScore >= 5 ? "Good work!" : "Keep practicing!"}
+                    {pct >= 0.8 ? "Excellent!" : pct >= 0.5 ? "Good work!" : "Keep practicing!"}
                   </p>
+                  </>
+                  ); })()}
                   <button onClick={openQuiz}
                     className="mt-2 px-6 py-2.5 bg-emerald-500 text-white text-sm font-black rounded-2xl hover:bg-emerald-600 transition-colors">
                     Try Again
@@ -1353,7 +1358,11 @@ export default function AdminChat({ userId }: { userId: string }) {
                           <button key={choice} disabled={answered}
                             onClick={() => {
                               setQuizSelected(choice);
-                              if (choice === q.answer) setQuizScore(s => s + 1);
+                              if (choice === q.answer) {
+                                setQuizScore(s => s + 1);
+                              } else {
+                                setQuizWrong(w => [...w, { mistake: choice, correct: q.answer, reason: q.sentence }]);
+                              }
                             }}
                             className={`px-4 py-3 rounded-2xl border-2 text-sm font-black transition-all ${style}`}>
                             {choice}
@@ -1372,6 +1381,12 @@ export default function AdminChat({ userId }: { userId: string }) {
                         onClick={() => {
                           if (quizIndex + 1 >= quizQuestions.length) {
                             setQuizDone(true);
+                            // Save wrong answers to grammar_corrections so sensei can reinforce them
+                            if (quizWrong.length > 0) {
+                              supabase.from("grammar_corrections").insert(
+                                quizWrong.map(w => ({ user_id: userId, persona: activePersona, mistake: w.mistake, correct: w.correct, reason: w.reason }))
+                              );
+                            }
                           } else {
                             setQuizIndex(i => i + 1);
                             setQuizSelected(null);
