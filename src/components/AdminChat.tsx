@@ -159,6 +159,13 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [showVoicePicker, setShowVoicePicker] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<VoiceId>(() => getVoice());
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [quizLoading, setQuizLoading] = useState(false);
+  const [quizQuestions, setQuizQuestions] = useState<{ sentence: string; blank_hint: string; choices: string[]; answer: string; explanation: string }[]>([]);
+  const [quizIndex, setQuizIndex] = useState(0);
+  const [quizSelected, setQuizSelected] = useState<string | null>(null);
+  const [quizScore, setQuizScore] = useState(0);
+  const [quizDone, setQuizDone] = useState(false);
   const [profileSyncing, setProfileSyncing] = useState(false);
   const [profileSynced, setProfileSynced] = useState<"ok" | "err" | false>(false);
   const greetingFiredRef = useRef(false);
@@ -678,6 +685,32 @@ export default function AdminChat({ userId }: { userId: string }) {
     finally { setRecapLoading(false); }
   };
 
+  const openQuiz = async () => {
+    setShowQuiz(true);
+    setQuizLoading(true);
+    setQuizQuestions([]);
+    setQuizIndex(0);
+    setQuizSelected(null);
+    setQuizScore(0);
+    setQuizDone(false);
+    try {
+      const { data: mistakes } = await supabase
+        .from("grammar_corrections")
+        .select("mistake, correct, reason")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      const res = await fetch("/api/quiz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile, recentMistakes: mistakes ?? [] }),
+      });
+      const data = await res.json();
+      if (Array.isArray(data.questions)) setQuizQuestions(data.questions);
+    } catch {}
+    setQuizLoading(false);
+  };
+
   const clearChat = () => {
     if (confirm(`${persona.label}との会話履歴を全て削除しますか？`)) {
       setMessages([]);
@@ -903,6 +936,10 @@ export default function AdminChat({ userId }: { userId: string }) {
               {wordList.length > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 bg-indigo-600 text-white text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">{wordList.length}</span>
               )}
+            </button>
+            <button onClick={openQuiz} title="Grammar quiz"
+              className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-xl transition-colors text-slate-300 hover:text-emerald-500 hover:bg-emerald-50">
+              <span className="text-[13px]">📝</span>
             </button>
             <button onClick={() => setShowVoicePicker(true)} title="Change voice"
               className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-xl transition-colors text-slate-300 hover:text-violet-500 hover:bg-violet-50">
@@ -1256,6 +1293,97 @@ export default function AdminChat({ userId }: { userId: string }) {
             )}
             <div className="p-4 border-t border-slate-100">
               <button onClick={() => setRecap(null)} className="w-full py-3 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-700 transition-all active:scale-[0.98]">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Quiz modal ── */}
+      {showQuiz && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden max-h-[90dvh]">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+              <div>
+                <p className="text-sm font-black text-slate-800">📝 Grammar Quiz</p>
+                {!quizLoading && quizQuestions.length > 0 && !quizDone && (
+                  <p className="text-[11px] text-slate-400 font-bold">{quizIndex + 1} / {quizQuestions.length}</p>
+                )}
+              </div>
+              <button onClick={() => setShowQuiz(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={18} /></button>
+            </div>
+            <div className="p-5 overflow-y-auto">
+              {quizLoading ? (
+                <div className="flex flex-col items-center gap-3 py-8">
+                  <Loader2 size={28} className="animate-spin text-emerald-400" />
+                  <p className="text-sm text-slate-400 font-bold">Generating quiz...</p>
+                </div>
+              ) : quizQuestions.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-8">Failed to generate quiz. Try again.</p>
+              ) : quizDone ? (
+                <div className="flex flex-col items-center gap-4 py-4">
+                  <div className="text-5xl">{quizScore >= 8 ? "🏆" : quizScore >= 5 ? "👍" : "💪"}</div>
+                  <p className="text-2xl font-black text-slate-800">{quizScore} / {quizQuestions.length}</p>
+                  <p className="text-sm text-slate-500 font-bold">
+                    {quizScore >= 8 ? "Excellent!" : quizScore >= 5 ? "Good work!" : "Keep practicing!"}
+                  </p>
+                  <button onClick={openQuiz}
+                    className="mt-2 px-6 py-2.5 bg-emerald-500 text-white text-sm font-black rounded-2xl hover:bg-emerald-600 transition-colors">
+                    Try Again
+                  </button>
+                </div>
+              ) : (() => {
+                const q = quizQuestions[quizIndex];
+                const answered = quizSelected !== null;
+                const isCorrect = quizSelected === q.answer;
+                return (
+                  <div className="flex flex-col gap-4">
+                    <div className="bg-slate-50 rounded-2xl p-4">
+                      <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mb-2">{q.blank_hint}</p>
+                      <p className="text-lg font-bold text-slate-800 leading-relaxed">{q.sentence}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {q.choices.map((choice) => {
+                        let style = "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100";
+                        if (answered) {
+                          if (choice === q.answer) style = "bg-emerald-50 border-emerald-400 text-emerald-700";
+                          else if (choice === quizSelected) style = "bg-red-50 border-red-400 text-red-700";
+                          else style = "bg-slate-50 border-slate-200 text-slate-400";
+                        }
+                        return (
+                          <button key={choice} disabled={answered}
+                            onClick={() => {
+                              setQuizSelected(choice);
+                              if (choice === q.answer) setQuizScore(s => s + 1);
+                            }}
+                            className={`px-4 py-3 rounded-2xl border-2 text-sm font-black transition-all ${style}`}>
+                            {choice}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {answered && (
+                      <div className={`rounded-2xl p-3 text-sm ${isCorrect ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>
+                        <p className="font-black mb-1">{isCorrect ? "✓ Correct!" : `✗ Answer: ${q.answer}`}</p>
+                        <p className="text-xs leading-relaxed">{q.explanation}</p>
+                      </div>
+                    )}
+                    {answered && (
+                      <button
+                        onClick={() => {
+                          if (quizIndex + 1 >= quizQuestions.length) {
+                            setQuizDone(true);
+                          } else {
+                            setQuizIndex(i => i + 1);
+                            setQuizSelected(null);
+                          }
+                        }}
+                        className="w-full py-3 bg-slate-800 text-white text-sm font-black rounded-2xl hover:bg-slate-700 transition-colors">
+                        {quizIndex + 1 >= quizQuestions.length ? "See Results" : "Next →"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
