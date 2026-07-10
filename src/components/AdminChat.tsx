@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { Send, Trash2, X, Loader2, List, Plus, ScrollText, Volume2, VolumeX, BookOpen, SlidersHorizontal } from "lucide-react";
-import { playTTS, stopTTS, getVoice, setVoice, VOICE_OPTIONS, VoiceId } from "@/lib/tts";
+import { speak, playTTS, stopTTS, getVoice, setVoice, VOICE_OPTIONS, VoiceId } from "@/lib/tts";
 
 function uuid(): string {
   try { return self.crypto.randomUUID(); } catch { /* fall through */ }
@@ -1030,6 +1030,10 @@ export default function AdminChat({ userId }: { userId: string }) {
                   {tooltip.isCommon && (
                     <span className="bg-emerald-100 text-emerald-700 text-[9px] font-black px-1.5 py-0.5 rounded-full">common</span>
                   )}
+                  <button onClick={() => speak(tooltip.editWord, "ja-JP")}
+                    className="flex items-center gap-1 text-[10px] font-black text-slate-400 hover:text-indigo-500 transition-colors px-1.5 py-0.5 rounded-lg hover:bg-indigo-50">
+                    <Volume2 size={11} /> Listen
+                  </button>
                 </div>
                 <div className="text-sm text-indigo-500 font-bold mt-0.5">{tooltip.reading}</div>
                 {tooltip.knownEnglish && (
