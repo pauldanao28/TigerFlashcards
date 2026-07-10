@@ -15,24 +15,30 @@ export async function POST(req: Request) {
       .map((m: { mistake: string; correct: string; reason: string }) => `誤：${m.mistake} → 正：${m.correct}（${m.reason}）`)
       .join("\n");
 
-    const prompt = `あなたは日本語文法クイズ生成AIです。
+    const prompt = `あなたは日本語クイズ生成AIです。
 レベル：${level}
 弱点文法：${weakPoints.length > 0 ? weakPoints.join("、") : "基礎文法全般"}
 よくある間違い：${commonErrors.length > 0 ? commonErrors.join("、") : "なし"}
 ${mistakeSummary ? `最近の間違い：\n${mistakeSummary}` : ""}
 
-上記の情報を参考に、このレベルに合った日本語文法クイズを10問作成してください。
-できる限り弱点・間違いに関連する文法（助詞、動詞活用、て形、た形、〜たい、〜ない、〜ている など）を出題してください。
+以下の3種類の問題を合計10問作成してください：
+- type "grammar"：4問　空欄補充（助詞・動詞活用など）
+- type "reading"：3問　日本語文の英訳（4択）
+- type "writing"：3問　英文の和訳（自由記述・自己採点）
 
 必ず以下のJSON形式のみで返答すること。コードブロック・余分なテキスト一切不要：
-{"questions":[{"sentence":"昨日、映画___見ました。","blank_hint":"object marker","choices":["を","が","に","は"],"answer":"を","explanation":"「映画を見る」のように、直接目的語には助詞「を」を使います。"}]}
+{"questions":[
+  {"type":"grammar","sentence":"昨日、映画___見ました。","blank_hint":"object marker","choices":["を","が","に","は"],"answer":"を","explanation":"直接目的語には助詞「を」を使います。"},
+  {"type":"reading","japanese":"彼女（かのじょ）は毎朝（まいあさ）コーヒーを飲（の）みます。","choices":["She drinks coffee every morning.","She drinks tea every morning.","He drinks coffee every morning.","She drinks coffee every evening."],"answer":"She drinks coffee every morning.","explanation":"毎朝＝every morning、飲む＝to drink。"},
+  {"type":"writing","english":"I went to the convenience store yesterday.","answer":"昨日（きのう）、コンビニに行（い）きました。","hint":"destination uses に","explanation":"「〜に行く」で「go to〜」。昨日＝yesterday、コンビニ＝convenience store。"}
+]}
 
 ルール：
-- sentenceの空欄は必ず___（アンダースコア3つ）で表す
-- choicesは必ず4つ
-- answerはchoicesの中の1つ
-- explanationは短く、なぜその答えが正しいかを日本語で説明（1〜2文）
-- 10問すべて異なる文法ポイントをカバーすること`;
+- grammarのsentenceの空欄は___（アンダースコア3つ）で表す。choicesは4つ、answerはその中の1つ。
+- readingのjapaneseは難しい漢字にふりがなを付ける（例：彼女（かのじょ））。choicesは自然な英訳4つ、answerはその中の1つ。
+- writingのanswerは自然な日本語の模範解答。hintは短い文法ヒント（英語）。
+- explanationはすべて日本語で1〜2文。
+- レベルと弱点に合った難易度にすること。`;
 
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
     const result = await model.generateContent(prompt);

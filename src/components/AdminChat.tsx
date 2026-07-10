@@ -161,9 +161,15 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [selectedVoice, setSelectedVoice] = useState<VoiceId>(() => getVoice());
   const [showQuiz, setShowQuiz] = useState(false);
   const [quizLoading, setQuizLoading] = useState(false);
-  const [quizQuestions, setQuizQuestions] = useState<{ sentence: string; blank_hint: string; choices: string[]; answer: string; explanation: string }[]>([]);
+  type QuizQuestion =
+    | { type: "grammar";  sentence: string; blank_hint: string; choices: string[]; answer: string; explanation: string }
+    | { type: "reading";  japanese: string; choices: string[]; answer: string; explanation: string }
+    | { type: "writing";  english: string; answer: string; hint?: string; explanation: string };
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   const [quizIndex, setQuizIndex] = useState(0);
   const [quizSelected, setQuizSelected] = useState<string | null>(null);
+  const [quizWritingInput, setQuizWritingInput] = useState("");
+  const [quizWritingSubmitted, setQuizWritingSubmitted] = useState(false);
   const [quizScore, setQuizScore] = useState(0);
   const [quizDone, setQuizDone] = useState(false);
   const [quizWrong, setQuizWrong] = useState<{ mistake: string; correct: string; reason: string }[]>([]);
@@ -695,6 +701,8 @@ export default function AdminChat({ userId }: { userId: string }) {
     setQuizScore(0);
     setQuizDone(false);
     setQuizWrong([]);
+    setQuizWritingInput("");
+    setQuizWritingSubmitted(false);
     try {
       const { data: mistakes } = await supabase
         .from("grammar_corrections")
@@ -1338,63 +1346,156 @@ export default function AdminChat({ userId }: { userId: string }) {
                 </div>
               ) : (() => {
                 const q = quizQuestions[quizIndex];
-                const answered = quizSelected !== null;
-                const isCorrect = quizSelected === q.answer;
+                const isLast = quizIndex + 1 >= quizQuestions.length;
+                const advance = (wrong?: { mistake: string; correct: string; reason: string }) => {
+                  const nextWrong = wrong ? [...quizWrong, wrong] : quizWrong;
+                  if (wrong) setQuizWrong(nextWrong);
+                  if (isLast) {
+                    setQuizDone(true);
+                    if (nextWrong.length > 0) {
+                      supabase.from("grammar_corrections").insert(
+                        nextWrong.map(w => ({ user_id: userId, persona: activePersona, mistake: w.mistake, correct: w.correct, reason: w.reason }))
+                      );
+                    }
+                  } else {
+                    setQuizIndex(i => i + 1);
+                    setQuizSelected(null);
+                    setQuizWritingInput("");
+                    setQuizWritingSubmitted(false);
+                  }
+                };
+                const advanceBtn = (wrong?: { mistake: string; correct: string; reason: string }) => (
+                  <button onClick={() => advance(wrong)} className="w-full py-3 bg-slate-800 text-white text-sm font-black rounded-2xl hover:bg-slate-700 transition-colors">
+                    {isLast ? "See Results" : "Next →"}
+                  </button>
+                );
+
+                // ── Grammar: fill-in-the-blank ──────────────────────────────
+                if (q.type === "grammar") {
+                  const answered = quizSelected !== null;
+                  const isCorrect = quizSelected === q.answer;
+                  return (
+                    <div className="flex flex-col gap-4">
+                      <div className="bg-indigo-50 rounded-2xl p-4">
+                        <p className="text-[10px] text-indigo-400 font-black uppercase tracking-wider mb-1.5">Fill in the blank</p>
+                        <p className="text-[11px] text-slate-400 font-bold mb-1">{q.blank_hint}</p>
+                        <p className="text-lg font-bold text-slate-800 leading-relaxed">{q.sentence}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {q.choices.map((choice) => {
+                          let style = "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100";
+                          if (answered) {
+                            if (choice === q.answer) style = "bg-emerald-50 border-emerald-400 text-emerald-700";
+                            else if (choice === quizSelected) style = "bg-red-50 border-red-400 text-red-700";
+                            else style = "bg-slate-50 border-slate-200 text-slate-400";
+                          }
+                          return (
+                            <button key={choice} disabled={answered}
+                              onClick={() => {
+                                setQuizSelected(choice);
+                                if (choice === q.answer) setQuizScore(s => s + 1);
+                              }}
+                              className={`px-4 py-3 rounded-2xl border-2 text-sm font-black transition-all ${style}`}>
+                              {choice}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {answered && (
+                        <div className={`rounded-2xl p-3 text-sm ${isCorrect ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>
+                          <p className="font-black mb-1">{isCorrect ? "✓ Correct!" : `✗ Answer: ${q.answer}`}</p>
+                          <p className="text-xs leading-relaxed">{q.explanation}</p>
+                        </div>
+                      )}
+                      {answered && advanceBtn(isCorrect ? undefined : { mistake: quizSelected!, correct: q.answer, reason: q.sentence })}
+                    </div>
+                  );
+                }
+
+                // ── Reading: JP → EN translation (4 choices) ───────────────
+                if (q.type === "reading") {
+                  const answered = quizSelected !== null;
+                  const isCorrect = quizSelected === q.answer;
+                  return (
+                    <div className="flex flex-col gap-4">
+                      <div className="bg-violet-50 rounded-2xl p-4">
+                        <p className="text-[10px] text-violet-400 font-black uppercase tracking-wider mb-1.5">Translate to English</p>
+                        <p className="text-lg font-bold text-slate-800 leading-relaxed">{q.japanese}</p>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {q.choices.map((choice) => {
+                          let style = "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 text-left";
+                          if (answered) {
+                            if (choice === q.answer) style = "bg-emerald-50 border-emerald-400 text-emerald-700 text-left";
+                            else if (choice === quizSelected) style = "bg-red-50 border-red-400 text-red-700 text-left";
+                            else style = "bg-slate-50 border-slate-200 text-slate-400 text-left";
+                          }
+                          return (
+                            <button key={choice} disabled={answered}
+                              onClick={() => {
+                                setQuizSelected(choice);
+                                if (choice === q.answer) setQuizScore(s => s + 1);
+                              }}
+                              className={`px-4 py-3 rounded-2xl border-2 text-sm font-bold transition-all ${style}`}>
+                              {choice}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {answered && (
+                        <div className={`rounded-2xl p-3 text-sm ${isCorrect ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>
+                          <p className="font-black mb-1">{isCorrect ? "✓ Correct!" : `✗ Answer: ${q.answer}`}</p>
+                          <p className="text-xs leading-relaxed">{q.explanation}</p>
+                        </div>
+                      )}
+                      {answered && advanceBtn(isCorrect ? undefined : { mistake: quizSelected!, correct: q.answer, reason: q.japanese })}
+                    </div>
+                  );
+                }
+
+                // ── Writing: EN → JP free text + self-grade ─────────────────
                 return (
                   <div className="flex flex-col gap-4">
-                    <div className="bg-slate-50 rounded-2xl p-4">
-                      <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mb-2">{q.blank_hint}</p>
-                      <p className="text-lg font-bold text-slate-800 leading-relaxed">{q.sentence}</p>
+                    <div className="bg-amber-50 rounded-2xl p-4">
+                      <p className="text-[10px] text-amber-500 font-black uppercase tracking-wider mb-1.5">Write in Japanese</p>
+                      <p className="text-lg font-bold text-slate-800 leading-relaxed">{q.english}</p>
+                      {q.hint && <p className="text-[11px] text-amber-600 font-bold mt-2">💡 {q.hint}</p>}
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {q.choices.map((choice) => {
-                        let style = "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100";
-                        if (answered) {
-                          if (choice === q.answer) style = "bg-emerald-50 border-emerald-400 text-emerald-700";
-                          else if (choice === quizSelected) style = "bg-red-50 border-red-400 text-red-700";
-                          else style = "bg-slate-50 border-slate-200 text-slate-400";
-                        }
-                        return (
-                          <button key={choice} disabled={answered}
-                            onClick={() => {
-                              setQuizSelected(choice);
-                              if (choice === q.answer) {
-                                setQuizScore(s => s + 1);
-                              } else {
-                                setQuizWrong(w => [...w, { mistake: choice, correct: q.answer, reason: q.sentence }]);
-                              }
-                            }}
-                            className={`px-4 py-3 rounded-2xl border-2 text-sm font-black transition-all ${style}`}>
-                            {choice}
+                    {!quizWritingSubmitted ? (
+                      <>
+                        <textarea
+                          value={quizWritingInput}
+                          onChange={e => setQuizWritingInput(e.target.value)}
+                          placeholder="日本語で書いてください..."
+                          rows={3}
+                          className="w-full rounded-2xl border-2 border-slate-200 px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-amber-400 resize-none bg-white"
+                        />
+                        <button
+                          disabled={!quizWritingInput.trim()}
+                          onClick={() => setQuizWritingSubmitted(true)}
+                          className="w-full py-3 bg-amber-500 text-white text-sm font-black rounded-2xl hover:bg-amber-600 transition-colors disabled:opacity-40">
+                          Check Answer
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="bg-slate-50 rounded-2xl p-4">
+                          <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1.5">Model answer</p>
+                          <p className="text-base font-bold text-slate-800">{q.answer}</p>
+                          <p className="text-xs text-slate-500 mt-2 leading-relaxed">{q.explanation}</p>
+                        </div>
+                        <p className="text-xs text-slate-500 font-bold text-center">Did you get it right?</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button onClick={() => { setQuizScore(s => s + 1); advance(); }}
+                            className="py-3 bg-emerald-50 border-2 border-emerald-400 text-emerald-700 text-sm font-black rounded-2xl hover:bg-emerald-100 transition-colors">
+                            ✓ Got it
                           </button>
-                        );
-                      })}
-                    </div>
-                    {answered && (
-                      <div className={`rounded-2xl p-3 text-sm ${isCorrect ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>
-                        <p className="font-black mb-1">{isCorrect ? "✓ Correct!" : `✗ Answer: ${q.answer}`}</p>
-                        <p className="text-xs leading-relaxed">{q.explanation}</p>
-                      </div>
-                    )}
-                    {answered && (
-                      <button
-                        onClick={() => {
-                          if (quizIndex + 1 >= quizQuestions.length) {
-                            setQuizDone(true);
-                            // Save wrong answers to grammar_corrections so sensei can reinforce them
-                            if (quizWrong.length > 0) {
-                              supabase.from("grammar_corrections").insert(
-                                quizWrong.map(w => ({ user_id: userId, persona: activePersona, mistake: w.mistake, correct: w.correct, reason: w.reason }))
-                              );
-                            }
-                          } else {
-                            setQuizIndex(i => i + 1);
-                            setQuizSelected(null);
-                          }
-                        }}
-                        className="w-full py-3 bg-slate-800 text-white text-sm font-black rounded-2xl hover:bg-slate-700 transition-colors">
-                        {quizIndex + 1 >= quizQuestions.length ? "See Results" : "Next →"}
-                      </button>
+                          <button onClick={() => advance({ mistake: quizWritingInput, correct: q.answer, reason: q.english })}
+                            className="py-3 bg-red-50 border-2 border-red-300 text-red-600 text-sm font-black rounded-2xl hover:bg-red-100 transition-colors">
+                            ✗ Missed
+                          </button>
+                        </div>
+                      </>
                     )}
                   </div>
                 );
