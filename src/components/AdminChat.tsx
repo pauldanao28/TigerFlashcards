@@ -637,6 +637,19 @@ export default function AdminChat({ userId }: { userId: string }) {
     }
   };
 
+  // ── Content cleanup (strips old ---CORRECTIONS--- blocks and raw JSON wrapper) ─
+  const cleanContent = (text: string) => {
+    let s = text.trim();
+    // Unwrap raw JSON that slipped through parseResponse
+    if (s.startsWith("{")) {
+      try {
+        const p = JSON.parse(s);
+        if (typeof p?.content === "string") s = p.content;
+      } catch {}
+    }
+    return s.replace(/\n?---CORRECTIONS---[\s\S]*?---END---/g, "").trim();
+  };
+
   // ── Text-to-speech ─────────────────────────────────────────────────────────
   const speakMessage = (msgId: string, text: string) => {
     if (speakingId === msgId) {
@@ -644,8 +657,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       setSpeakingId(null);
       return;
     }
-    const clean = text
-      .replace(/\n?---CORRECTIONS---[\s\S]*?---END---/g, "")
+    const clean = cleanContent(text)
       .replace(/[（(][ぁ-んァ-ンっーゃゅょ・]+[）)]/g, "")
       .replace(/\*+/g, "")
       .replace(/_{1,2}([^_]+)_{1,2}/g, "$1")
@@ -855,9 +867,7 @@ export default function AdminChat({ userId }: { userId: string }) {
                       : "bg-white border border-slate-100 text-slate-800 shadow-sm rounded-bl-lg"
                   }`}>
                     {renderContent(
-                      msg.role === "model"
-                        ? msg.content.replace(/\n?---CORRECTIONS---[\s\S]*?---END---/g, "").trim()
-                        : msg.content,
+                      msg.role === "model" ? cleanContent(msg.content) : msg.content,
                       msg.role
                     )}
                   </div>

@@ -18,7 +18,7 @@ export async function POST(req: Request) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ parts: [{ text }] }],
+        contents: [{ role: "user", parts: [{ text: `Read aloud in a warm, welcoming tone:\n\n${text}` }] }],
         generationConfig: {
           responseModalities: ["AUDIO"],
           speechConfig: {
