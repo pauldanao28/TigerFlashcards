@@ -4,7 +4,7 @@
 
 export const VOICE_OPTIONS = [
   { id: "Aoede",  label: "Aoede",  gender: "Female", desc: "Natural & warm" },
-  { id: "Kore",   label: "Kore",   gender: "Female", desc: "Firm & clear" },
+  { id: "Leda",   label: "Leda",   gender: "Female", desc: "Mature & warm" },
   { id: "Puck",   label: "Puck",   gender: "Male",   desc: "Upbeat & expressive" },
   { id: "Charon", label: "Charon", gender: "Male",   desc: "Calm & deep" },
 ] as const;
