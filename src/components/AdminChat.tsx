@@ -640,12 +640,14 @@ export default function AdminChat({ userId }: { userId: string }) {
   // ── Content cleanup (strips old ---CORRECTIONS--- blocks and raw JSON wrapper) ─
   const cleanContent = (text: string) => {
     let s = text.trim();
-    // Unwrap raw JSON that slipped through parseResponse
-    if (s.startsWith("{")) {
+    // Recursively unwrap raw JSON that slipped through or was double-wrapped by polluted history
+    for (let i = 0; i < 3; i++) {
+      if (!s.startsWith("{")) break;
       try {
         const p = JSON.parse(s);
-        if (typeof p?.content === "string") s = p.content;
+        if (typeof p?.content === "string") { s = p.content.trim(); continue; }
       } catch {}
+      break;
     }
     return s.replace(/\n?---CORRECTIONS---[\s\S]*?---END---/g, "").trim();
   };

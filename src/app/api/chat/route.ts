@@ -166,7 +166,8 @@ export async function POST(req: Request) {
       type HistoryEntry = { role: string; parts: { text: string }[] };
       const raw: HistoryEntry[] = window.slice(0, -1).map((m: { role: string; content: string }) => ({
         role: m.role === "user" ? "user" : "model",
-        parts: [{ text: m.content }],
+        // Strip raw JSON wrapper from model messages stored before parseResponse was fixed
+        parts: [{ text: m.role === "model" ? unwrapContent(m.content) : m.content }],
       }));
       const firstUser = raw.findIndex((m) => m.role === "user");
       const trimmed = firstUser >= 0 ? raw.slice(firstUser) : [];
@@ -191,6 +192,20 @@ export async function POST(req: Request) {
         }
       }
       throw lastError;
+    };
+
+    // Recursively unwrap { content, corrections } JSON if AI mimics polluted history
+    const unwrapContent = (s: string): string => {
+      let t = s.trim();
+      for (let i = 0; i < 3; i++) {
+        if (!t.startsWith("{")) break;
+        try {
+          const p = JSON.parse(t);
+          if (typeof p?.content === "string") { t = p.content.trim(); continue; }
+        } catch {}
+        break;
+      }
+      return t.replace(/\n?---CORRECTIONS---[\s\S]*?---END---/g, "").trim();
     };
 
     type Correction = { mistake: string; correct: string; reason: string };
@@ -223,7 +238,7 @@ export async function POST(req: Request) {
         .trim();
 
       const single = tryParse(cleaned);
-      if (single) return { content: single.content, corrections: normalize(single.corrections) };
+      if (single) return { content: unwrapContent(single.content), corrections: normalize(single.corrections) };
 
       // Extract first valid JSON object by brace depth
       let depth = 0, start = -1;
@@ -231,12 +246,12 @@ export async function POST(req: Request) {
         if (cleaned[i] === "{") { if (depth === 0) start = i; depth++; }
         else if (cleaned[i] === "}") { depth--; if (depth === 0 && start !== -1) {
           const parsed = tryParse(cleaned.slice(start, i + 1));
-          if (parsed) return { content: parsed.content, corrections: normalize(parsed.corrections) };
+          if (parsed) return { content: unwrapContent(parsed.content), corrections: normalize(parsed.corrections) };
           start = -1;
         }}
       }
 
-      return { content: raw, corrections: [] };
+      return { content: unwrapContent(raw), corrections: [] };
     };
 
     try {
