@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Send, Trash2, X, Loader2, List, Plus, ScrollText, Volume2, VolumeX, BookOpen, SlidersHorizontal, ChevronLeft } from "lucide-react";
 import { speak, playTTS, stopTTS, getVoice, setVoice, VOICE_OPTIONS, VoiceId } from "@/lib/tts";
@@ -22,6 +22,13 @@ const PERSONAS: Record<PersonaKey, { label: string; kanji: string; emoji: string
   sensei:  { label: "先生",     kanji: "先生", emoji: "👨‍🏫", color: "text-slate-700",   bg: "bg-slate-100",   ring: "ring-slate-400",   desc: "Strict teacher" },
   samurai: { label: "侍",       kanji: "侍",   emoji: "⚔️",  color: "text-rose-700",    bg: "bg-rose-50",     ring: "ring-rose-400",    desc: "Samurai philosopher" },
   idol:    { label: "アイドル", kanji: "☆", emoji: "⭐", color: "text-pink-600", bg: "bg-pink-50", ring: "ring-pink-400", desc: "Idol coach" },
+};
+
+const CONFIRM_COPY: Record<"back" | "sync" | "recap" | "quiz", { title: string; body: string; action: string }> = {
+  back: { title: "Leave the chat?", body: "You'll return to the home screen. Your conversation is saved.", action: "Leave" },
+  sync: { title: "Sync your profile?", body: "Sensei will re-read this conversation to update what it knows about you.", action: "Sync" },
+  recap: { title: "Generate a session recap?", body: "Summarizes the words and grammar points covered so far.", action: "Recap" },
+  quiz: { title: "Start the grammar quiz?", body: "A short quiz based on your recent mistakes and profile.", action: "Start" },
 };
 
 const PERSONA_ORDER: PersonaKey[] = ["senpai", "sensei", "samurai", "idol"];
@@ -129,6 +136,7 @@ function parseFurigana(text: string): Segment[] {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function AdminChat({ userId }: { userId: string }) {
+  const router = useRouter();
   const [activePersona, setActivePersona] = useState<PersonaKey>("senpai");
   // Sync from localStorage after hydration to avoid SSR/client mismatch
   useEffect(() => {
@@ -156,7 +164,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [activeScenario, setActiveScenario] = useState("free");
   const [recap, setRecap] = useState<any | null>(null);
   const [recapLoading, setRecapLoading] = useState(false);
-  const [recapConfirm, setRecapConfirm] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<"back" | "sync" | "recap" | "quiz" | null>(null);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [showVoicePicker, setShowVoicePicker] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<VoiceId>(() => getVoice());
@@ -914,14 +922,14 @@ export default function AdminChat({ userId }: { userId: string }) {
       <div className="sticky top-0 z-10 bg-white border-b border-slate-100 px-4 pt-4 pb-3">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Link href="/" className="flex items-center gap-0.5 text-slate-400 hover:text-slate-700 active:scale-90 transition-all">
+            <button onClick={() => setConfirmAction("back")} className="flex items-center gap-0.5 text-slate-400 hover:text-slate-700 active:scale-90 transition-all">
               <ChevronLeft size={14} />
               <span className="text-[9px] font-black uppercase tracking-widest">Home</span>
-            </Link>
+            </button>
           </div>
           <div className="flex items-center gap-1">
             {/* Manual profile sync */}
-            <button onClick={syncProfile} disabled={profileSyncing || messages.length < 2} title="Sync profile"
+            <button onClick={() => setConfirmAction("sync")} disabled={profileSyncing || messages.length < 2} title="Sync profile"
               className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-xl transition-colors disabled:opacity-30 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50">
               {profileSyncing
                 ? <Loader2 size={13} className="animate-spin text-emerald-500" />
@@ -932,27 +940,18 @@ export default function AdminChat({ userId }: { userId: string }) {
                     : <BookOpen size={13} />}
             </button>
             {/* Session recap */}
-            {recapConfirm ? (
-              <div className="flex items-center gap-1">
-                <span className="text-[11px] text-slate-500 font-bold">Recap?</span>
-                <button onClick={() => { setRecapConfirm(false); generateRecap(); }}
-                  className="text-[11px] font-black text-emerald-600 hover:text-emerald-700 px-1.5 py-1 rounded-lg hover:bg-emerald-50 transition-colors">Yes</button>
-                <button onClick={() => setRecapConfirm(false)}
-                  className="text-[11px] font-black text-slate-400 hover:text-slate-600 px-1.5 py-1 rounded-lg hover:bg-slate-100 transition-colors">No</button>
-              </div>
-            ) : (
-              <button onClick={() => setRecapConfirm(true)} disabled={recapLoading || messages.length < 2} title="Session recap"
-                className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-xl transition-colors text-slate-300 hover:text-amber-500 hover:bg-amber-50 disabled:opacity-30">
-                {recapLoading ? <Loader2 size={13} className="animate-spin" /> : <ScrollText size={13} />}
-              </button>
-            )}
+            <button onClick={() => setConfirmAction("recap")} disabled={recapLoading || messages.length < 2} title="Session recap"
+              className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-xl transition-colors text-slate-300 hover:text-amber-500 hover:bg-amber-50 disabled:opacity-30">
+              {recapLoading ? <Loader2 size={13} className="animate-spin" /> : <ScrollText size={13} />}
+            </button>
             <button onClick={() => setShowList(true)} className="relative flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-indigo-600 transition-colors px-2 py-1.5 rounded-xl hover:bg-indigo-50">
               <List size={13} />
               {wordList.length > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 bg-indigo-600 text-white text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">{wordList.length}</span>
               )}
             </button>
-            <button onClick={openQuiz} title="Grammar quiz"
+            {/* Grammar quiz */}
+            <button onClick={() => setConfirmAction("quiz")} title="Grammar quiz"
               className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-xl transition-colors text-slate-300 hover:text-emerald-500 hover:bg-emerald-50">
               <span className="text-[13px]">📝</span>
             </button>
@@ -1181,6 +1180,37 @@ export default function AdminChat({ userId }: { userId: string }) {
               className="mt-3 w-full flex items-center justify-center gap-1.5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40">
               <List size={11} /> Add to List
             </button>
+          </div>
+        </>
+      )}
+
+      {/* ── Action confirmation modal ── */}
+      {confirmAction && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setConfirmAction(null)} />
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
+            style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
+            onClick={(e) => e.stopPropagation()}>
+            <p className="text-base font-black text-slate-800 mb-1">{CONFIRM_COPY[confirmAction].title}</p>
+            <p className="text-xs text-slate-500 leading-relaxed mb-4">{CONFIRM_COPY[confirmAction].body}</p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmAction(null)}
+                className="flex-1 py-3.5 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all">
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const action = confirmAction;
+                  setConfirmAction(null);
+                  if (action === "back") router.push("/");
+                  else if (action === "sync") syncProfile();
+                  else if (action === "recap") generateRecap();
+                  else if (action === "quiz") openQuiz();
+                }}
+                className="flex-1 py-3.5 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all shadow-sm">
+                {CONFIRM_COPY[confirmAction].action}
+              </button>
+            </div>
           </div>
         </>
       )}

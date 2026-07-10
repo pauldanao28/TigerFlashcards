@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Loader2, List, Volume2 } from "lucide-react";
+import { X, Loader2, List, Volume2, ChevronLeft } from "lucide-react";
 import { speak } from "@/lib/tts";
 
 interface QuizCard {
@@ -164,6 +164,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
   const [error, setError] = useState<string | null>(null);
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<WordTooltip | null>(null);
+  const [backConfirm, setBackConfirm] = useState(false);
 
   // ── Pending word list — shared with the Sensei chat's list (same profiles.pending_words field) ──
   const [wordList, setWordList] = useState<string[]>([]);
@@ -446,14 +447,20 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
     >
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white shrink-0">
-        <div className="flex items-center gap-2.5">
-          <span className="text-base">📝</span>
-          <span className="font-black text-[11px] uppercase tracking-widest text-slate-700">Sentence Quiz</span>
-          {!isAdmin && (
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 ml-1">
-              {Math.max(0, QUIZ_DAILY_LIMIT - getDailyCount())}/{QUIZ_DAILY_LIMIT} left today
-            </span>
-          )}
+        <div className="flex items-center gap-3">
+          <button onClick={() => setBackConfirm(true)} className="flex items-center gap-0.5 text-slate-400 hover:text-slate-700 active:scale-90 transition-all">
+            <ChevronLeft size={14} />
+            <span className="text-[9px] font-black uppercase tracking-widest">Back</span>
+          </button>
+          <div className="flex items-center gap-2.5">
+            <span className="text-base">📝</span>
+            <span className="font-black text-[11px] uppercase tracking-widest text-slate-700">Sentence Quiz</span>
+            {!isAdmin && (
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 ml-1">
+                {Math.max(0, QUIZ_DAILY_LIMIT - getDailyCount())}/{QUIZ_DAILY_LIMIT} left today
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-1">
           <button onClick={() => setShowList(true)} className="relative p-2 rounded-full hover:bg-slate-100 transition-colors active:scale-90">
@@ -461,9 +468,6 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
             {wordList.length > 0 && (
               <span className="absolute -top-0.5 -right-0.5 bg-indigo-600 text-white text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">{wordList.length}</span>
             )}
-          </button>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 transition-colors active:scale-90">
-            <X size={16} className="text-slate-500" />
           </button>
         </div>
       </div>
@@ -665,6 +669,29 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
             )}
           </div>
         </div>
+      )}
+
+      {/* ── Leave confirmation ── */}
+      {backConfirm && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setBackConfirm(false)} />
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
+            style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
+            onClick={(e) => e.stopPropagation()}>
+            <p className="text-base font-black text-slate-800 mb-1">Leave the quiz?</p>
+            <p className="text-xs text-slate-500 leading-relaxed mb-4">Your progress in this session won&apos;t be saved.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setBackConfirm(false)}
+                className="flex-1 py-3.5 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all">
+                Cancel
+              </button>
+              <button onClick={onClose}
+                className="flex-1 py-3.5 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all shadow-sm">
+                Leave
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
       {/* ── Word tooltip (tap-to-lookup, same as the Sensei chat) ── */}
