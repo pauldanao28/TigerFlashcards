@@ -732,15 +732,13 @@ export default function StudyView() {
             </div>
             </div>
             <div className="flex items-center gap-2">
-              {isAdmin && (
-                <Link
-                  href="/admin/chat"
-                  className="bg-white h-9 px-4 rounded-full shadow-sm border border-violet-200 flex items-center justify-center gap-2 active:scale-95 transition-all w-fit"
-                >
-                  <span className="text-sm leading-none">先生</span>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-violet-600">Sensei</span>
-                </Link>
-              )}
+              <Link
+                href="/admin/chat"
+                className="bg-white h-9 px-4 rounded-full shadow-sm border border-violet-200 flex items-center justify-center gap-2 active:scale-95 transition-all w-fit"
+              >
+                <span className="text-sm leading-none">先生</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-violet-600">Sensei</span>
+              </Link>
               <button
                 onClick={() => setShowQuiz(true)}
                 className="bg-white h-9 px-4 rounded-full shadow-sm border border-amber-200 flex items-center justify-center gap-2 active:scale-95 transition-all w-fit"
@@ -1110,7 +1108,7 @@ export default function StudyView() {
       </AnimatePresence>
       <AnimatePresence>
         {showQuiz && user?.id && (
-          <SentenceQuiz userId={user.id} onClose={() => setShowQuiz(false)} />
+          <SentenceQuiz userId={user.id} isAdmin={isAdmin} onClose={() => setShowQuiz(false)} />
         )}
       </AnimatePresence>
     </>

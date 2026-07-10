@@ -19,7 +19,26 @@ interface QuizCard {
 
 interface SentenceQuizProps {
   userId: string;
+  isAdmin?: boolean;
   onClose: () => void;
+}
+
+const QUIZ_DAILY_LIMIT = 5;
+const QUIZ_DAILY_KEY = "flashkado-quiz-daily";
+
+function getDailyCount(): number {
+  const today = new Date().toLocaleDateString("en-CA");
+  try {
+    const s = localStorage.getItem(QUIZ_DAILY_KEY);
+    if (!s) return 0;
+    const { date, count } = JSON.parse(s);
+    return date === today ? (count as number) : 0;
+  } catch { return 0; }
+}
+
+function incrementDailyCount(): void {
+  const today = new Date().toLocaleDateString("en-CA");
+  localStorage.setItem(QUIZ_DAILY_KEY, JSON.stringify({ date: today, count: getDailyCount() + 1 }));
 }
 
 function HighlightedSentence({ sentence, word }: { sentence: string; word: string }) {
@@ -55,7 +74,7 @@ function HighlightedSentence({ sentence, word }: { sentence: string; word: strin
   return <span>{sentence}</span>;
 }
 
-export default function SentenceQuiz({ userId, onClose }: SentenceQuizProps) {
+export default function SentenceQuiz({ userId, isAdmin = false, onClose }: SentenceQuizProps) {
   const [phase, setPhase] = useState<"loading" | "quiz" | "done">("loading");
   const [quizCards, setQuizCards] = useState<QuizCard[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -67,8 +86,14 @@ export default function SentenceQuiz({ userId, onClose }: SentenceQuizProps) {
 
   const load = useCallback(async () => {
     if (loadingRef.current) return;
+    if (!isAdmin && getDailyCount() >= QUIZ_DAILY_LIMIT) {
+      setError(`Daily limit reached — ${QUIZ_DAILY_LIMIT} quizzes per day. Come back tomorrow!`);
+      setPhase("loading"); // show error state (error takes priority in render)
+      return;
+    }
     loadingRef.current = true;
     scoringRef.current = false;
+    if (!isAdmin) incrementDailyCount();
     setPhase("loading");
     setCurrentIdx(0);
     setResults([]);
@@ -186,6 +211,11 @@ export default function SentenceQuiz({ userId, onClose }: SentenceQuizProps) {
         <div className="flex items-center gap-2.5">
           <span className="text-base">📝</span>
           <span className="font-black text-[11px] uppercase tracking-widest text-slate-700">Sentence Quiz</span>
+          {!isAdmin && (
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 ml-1">
+              {Math.max(0, QUIZ_DAILY_LIMIT - getDailyCount())}/{QUIZ_DAILY_LIMIT} left today
+            </span>
+          )}
         </div>
         <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 transition-colors active:scale-90">
           <X size={16} className="text-slate-500" />
@@ -336,12 +366,18 @@ export default function SentenceQuiz({ userId, onClose }: SentenceQuizProps) {
             >
               Done
             </button>
-            <button
-              onClick={load}
-              className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all shadow-sm"
-            >
-              Play Again
-            </button>
+            {(!isAdmin && getDailyCount() >= QUIZ_DAILY_LIMIT) ? (
+              <div className="flex-1 py-4 bg-slate-100 text-slate-400 rounded-2xl font-black uppercase tracking-widest text-[10px] text-center">
+                Limit reached
+              </div>
+            ) : (
+              <button
+                onClick={load}
+                className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all shadow-sm"
+              >
+                Play Again
+              </button>
+            )}
           </div>
         </div>
       )}

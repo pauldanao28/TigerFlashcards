@@ -21,7 +21,7 @@ For each word below, write one short, natural Japanese sentence that uses that w
 
 Rules:
 - Grammar difficulty: N4 level (simple verb conjugations, basic particles, common patterns)
-- Sentence length: 1–2 short clauses, max 20 characters
+- Sentence length: 1–2 short clauses, natural and concise
 - Wrap ONLY the target word (exactly as it appears in the sentence, including any conjugation) with【】
 - Provide a natural English translation
 - Do NOT repeat the same sentence structure for every word
@@ -34,7 +34,7 @@ Return ONLY a valid JSON array, no markdown, no explanation:
 
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
     const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Sentence generation timed out")), 25000)
+      setTimeout(() => reject(new Error("Sentence generation timed out")), 40000)
     );
     const result = await Promise.race([model.generateContent(prompt), timeout]);
     const raw = result.response.text();

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { Send, Trash2, X, Loader2, List, Plus, ScrollText, Volume2, VolumeX, BookOpen, SlidersHorizontal } from "lucide-react";
+import { Send, Trash2, X, Loader2, List, Plus, ScrollText, Volume2, VolumeX, BookOpen, SlidersHorizontal, ChevronLeft } from "lucide-react";
 import { speak, playTTS, stopTTS, getVoice, setVoice, VOICE_OPTIONS, VoiceId } from "@/lib/tts";
 
 function uuid(): string {
@@ -912,7 +913,12 @@ export default function AdminChat({ userId }: { userId: string }) {
       {/* ── Persona selector ── */}
       <div className="sticky top-0 z-10 bg-white border-b border-slate-100 px-4 pt-4 pb-3">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-[9px] font-black uppercase tracking-widest text-slate-300">Choose your sensei</p>
+          <div className="flex items-center gap-2">
+            <Link href="/" className="flex items-center gap-0.5 text-slate-400 hover:text-slate-700 active:scale-90 transition-all">
+              <ChevronLeft size={14} />
+              <span className="text-[9px] font-black uppercase tracking-widest">Home</span>
+            </Link>
+          </div>
           <div className="flex items-center gap-1">
             {/* Manual profile sync */}
             <button onClick={syncProfile} disabled={profileSyncing || messages.length < 2} title="Sync profile"

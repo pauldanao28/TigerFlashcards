@@ -15,15 +15,6 @@ export default function AdminChatPage() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setDenied(true); setChecking(false); return; }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("is_admin")
-        .eq("id", user.id)
-        .single();
-
-      if (!profile?.is_admin) { setDenied(true); setChecking(false); return; }
-
       setUserId(user.id);
       setChecking(false);
     })();
