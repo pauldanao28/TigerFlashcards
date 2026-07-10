@@ -81,6 +81,7 @@ interface Tooltip {
   jlpt?: string[];
   isCommon?: boolean;
   example?: { jp: string; en: string } | null;
+  compounds?: { word: string; reading: string; meaning: string; jlpt: string[]; is_common: boolean }[];
 }
 
 type Segment =
@@ -264,7 +265,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       const sorted = data
         .filter((s: any) => (s.scores_json?.jp_to_en?.total ?? 0) >= 3)
         .sort((a: any, b: any) => (a.scores_json?.jp_to_en?.percent ?? 100) - (b.scores_json?.jp_to_en?.percent ?? 100))
-        .slice(0, 50);
+        .slice(0, 20);
       setWeakCards(sorted.map((s: any) => s.master_cards?.japanese).filter(Boolean));
       setWeakCardDetails(
         sorted
@@ -283,8 +284,8 @@ export default function AdminChat({ userId }: { userId: string }) {
   const getActiveScenario = () => {
     const base = SCENARIOS.find(s => s.id === activeScenario);
     if (activeScenario === "drill") {
-      const sample = weakCardDetails.length > 15
-        ? [...weakCardDetails].sort(() => Math.random() - 0.5).slice(0, 15)
+      const sample = weakCardDetails.length > 20
+        ? [...weakCardDetails].sort(() => Math.random() - 0.5).slice(0, 20)
         : weakCardDetails;
       const cardList = sample.length > 0
         ? sample.map(c => `・${c.japanese}（${c.reading}）= ${c.english}`).join("\n")
@@ -559,17 +560,25 @@ export default function AdminChat({ userId }: { userId: string }) {
       setTooltip(prev => prev ? { ...prev, knownEnglish: score ? card.english : null } : prev);
     })();
 
-    // Jisho + example lookup
-    fetch(`/api/jisho?word=${encodeURIComponent(editWord)}`)
+    // Jisho lookup — compounds mode for single kanji, full lookup otherwise
+    const isSingleKanji = editWord.length === 1 && kanjiRe.test(editWord);
+    const jishoUrl = isSingleKanji
+      ? `/api/jisho?word=${encodeURIComponent(editWord)}&compounds=true`
+      : `/api/jisho?word=${encodeURIComponent(editWord)}`;
+    fetch(jishoUrl)
       .then(r => r.json())
       .then(d => setTooltip(prev => prev ? {
         ...prev,
         jishoLoading: false,
-        reading: prev.reading || (d.found ? d.reading : ""),
-        jishoMeanings: d.found ? d.meanings : [],
-        jlpt: d.found ? d.jlpt : [],
-        isCommon: d.found ? d.is_common : false,
-        example: d.example ?? null,
+        ...(isSingleKanji
+          ? { compounds: d.compounds ?? [] }
+          : {
+              reading: prev.reading || (d.found ? d.reading : ""),
+              jishoMeanings: d.found ? d.meanings : [],
+              jlpt: d.found ? d.jlpt : [],
+              isCommon: d.found ? d.is_common : false,
+              example: d.example ?? null,
+            }),
       } : prev))
       .catch(() => setTooltip(prev => prev ? { ...prev, jishoLoading: false } : prev));
   }, [userId]);
@@ -1045,14 +1054,38 @@ export default function AdminChat({ userId }: { userId: string }) {
               <button onClick={() => setTooltip(null)} className="text-slate-300 hover:text-slate-500 mt-1 shrink-0"><X size={16} /></button>
             </div>
 
-            {/* Jisho meanings */}
+            {/* Jisho lookup results */}
             {tooltip.jishoLoading && (
               <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-3">
                 <Loader2 size={11} className="animate-spin" />
-                <span>Looking up definition…</span>
+                <span>Looking up…</span>
               </div>
             )}
-            {!tooltip.jishoLoading && tooltip.jishoMeanings && tooltip.jishoMeanings.length > 0 && (
+            {/* Compound words for single kanji */}
+            {!tooltip.jishoLoading && tooltip.compounds && tooltip.compounds.length > 0 && (
+              <div className="mb-3 pb-3 border-b border-slate-100">
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Words using 「{tooltip.editWord}」</p>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {tooltip.compounds.map((c, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2 py-1">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-black text-slate-800">{c.word}</span>
+                        <span className="text-xs text-indigo-500 font-bold ml-1.5">{c.reading}</span>
+                        {c.jlpt?.[0] && <span className="ml-1.5 bg-amber-100 text-amber-700 text-[8px] font-black px-1 py-0.5 rounded-full">{c.jlpt[0].toUpperCase()}</span>}
+                        <p className="text-[10px] text-slate-500 truncate">{c.meaning}</p>
+                      </div>
+                      <button
+                        onClick={() => { if (!wordList.includes(c.word)) syncWordList([...wordList, c.word]); }}
+                        className="shrink-0 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors active:scale-95">
+                        + Add
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Regular word meanings */}
+            {!tooltip.jishoLoading && !tooltip.compounds?.length && tooltip.jishoMeanings && tooltip.jishoMeanings.length > 0 && (
               <div className="mb-3 pb-3 border-b border-slate-100">
                 {tooltip.jishoMeanings.map((m, i) => (
                   <div key={i} className="mb-1">
