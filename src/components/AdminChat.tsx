@@ -424,7 +424,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   // ── Profile update ──────────────────────────────────────────────────────────
   const updateProfile = async (allMessages: Message[]) => {
     const from = lastAnalyzedIndexRef.current;
-    const newMessages = allMessages.slice(from);
+    const newMessages = allMessages.slice(from).slice(-30);
     if (newMessages.length < 2) return;
     lastAnalyzedIndexRef.current = allMessages.length;
     try {
