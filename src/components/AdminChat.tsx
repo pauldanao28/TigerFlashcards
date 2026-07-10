@@ -435,7 +435,8 @@ export default function AdminChat({ userId }: { userId: string }) {
       });
       const updated: SenseiProfile = await res.json();
       setProfile(updated);
-      supabase.from("sensei_profile").upsert([{ ...updated, user_id: userId }], { onConflict: "user_id" });
+      supabase.from("sensei_profile").upsert([{ ...updated, user_id: userId }], { onConflict: "user_id" })
+        .then(({ error }) => { if (error) console.error("[sensei_profile upsert]", error.code, error.message, error.details); });
     } catch (e) {
       console.error("Profile update failed:", e);
       lastAnalyzedIndexRef.current = from;
