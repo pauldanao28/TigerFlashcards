@@ -17,10 +17,6 @@ interface QuizCard {
   sentence_en: string;
 }
 
-interface AddWordConfirm {
-  word: string;
-}
-
 const kanjiRe = /[一-龯㐀-䶿々〻]/;
 
 // Lazy-init: avoid module-level Intl.Segmenter which crashes during Next.js SSR
@@ -153,7 +149,6 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
   const [revealed, setRevealed] = useState(false);
   const [results, setResults] = useState<{ card: QuizCard; passed: boolean }[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [confirm, setConfirm] = useState<AddWordConfirm | null>(null);
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
 
   // ── Pending word list — shared with the Sensei chat's list (same profiles.pending_words field) ──
@@ -209,7 +204,6 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
       setPhase("loading"); // show error state (error takes priority in render)
       return;
     }
-    setConfirm(null);
     loadingRef.current = true;
     scoringRef.current = false;
     if (!isAdmin) incrementDailyCount();
@@ -280,7 +274,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
     }
   }, [userId]);
 
-  // ── Tap a kanji word → ask before adding to the list (no API call until confirmed) ──
+  // ── Tap a kanji word → add straight to the pending list ──────────────────────
   const handleWordClick = useCallback((word: string, _reading: string, e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
     const extractWord = (text: string): string => {
@@ -289,14 +283,9 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
       const first = [...seg.segment(text)].find(s => s.isWordLike && kanjiRe.test(s.segment));
       return first?.segment ?? text;
     };
-    setConfirm({ word: extractWord(word) });
-  }, []);
-
-  const confirmAddWord = () => {
-    if (!confirm) return;
-    if (!wordList.includes(confirm.word)) syncWordList([...wordList, confirm.word]);
-    setConfirm(null);
-  };
+    const editWord = extractWord(word);
+    if (!wordList.includes(editWord)) syncWordList([...wordList, editWord]);
+  }, [wordList, syncWordList]);
 
   // ── Batch add — same logic as the Sensei chat's "Add All" ────────────────────
   const addListToDeck = async (text: string) => {
@@ -610,29 +599,6 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
             )}
           </div>
         </div>
-      )}
-
-      {/* ── Add-to-list confirmation ── */}
-      {confirm && (
-        <>
-          <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setConfirm(null)} />
-          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
-            style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
-            onClick={(e) => e.stopPropagation()}>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Add to your list?</p>
-            <p className="text-2xl font-black text-slate-800 mb-4">{confirm.word}</p>
-            <div className="flex gap-3">
-              <button onClick={() => setConfirm(null)}
-                className="flex-1 py-3.5 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all">
-                No
-              </button>
-              <button onClick={confirmAddWord}
-                className="flex-1 py-3.5 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all shadow-sm">
-                Yes, add
-              </button>
-            </div>
-          </div>
-        </>
       )}
 
       {/* ── Word list panel ── */}
