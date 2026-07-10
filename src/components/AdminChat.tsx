@@ -308,7 +308,7 @@ export default function AdminChat({ userId }: { userId: string }) {
         if (!res.ok) return;
         const data = await res.json();
         if (!data.content) return;
-        const greetMsg: Message = { id: uuid(), role: "model", content: data.content, timestamp: Date.now() };
+        const greetMsg: Message = { id: uuid(), role: "model", content: cleanContent(data.content), timestamp: Date.now() };
         setMessages([greetMsg]);
         localStorage.setItem(chatStorageKey(activePersona), JSON.stringify([greetMsg]));
         supabase.from("sensei_messages").upsert({ ...greetMsg, user_id: userId, persona: activePersona }, { onConflict: "id" })
