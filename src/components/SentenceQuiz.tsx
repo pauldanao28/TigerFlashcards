@@ -2,7 +2,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Loader2, List } from "lucide-react";
+import { X, Loader2, List, Volume2 } from "lucide-react";
+import { speak } from "@/lib/tts";
 
 interface QuizCard {
   id: string;
@@ -15,6 +16,18 @@ interface QuizCard {
   };
   sentence_jp: string;
   sentence_en: string;
+}
+
+interface WordTooltip {
+  word: string;
+  reading: string;
+  editWord: string;
+  knownEnglish?: string | null;
+  jishoLoading?: boolean;
+  jishoMeanings?: { definition: string; pos: string }[];
+  jlpt?: string[];
+  isCommon?: boolean;
+  compounds?: { word: string; reading: string; meaning: string; jlpt: string[]; is_common: boolean }[];
 }
 
 const kanjiRe = /[一-龯㐀-䶿々〻]/;
@@ -150,6 +163,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
   const [results, setResults] = useState<{ card: QuizCard; passed: boolean }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
+  const [tooltip, setTooltip] = useState<WordTooltip | null>(null);
 
   // ── Pending word list — shared with the Sensei chat's list (same profiles.pending_words field) ──
   const [wordList, setWordList] = useState<string[]>([]);
@@ -204,6 +218,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
       setPhase("loading"); // show error state (error takes priority in render)
       return;
     }
+    setTooltip(null);
     loadingRef.current = true;
     scoringRef.current = false;
     if (!isAdmin) incrementDailyCount();
@@ -274,8 +289,8 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
     }
   }, [userId]);
 
-  // ── Tap a kanji word → add straight to the pending list ──────────────────────
-  const handleWordClick = useCallback((word: string, _reading: string, e: React.MouseEvent | React.TouchEvent) => {
+  // ── Tap a kanji word → tooltip with Jisho lookup, same as the Sensei chat ────
+  const handleWordClick = useCallback((word: string, reading: string, e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
     const extractWord = (text: string): string => {
       const seg = getSegmenter();
@@ -284,8 +299,59 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
       return first?.segment ?? text;
     };
     const editWord = extractWord(word);
-    if (!wordList.includes(editWord)) syncWordList([...wordList, editWord]);
-  }, [wordList, syncWordList]);
+    setTooltip({ word, reading, editWord, knownEnglish: undefined, jishoLoading: true });
+
+    (async () => {
+      const { data: card } = await supabase.from("master_cards").select("id, english").eq("japanese", editWord).maybeSingle();
+      if (!card) { setTooltip(prev => prev ? { ...prev, knownEnglish: null } : prev); return; }
+      const { data: score } = await supabase.from("user_scores").select("id").eq("user_id", userId).eq("card_id", card.id).maybeSingle();
+      setTooltip(prev => prev ? { ...prev, knownEnglish: score ? card.english : null } : prev);
+    })();
+
+    const isSingleKanji = editWord.length === 1 && kanjiRe.test(editWord);
+    const jishoUrl = isSingleKanji
+      ? `/api/jisho?word=${encodeURIComponent(editWord)}&compounds=true`
+      : `/api/jisho?word=${encodeURIComponent(editWord)}`;
+    fetch(jishoUrl)
+      .then(r => r.json())
+      .then(d => setTooltip(prev => prev ? {
+        ...prev,
+        jishoLoading: false,
+        ...(isSingleKanji
+          ? { compounds: d.compounds ?? [] }
+          : {
+              reading: prev.reading || (d.found ? d.reading : ""),
+              jishoMeanings: d.found ? d.meanings : [],
+              jlpt: d.found ? d.jlpt : [],
+              isCommon: d.found ? d.is_common : false,
+            }),
+      } : prev))
+      .catch(() => setTooltip(prev => prev ? { ...prev, jishoLoading: false } : prev));
+  }, [userId]);
+
+  // Debounced Jisho re-lookup when the user edits the word in the tooltip input
+  const jishoDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const word = tooltip?.editWord?.trim();
+    if (!word || !kanjiRe.test(word)) return;
+    if (jishoDebounceRef.current) clearTimeout(jishoDebounceRef.current);
+    jishoDebounceRef.current = setTimeout(() => {
+      setTooltip(prev => prev ? { ...prev, jishoLoading: true, jishoMeanings: [], jlpt: [], isCommon: false } : prev);
+      fetch(`/api/jisho?word=${encodeURIComponent(word)}`)
+        .then(r => r.json())
+        .then(d => setTooltip(prev => prev ? {
+          ...prev,
+          jishoLoading: false,
+          reading: d.found ? d.reading : "",
+          jishoMeanings: d.found ? d.meanings : [],
+          jlpt: d.found ? d.jlpt : [],
+          isCommon: d.found ? d.is_common : false,
+        } : prev))
+        .catch(() => setTooltip(prev => prev ? { ...prev, jishoLoading: false } : prev));
+    }, 500);
+    return () => { if (jishoDebounceRef.current) clearTimeout(jishoDebounceRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tooltip?.editWord]);
 
   // ── Batch add — same logic as the Sensei chat's "Add All" ────────────────────
   const addListToDeck = async (text: string) => {
@@ -599,6 +665,95 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
             )}
           </div>
         </div>
+      )}
+
+      {/* ── Word tooltip (tap-to-lookup, same as the Sensei chat) ── */}
+      {tooltip && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setTooltip(null)} />
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
+            style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="text-2xl font-black text-slate-800">{tooltip.editWord}</div>
+                  {tooltip.jlpt && tooltip.jlpt.length > 0 && (
+                    <span className="bg-amber-100 text-amber-700 text-[9px] font-black px-1.5 py-0.5 rounded-full">{tooltip.jlpt[0].toUpperCase()}</span>
+                  )}
+                  {tooltip.isCommon && (
+                    <span className="bg-emerald-100 text-emerald-700 text-[9px] font-black px-1.5 py-0.5 rounded-full">common</span>
+                  )}
+                  <button onClick={() => speak(tooltip.editWord, "ja-JP")}
+                    className="flex items-center gap-1 text-[10px] font-black text-slate-400 hover:text-indigo-500 transition-colors px-1.5 py-0.5 rounded-lg hover:bg-indigo-50">
+                    <Volume2 size={11} /> Listen
+                  </button>
+                </div>
+                <div className="text-sm text-indigo-500 font-bold mt-0.5">{tooltip.reading}</div>
+                {tooltip.knownEnglish && (
+                  <div className="mt-1 inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                    ✓ in your deck
+                  </div>
+                )}
+              </div>
+              <button onClick={() => setTooltip(null)} className="text-slate-300 hover:text-slate-500 mt-1 shrink-0"><X size={16} /></button>
+            </div>
+
+            {tooltip.jishoLoading && (
+              <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-3">
+                <Loader2 size={11} className="animate-spin" />
+                <span>Looking up…</span>
+              </div>
+            )}
+            {!tooltip.jishoLoading && tooltip.compounds && tooltip.compounds.length > 0 && (
+              <div className="mb-3 pb-3 border-b border-slate-100">
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Words using 「{tooltip.editWord}」</p>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {tooltip.compounds.map((c, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2 py-1">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-black text-slate-800">{c.word}</span>
+                        <span className="text-xs text-indigo-500 font-bold ml-1.5">{c.reading}</span>
+                        {c.jlpt?.[0] && <span className="ml-1.5 bg-amber-100 text-amber-700 text-[8px] font-black px-1 py-0.5 rounded-full">{c.jlpt[0].toUpperCase()}</span>}
+                        <p className="text-[10px] text-slate-500 truncate">{c.meaning}</p>
+                      </div>
+                      <button
+                        onClick={() => { if (!wordList.includes(c.word)) syncWordList([...wordList, c.word]); }}
+                        disabled={wordList.includes(c.word)}
+                        className={`shrink-0 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg transition-colors active:scale-95 ${wordList.includes(c.word) ? "bg-emerald-50 text-emerald-600 cursor-default" : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"}`}>
+                        {wordList.includes(c.word) ? "Added" : "+ Add"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {!tooltip.jishoLoading && !tooltip.compounds?.length && tooltip.jishoMeanings && tooltip.jishoMeanings.length > 0 && (
+              <div className="mb-3 pb-3 border-b border-slate-100">
+                {tooltip.jishoMeanings.map((m, i) => (
+                  <div key={i} className="mb-1">
+                    {m.pos && <span className="text-[9px] text-slate-400 font-bold mr-1">{m.pos}</span>}
+                    <span className="text-xs text-slate-700">{m.definition}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Word to add</label>
+            <input
+              type="text"
+              value={tooltip.editWord}
+              onChange={(e) => setTooltip((prev) => prev ? { ...prev, editWord: e.target.value } : prev)}
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+              placeholder="e.g. 食べる"
+            />
+            <button
+              onClick={() => { const word = tooltip.editWord.trim(); if (word && !wordList.includes(word)) syncWordList([...wordList, word]); setTooltip(null); }}
+              disabled={!tooltip.editWord.trim()}
+              className="mt-3 w-full flex items-center justify-center gap-1.5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40">
+              <List size={11} /> Add to List
+            </button>
+          </div>
+        </>
       )}
 
       {/* ── Word list panel ── */}
