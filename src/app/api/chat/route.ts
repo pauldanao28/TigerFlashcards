@@ -197,12 +197,21 @@ export async function POST(req: Request) {
     // Recursively unwrap { content, corrections } JSON if AI mimics polluted history
     const unwrapContent = (s: string): string => {
       let t = s.trim();
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 4; i++) {
         if (!t.startsWith("{")) break;
         try {
           const p = JSON.parse(t);
           if (typeof p?.content === "string") { t = p.content.trim(); continue; }
         } catch {}
+        // Sanitize control chars and retry
+        try {
+          const san = t.replace(/[\x00-\x1F\x7F]/g, (c) => c === "\n" ? "\\n" : c === "\r" ? "\\r" : c === "\t" ? "\\t" : "");
+          const p = JSON.parse(san);
+          if (typeof p?.content === "string") { t = p.content.replace(/\\n/g, "\n").trim(); continue; }
+        } catch {}
+        // Regex extraction fallback
+        const m = t.match(/"content"\s*:\s*"((?:[^"\\]|\\[\s\S])*)"/);
+        if (m) { try { t = JSON.parse('"' + m[1] + '"').trim(); } catch { t = m[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').trim(); } break; }
         break;
       }
       return t.replace(/\n?---CORRECTIONS---[\s\S]*?---END---/g, "").trim();
@@ -211,9 +220,16 @@ export async function POST(req: Request) {
     type Correction = { mistake: string; correct: string; reason: string };
     const parseResponse = (raw: string): { content: string; corrections: Correction[] } => {
       const tryParse = (s: string) => {
+        // Direct parse
         try {
           const p = JSON.parse(s);
           if (typeof p?.content === "string") return p;
+        } catch {}
+        // Sanitize control chars and retry
+        try {
+          const san = s.replace(/[\x00-\x1F\x7F]/g, (c) => c === "\n" ? "\\n" : c === "\r" ? "\\r" : c === "\t" ? "\\t" : "");
+          const p = JSON.parse(san);
+          if (typeof p?.content === "string") return { ...p, content: p.content.replace(/\\n/g, "\n") };
         } catch {}
         return null;
       };

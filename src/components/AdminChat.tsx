@@ -639,15 +639,35 @@ export default function AdminChat({ userId }: { userId: string }) {
   };
 
   // ── Content cleanup (strips old ---CORRECTIONS--- blocks and raw JSON wrapper) ─
-  const cleanContent = (text: string) => {
+  const cleanContent = (text: string): string => {
     let s = text.trim();
-    // Recursively unwrap raw JSON that slipped through or was double-wrapped by polluted history
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       if (!s.startsWith("{")) break;
+      // 1. Try direct JSON parse
       try {
         const p = JSON.parse(s);
         if (typeof p?.content === "string") { s = p.content.trim(); continue; }
       } catch {}
+      // 2. JSON.parse failed (e.g. unescaped newlines) — sanitize and retry
+      try {
+        const sanitized = s.replace(/[\x00-\x1F\x7F]/g, (c) => {
+          if (c === "\n") return "\\n";
+          if (c === "\r") return "\\r";
+          if (c === "\t") return "\\t";
+          return "";
+        });
+        const p = JSON.parse(sanitized);
+        if (typeof p?.content === "string") {
+          s = p.content.replace(/\\n/g, "\n").replace(/\\r/g, "\r").replace(/\\t/g, "\t").trim();
+          continue;
+        }
+      } catch {}
+      // 3. Regex fallback — extract "content":"..." even from totally malformed JSON
+      const m = s.match(/"content"\s*:\s*"((?:[^"\\]|\\[\s\S])*)"/);
+      if (m) {
+        try { s = JSON.parse('"' + m[1] + '"').trim(); } catch { s = m[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').trim(); }
+        continue;
+      }
       break;
     }
     return s.replace(/\n?---CORRECTIONS---[\s\S]*?---END---/g, "").trim();
