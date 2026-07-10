@@ -63,6 +63,7 @@ interface SenseiProfile {
   recently_added?: string[];
   grammar_weak_points?: string[];
   recent_topics?: string[];
+  personal_facts?: string[];
   notes?: string;
 }
 
@@ -507,7 +508,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       const unanalyzedCount = finalMessages.length - lastAnalyzedIndexRef.current;
       const msSinceLastUpdate = Date.now() - lastProfileUpdateRef.current;
       const cooldownOk = msSinceLastUpdate > 3 * 60 * 1000; // 3 minute cooldown
-      if (cooldownOk && ((exchangeCount > 0 && exchangeCount % 8 === 0) || unanalyzedCount >= 24)) {
+      if (cooldownOk && ((exchangeCount > 0 && exchangeCount % 4 === 0) || unanalyzedCount >= 12)) {
         lastProfileUpdateRef.current = Date.now();
         localStorage.setItem("sensei_profile_updated_at", String(lastProfileUpdateRef.current));
         updateProfile(finalMessages);

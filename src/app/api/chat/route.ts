@@ -12,6 +12,7 @@ const FURIGANA_RULES = `
 - 普通の会話・返答は2〜3文以内に収める。ただし、ユーザーの間違いを指摘・訂正する時は、引用・正しい形・理由・例文を含む詳しい説明をすること。同じ文や表現を繰り返さないこと。
 - 文法的には正しいが、英語の直訳っぽかったり不自然な表現の場合も、さりげなく「ネイティブならこう言うよ→〜」と提案してから会話を続けること。correctionsには追加せず、content内で自然に触れる。
 - 【必須・毎回】返答の最後に必ずユーザーへの質問か話題の提案を一文添えること。プロフィール情報があればそれを活かす。プロフィールが薄い場合は「好きな食べ物は？」「最近見たアニメや映画は？」「週末は何をした？」「日本に行ったら何をしたい？」「好きなスポーツは？」などの日常的なテーマを自由に聞くこと。絶対にこれを省略しないこと。
+- 【重要】プロフィールの【個人情報】に記録済みの情報（好きな食べ物・スポーツ・趣味・出身など）は絶対に再度質問しないこと。同じ質問を繰り返すのは厳禁。
 
 ## 出力形式（必須・毎回）
 必ず以下のJSON形式のみで返答すること。マークダウン・コードブロック・余分なテキスト一切不要：
@@ -79,6 +80,7 @@ interface SenseiProfile {
   recently_added?: string[];
   grammar_weak_points?: string[];
   recent_topics?: string[];
+  personal_facts?: string[];
   notes?: string;
 }
 
@@ -112,6 +114,7 @@ function buildSystemPrompt(persona: string, profile: SenseiProfile | null, pendi
     if (profile.recently_added?.length)        lines.push(`【最近デッキに追加した語彙】: ${profile.recently_added.join("、")}`);
     if (profile.grammar_weak_points?.length)   lines.push(`【文法の弱点】: ${profile.grammar_weak_points.join("、")}`);
     if (profile.recent_topics?.length)         lines.push(`最近の話題: ${profile.recent_topics.join("、")}`);
+    if (profile.personal_facts?.length)        lines.push(`【個人情報（再度質問禁止）】: ${profile.personal_facts.join("、")}`);
     if (profile.notes)                         lines.push(`メモ: ${profile.notes}`);
   }
 
