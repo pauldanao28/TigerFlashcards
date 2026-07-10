@@ -63,8 +63,12 @@ export default function SentenceQuiz({ userId, onClose }: SentenceQuizProps) {
   const [results, setResults] = useState<{ card: QuizCard; passed: boolean }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const scoringRef = useRef(false);
+  const loadingRef = useRef(false);
 
   const load = useCallback(async () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    scoringRef.current = false;
     setPhase("loading");
     setCurrentIdx(0);
     setResults([]);
@@ -76,7 +80,7 @@ export default function SentenceQuiz({ userId, onClose }: SentenceQuizProps) {
         .from("user_scores")
         .select("scores_json, master_cards!card_id(id, japanese, reading, english)")
         .eq("user_id", userId)
-        .limit(500);
+        .limit(100);
 
       if (dbErr || !data) throw new Error("Could not load your cards");
 
@@ -127,6 +131,8 @@ export default function SentenceQuiz({ userId, onClose }: SentenceQuizProps) {
       setPhase("quiz");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      loadingRef.current = false;
     }
   }, [userId]);
 

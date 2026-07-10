@@ -33,7 +33,10 @@ Return ONLY a valid JSON array, no markdown, no explanation:
 [{"word":"食べる","sentence_jp":"毎朝ご飯を【食べます】。","sentence_en":"I eat rice every morning."}]`;
 
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
-    const result = await model.generateContent(prompt);
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Sentence generation timed out")), 25000)
+    );
+    const result = await Promise.race([model.generateContent(prompt), timeout]);
     const raw = result.response.text();
 
     const cleaned = raw
