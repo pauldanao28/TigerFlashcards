@@ -229,11 +229,12 @@ export default function AdminChat({ userId }: { userId: string }) {
         const seen = new Set<string>();
         const loaded = (data as Message[]).map(normalizeMsg).filter(m => !seen.has(m.id) && seen.add(m.id)).filter(validMsg);
         // Merge corrections/natural_alt from localStorage — Supabase may lag on these fields
+        let finalLoaded = loaded;
         try {
           const saved = localStorage.getItem(chatStorageKey(activePersona));
           if (saved) {
             const localMap = new Map<string, Message>(JSON.parse(saved).map((m: Message) => [m.id, m]));
-            const merged = loaded.map(m => {
+            finalLoaded = loaded.map(m => {
               const local = localMap.get(m.id);
               if (!local) return m;
               return {
@@ -242,13 +243,10 @@ export default function AdminChat({ userId }: { userId: string }) {
                 natural_alt: m.natural_alt ?? local.natural_alt,
               };
             });
-            setMessages(merged);
-            localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(merged));
-            return;
           }
         } catch {}
-        setMessages(loaded);
-        localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(loaded));
+        setMessages(finalLoaded);
+        localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(finalLoaded));
       } else {
         try {
           const saved = localStorage.getItem(chatStorageKey(activePersona));
