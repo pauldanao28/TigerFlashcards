@@ -7,6 +7,10 @@ export async function POST(req: Request) {
   try {
     const { cards } = await req.json();
 
+    if (!Array.isArray(cards) || cards.length === 0) {
+      return NextResponse.json({ error: "cards must be a non-empty array" }, { status: 400 });
+    }
+
     const wordList = (cards as { japanese: string; reading: string; english: string }[])
       .map((c, i) => `${i + 1}. ${c.japanese}（${c.reading}）= ${c.english}`)
       .join("\n");
@@ -33,6 +37,7 @@ Return ONLY a valid JSON array, no markdown, no explanation:
     const raw = result.response.text();
 
     const cleaned = raw
+      .trimStart()
       .replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/gm, "")
       .trim();
 

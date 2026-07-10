@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
@@ -62,6 +62,7 @@ export default function SentenceQuiz({ userId, onClose }: SentenceQuizProps) {
   const [revealed, setRevealed] = useState(false);
   const [results, setResults] = useState<{ card: QuizCard; passed: boolean }[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const scoringRef = useRef(false);
 
   const load = useCallback(async () => {
     setPhase("loading");
@@ -107,14 +108,19 @@ export default function SentenceQuiz({ userId, onClose }: SentenceQuizProps) {
       if (!res.ok) throw new Error("Failed to generate sentences");
       const { sentences } = await res.json();
 
-      const merged: QuizCard[] = pick.map((card: any, i: number) => ({
+      // Look up by word field so AI reordering or skipped items don't misalign sentences
+      const sentenceMap = new Map<string, { sentence_jp: string; sentence_en: string }>(
+        (sentences ?? []).map((s: any) => [s.word, s])
+      );
+
+      const merged: QuizCard[] = pick.map((card: any) => ({
         id: card.id,
         japanese: card.japanese,
         reading: card.reading,
         english: card.english,
         scores: card.scores,
-        sentence_jp: sentences?.[i]?.sentence_jp ?? `【${card.japanese}】`,
-        sentence_en: sentences?.[i]?.sentence_en ?? card.english,
+        sentence_jp: sentenceMap.get(card.japanese)?.sentence_jp ?? `【${card.japanese}】`,
+        sentence_en: sentenceMap.get(card.japanese)?.sentence_en ?? card.english,
       }));
 
       setQuizCards(merged);
@@ -126,14 +132,17 @@ export default function SentenceQuiz({ userId, onClose }: SentenceQuizProps) {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleScore = (passed: boolean) => {
+  const handleScore = async (passed: boolean) => {
+    if (scoringRef.current) return;
+    scoringRef.current = true;
+
     const card = quizCards[currentIdx];
     const old = card.scores?.jp_to_en || { pass: 0, fail: 0, total: 0, percent: 0 };
     const newPass = passed ? old.pass + 1 : old.pass;
     const newFail = !passed ? old.fail + 1 : old.fail;
     const newTotal = old.total + 1;
 
-    supabase.from("user_scores").upsert({
+    await supabase.from("user_scores").upsert({
       user_id: userId,
       card_id: card.id,
       scores_json: {
@@ -151,6 +160,7 @@ export default function SentenceQuiz({ userId, onClose }: SentenceQuizProps) {
     } else {
       setCurrentIdx(i => i + 1);
       setRevealed(false);
+      scoringRef.current = false;
     }
   };
 
@@ -295,7 +305,7 @@ export default function SentenceQuiz({ userId, onClose }: SentenceQuizProps) {
             </div>
             <h2 className="text-4xl font-black text-slate-900 mb-1">{passedCount}<span className="text-slate-300 font-bold text-2xl"> / {results.length}</span></h2>
             <p className="text-slate-400 font-black uppercase tracking-widest text-[10px] mt-1">
-              {Math.round((passedCount / results.length) * 100)}% correct · scores updated
+              {results.length > 0 ? Math.round((passedCount / results.length) * 100) : 0}% correct · scores updated
             </p>
           </motion.div>
 
