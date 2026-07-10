@@ -827,6 +827,13 @@ export default function StudyView() {
                 {t.stats}
               </span>
             </Link>
+            <Link
+              href="/admin/chat"
+              className="bg-white h-11 px-8 rounded-full shadow-sm border border-violet-200 flex items-center gap-3 hover:border-violet-300 transition-all active:scale-95"
+            >
+              <span className="text-xl leading-none">先生</span>
+              <span className="text-sm font-black uppercase tracking-[0.2em] text-violet-600">Sensei</span>
+            </Link>
             <button
               onClick={() => setShowQuiz(true)}
               className="bg-white h-11 px-8 rounded-full shadow-sm border border-amber-200 flex items-center gap-3 hover:border-amber-300 transition-all active:scale-95"
