@@ -228,6 +228,25 @@ export default function AdminChat({ userId }: { userId: string }) {
       if (!error && data && data.length > 0) {
         const seen = new Set<string>();
         const loaded = (data as Message[]).map(normalizeMsg).filter(m => !seen.has(m.id) && seen.add(m.id)).filter(validMsg);
+        // Merge corrections/natural_alt from localStorage — Supabase may lag on these fields
+        try {
+          const saved = localStorage.getItem(chatStorageKey(activePersona));
+          if (saved) {
+            const localMap = new Map<string, Message>(JSON.parse(saved).map((m: Message) => [m.id, m]));
+            const merged = loaded.map(m => {
+              const local = localMap.get(m.id);
+              if (!local) return m;
+              return {
+                ...m,
+                corrections: (m.corrections?.length ? m.corrections : local.corrections) ?? [],
+                natural_alt: m.natural_alt ?? local.natural_alt,
+              };
+            });
+            setMessages(merged);
+            localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(merged));
+            return;
+          }
+        } catch {}
         setMessages(loaded);
         localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(loaded));
       } else {
@@ -502,7 +521,8 @@ export default function AdminChat({ userId }: { userId: string }) {
       supabase.from("sensei_messages").upsert({ ...modelMsg, user_id: userId, persona: activePersona }, { onConflict: "id" })
         .then(({ error }) => { if (error) console.error("[DB model]", error.code, error.message); });
       if (correctionStrings.length > 0 || natural_alt) {
-        supabase.from("sensei_messages").upsert({ ...finalUserMsg, user_id: userId, persona: activePersona }, { onConflict: "id" });
+        supabase.from("sensei_messages").upsert({ ...finalUserMsg, user_id: userId, persona: activePersona }, { onConflict: "id" })
+          .then(({ error }) => { if (error) console.error("[DB corrections upsert]", error.code, error.message); });
       }
 
       // Trim DB to latest 100 messages every 10 exchanges to avoid unbounded growth
