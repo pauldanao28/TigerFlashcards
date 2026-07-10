@@ -674,29 +674,31 @@ export default function AdminChat({ userId }: { userId: string }) {
   };
 
   // ── Text-to-speech ─────────────────────────────────────────────────────────
-  const speakMessage = (msgId: string, text: string) => {
-    if (speakingId === msgId) {
-      stopTTS();
-      setSpeakingId(null);
-      return;
-    }
-    const clean = cleanContent(text)
+  const ttsClean = (text: string) =>
+    cleanContent(text)
       .replace(/[（(][ぁ-んァ-ンっーゃゅょ・]+[）)]/g, "")
       .replace(/\*+/g, "")
       .replace(/_{1,2}([^_]+)_{1,2}/g, "$1")
       .trim();
+
+  const speakMessage = (msgId: string, text: string) => {
+    if (speakingId?.startsWith(msgId)) {
+      stopTTS();
+      setSpeakingId(null);
+      return;
+    }
     setSpeakingId(msgId);
-    playTTS(clean, "ja-JP", { onEnd: () => setSpeakingId(null) });
+    playTTS(ttsClean(text), "ja-JP", { onEnd: () => setSpeakingId(null) });
   };
 
   // ── Render message content ──────────────────────────────────────────────────
-  const renderContent = (text: string, role: "user" | "model") => {
+  const renderContent = (text: string, role: "user" | "model", msgId?: string) => {
     if (role === "user") return <span>{text}</span>;
     try {
 
     const makeWordSpan = (word: string, reading: string, key: string) => (
       <span key={key} className="cursor-pointer active:opacity-60 transition-opacity"
-        onClick={(e) => handleWordClick(word, reading, e)}
+        onClick={(e) => { e.stopPropagation(); handleWordClick(word, reading, e); }}
         onTouchStart={(e) => { touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
         onTouchEnd={(e) => {
           const start = touchStartRef.current;
@@ -704,7 +706,7 @@ export default function AdminChat({ userId }: { userId: string }) {
           if (!start) return;
           const dx = Math.abs(e.changedTouches[0].clientX - start.x);
           const dy = Math.abs(e.changedTouches[0].clientY - start.y);
-          if (dx < 8 && dy < 8) { e.preventDefault(); handleWordClick(word, reading, e as unknown as React.MouseEvent); }
+          if (dx < 8 && dy < 8) { e.preventDefault(); e.stopPropagation(); handleWordClick(word, reading, e as unknown as React.MouseEvent); }
         }}>
         {word.split("").map((ch, ci) =>
           kanjiRe.test(ch) ? <span key={ci} className="underline decoration-dotted decoration-indigo-400 underline-offset-2">{ch}</span> : ch
@@ -747,6 +749,38 @@ export default function AdminChat({ userId }: { userId: string }) {
       return nodes;
     };
 
+    // Split a text chunk into sentences at 。！？… boundaries
+    const splitSentences = (s: string): string[] => {
+      const result: string[] = [];
+      let cur = "";
+      for (const ch of s) {
+        cur += ch;
+        if ("。！？…".includes(ch)) { result.push(cur); cur = ""; }
+      }
+      if (cur.trim()) result.push(cur);
+      return result.length > 0 ? result : [s];
+    };
+
+    // Wrap a sentence in a tappable span (if msgId provided)
+    const wrapSentence = (nodes: React.ReactNode[], sent: string, sentId: string) => {
+      if (!msgId) return <span key={sentId}>{nodes}</span>;
+      const fullId = `${msgId}-${sentId}`;
+      const playing = speakingId === fullId;
+      return (
+        <span key={sentId}
+          className={`rounded transition-colors ${playing ? "bg-indigo-50 text-indigo-700" : "active:bg-slate-100"}`}
+          onClick={() => {
+            if (playing) { stopTTS(); setSpeakingId(null); return; }
+            stopTTS();
+            const clean = sent.replace(/[（(][ぁ-んァ-ンっーゃゅょ・]+[）)]/g, "").replace(/\*+/g, "").trim();
+            setSpeakingId(fullId);
+            playTTS(clean, "ja-JP", { onEnd: () => setSpeakingId(null) });
+          }}>
+          {nodes}
+        </span>
+      );
+    };
+
     // Split into lines and handle bullet prefixes
     const lines = text.split("\n");
     return (
@@ -755,17 +789,21 @@ export default function AdminChat({ userId }: { userId: string }) {
           const isBullet = /^[*•\-] /.test(line);
           const content = isBullet ? line.replace(/^[*•\-] /, "") : line;
           const addBreak = li < lines.length - 1;
+          const sentences = splitSentences(content);
+          const rendered = sentences.map((sent, si) =>
+            wrapSentence(renderInline(sent, `l${li}-s${si}`), sent, `${li}-${si}`)
+          );
           if (isBullet) {
             return (
               <span key={li} className="flex gap-1.5 items-baseline">
                 <span className="text-indigo-400 shrink-0 font-bold">•</span>
-                <span>{renderInline(content, `l${li}`)}{addBreak && <br />}</span>
+                <span>{rendered}{addBreak && <br />}</span>
               </span>
             );
           }
           return (
             <span key={li}>
-              {renderInline(line, `l${li}`)}
+              {rendered}
               {addBreak && <br />}
             </span>
           );
@@ -891,15 +929,16 @@ export default function AdminChat({ userId }: { userId: string }) {
                   }`}>
                     {renderContent(
                       msg.role === "model" ? cleanContent(msg.content) : msg.content,
-                      msg.role
+                      msg.role,
+                      msg.role === "model" ? msg.id : undefined
                     )}
                   </div>
                   {msg.role === "model" && (
                     <button
                       onClick={() => speakMessage(msg.id, msg.content)}
-                      className={`ml-1 flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-xl transition-colors ${speakingId === msg.id ? "text-indigo-500 bg-indigo-50" : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"}`}>
-                      {speakingId === msg.id ? <VolumeX size={11} /> : <Volume2 size={11} />}
-                      {speakingId === msg.id ? "Stop" : "Listen"}
+                      className={`ml-1 flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-xl transition-colors ${speakingId?.startsWith(msg.id) ? "text-indigo-500 bg-indigo-50" : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"}`}>
+                      {speakingId?.startsWith(msg.id) ? <VolumeX size={11} /> : <Volume2 size={11} />}
+                      {speakingId?.startsWith(msg.id) ? "Stop" : "Listen"}
                     </button>
                   )}
                 </div>
