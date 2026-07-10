@@ -198,6 +198,7 @@ export async function POST(req: Request) {
       throw lastError;
     };
 
+<<<<<<< HEAD
     // Recursively unwrap { content, corrections } JSON if AI mimics polluted history
     const unwrapContent = (s: string): string => {
       let t = s.trim();
@@ -217,6 +218,34 @@ export async function POST(req: Request) {
         const m = t.match(/"content"\s*:\s*"((?:[^"\\]|\\[\s\S])*)"/);
         if (m) { try { t = JSON.parse('"' + m[1] + '"').trim(); } catch { t = m[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').trim(); } break; }
         break;
+=======
+    type Correction = { mistake: string; correct: string; reason: string };
+    const normalizeCorrections = (arr: unknown[]): Correction[] =>
+      arr.flatMap((c) => {
+        if (c && typeof c === "object" && "mistake" in c) {
+          return [{ mistake: String((c as any).mistake ?? ""), correct: String((c as any).correct ?? ""), reason: String((c as any).reason ?? "") }];
+        }
+        if (typeof c === "string") {
+          const m = c.match(/誤[：:](.+?)[→＞]正[：:](.+?)(?:[（(](.+?)[）)])?$/);
+          if (m) return [{ mistake: m[1].trim(), correct: m[2].trim(), reason: m[3]?.trim() ?? "" }];
+        }
+        return [];
+      });
+
+    const parseResponse = (raw: string): { content: string; corrections: Correction[] } => {
+      try {
+        const cleaned = raw
+          .replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/gm, "")
+          .replace(/^JSON\s*/i, "").replace(/\s*JSON\s*$/i, "")
+          .trim();
+        const parsed = JSON.parse(cleaned);
+        return {
+          content: typeof parsed.content === "string" ? parsed.content : raw,
+          corrections: Array.isArray(parsed.corrections) ? normalizeCorrections(parsed.corrections) : [],
+        };
+      } catch {
+        return { content: raw, corrections: [] };
+>>>>>>> d4e3e53 (Fix grammar corrections not showing in chat)
       }
       return t.replace(/\n?---CORRECTIONS---[\s\S]*?---END---/g, "").trim();
     };
