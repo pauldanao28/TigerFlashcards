@@ -6,8 +6,9 @@ import { FlashcardData } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
 import { useLang } from "@/context/LanguageContext";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import Logo from "@/components/Logo";
+import SentenceQuiz from "@/components/SentenceQuiz";
 import { calculateGlobalStats } from "@/lib/stats";
 import LoadingScreen from "@/components/LoadingScreen";
 import { List, X, Plus, Loader2 } from "lucide-react";
@@ -57,6 +58,7 @@ export default function StatsPage() {
   const [previewPack, setPreviewPack] = useState<any | null>(null);
   const [addedWordsSummary, setAddedWordsSummary] = useState<any[]>([]);
   const [showSummaryOverlay, setShowSummaryOverlay] = useState(false);
+  const [showQuiz, setShowQuiz] = useState(false);
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [pendingWords, setPendingWords] = useState<string[]>([]);
   const [showWordList, setShowWordList] = useState(false);
@@ -1377,6 +1379,24 @@ export default function StatsPage() {
 
             {/* Right Side: Navigation Buttons */}
             <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto md:ml-auto">
+              {/* SENSEI + QUIZ ROW: All logged-in users */}
+              {user && (
+                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                  <Link
+                    href="/admin/chat"
+                    className="w-full md:w-auto bg-violet-600 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-violet-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <span className="text-sm">先生</span> Sensei
+                  </Link>
+                  <button
+                    onClick={() => setShowQuiz(true)}
+                    className="w-full md:w-auto bg-amber-500 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-amber-600 transition-all active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <span className="text-sm">📝</span> Sentence Quiz
+                  </button>
+                </div>
+              )}
+
               {/* ADMIN ROW: Stacked on mobile, side-by-side on desktop */}
               {isAdmin && (
                 <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
@@ -1396,13 +1416,6 @@ export default function StatsPage() {
                     <span className="text-sm">📊</span> {t.admin_user_stats}
                   </Link>
 
-                  {/* Sensei Chatbot */}
-                  <Link
-                    href="/admin/chat"
-                    className="w-full md:w-auto bg-violet-600 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-violet-700 transition-all active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <span className="text-sm">先生</span> Sensei
-                  </Link>
                 </div>
               )}
 
@@ -2458,6 +2471,16 @@ export default function StatsPage() {
             <p className="text-lg font-bold animate-pulse">{t.ai_building}</p>
           </div>
         )}
+
+        <AnimatePresence>
+          {showQuiz && user && (
+            <SentenceQuiz
+              userId={user.id}
+              isAdmin={isAdmin}
+              onClose={() => setShowQuiz(false)}
+            />
+          )}
+        </AnimatePresence>
       </main>
     </div>
   );
