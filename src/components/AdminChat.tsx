@@ -34,7 +34,7 @@ interface Message {
   content: string;
   timestamp: number;
   corrections?: string[];
-  natural?: string;
+  natural_alt?: string;
 }
 
 const SCENARIOS: { id: string; emoji: string; labelEn: string; labelJp: string; prompt: string }[] = [
@@ -197,13 +197,13 @@ export default function AdminChat({ userId }: { userId: string }) {
       setMessagesLoading(true);
       let result = await supabase
         .from("sensei_messages")
-        .select("id, role, content, timestamp, corrections, natural")
+        .select("id, role, content, timestamp, corrections, natural_alt")
         .eq("user_id", userId)
         .eq("persona", activePersona)
         .order("timestamp", { ascending: false })
         .limit(100);
       // Fall back if new columns don't exist yet
-      if (result.error?.message?.includes("corrections") || result.error?.message?.includes("natural")) {
+      if (result.error?.message?.includes("corrections") || result.error?.message?.includes("natural_alt")) {
         result = await (supabase
           .from("sensei_messages")
           .select("id, role, content, timestamp")
@@ -222,7 +222,7 @@ export default function AdminChat({ userId }: { userId: string }) {
         corrections: Array.isArray(m.corrections) ? m.corrections
           : typeof m.corrections === "string" ? (() => { try { return JSON.parse(m.corrections); } catch { return []; } })()
           : [],
-        natural: typeof m.natural === "string" ? m.natural : undefined,
+        natural_alt: typeof m.natural_alt === "string" ? m.natural_alt : undefined,
       });
       const validMsg = (m: Message) => m && typeof m.content === "string" && m.content.length > 0;
       if (!error && data && data.length > 0) {
@@ -492,16 +492,16 @@ export default function AdminChat({ userId }: { userId: string }) {
       const correctionStrings = corrections.map(c =>
         `${c.mistake} → ${c.correct}${c.reason ? `（${c.reason}）` : ""}`
       );
-      const natural: string = data.natural ?? "";
-      const finalUserMsg: Message = (correctionStrings.length > 0 || natural)
-        ? { ...userMsg, ...(correctionStrings.length > 0 ? { corrections: correctionStrings } : {}), ...(natural ? { natural } : {}) }
+      const natural_alt: string = data.natural_alt ?? "";
+      const finalUserMsg: Message = (correctionStrings.length > 0 || natural_alt)
+        ? { ...userMsg, ...(correctionStrings.length > 0 ? { corrections: correctionStrings } : {}), ...(natural_alt ? { natural_alt } : {}) }
         : userMsg;
       const finalMessages: Message[] = [...messages, finalUserMsg, modelMsg];
       setMessages(finalMessages);
       localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(finalMessages));
       supabase.from("sensei_messages").upsert({ ...modelMsg, user_id: userId, persona: activePersona }, { onConflict: "id" })
         .then(({ error }) => { if (error) console.error("[DB model]", error.code, error.message); });
-      if (correctionStrings.length > 0 || natural) {
+      if (correctionStrings.length > 0 || natural_alt) {
         supabase.from("sensei_messages").upsert({ ...finalUserMsg, user_id: userId, persona: activePersona }, { onConflict: "id" });
       }
 
@@ -984,7 +984,7 @@ export default function AdminChat({ userId }: { userId: string }) {
                   )}
                 </div>
               </div>
-              {msg.role === "user" && ((Array.isArray(msg.corrections) && msg.corrections.length > 0) || msg.natural) && (
+              {msg.role === "user" && ((Array.isArray(msg.corrections) && msg.corrections.length > 0) || msg.natural_alt) && (
                 <div className="flex justify-end mt-1.5">
                   <div className="max-w-[85%] bg-rose-50 border border-rose-100 rounded-2xl rounded-tr-sm px-4 py-3 space-y-2">
                     {Array.isArray(msg.corrections) && msg.corrections.length > 0 && (
@@ -995,10 +995,10 @@ export default function AdminChat({ userId }: { userId: string }) {
                         ))}
                       </div>
                     )}
-                    {msg.natural && (
+                    {msg.natural_alt && (
                       <div className={Array.isArray(msg.corrections) && msg.corrections.length > 0 ? "pt-2 border-t border-rose-100" : ""}>
                         <p className="text-[9px] font-black uppercase tracking-widest text-indigo-400 mb-1.5">🗣 More Natural</p>
-                        <p className="text-xs text-indigo-700 font-medium leading-relaxed">{msg.natural}</p>
+                        <p className="text-xs text-indigo-700 font-medium leading-relaxed">{msg.natural_alt}</p>
                       </div>
                     )}
                   </div>

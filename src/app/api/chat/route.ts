@@ -16,12 +16,12 @@ const FURIGANA_RULES = `
 
 ## 出力形式（必須・毎回）
 必ず以下のJSON形式のみで返答すること。マークダウン・コードブロック・余分なテキスト一切不要：
-{"content":"会話の返答（ふりがなルール厳守）","corrections":[],"natural":""}
+{"content":"会話の返答（ふりがなルール厳守）","corrections":[],"natural_alt":""}
 ユーザーの日本語に文法・助詞・語彙の間違いがある場合：
 - contentの中で友達のように自然に訂正すること。例：「あ、「食べました」じゃなくて「食べた」の方が自然だよ！」
 - correctionsには構造化データで追加：[{"mistake":"食べました","correct":"食べた","reason":"カジュアル"}]
 間違いがなければcorrections:[]のまま。
-naturalには、ユーザーが書いた日本語をネイティブスピーカーが最も自然に言う表現を一文で示すこと。文法的に正しくても不自然な言い回しがあれば修正する。ユーザーの表現がすでに完全に自然であれば""のままでよい。`;
+natural_altには、ユーザーが書いた日本語をネイティブスピーカーが最も自然に言う表現を一文で示すこと。文法的に正しくても不自然な言い回しがあれば修正する。ユーザーの表現がすでに完全に自然であれば""のままでよい。`;
 
 const PERSONAS: Record<string, string> = {
   senpai: `あなたは「先輩」、日本語学習を応援する頼れる年上の友達キャラです。
@@ -220,7 +220,7 @@ export async function POST(req: Request) {
     };
 
     type Correction = { mistake: string; correct: string; reason: string };
-    const parseResponse = (raw: string): { content: string; corrections: Correction[]; natural: string } => {
+    const parseResponse = (raw: string): { content: string; corrections: Correction[]; natural_alt: string } => {
       const tryParse = (s: string) => {
         // Direct parse
         try {
@@ -256,10 +256,10 @@ export async function POST(req: Request) {
         .trim();
 
       const extractNatural = (p: any): string =>
-        typeof p?.natural === "string" ? p.natural.trim() : "";
+        typeof p?.natural_alt === "string" ? p.natural_alt.trim() : "";
 
       const single = tryParse(cleaned);
-      if (single) return { content: unwrapContent(single.content), corrections: normalize(single.corrections), natural: extractNatural(single) };
+      if (single) return { content: unwrapContent(single.content), corrections: normalize(single.corrections), natural_alt: extractNatural(single) };
 
       // Extract first valid JSON object by brace depth
       let depth = 0, start = -1;
@@ -267,12 +267,12 @@ export async function POST(req: Request) {
         if (cleaned[i] === "{") { if (depth === 0) start = i; depth++; }
         else if (cleaned[i] === "}") { depth--; if (depth === 0 && start !== -1) {
           const parsed = tryParse(cleaned.slice(start, i + 1));
-          if (parsed) return { content: unwrapContent(parsed.content), corrections: normalize(parsed.corrections), natural: extractNatural(parsed) };
+          if (parsed) return { content: unwrapContent(parsed.content), corrections: normalize(parsed.corrections), natural_alt: extractNatural(parsed) };
           start = -1;
         }}
       }
 
-      return { content: unwrapContent(raw), corrections: [], natural: "" };
+      return { content: unwrapContent(raw), corrections: [], natural_alt: "" };
     };
 
     try {
