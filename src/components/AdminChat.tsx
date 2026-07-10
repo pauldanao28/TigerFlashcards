@@ -468,11 +468,19 @@ export default function AdminChat({ userId }: { userId: string }) {
       if (!data.content) throw new Error("Empty response");
       const modelMsg: Message = { id: uuid(), role: "model" as const, content: cleanContent(data.content), timestamp: Date.now() };
       const corrections: { mistake: string; correct: string; reason: string }[] = data.corrections ?? [];
-      const finalMessages: Message[] = [...updated, modelMsg];
+      // Attach corrections to the user message so they display as a Grammar Note bubble
+      const correctionStrings = corrections.map(c =>
+        `${c.mistake} → ${c.correct}${c.reason ? `（${c.reason}）` : ""}`
+      );
+      const finalUserMsg: Message = correctionStrings.length > 0 ? { ...userMsg, corrections: correctionStrings } : userMsg;
+      const finalMessages: Message[] = [...messages, finalUserMsg, modelMsg];
       setMessages(finalMessages);
       localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(finalMessages));
       supabase.from("sensei_messages").upsert({ ...modelMsg, user_id: userId, persona: activePersona }, { onConflict: "id" })
         .then(({ error }) => { if (error) console.error("[DB model]", error.code, error.message); });
+      if (correctionStrings.length > 0) {
+        supabase.from("sensei_messages").upsert({ ...finalUserMsg, user_id: userId, persona: activePersona }, { onConflict: "id" });
+      }
 
       // Trim DB to latest 100 messages every 10 exchanges to avoid unbounded growth
       if (finalMessages.filter(m => m.role === "user").length % 10 === 0) {
@@ -943,6 +951,16 @@ export default function AdminChat({ userId }: { userId: string }) {
                   )}
                 </div>
               </div>
+              {msg.role === "user" && Array.isArray(msg.corrections) && msg.corrections.length > 0 && (
+                <div className="flex justify-end mt-1.5">
+                  <div className="max-w-[85%] bg-rose-50 border border-rose-100 rounded-2xl rounded-tr-sm px-4 py-3">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-rose-400 mb-2">📝 Grammar Note</p>
+                    {msg.corrections.map((c, i) => (
+                      <p key={i} className="text-xs text-rose-700 font-medium leading-relaxed">{c}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ))
         )}
