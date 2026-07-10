@@ -16,6 +16,7 @@ import OnboardingModal from "@/components/OnboardingModal";
 import LoadingScreen from "@/components/LoadingScreen";
 import CoachMarks from "@/components/CoachMarks";
 import { SocialDock } from "@/components/SocialDock";
+import SentenceQuiz from "@/components/SentenceQuiz";
 import { FlashcardData } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
 const DAILY_GOAL = 10;
@@ -45,6 +46,7 @@ export default function StudyView() {
   const [goalStreak, setGoalStreak] = useState(0);
   const goalFired = useRef(false);
 
+  const [showQuiz, setShowQuiz] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
   const [audioPulse, setAudioPulse] = useState(0);
   const [autoPlayJp, setAutoPlayJp] = useState(true);
@@ -729,15 +731,24 @@ export default function StudyView() {
               </div>
             </div>
             </div>
-            {isAdmin && (
-              <Link
-                href="/admin/chat"
-                className="bg-white h-9 px-4 rounded-full shadow-sm border border-violet-200 flex items-center justify-center gap-2 active:scale-95 transition-all w-fit"
+            <div className="flex items-center gap-2">
+              {isAdmin && (
+                <Link
+                  href="/admin/chat"
+                  className="bg-white h-9 px-4 rounded-full shadow-sm border border-violet-200 flex items-center justify-center gap-2 active:scale-95 transition-all w-fit"
+                >
+                  <span className="text-sm leading-none">先生</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-violet-600">Sensei</span>
+                </Link>
+              )}
+              <button
+                onClick={() => setShowQuiz(true)}
+                className="bg-white h-9 px-4 rounded-full shadow-sm border border-amber-200 flex items-center justify-center gap-2 active:scale-95 transition-all w-fit"
               >
-                <span className="text-sm leading-none">先生</span>
-                <span className="text-[10px] font-black uppercase tracking-widest text-violet-600">Sensei</span>
-              </Link>
-            )}
+                <span className="text-sm leading-none">📝</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-amber-600">Quiz</span>
+              </button>
+            </div>
           </div>
           {/* --- THE FIX: Change this div --- */}
           <div className="absolute top-4 right-4 flex flex-col items-end gap-2 pointer-events-auto">
@@ -818,6 +829,13 @@ export default function StudyView() {
                 {t.stats}
               </span>
             </Link>
+            <button
+              onClick={() => setShowQuiz(true)}
+              className="bg-white h-11 px-8 rounded-full shadow-sm border border-amber-200 flex items-center gap-3 hover:border-amber-300 transition-all active:scale-95"
+            >
+              <span className="text-xl leading-none">📝</span>
+              <span className="text-sm font-black uppercase tracking-[0.2em] text-amber-600">Quiz</span>
+            </button>
             {/* NEW: Social Toggle */}
             <button
               onClick={() => setIsSocialOpen(!isSocialOpen)}
@@ -1088,6 +1106,11 @@ export default function StudyView() {
             onClose={() => setIsSocialOpen(false)}
             fetchFriends={fetchFriends}
           />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showQuiz && user?.id && (
+          <SentenceQuiz userId={user.id} onClose={() => setShowQuiz(false)} />
         )}
       </AnimatePresence>
     </>
