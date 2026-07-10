@@ -39,6 +39,7 @@ Based on this conversation, update what you know about the student. Rules:
 - preferred_topics: topics they enjoy discussing or ask about often
 - personality: brief learning-style note (e.g. "likes humor", "prefers detailed explanations", "needs encouragement") — update if new evidence, otherwise keep
 - vocabulary_introduced: Japanese words/phrases explicitly taught or explained in this conversation (romaji not needed; keep list under 50 total, drop oldest if over)
+- recently_added: words recently added to the student's flashcard deck — copy exactly from currentProfile, never modify this field
 - recent_topics: the last 5–10 topics or themes discussed (e.g. "anime", "weekend plans", "food", "JLPT prep") — keep most recent, drop oldest beyond 10
 - personal_facts: specific personal facts the student revealed (e.g. "好きな食べ物: ラーメン", "出身: フィリピン", "好きなアニメ: ワンピース", "好きなスポーツ: バスケ") — add when student reveals preferences; never remove; keep concise; deduplicate
 - notes: any other useful teaching observations (keep concise, 1–2 sentences max)
@@ -59,6 +60,7 @@ Return ONLY valid JSON, no explanation, no markdown:
   "preferred_topics": [],
   "personality": "...",
   "vocabulary_introduced": [],
+  "recently_added": [],
   "grammar_weak_points": [],
   "recent_topics": [],
   "personal_facts": [],
