@@ -157,6 +157,8 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [showVoicePicker, setShowVoicePicker] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<VoiceId>(() => getVoice());
+  const [profileSyncing, setProfileSyncing] = useState(false);
+  const [profileSynced, setProfileSynced] = useState(false);
   const greetingFiredRef = useRef(false);
 
   const lastAnalyzedIndexRef = useRef(0);
@@ -440,6 +442,15 @@ export default function AdminChat({ userId }: { userId: string }) {
     }
   };
 
+  const syncProfile = async () => {
+    if (profileSyncing || messages.length < 2) return;
+    setProfileSyncing(true);
+    await updateProfile(messages);
+    setProfileSyncing(false);
+    setProfileSynced(true);
+    setTimeout(() => setProfileSynced(false), 2000);
+  };
+
   // ── Send message ────────────────────────────────────────────────────────────
   const sendMessage = async () => {
     const text = input.trim();
@@ -504,15 +515,6 @@ export default function AdminChat({ userId }: { userId: string }) {
         );
       }
 
-      const exchangeCount = finalMessages.filter(m => m.role === "user").length;
-      const unanalyzedCount = finalMessages.length - lastAnalyzedIndexRef.current;
-      const msSinceLastUpdate = Date.now() - lastProfileUpdateRef.current;
-      const cooldownOk = msSinceLastUpdate > 3 * 60 * 1000; // 3 minute cooldown
-      if (cooldownOk && ((exchangeCount > 0 && exchangeCount % 4 === 0) || unanalyzedCount >= 12)) {
-        lastProfileUpdateRef.current = Date.now();
-        localStorage.setItem("sensei_profile_updated_at", String(lastProfileUpdateRef.current));
-        updateProfile(finalMessages);
-      }
     } catch (e) {
       const detail = e instanceof Error ? e.message : String(e);
       setErrorMsg(detail || "Unknown error");
@@ -833,6 +835,15 @@ export default function AdminChat({ userId }: { userId: string }) {
         <div className="flex items-center justify-between mb-3">
           <p className="text-[9px] font-black uppercase tracking-widest text-slate-300">Choose your sensei</p>
           <div className="flex items-center gap-1">
+            {/* Manual profile sync */}
+            <button onClick={syncProfile} disabled={profileSyncing || messages.length < 2} title="Sync profile"
+              className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-xl transition-colors disabled:opacity-30 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50">
+              {profileSyncing
+                ? <Loader2 size={13} className="animate-spin text-emerald-500" />
+                : profileSynced
+                  ? <span className="text-[11px] font-black text-emerald-500">✓</span>
+                  : <BookOpen size={13} />}
+            </button>
             {/* Session recap */}
             {recapConfirm ? (
               <div className="flex items-center gap-1">
