@@ -214,6 +214,15 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
+  // Cancel any pending debounce and write immediately — used when closing the list panel
+  // so a quick close right after typing can't lose the edit.
+  const flushWordList = useCallback(() => {
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    supabase.from("profiles").update({ pending_words: wordList }).eq("id", userId)
+      .then(({ error: e }) => { if (e) console.error("[DB word-list flush]", e.code, e.message); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, wordList]);
+
   const load = useCallback(async () => {
     if (loadingRef.current) return;
     if (!isAdmin && getDailyCount() >= QUIZ_DAILY_LIMIT) {
@@ -833,7 +842,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
                 <h2 className="text-base font-black text-slate-800 uppercase italic tracking-tighter">Word List</h2>
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{wordList.length} word{wordList.length !== 1 ? "s" : ""} · one per line</p>
               </div>
-              <button onClick={() => setShowList(false)} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400"><X size={14} /></button>
+              <button onClick={() => { flushWordList(); setShowList(false); }} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400"><X size={14} /></button>
             </div>
             <div className="p-4 flex-1 overflow-y-auto">
               <textarea

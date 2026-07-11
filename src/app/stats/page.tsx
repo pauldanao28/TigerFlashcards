@@ -180,7 +180,20 @@ export default function StatsPage() {
             fetchStarterPacks(),
             supabase.from("profiles").select("pending_words").eq("id", user.id).single(),
           ]);
-          if (pendingData.data?.pending_words) setPendingWords(pendingData.data.pending_words);
+          const dbWords: string[] | null = pendingData.data?.pending_words ?? null;
+          if (dbWords && dbWords.length > 0) {
+            setPendingWords(dbWords);
+            localStorage.setItem(`flashkado-word-list-${user.id}`, JSON.stringify(dbWords));
+          } else {
+            try {
+              const saved = localStorage.getItem(`flashkado-word-list-${user.id}`);
+              const parsed: string[] = saved ? JSON.parse(saved) : [];
+              if (parsed.length > 0) {
+                setPendingWords(parsed);
+                supabase.from("profiles").update({ pending_words: parsed }).eq("id", user.id);
+              }
+            } catch { /* ignore malformed cache */ }
+          }
         } catch (error) {
           console.error("Error loading stats:", error);
         } finally {
@@ -594,18 +607,31 @@ export default function StatsPage() {
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncWordList = useCallback((newList: string[]) => {
     setPendingWords(newList);
+    if (user) localStorage.setItem(`flashkado-word-list-${user.id}`, JSON.stringify(newList));
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     syncTimerRef.current = setTimeout(() => {
       if (user) supabase.from("profiles").update({ pending_words: newList }).eq("id", user.id);
     }, 1000);
   }, [user]);
 
-  const addWordListToDeck = async () => {
-    if (!pendingWords.length) return;
+  // Cancel any pending debounce and write immediately — used when closing the panel or
+  // adding to the deck, so a quick close/click right after typing can't lose the edit.
+  const flushWordList = useCallback((newList: string[]) => {
+    setPendingWords(newList);
+    if (user) {
+      localStorage.setItem(`flashkado-word-list-${user.id}`, JSON.stringify(newList));
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+      supabase.from("profiles").update({ pending_words: newList }).eq("id", user.id);
+    }
+  }, [user]);
+
+  const addWordListToDeck = async (words: string[]) => {
+    if (!words.length) return;
     setWordListAdding(true);
     try {
-      await processWords(pendingWords);
-      syncWordList([]);
+      await processWords(words);
+      flushWordList([]);
+      setWordListText("");
       setShowWordList(false);
     } finally {
       setWordListAdding(false);
@@ -2336,7 +2362,9 @@ export default function StatsPage() {
                   <h2 className="text-base font-black text-slate-800 uppercase italic tracking-tighter">Word List</h2>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{pendingWords.length} word{pendingWords.length !== 1 ? "s" : ""} · one per line</p>
                 </div>
-                <button onClick={() => setShowWordList(false)} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400"><X size={14} /></button>
+                <button
+                  onClick={() => { flushWordList(wordListText.split("\n").map(w => w.trim()).filter(Boolean)); setShowWordList(false); }}
+                  className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400"><X size={14} /></button>
               </div>
               <div className="p-4">
                 <textarea
@@ -2349,9 +2377,9 @@ export default function StatsPage() {
                 />
               </div>
               <div className="p-4 pt-0 flex gap-2">
-                <button onClick={() => { syncWordList([]); setWordListText(""); }} className="px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all">Clear</button>
+                <button onClick={() => { flushWordList([]); setWordListText(""); }} className="px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all">Clear</button>
                 <button
-                  onClick={() => { syncWordList(wordListText.split("\n").map(w => w.trim()).filter(Boolean)); addWordListToDeck(); }}
+                  onClick={() => addWordListToDeck(wordListText.split("\n").map(w => w.trim()).filter(Boolean))}
                   disabled={wordListAdding || !wordListText.trim()}
                   className="flex-1 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
                 >

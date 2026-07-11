@@ -431,6 +431,15 @@ export default function AdminChat({ userId }: { userId: string }) {
     }, 1000);
   }, [userId]);
 
+  // Cancel any pending debounce and write immediately — used when closing the list panel
+  // so a quick close right after typing can't lose the edit.
+  const flushWordList = useCallback(() => {
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    supabase.from("profiles").update({ pending_words: wordList }).eq("id", userId)
+      .then(({ error }) => { if (error) console.error("[DB word-list flush]", error.code, error.message); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, wordList]);
+
   // Track visual viewport so the layout stays above the keyboard on iOS + Android.
   // cancelAnimationFrame prevents layout thrash from rapid-fire resize events during keyboard animation.
   useEffect(() => {
@@ -1586,7 +1595,7 @@ export default function AdminChat({ userId }: { userId: string }) {
                 <h2 className="text-base font-black text-slate-800 uppercase italic tracking-tighter">Word List</h2>
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{wordList.length} word{wordList.length !== 1 ? "s" : ""} · one per line</p>
               </div>
-              <button onClick={() => setShowList(false)} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400"><X size={14} /></button>
+              <button onClick={() => { flushWordList(); setShowList(false); }} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400"><X size={14} /></button>
             </div>
             <div className="p-4">
               <textarea defaultValue={wordList.join("\n")}
