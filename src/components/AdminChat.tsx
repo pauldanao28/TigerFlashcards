@@ -544,7 +544,14 @@ export default function AdminChat({ userId }: { userId: string }) {
       const correctionStrings = corrections.map(c =>
         `${c.mistake} → ${c.correct}${c.reason ? `（${c.reason}）` : ""}`
       );
-      const natural_alt: string = data.natural_alt ?? "";
+      const natural_alt: string = (() => {
+        const raw = (data.natural_alt ?? "").trim();
+        if (!raw) return "";
+        // Reject if the model copied its own response into natural_alt
+        if (raw === (data.content ?? "").trim()) return "";
+        if ((data.content ?? "").trim().startsWith(raw.slice(0, 10))) return "";
+        return raw;
+      })();
       const finalUserMsg: Message = (correctionStrings.length > 0 || natural_alt)
         ? { ...userMsg, ...(correctionStrings.length > 0 ? { corrections: correctionStrings } : {}), ...(natural_alt ? { natural_alt } : {}) }
         : userMsg;
