@@ -1352,102 +1352,141 @@ export default function AdminChat({ userId }: { userId: string }) {
         </div>
       )}
 
-      {/* ── Quiz modal ── */}
+      {/* ── Grammar Quiz (full-screen) ── */}
       {showQuiz && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden max-h-[90dvh]">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-              <div>
-                <p className="text-sm font-black text-slate-800">📝 Grammar Quiz</p>
-                {!quizLoading && quizQuestions.length > 0 && !quizDone && (
-                  <p className="text-[11px] text-slate-400 font-bold">{quizIndex + 1} / {quizQuestions.length}</p>
-                )}
-              </div>
-              <button onClick={() => setShowQuiz(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={18} /></button>
+        <div className="fixed inset-0 z-[300] bg-slate-50 flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white shrink-0">
+            <div className="flex items-center gap-2.5">
+              <span className="text-base">📝</span>
+              <span className="font-black text-[11px] uppercase tracking-widest text-slate-700">Grammar Quiz</span>
+              {!quizLoading && quizQuestions.length > 0 && !quizDone && (
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 ml-1">
+                  {quizIndex + 1} / {quizQuestions.length}
+                </span>
+              )}
             </div>
-            <div className="p-5 overflow-y-auto">
-              {quizLoading ? (
-                <div className="flex flex-col items-center gap-3 py-8">
-                  <Loader2 size={28} className="animate-spin text-emerald-400" />
-                  <p className="text-sm text-slate-400 font-bold">Generating quiz...</p>
-                </div>
-              ) : quizQuestions.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-8">Failed to generate quiz. Try again.</p>
-              ) : quizDone ? (
-                <div className="flex flex-col items-center gap-4 py-4">
-                  {(() => { const pct = quizScore / quizQuestions.length; return (
-                  <>
-                  <div className="text-5xl">{pct >= 0.8 ? "🏆" : pct >= 0.5 ? "👍" : "💪"}</div>
-                  <p className="text-2xl font-black text-slate-800">{quizScore} / {quizQuestions.length}</p>
-                  <p className="text-sm text-slate-500 font-bold">
-                    {pct >= 0.8 ? "Excellent!" : pct >= 0.5 ? "Good work!" : "Keep practicing!"}
+            <button onClick={() => setShowQuiz(false)} className="p-2 rounded-full hover:bg-slate-100 transition-colors active:scale-90">
+              <X size={16} className="text-slate-500" />
+            </button>
+          </div>
+
+          {/* Loading */}
+          {quizLoading && (
+            <div className="flex-1 flex flex-col items-center justify-center gap-4">
+              <div className="w-9 h-9 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">Generating quiz…</p>
+            </div>
+          )}
+
+          {/* Error */}
+          {!quizLoading && quizQuestions.length === 0 && (
+            <div className="flex-1 flex flex-col items-center justify-center gap-5 px-8 text-center">
+              <span className="text-5xl">😓</span>
+              <p className="text-slate-600 font-bold text-sm">Failed to generate quiz. Try again.</p>
+              <button onClick={() => setShowQuiz(false)} className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest active:scale-95 transition-all">
+                Close
+              </button>
+            </div>
+          )}
+
+          {/* Done */}
+          {!quizLoading && quizDone && (() => {
+            const pct = quizScore / quizQuestions.length;
+            return (
+              <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 max-w-lg mx-auto w-full">
+                <div className="text-center mb-8">
+                  <div className="text-6xl mb-4">{pct >= 0.8 ? "🏆" : pct >= 0.5 ? "💪" : "📚"}</div>
+                  <h2 className="text-4xl font-black text-slate-900 mb-1">
+                    {quizScore}<span className="text-slate-300 font-bold text-2xl"> / {quizQuestions.length}</span>
+                  </h2>
+                  <p className="text-slate-400 font-black uppercase tracking-widest text-[10px] mt-1">
+                    {Math.round(pct * 100)}% correct · {pct >= 0.8 ? "Excellent!" : pct >= 0.5 ? "Good work!" : "Keep practicing!"}
                   </p>
-                  </>
-                  ); })()}
+                </div>
+                <div className="flex gap-3 w-full">
+                  <button onClick={() => setShowQuiz(false)}
+                    className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all">
+                    Done
+                  </button>
                   <button onClick={openQuiz}
-                    className="mt-2 px-6 py-2.5 bg-emerald-500 text-white text-sm font-black rounded-2xl hover:bg-emerald-600 transition-colors">
+                    className="flex-1 py-4 bg-emerald-500 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all shadow-sm">
                     Try Again
                   </button>
                 </div>
-              ) : (() => {
-                const q = quizQuestions[quizIndex];
-                const isLast = quizIndex + 1 >= quizQuestions.length;
-                const advance = (wrong?: { mistake: string; correct: string; reason: string }) => {
-                  const nextWrong = wrong ? [...quizWrong, wrong] : quizWrong;
-                  if (wrong) setQuizWrong(nextWrong);
-                  if (isLast) {
-                    setQuizDone(true);
-                    if (nextWrong.length > 0) {
-                      supabase.from("grammar_corrections").insert(
-                        nextWrong.map(w => ({ user_id: userId, persona: activePersona, mistake: w.mistake, correct: w.correct, reason: w.reason }))
-                      );
-                    }
-                  } else {
-                    setQuizIndex(i => i + 1);
-                    setQuizSelected(null);
-                    setQuizWritingInput("");
-                    setQuizWritingSubmitted(false);
-                  }
-                };
-                const advanceBtn = (wrong?: { mistake: string; correct: string; reason: string }) => (
-                  <button onClick={() => advance(wrong)} className="w-full py-3 bg-slate-800 text-white text-sm font-black rounded-2xl hover:bg-slate-700 transition-colors">
-                    {isLast ? "See Results" : "Next →"}
-                  </button>
-                );
+              </div>
+            );
+          })()}
 
-                // ── Grammar: fill-in-the-blank ──────────────────────────────
-                if (q.type === "grammar") {
+          {/* Questions */}
+          {!quizLoading && !quizDone && quizQuestions.length > 0 && (() => {
+            const q = quizQuestions[quizIndex];
+            const isLast = quizIndex + 1 >= quizQuestions.length;
+            const advance = (wrong?: { mistake: string; correct: string; reason: string }) => {
+              const nextWrong = wrong ? [...quizWrong, wrong] : quizWrong;
+              if (wrong) setQuizWrong(nextWrong);
+              if (isLast) {
+                setQuizDone(true);
+                if (nextWrong.length > 0) {
+                  supabase.from("grammar_corrections").insert(
+                    nextWrong.map(w => ({ user_id: userId, persona: activePersona, mistake: w.mistake, correct: w.correct, reason: w.reason }))
+                  );
+                }
+              } else {
+                setQuizIndex(i => i + 1);
+                setQuizSelected(null);
+                setQuizWritingInput("");
+                setQuizWritingSubmitted(false);
+              }
+            };
+            const advanceBtn = (wrong?: { mistake: string; correct: string; reason: string }) => (
+              <button onClick={() => advance(wrong)} className="w-full py-4 bg-slate-800 text-white font-black text-[11px] uppercase tracking-widest rounded-2xl active:scale-95 transition-all">
+                {isLast ? "See Results" : "Next →"}
+              </button>
+            );
+
+            return (
+              <div className="flex-1 flex flex-col px-5 py-5 max-w-lg mx-auto w-full min-h-0 overflow-y-auto">
+                {/* Progress bar */}
+                <div className="mb-5 shrink-0">
+                  <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                      style={{ width: `${(quizIndex / quizQuestions.length) * 100}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* ── Grammar: fill-in-the-blank ── */}
+                {q.type === "grammar" && (() => {
                   const answered = quizSelected !== null;
                   const isCorrect = quizSelected === q.answer;
                   return (
                     <div className="flex flex-col gap-4">
-                      <div className="bg-indigo-50 rounded-2xl p-4">
-                        <p className="text-[10px] text-indigo-400 font-black uppercase tracking-wider mb-1.5">Fill in the blank</p>
-                        <p className="text-[11px] text-slate-400 font-bold mb-1">{q.blank_hint}</p>
-                        <p className="text-lg font-bold text-slate-800 leading-relaxed">{q.sentence}</p>
+                      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-indigo-400 mb-3">Fill in the blank</p>
+                        {q.blank_hint && <p className="text-[11px] text-slate-400 font-bold mb-2">{q.blank_hint}</p>}
+                        <p className="text-xl leading-relaxed text-slate-800 font-medium">{q.sentence}</p>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         {q.choices.map((choice) => {
-                          let style = "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100";
+                          let style = "bg-white border-slate-200 text-slate-700 hover:bg-slate-50";
                           if (answered) {
                             if (choice === q.answer) style = "bg-emerald-50 border-emerald-400 text-emerald-700";
                             else if (choice === quizSelected) style = "bg-red-50 border-red-400 text-red-700";
-                            else style = "bg-slate-50 border-slate-200 text-slate-400";
+                            else style = "bg-white border-slate-200 text-slate-400";
                           }
                           return (
                             <button key={choice} disabled={answered}
-                              onClick={() => {
-                                setQuizSelected(choice);
-                                if (choice === q.answer) setQuizScore(s => s + 1);
-                              }}
-                              className={`px-4 py-3 rounded-2xl border-2 text-sm font-black transition-all ${style}`}>
+                              onClick={() => { setQuizSelected(choice); if (choice === q.answer) setQuizScore(s => s + 1); }}
+                              className={`px-4 py-4 rounded-2xl border-2 text-sm font-black transition-all ${style}`}>
                               {choice}
                             </button>
                           );
                         })}
                       </div>
                       {answered && (
-                        <div className={`rounded-2xl p-3 text-sm ${isCorrect ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>
+                        <div className={`rounded-2xl p-4 text-sm ${isCorrect ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>
                           <p className="font-black mb-1">{isCorrect ? "✓ Correct!" : `✗ Answer: ${q.answer}`}</p>
                           <p className="text-xs leading-relaxed">{q.explanation}</p>
                         </div>
@@ -1455,40 +1494,37 @@ export default function AdminChat({ userId }: { userId: string }) {
                       {answered && advanceBtn(isCorrect ? undefined : { mistake: quizSelected!, correct: q.answer, reason: q.sentence })}
                     </div>
                   );
-                }
+                })()}
 
-                // ── Reading: JP → EN translation (4 choices) ───────────────
-                if (q.type === "reading") {
+                {/* ── Reading: JP → EN translation ── */}
+                {q.type === "reading" && (() => {
                   const answered = quizSelected !== null;
                   const isCorrect = quizSelected === q.answer;
                   return (
                     <div className="flex flex-col gap-4">
-                      <div className="bg-violet-50 rounded-2xl p-4">
-                        <p className="text-[10px] text-violet-400 font-black uppercase tracking-wider mb-1.5">Translate to English</p>
-                        <p className="text-lg font-bold text-slate-800 leading-relaxed">{q.japanese}</p>
+                      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-violet-400 mb-3">Translate to English</p>
+                        <p className="text-xl leading-relaxed text-slate-800 font-medium">{q.japanese}</p>
                       </div>
                       <div className="flex flex-col gap-2">
                         {q.choices.map((choice) => {
-                          let style = "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 text-left";
+                          let style = "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 text-left";
                           if (answered) {
                             if (choice === q.answer) style = "bg-emerald-50 border-emerald-400 text-emerald-700 text-left";
                             else if (choice === quizSelected) style = "bg-red-50 border-red-400 text-red-700 text-left";
-                            else style = "bg-slate-50 border-slate-200 text-slate-400 text-left";
+                            else style = "bg-white border-slate-200 text-slate-400 text-left";
                           }
                           return (
                             <button key={choice} disabled={answered}
-                              onClick={() => {
-                                setQuizSelected(choice);
-                                if (choice === q.answer) setQuizScore(s => s + 1);
-                              }}
-                              className={`px-4 py-3 rounded-2xl border-2 text-sm font-bold transition-all ${style}`}>
+                              onClick={() => { setQuizSelected(choice); if (choice === q.answer) setQuizScore(s => s + 1); }}
+                              className={`px-4 py-4 rounded-2xl border-2 text-sm font-bold transition-all ${style}`}>
                               {choice}
                             </button>
                           );
                         })}
                       </div>
                       {answered && (
-                        <div className={`rounded-2xl p-3 text-sm ${isCorrect ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>
+                        <div className={`rounded-2xl p-4 text-sm ${isCorrect ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>
                           <p className="font-black mb-1">{isCorrect ? "✓ Correct!" : `✗ Answer: ${q.answer}`}</p>
                           <p className="text-xs leading-relaxed">{q.explanation}</p>
                         </div>
@@ -1496,15 +1532,15 @@ export default function AdminChat({ userId }: { userId: string }) {
                       {answered && advanceBtn(isCorrect ? undefined : { mistake: quizSelected!, correct: q.answer, reason: q.japanese })}
                     </div>
                   );
-                }
+                })()}
 
-                // ── Writing: EN → JP free text + self-grade ─────────────────
-                return (
+                {/* ── Writing: EN → JP free text + self-grade ── */}
+                {q.type === "writing" && (
                   <div className="flex flex-col gap-4">
-                    <div className="bg-amber-50 rounded-2xl p-4">
-                      <p className="text-[10px] text-amber-500 font-black uppercase tracking-wider mb-1.5">Write in Japanese</p>
-                      <p className="text-lg font-bold text-slate-800 leading-relaxed">{q.english}</p>
-                      {q.hint && <p className="text-[11px] text-amber-600 font-bold mt-2">💡 {q.hint}</p>}
+                    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-amber-500 mb-3">Write in Japanese</p>
+                      <p className="text-xl leading-relaxed text-slate-800 font-medium">{q.english}</p>
+                      {q.hint && <p className="text-[11px] text-amber-600 font-bold mt-3">💡 {q.hint}</p>}
                     </div>
                     {!quizWritingSubmitted ? (
                       <>
@@ -1513,40 +1549,40 @@ export default function AdminChat({ userId }: { userId: string }) {
                           onChange={e => setQuizWritingInput(e.target.value)}
                           placeholder="日本語で書いてください..."
                           rows={3}
-                          className="w-full rounded-2xl border-2 border-slate-200 px-4 py-3 text-sm font-bold text-slate-800 outline-none focus:border-amber-400 resize-none bg-white"
+                          className="w-full rounded-2xl border-2 border-slate-200 px-4 py-3 text-base font-bold text-slate-800 outline-none focus:border-amber-400 resize-none bg-white"
                         />
                         <button
                           disabled={!quizWritingInput.trim()}
                           onClick={() => setQuizWritingSubmitted(true)}
-                          className="w-full py-3 bg-amber-500 text-white text-sm font-black rounded-2xl hover:bg-amber-600 transition-colors disabled:opacity-40">
+                          className="w-full py-4 bg-amber-500 text-white font-black text-[11px] uppercase tracking-widest rounded-2xl active:scale-95 transition-all disabled:opacity-40">
                           Check Answer
                         </button>
                       </>
                     ) : (
                       <>
-                        <div className="bg-slate-50 rounded-2xl p-4">
-                          <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1.5">Model answer</p>
+                        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3">Model answer</p>
                           <p className="text-base font-bold text-slate-800">{q.answer}</p>
                           <p className="text-xs text-slate-500 mt-2 leading-relaxed">{q.explanation}</p>
                         </div>
-                        <p className="text-xs text-slate-500 font-bold text-center">Did you get it right?</p>
-                        <div className="grid grid-cols-2 gap-2">
+                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest text-center">Did you get it right?</p>
+                        <div className="flex gap-3">
                           <button onClick={() => { setQuizScore(s => s + 1); advance(); }}
-                            className="py-3 bg-emerald-50 border-2 border-emerald-400 text-emerald-700 text-sm font-black rounded-2xl hover:bg-emerald-100 transition-colors">
+                            className="flex-1 py-4 bg-emerald-50 text-emerald-600 rounded-2xl font-black border-b-4 border-emerald-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] tracking-widest">
                             ✓ Got it
                           </button>
                           <button onClick={() => advance({ mistake: quizWritingInput, correct: q.answer, reason: q.english })}
-                            className="py-3 bg-red-50 border-2 border-red-300 text-red-600 text-sm font-black rounded-2xl hover:bg-red-100 transition-colors">
+                            className="flex-1 py-4 bg-rose-50 text-rose-600 rounded-2xl font-black border-b-4 border-rose-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] tracking-widest">
                             ✗ Missed
                           </button>
                         </div>
                       </>
                     )}
                   </div>
-                );
-              })()}
-            </div>
-          </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
