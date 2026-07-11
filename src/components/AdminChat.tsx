@@ -40,7 +40,6 @@ interface Message {
   role: "user" | "model";
   content: string;
   timestamp: number;
-  corrections?: string[];
   natural_alt?: string;
 }
 
@@ -217,38 +216,24 @@ export default function AdminChat({ userId }: { userId: string }) {
       setMessagesLoading(true);
       let result = await supabase
         .from("sensei_messages")
-        .select("id, role, content, timestamp, corrections, natural_alt")
+        .select("id, role, content, timestamp, natural_alt")
         .eq("user_id", userId)
         .eq("persona", activePersona)
         .order("timestamp", { ascending: false })
         .limit(100);
-      // Fall back if new columns don't exist yet
-      if (result.error?.message?.includes("corrections") || result.error?.message?.includes("natural_alt")) {
-        result = await (supabase
-          .from("sensei_messages")
-          .select("id, role, content, timestamp")
-          .eq("user_id", userId)
-          .eq("persona", activePersona)
-          .order("timestamp", { ascending: false })
-          .limit(100) as any);
-      }
-      // Re-sort ascending for display (we fetched desc to get the latest 100)
       if (result.data) result = { ...result, data: [...result.data].reverse() };
       const { data, error } = result;
 
       const normalizeMsg = (m: any): Message => ({
         ...m,
         content: m.role === "model" ? cleanContent(m.content ?? "") : (m.content ?? ""),
-        corrections: Array.isArray(m.corrections) ? m.corrections
-          : typeof m.corrections === "string" ? (() => { try { return JSON.parse(m.corrections); } catch { return []; } })()
-          : [],
         natural_alt: typeof m.natural_alt === "string" ? m.natural_alt : undefined,
       });
       const validMsg = (m: Message) => m && typeof m.content === "string" && m.content.length > 0;
       if (!error && data && data.length > 0) {
         const seen = new Set<string>();
         const loaded = (data as Message[]).map(normalizeMsg).filter(m => !seen.has(m.id) && seen.add(m.id)).filter(validMsg);
-        // Merge corrections/natural_alt from localStorage — Supabase may lag on these fields
+        // Merge natural_alt from localStorage — Supabase may lag on this field
         let finalLoaded = loaded;
         try {
           const saved = localStorage.getItem(chatStorageKey(activePersona));
@@ -257,11 +242,7 @@ export default function AdminChat({ userId }: { userId: string }) {
             finalLoaded = loaded.map(m => {
               const local = localMap.get(m.id);
               if (!local) return m;
-              return {
-                ...m,
-                corrections: (m.corrections?.length ? m.corrections : local.corrections) ?? [],
-                natural_alt: m.natural_alt ?? local.natural_alt,
-              };
+              return { ...m, natural_alt: m.natural_alt ?? local.natural_alt };
             });
           }
         } catch {}
@@ -540,29 +521,22 @@ export default function AdminChat({ userId }: { userId: string }) {
       const data = await res.json();
       if (!data.content) throw new Error("Empty response");
       const modelMsg: Message = { id: uuid(), role: "model" as const, content: cleanContent(data.content), timestamp: Date.now() };
-      const corrections: { mistake: string; correct: string; reason: string }[] = data.corrections ?? [];
-      const correctionStrings = corrections.map(c =>
-        `${c.mistake} → ${c.correct}${c.reason ? `（${c.reason}）` : ""}`
-      );
       const natural_alt: string = (() => {
         const raw = (data.natural_alt ?? "").trim();
         if (!raw) return "";
-        // Reject if the model copied its own response into natural_alt
         if (raw === (data.content ?? "").trim()) return "";
         if ((data.content ?? "").trim().startsWith(raw.slice(0, 10))) return "";
         return raw;
       })();
-      const finalUserMsg: Message = (correctionStrings.length > 0 || natural_alt)
-        ? { ...userMsg, ...(correctionStrings.length > 0 ? { corrections: correctionStrings } : {}), ...(natural_alt ? { natural_alt } : {}) }
-        : userMsg;
+      const finalUserMsg: Message = natural_alt ? { ...userMsg, natural_alt } : userMsg;
       const finalMessages: Message[] = [...messages, finalUserMsg, modelMsg];
       setMessages(finalMessages);
       localStorage.setItem(chatStorageKey(activePersona), JSON.stringify(finalMessages));
       supabase.from("sensei_messages").upsert({ ...modelMsg, user_id: userId, persona: activePersona }, { onConflict: "id" })
         .then(({ error }) => { if (error) console.error("[DB model]", error.code, error.message); });
-      if (correctionStrings.length > 0 || natural_alt) {
+      if (natural_alt) {
         supabase.from("sensei_messages").upsert({ ...finalUserMsg, user_id: userId, persona: activePersona }, { onConflict: "id" })
-          .then(({ error }) => { if (error) console.error("[DB corrections upsert]", error.code, error.message); });
+          .then(({ error }) => { if (error) console.error("[DB natural_alt upsert]", error.code, error.message); });
       }
 
       // Trim DB to latest 100 messages every 10 exchanges to avoid unbounded growth
@@ -579,11 +553,6 @@ export default function AdminChat({ userId }: { userId: string }) {
               supabase.from("sensei_messages").delete().in("id", toDelete);
             }
           });
-      }
-      if (corrections.length > 0) {
-        supabase.from("grammar_corrections").insert(
-          corrections.map(c => ({ user_id: userId, persona: activePersona, mistake: c.mistake, correct: c.correct, reason: c.reason }))
-        );
       }
 
     } catch (e) {
@@ -1053,23 +1022,11 @@ export default function AdminChat({ userId }: { userId: string }) {
                   )}
                 </div>
               </div>
-              {msg.role === "user" && ((Array.isArray(msg.corrections) && msg.corrections.length > 0) || msg.natural_alt) && (
+              {msg.role === "user" && msg.natural_alt && (
                 <div className="flex justify-end mt-1.5">
-                  <div className="max-w-[85%] bg-rose-50 border border-rose-100 rounded-2xl rounded-tr-sm px-4 py-3 space-y-2">
-                    {Array.isArray(msg.corrections) && msg.corrections.length > 0 && (
-                      <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-rose-400 mb-1.5">📝 Grammar Note</p>
-                        {msg.corrections.map((c, i) => (
-                          <p key={i} className="text-xs text-rose-700 font-medium leading-relaxed">{c}</p>
-                        ))}
-                      </div>
-                    )}
-                    {msg.natural_alt && (
-                      <div className={Array.isArray(msg.corrections) && msg.corrections.length > 0 ? "pt-2 border-t border-rose-100" : ""}>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-indigo-400 mb-1.5">🗣 More Natural</p>
-                        <p className="text-xs text-indigo-700 font-medium leading-relaxed">{msg.natural_alt}</p>
-                      </div>
-                    )}
+                  <div className="max-w-[85%] bg-indigo-50 border border-indigo-100 rounded-2xl rounded-tr-sm px-4 py-3">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-indigo-400 mb-1.5">🗣 More Natural</p>
+                    <p className="text-xs text-indigo-700 font-medium leading-relaxed">{msg.natural_alt}</p>
                   </div>
                 </div>
               )}

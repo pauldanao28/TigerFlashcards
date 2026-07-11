@@ -16,17 +16,13 @@ const FURIGANA_RULES = `
 
 ## 出力形式（必須・毎回）
 必ず以下のJSON形式のみで返答すること。マークダウン・コードブロック・余分なテキスト一切不要：
-{"content":"会話の返答（ふりがなルール厳守）","corrections":[],"natural_alt":""}
-ユーザーの日本語に文法・助詞・語彙の間違いがある場合：
-- contentの中で友達のように自然に訂正すること。例：「あ、「食べました」じゃなくて「食べた」の方が自然だよ！」
-- correctionsには構造化データで追加：[{"mistake":"食べました","correct":"食べた","reason":"カジュアル"}]
-間違いがなければcorrections:[]のまま。
-【natural_alt 厳格ルール】natural_altはユーザーが書いた日本語を同じ意味のままネイティブ風に言い換えたもの。contentに書いたAIの返答を絶対に入れてはいけない。
-✅ ユーザー「了解できた。。ありがとう。。」→ natural_alt「わかった、ありがとう！」（ユーザーの文を言い換えた）
-❌ ユーザー「了解できた。。ありがとう。。」→ natural_alt「よかった！ちゃんと伝わって安心したよ！」（これはcontentと同じAIの返答。絶対NG）
+{"content":"会話の返答（ふりがなルール厳守）","natural_alt":""}
+- 文法の間違いはcontentの中で自然に訂正すること。例：「あ、「食べました」じゃなくて「食べた」の方が自然だよ！」
+- natural_altはユーザーが書いた日本語を同じ意味のままネイティブ風に言い換えたもの。contentのAI返答とは全く別物。
+✅ ユーザー「了解できた。。ありがとう。。」→ natural_alt「わかった、ありがとう！」
 ✅ ユーザー「今バスケットボール試合があるよ」→ natural_alt「今バスケの試合があるよ」
 ✅ ユーザー「私は昨日映画を見に行きました」→ natural_alt「昨日映画見に行ったよ」
-①ユーザーが日本語を書いていない→""　②すでに自然→""　③contentと同じ・似た内容→""　④ユーザーの意味・情報を変えない`;
+①ユーザーが日本語を書いていない→""　②すでに自然→""　③AIの返答・応援・感想は絶対に入れない`;
 
 const PERSONAS: Record<string, string> = {
   senpai: `あなたは「先輩」、日本語学習を応援する頼れる年上の友達キャラです。
@@ -224,36 +220,18 @@ export async function POST(req: Request) {
       return t.replace(/\n?---CORRECTIONS---[\s\S]*?---END---/g, "").trim();
     };
 
-    type Correction = { mistake: string; correct: string; reason: string };
-    const parseResponse = (raw: string): { content: string; corrections: Correction[]; natural_alt: string } => {
+    const parseResponse = (raw: string): { content: string; natural_alt: string } => {
       const tryParse = (s: string) => {
-        // Direct parse
         try {
           const p = JSON.parse(s);
           if (typeof p?.content === "string") return p;
         } catch {}
-        // Sanitize control chars and retry
         try {
           const san = s.replace(/[\x00-\x1F\x7F]/g, (c) => c === "\n" ? "\\n" : c === "\r" ? "\\r" : c === "\t" ? "\\t" : "");
           const p = JSON.parse(san);
           if (typeof p?.content === "string") return { ...p, content: p.content.replace(/\\n/g, "\n") };
         } catch {}
         return null;
-      };
-
-      const normalize = (corrections: unknown): Correction[] => {
-        if (!Array.isArray(corrections)) return [];
-        return corrections.flatMap((c) => {
-          if (c && typeof c === "object" && "mistake" in c) {
-            return [{ mistake: String(c.mistake ?? ""), correct: String((c as any).correct ?? ""), reason: String((c as any).reason ?? "") }];
-          }
-          // Legacy string format "誤：X → 正：Y（Z）"
-          if (typeof c === "string") {
-            const m = c.match(/誤[：:](.+?)[→＞]正[：:](.+?)(?:[（(](.+?)[）)])?$/);
-            if (m) return [{ mistake: m[1].trim(), correct: m[2].trim(), reason: m[3]?.trim() ?? "" }];
-          }
-          return [];
-        });
       };
 
       const cleaned = raw
@@ -264,20 +242,19 @@ export async function POST(req: Request) {
         typeof p?.natural_alt === "string" ? p.natural_alt.trim() : "";
 
       const single = tryParse(cleaned);
-      if (single) return { content: unwrapContent(single.content), corrections: normalize(single.corrections), natural_alt: extractNatural(single) };
+      if (single) return { content: unwrapContent(single.content), natural_alt: extractNatural(single) };
 
-      // Extract first valid JSON object by brace depth
       let depth = 0, start = -1;
       for (let i = 0; i < cleaned.length; i++) {
         if (cleaned[i] === "{") { if (depth === 0) start = i; depth++; }
         else if (cleaned[i] === "}") { depth--; if (depth === 0 && start !== -1) {
           const parsed = tryParse(cleaned.slice(start, i + 1));
-          if (parsed) return { content: unwrapContent(parsed.content), corrections: normalize(parsed.corrections), natural_alt: extractNatural(parsed) };
+          if (parsed) return { content: unwrapContent(parsed.content), natural_alt: extractNatural(parsed) };
           start = -1;
         }}
       }
 
-      return { content: unwrapContent(raw), corrections: [], natural_alt: "" };
+      return { content: unwrapContent(raw), natural_alt: "" };
     };
 
     try {
