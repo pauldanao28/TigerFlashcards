@@ -103,9 +103,9 @@ function TappableText({ text, keyPrefix, onWordTap }: { text: string; keyPrefix:
   );
 }
 
-// Highlighted (target) word span — tappable, but never shows its furigana inline; the reading
-// is only revealed via the tap tooltip, same as the rest of the sentence.
-function HighlightedWord({ word, reading, onWordTap }: { word: string; reading: string; onWordTap: WordTapHandler }) {
+// Highlighted (target) word span — tappable. Its furigana stays hidden until the answer is
+// revealed, so it doesn't give away the reading before the user has guessed the meaning.
+function HighlightedWord({ word, reading, showReading, onWordTap }: { word: string; reading: string; showReading: boolean; onWordTap: WordTapHandler }) {
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   return (
     <mark
@@ -122,18 +122,19 @@ function HighlightedWord({ word, reading, onWordTap }: { word: string; reading: 
       }}
     >
       {word}
+      {showReading && reading && <span className="text-[0.65em] font-bold opacity-70 ml-0.5">（{reading}）</span>}
     </mark>
   );
 }
 
-function HighlightedSentence({ sentence, word, reading, onWordTap }: { sentence: string; word: string; reading: string; onWordTap: WordTapHandler }) {
+function HighlightedSentence({ sentence, word, reading, showReading, onWordTap }: { sentence: string; word: string; reading: string; showReading: boolean; onWordTap: WordTapHandler }) {
   if (sentence.includes("【")) {
     const parts = sentence.split(/【(.*?)】/);
     return (
       <>
         {parts.map((part, i) =>
           i % 2 === 1 ? (
-            <HighlightedWord key={i} word={part} reading={reading} onWordTap={onWordTap} />
+            <HighlightedWord key={i} word={part} reading={reading} showReading={showReading} onWordTap={onWordTap} />
           ) : (
             <TappableText key={i} text={part} keyPrefix={`p${i}`} onWordTap={onWordTap} />
           )
@@ -147,7 +148,7 @@ function HighlightedSentence({ sentence, word, reading, onWordTap }: { sentence:
     return (
       <>
         <TappableText text={sentence.slice(0, idx)} keyPrefix="pre" onWordTap={onWordTap} />
-        <HighlightedWord word={word} reading={reading} onWordTap={onWordTap} />
+        <HighlightedWord word={word} reading={reading} showReading={showReading} onWordTap={onWordTap} />
         <TappableText text={sentence.slice(idx + word.length)} keyPrefix="post" onWordTap={onWordTap} />
       </>
     );
@@ -157,10 +158,11 @@ function HighlightedSentence({ sentence, word, reading, onWordTap }: { sentence:
 
 export default function SentenceQuiz({ userId, isAdmin = false, onClose }: SentenceQuizProps) {
   const [phase, setPhase] = useState<"intro" | "loading" | "quiz" | "done">("intro");
+  const [starting, setStarting] = useState(false);
   const [quizCards, setQuizCards] = useState<QuizCard[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [revealed, setRevealed] = useState(false);
-  const [results, setResults] = useState<{ card: QuizCard; passed: boolean }[]>([]);
+  const [results, setResults] = useState<{ card: QuizCard; passed: boolean; newPercent: number }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<WordTooltip | null>(null);
@@ -230,11 +232,12 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
     setError(null);
 
     try {
+      // Fetch every card's score (no DB-side limit) — the app picks the bottom 100 hardest
+      // cards and randomizes 20 from those; only those 20 ever get sent to the AI.
       const { data, error: dbErr } = await supabase
         .from("user_scores")
         .select("scores_json, master_cards!card_id(id, japanese, reading, english)")
-        .eq("user_id", userId)
-        .limit(100);
+        .eq("user_id", userId);
 
       if (dbErr || !data) throw new Error("Could not load your cards");
 
@@ -411,18 +414,19 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
     const newPass = passed ? old.pass + 1 : old.pass;
     const newFail = !passed ? old.fail + 1 : old.fail;
     const newTotal = old.total + 1;
+    const newPercent = Math.round((newPass / newTotal) * 100);
 
     await supabase.from("user_scores").upsert({
       user_id: userId,
       card_id: card.id,
       scores_json: {
         ...card.scores,
-        jp_to_en: { pass: newPass, fail: newFail, total: newTotal, percent: Math.round((newPass / newTotal) * 100) },
+        jp_to_en: { pass: newPass, fail: newFail, total: newTotal, percent: newPercent },
       },
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id,card_id" });
 
-    const newResults = [...results, { card, passed }];
+    const newResults = [...results, { card, passed, newPercent }];
     setResults(newResults);
 
     if (currentIdx + 1 >= quizCards.length) {
@@ -494,11 +498,12 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
             </p>
           )}
           <button
-            onClick={load}
-            disabled={!isAdmin && getDailyCount() >= QUIZ_DAILY_LIMIT}
-            className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all shadow-sm disabled:opacity-40"
+            onClick={() => { setStarting(true); load(); }}
+            disabled={starting || (!isAdmin && getDailyCount() >= QUIZ_DAILY_LIMIT)}
+            className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all shadow-sm disabled:opacity-40 flex items-center justify-center gap-2"
           >
-            Start Quiz
+            {starting ? <Loader2 size={14} className="animate-spin" /> : null}
+            {starting ? "Please wait…" : "Start Quiz"}
           </button>
         </div>
       )}
@@ -508,6 +513,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
           <div className="w-9 h-9 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">Generating quiz…</p>
+          <p className="text-slate-300 font-bold text-[10px]">Please wait, this can take a few seconds</p>
         </div>
       )}
 
@@ -553,7 +559,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
               <div className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5">
                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3">Read the sentence</p>
                 <p className="text-xl leading-relaxed text-slate-800 font-medium">
-                  <HighlightedSentence sentence={currentCard.sentence_jp} word={currentCard.japanese} reading={currentCard.reading} onWordTap={handleWordClick} />
+                  <HighlightedSentence sentence={currentCard.sentence_jp} word={currentCard.japanese} reading={currentCard.reading} showReading={revealed} onWordTap={handleWordClick} />
                 </p>
               </div>
 
@@ -568,6 +574,9 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
                       kanjiRe.test(ch) ? <span key={ci} className="underline decoration-dotted decoration-indigo-400 underline-offset-4">{ch}</span> : ch
                     )}
                   </span>
+                  {revealed && (
+                    <span className="text-sm text-slate-400 font-medium">{currentCard.reading}</span>
+                  )}
                 </div>
                 <AnimatePresence>
                   {revealed && (
@@ -635,7 +644,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
           </motion.div>
 
           {results.filter(r => !r.passed).length > 0 && (
-            <div className="w-full bg-white rounded-3xl border border-slate-100 shadow-sm px-5 py-4 mb-6">
+            <div className="w-full bg-white rounded-3xl border border-slate-100 shadow-sm px-5 py-4 mb-4">
               <p className="text-[9px] font-black uppercase tracking-widest text-rose-400 mb-3">Review these</p>
               <div className="flex flex-wrap gap-2">
                 {results.filter(r => !r.passed).map((r, i) => (
@@ -646,6 +655,33 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
                 ))}
               </div>
             </div>
+          )}
+
+          {results.length > 0 && (
+            <div className="w-full bg-white rounded-3xl border border-slate-100 shadow-sm px-5 py-4 mb-6">
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3">Your words · JP → EN</p>
+              <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                {results.map((r, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 py-0.5">
+                    <div className="min-w-0 flex items-baseline gap-2">
+                      <span className="text-sm font-black text-slate-800 truncate">{r.card.japanese}</span>
+                      <span className="text-[10px] text-slate-400 truncate">{r.card.english}</span>
+                    </div>
+                    <span className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full ${
+                      r.newPercent >= 80 ? "bg-emerald-50 text-emerald-600" : r.newPercent >= 50 ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"
+                    }`}>
+                      {r.newPercent}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!isAdmin && (
+            <p className="text-slate-300 font-black uppercase tracking-widest text-[10px] mb-4">
+              {Math.max(0, QUIZ_DAILY_LIMIT - getDailyCount())}/{QUIZ_DAILY_LIMIT} quizzes left today
+            </p>
           )}
 
           <div className="flex gap-3 w-full">
