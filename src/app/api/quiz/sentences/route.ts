@@ -32,12 +32,22 @@ ${wordList}
 Return ONLY a valid JSON array, no markdown, no explanation:
 [{"word":"食べる","sentence_jp":"毎朝ご飯を【食べます】。","sentence_en":"I eat rice every morning."}]`;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
     const timeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("Sentence generation timed out")), 40000)
     );
-    const result = await Promise.race([model.generateContent(prompt), timeout]);
-    const raw = result.response.text();
+
+    const tryWithModel = async (modelId: string) => {
+      const model = genAI.getGenerativeModel({ model: modelId });
+      const result = await Promise.race([model.generateContent(prompt), timeout]);
+      return result.response.text();
+    };
+
+    let raw: string;
+    try {
+      raw = await tryWithModel("gemini-2.5-flash-lite");
+    } catch {
+      raw = await tryWithModel("gemini-2.5-flash");
+    }
 
     const cleaned = raw
       .trimStart()

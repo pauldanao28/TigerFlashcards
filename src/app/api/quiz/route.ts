@@ -40,9 +40,18 @@ ${mistakeSummary ? `最近の間違い：\n${mistakeSummary}` : ""}
 - explanationはすべて日本語で1〜2文。
 - レベルと弱点に合った難易度にすること。`;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
-    const result = await model.generateContent(prompt);
-    const raw = result.response.text();
+    const tryWithModel = async (modelId: string) => {
+      const model = genAI.getGenerativeModel({ model: modelId });
+      const result = await model.generateContent(prompt);
+      return result.response.text();
+    };
+
+    let raw: string;
+    try {
+      raw = await tryWithModel("gemini-2.5-flash-lite");
+    } catch {
+      raw = await tryWithModel("gemini-2.5-flash");
+    }
 
     const cleaned = raw
       .replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/gm, "")
