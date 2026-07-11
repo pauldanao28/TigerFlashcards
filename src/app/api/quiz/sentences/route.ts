@@ -22,7 +22,7 @@ For each word below, write one short, natural Japanese sentence that uses that w
 Rules:
 - Grammar difficulty: N4 level
 - Sentence length: 1–2 short clauses, natural and concise
-- Use varied, natural verb/adjective forms — do NOT always use the dictionary form. Freely use て-form, た-form, ている, てから, ないで, たい, など, casual or polite conjugations — whatever makes the sentence feel natural
+- Freely use any natural verb/adjective form — dictionary form, て-form, た-form, ている, てから, ないで, たい, polite/casual — whatever fits the sentence best
 - Vary sentence structures across words (don't repeat the same pattern)
 - Wrap ONLY the conjugated form of the target word as it appears in the sentence with【】
 - The "word" field must always be the dictionary form (as given in the list)
