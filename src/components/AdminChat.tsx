@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Send, Trash2, X, Loader2, List, Plus, ScrollText, Volume2, VolumeX, BookOpen, SlidersHorizontal, ChevronLeft } from "lucide-react";
+import { Send, Trash2, X, Loader2, List, Plus, Volume2, VolumeX, BookOpen, SlidersHorizontal, ChevronLeft } from "lucide-react";
 import { speak, playTTS, stopTTS, getVoice, setVoice, VOICE_OPTIONS, VoiceId } from "@/lib/tts";
 
 function uuid(): string {
@@ -24,10 +24,9 @@ const PERSONAS: Record<PersonaKey, { label: string; kanji: string; emoji: string
   idol:    { label: "アイドル", kanji: "☆", emoji: "⭐", color: "text-pink-600", bg: "bg-pink-50", ring: "ring-pink-400", desc: "Idol coach" },
 };
 
-const CONFIRM_COPY: Record<"back" | "sync" | "recap" | "quiz", { title: string; body: string; action: string }> = {
+const CONFIRM_COPY: Record<"back" | "sync" | "quiz", { title: string; body: string; action: string }> = {
   back: { title: "Leave the chat?", body: "You'll return to the home screen. Your conversation is saved.", action: "Leave" },
   sync: { title: "Sync your profile?", body: "Sensei will re-read this conversation to update what it knows about you.", action: "Sync" },
-  recap: { title: "Generate a session recap?", body: "Summarizes the words and grammar points covered so far.", action: "Recap" },
   quiz: { title: "Start the grammar quiz?", body: "A short quiz based on your recent mistakes and profile.", action: "Start" },
 };
 
@@ -162,9 +161,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [weakCards, setWeakCards] = useState<string[]>([]);
   const [weakCardDetails, setWeakCardDetails] = useState<{ japanese: string; reading: string; english: string }[]>([]);
   const [activeScenario, setActiveScenario] = useState("free");
-  const [recap, setRecap] = useState<any | null>(null);
-  const [recapLoading, setRecapLoading] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<"back" | "sync" | "recap" | "quiz" | null>(null);
+  const [confirmAction, setConfirmAction] = useState<"back" | "sync" | "quiz" | null>(null);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [showVoicePicker, setShowVoicePicker] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<VoiceId>(() => getVoice());
@@ -701,20 +698,6 @@ export default function AdminChat({ userId }: { userId: string }) {
 
 
   // ── Clear chat for current persona ─────────────────────────────────────────
-  const generateRecap = async () => {
-    if (messages.length < 2) return;
-    setRecapLoading(true);
-    try {
-      const res = await fetch("/api/chat-recap", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages }),
-      });
-      if (!res.ok) throw new Error("Recap failed");
-      setRecap(await res.json());
-    } catch { setRecap({ error: true }); }
-    finally { setRecapLoading(false); }
-  };
 
   const openQuiz = async () => {
     setShowQuiz(true);
@@ -953,11 +936,6 @@ export default function AdminChat({ userId }: { userId: string }) {
                   : profileSynced === "err"
                     ? <span className="text-[11px] font-black text-red-400">✕</span>
                     : <BookOpen size={13} />}
-            </button>
-            {/* Session recap */}
-            <button onClick={() => setConfirmAction("recap")} disabled={recapLoading || messages.length < 2} title="Session recap"
-              className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-xl transition-colors text-slate-300 hover:text-amber-500 hover:bg-amber-50 disabled:opacity-30">
-              {recapLoading ? <Loader2 size={13} className="animate-spin" /> : <ScrollText size={13} />}
             </button>
             <button onClick={() => setShowList(true)} className="relative flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-indigo-600 transition-colors px-2 py-1.5 rounded-xl hover:bg-indigo-50">
               <List size={13} />
@@ -1219,7 +1197,6 @@ export default function AdminChat({ userId }: { userId: string }) {
                   setConfirmAction(null);
                   if (action === "back") router.push("/");
                   else if (action === "sync") syncProfile();
-                  else if (action === "recap") generateRecap();
                   else if (action === "quiz") openQuiz();
                 }}
                 className="flex-1 py-3.5 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all shadow-sm">
@@ -1292,67 +1269,6 @@ export default function AdminChat({ userId }: { userId: string }) {
             </div>
             <div className="p-4 border-t border-slate-100">
               <button onClick={() => setShowSummary(false)} className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-[0.98] shadow-lg">Got it</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Session recap modal ── */}
-      {recap && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden max-h-[85vh]">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-amber-50/50">
-              <div>
-                <h2 className="text-base font-black text-slate-800 uppercase italic tracking-tighter">Session Recap</h2>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{persona.label} · {messages.filter(m => m.role === "user").length} exchanges</p>
-              </div>
-              <button onClick={() => setRecap(null)} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400"><X size={14} /></button>
-            </div>
-            {recap.error ? (
-              <p className="p-6 text-sm text-slate-400 text-center">Could not generate recap. Try again after a longer conversation.</p>
-            ) : (
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {recap.words_covered?.length > 0 && (
-                  <div>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Words Covered</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {recap.words_covered.map((w: string, i: number) => <span key={i} className="bg-indigo-50 text-indigo-700 text-xs font-bold px-2.5 py-1 rounded-xl">{w}</span>)}
-                    </div>
-                  </div>
-                )}
-                {recap.grammar_points?.length > 0 && (
-                  <div>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Grammar Practiced</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {recap.grammar_points.map((g: string, i: number) => <span key={i} className="bg-violet-50 text-violet-700 text-xs font-bold px-2.5 py-1 rounded-xl">{g}</span>)}
-                    </div>
-                  </div>
-                )}
-                {recap.corrections?.length > 0 && (
-                  <div>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Corrections</p>
-                    <div className="space-y-1.5">
-                      {recap.corrections.map((c: string, i: number) => <p key={i} className="text-xs text-slate-600 bg-rose-50 px-3 py-2 rounded-xl font-medium">{c}</p>)}
-                    </div>
-                  </div>
-                )}
-                {recap.strong_moments?.length > 0 && (
-                  <div>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Well Done</p>
-                    <div className="space-y-1.5">
-                      {recap.strong_moments.map((s: string, i: number) => <p key={i} className="text-xs text-slate-600 bg-emerald-50 px-3 py-2 rounded-xl font-medium">{s}</p>)}
-                    </div>
-                  </div>
-                )}
-                {recap.encouragement && (
-                  <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 text-center">
-                    <p className="text-sm text-amber-800 font-bold">{recap.encouragement}</p>
-                  </div>
-                )}
-              </div>
-            )}
-            <div className="p-4 border-t border-slate-100">
-              <button onClick={() => setRecap(null)} className="w-full py-3 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-700 transition-all active:scale-[0.98]">Close</button>
             </div>
           </div>
         </div>
