@@ -514,6 +514,11 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
           <div className="w-9 h-9 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">Generating quiz…</p>
           <p className="text-slate-300 font-bold text-[10px]">Please wait, this can take a few seconds</p>
+          {!isAdmin && (
+            <p className="text-slate-300 font-black uppercase tracking-widest text-[10px] mt-1">
+              {Math.max(0, QUIZ_DAILY_LIMIT - getDailyCount())}/{QUIZ_DAILY_LIMIT} quizzes left today
+            </p>
+          )}
         </div>
       )}
 
