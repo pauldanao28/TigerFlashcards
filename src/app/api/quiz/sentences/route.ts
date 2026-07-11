@@ -20,17 +20,19 @@ export async function POST(req: Request) {
 For each word below, write one short, natural Japanese sentence that uses that word.
 
 Rules:
-- Grammar difficulty: N4 level (simple verb conjugations, basic particles, common patterns)
+- Grammar difficulty: N4 level
 - Sentence length: 1–2 short clauses, natural and concise
-- Wrap ONLY the target word (exactly as it appears in the sentence, including any conjugation) with【】
+- Use varied, natural verb/adjective forms — do NOT always use the dictionary form. Freely use て-form, た-form, ている, てから, ないで, たい, など, casual or polite conjugations — whatever makes the sentence feel natural
+- Vary sentence structures across words (don't repeat the same pattern)
+- Wrap ONLY the conjugated form of the target word as it appears in the sentence with【】
+- The "word" field must always be the dictionary form (as given in the list)
 - Provide a natural English translation
-- Do NOT repeat the same sentence structure for every word
 
 Words:
 ${wordList}
 
 Return ONLY a valid JSON array, no markdown, no explanation:
-[{"word":"食べる","sentence_jp":"毎朝ご飯を【食べます】。","sentence_en":"I eat rice every morning."}]`;
+[{"word":"食べる","sentence_jp":"野菜を【食べてから】、デザートを食べよう。","sentence_en":"Let's eat dessert after eating vegetables."}]`;
 
     const timeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("Sentence generation timed out")), 40000)
