@@ -1383,10 +1383,15 @@ export default function AdminChat({ userId }: { userId: string }) {
           {!quizLoading && quizQuestions.length === 0 && (
             <div className="flex-1 flex flex-col items-center justify-center gap-5 px-8 text-center">
               <span className="text-5xl">😓</span>
-              <p className="text-slate-600 font-bold text-sm">Failed to generate quiz. Try again.</p>
-              <button onClick={() => setShowQuiz(false)} className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest active:scale-95 transition-all">
-                Close
-              </button>
+              <p className="text-slate-600 font-bold text-sm">Failed to generate quiz.</p>
+              <div className="flex gap-3">
+                <button onClick={() => setShowQuiz(false)} className="px-6 py-3 bg-slate-100 text-slate-600 rounded-2xl font-black text-[11px] uppercase tracking-widest active:scale-95 transition-all">
+                  Close
+                </button>
+                <button onClick={openQuiz} className="px-6 py-3 bg-emerald-500 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest active:scale-95 transition-all">
+                  Try Again
+                </button>
+              </div>
             </div>
           )}
 
