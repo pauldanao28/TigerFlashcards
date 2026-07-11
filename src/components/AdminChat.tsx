@@ -485,10 +485,16 @@ export default function AdminChat({ userId }: { userId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: newMessages, currentProfile: profile ?? {} }),
       });
-      const updated: SenseiProfile = await res.json();
-      setProfile(updated);
+      const data = await res.json();
+      const { corrections, ...updated } = data as SenseiProfile & { corrections?: { mistake: string; correct: string; reason: string }[] };
+      setProfile(updated as SenseiProfile);
       supabase.from("sensei_profile").upsert([{ ...updated, user_id: userId }], { onConflict: "user_id" })
         .then(({ error }) => { if (error) console.error("[sensei_profile upsert]", error.code, error.message, error.details); });
+      if (Array.isArray(corrections) && corrections.length > 0) {
+        supabase.from("grammar_corrections").insert(
+          corrections.map(c => ({ user_id: userId, persona: activePersona, mistake: c.mistake, correct: c.correct, reason: c.reason }))
+        ).then(({ error }) => { if (error) console.error("[grammar_corrections sync]", error.code, error.message); });
+      }
     } catch (e) {
       console.error("Profile update failed:", e);
       lastAnalyzedIndexRef.current = from;

@@ -46,6 +46,7 @@ Based on this conversation, update what you know about the student. Rules:
 - recent_topics: the last 5–10 topics or themes discussed (e.g. "anime", "weekend plans", "food", "JLPT prep") — keep most recent, drop oldest beyond 10
 - personal_facts: specific personal facts the student revealed (e.g. "好きな食べ物: ラーメン", "出身: フィリピン", "好きなアニメ: ワンピース", "好きなスポーツ: バスケ") — add when student reveals preferences; never remove; keep concise; deduplicate
 - notes: any other useful teaching observations (keep concise, 1–2 sentences max)
+- corrections: specific grammar mistakes the student made IN THIS CONVERSATION with the correct form — e.g. wrong particle, wrong conjugation, unnatural phrasing Sensei corrected. Each item: {"mistake": "student's incorrect form", "correct": "correct form", "reason": "the sentence or brief explanation"}. Max 5, only concrete observed errors, empty array if none.
 
 If nothing new is learned about a field, keep its existing value exactly as-is.
 
@@ -67,7 +68,8 @@ Return ONLY valid JSON, no explanation, no markdown:
   "grammar_weak_points": [],
   "recent_topics": [],
   "personal_facts": [],
-  "notes": "..."
+  "notes": "...",
+  "corrections": []
 }`;
 
     const result = await model.generateContent(prompt);
