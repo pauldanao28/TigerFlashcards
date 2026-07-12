@@ -1321,8 +1321,8 @@ export default function AdminChat({ userId }: { userId: string }) {
                     <div className="flex flex-col gap-4">
                       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5">
                         <p className="text-[9px] font-black uppercase tracking-widest text-indigo-400 mb-3">Fill in the blank</p>
-                        {q.blank_hint && <p className="text-[11px] text-slate-400 font-bold mb-2">{q.blank_hint}</p>}
-                        <p className="text-xl leading-relaxed text-slate-800 font-medium">{q.sentence}</p>
+                        {q.blank_hint && <p className="text-[11px] text-slate-400 font-bold mb-2">{renderContent(q.blank_hint, "model")}</p>}
+                        <p className="text-xl leading-relaxed text-slate-800 font-medium">{renderContent(q.sentence, "model")}</p>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         {q.choices.map((choice) => {
@@ -1333,18 +1333,18 @@ export default function AdminChat({ userId }: { userId: string }) {
                             else style = "bg-white border-slate-200 text-slate-400";
                           }
                           return (
-                            <button key={choice} disabled={answered}
-                              onClick={() => { setQuizSelected(choice); if (choice === q.answer) setQuizScore(s => s + 1); }}
+                            <button key={choice}
+                              onClick={(e) => { if ((e.target as HTMLElement).closest("[data-word]")) return; if (!answered) { setQuizSelected(choice); if (choice === q.answer) setQuizScore(s => s + 1); } }}
                               className={`px-4 py-4 rounded-2xl border-2 text-sm font-black transition-all ${style}`}>
-                              {choice}
+                              {renderContent(choice, "model")}
                             </button>
                           );
                         })}
                       </div>
                       {answered && (
                         <div className={`rounded-2xl p-4 text-sm ${isCorrect ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>
-                          <p className="font-black mb-1">{isCorrect ? "✓ Correct!" : `✗ Answer: ${q.answer}`}</p>
-                          <p className="text-xs leading-relaxed">{q.explanation}</p>
+                          <p className="font-black mb-1">{isCorrect ? "✓ Correct!" : <span>✗ Answer: {renderContent(q.answer, "model")}</span>}</p>
+                          <p className="text-xs leading-relaxed">{renderContent(q.explanation, "model")}</p>
                         </div>
                       )}
                       {answered && advanceBtn(isCorrect ? undefined : { mistake: quizSelected!, correct: q.answer, reason: q.sentence })}
@@ -1360,7 +1360,7 @@ export default function AdminChat({ userId }: { userId: string }) {
                     <div className="flex flex-col gap-4">
                       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5">
                         <p className="text-[9px] font-black uppercase tracking-widest text-violet-400 mb-3">Translate to English</p>
-                        <p className="text-xl leading-relaxed text-slate-800 font-medium">{q.japanese}</p>
+                        <p className="text-xl leading-relaxed text-slate-800 font-medium">{renderContent(q.japanese, "model")}</p>
                       </div>
                       <div className="flex flex-col gap-2">
                         {q.choices.map((choice) => {
@@ -1382,7 +1382,7 @@ export default function AdminChat({ userId }: { userId: string }) {
                       {answered && (
                         <div className={`rounded-2xl p-4 text-sm ${isCorrect ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>
                           <p className="font-black mb-1">{isCorrect ? "✓ Correct!" : `✗ Answer: ${q.answer}`}</p>
-                          <p className="text-xs leading-relaxed">{q.explanation}</p>
+                          <p className="text-xs leading-relaxed">{renderContent(q.explanation, "model")}</p>
                         </div>
                       )}
                       {answered && advanceBtn(isCorrect ? undefined : { mistake: quizSelected!, correct: q.answer, reason: q.japanese })}
@@ -1396,7 +1396,7 @@ export default function AdminChat({ userId }: { userId: string }) {
                     <div className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5">
                       <p className="text-[9px] font-black uppercase tracking-widest text-amber-500 mb-3">Write in Japanese</p>
                       <p className="text-xl leading-relaxed text-slate-800 font-medium">{q.english}</p>
-                      {q.hint && <p className="text-[11px] text-amber-600 font-bold mt-3">💡 {q.hint}</p>}
+                      {q.hint && <p className="text-[11px] text-amber-600 font-bold mt-3">💡 {renderContent(q.hint, "model")}</p>}
                     </div>
                     {!quizWritingSubmitted ? (
                       <>
@@ -1418,8 +1418,8 @@ export default function AdminChat({ userId }: { userId: string }) {
                       <>
                         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5">
                           <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3">Model answer</p>
-                          <p className="text-base font-bold text-slate-800">{q.answer}</p>
-                          <p className="text-xs text-slate-500 mt-2 leading-relaxed">{q.explanation}</p>
+                          <p className="text-base font-bold text-slate-800">{renderContent(q.answer, "model")}</p>
+                          <p className="text-xs text-slate-500 mt-2 leading-relaxed">{renderContent(q.explanation, "model")}</p>
                         </div>
                         <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest text-center">Did you get it right?</p>
                         <div className="flex gap-3">
