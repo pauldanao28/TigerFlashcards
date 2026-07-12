@@ -68,12 +68,17 @@ function incrementDailyCount(): void {
 
 type WordTapHandler = (word: string, reading: string, e: React.MouseEvent | React.TouchEvent) => void;
 
+// Strip furigana parentheses (e.g. 食べる（たべる）→ 食べる) so readings are hidden until tapped.
+function stripFurigana(text: string): string {
+  return text.replace(/([一-龯々〻㐀-䶿][一-龯々〻㐀-䶿ぁ-ん]*)[（(]([ぁ-んァ-ンっーゃゅょ・]+)[）)]/g, "$1");
+}
+
 // Renders a plain (non-highlighted) text chunk with tappable kanji words, dotted-underlined —
 // mirrors the chatbot's tap-to-lookup behavior (no inline furigana, reading fetched on tap).
 function TappableText({ text, keyPrefix, onWordTap }: { text: string; keyPrefix: string; onWordTap: WordTapHandler }) {
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const segmenter = getSegmenter();
-  const subSegs = segmenter ? [...segmenter.segment(text)] : [{ segment: text, isWordLike: false }];
+  const subSegs = segmenter ? [...segmenter.segment(stripFurigana(text))] : [{ segment: stripFurigana(text), isWordLike: false }];
   return (
     <>
       {subSegs.map((sub, i) => {
