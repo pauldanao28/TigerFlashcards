@@ -396,9 +396,11 @@ export default function AdminChat({ userId }: { userId: string }) {
 
   // Cancel any pending debounce and write immediately — used when closing the list panel
   // so a quick close right after typing can't lose the edit.
-  const flushWordList = useCallback(() => {
+  const flushWordList = useCallback((newList: string[] = wordList) => {
+    setWordList(newList);
+    localStorage.setItem(`flashkado-word-list-${userId}`, JSON.stringify(newList));
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-    supabase.from("profiles").update({ pending_words: wordList }).eq("id", userId)
+    supabase.from("profiles").update({ pending_words: newList }).eq("id", userId)
       .then(({ error }) => { if (error) console.error("[DB word-list flush]", error.code, error.message); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, wordList]);
@@ -621,7 +623,7 @@ export default function AdminChat({ userId }: { userId: string }) {
         if (newCards?.length) { await performLinking(newCards.map((c: any) => c.id)); allProcessed = [...allProcessed, ...newCards]; }
       }
 
-      syncWordList([]);
+      flushWordList([]);
       setShowList(false);
       if (allProcessed.length > 0) {
         const deduped = Array.from(new Map(allProcessed.map(c => [c.japanese, c])).values());

@@ -221,9 +221,11 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
 
   // Cancel any pending debounce and write immediately — used when closing the list panel
   // so a quick close right after typing can't lose the edit.
-  const flushWordList = useCallback(() => {
+  const flushWordList = useCallback((newList: string[] = wordList) => {
+    setWordList(newList);
+    localStorage.setItem(WORD_LIST_KEY, JSON.stringify(newList));
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-    supabase.from("profiles").update({ pending_words: wordList }).eq("id", userId)
+    supabase.from("profiles").update({ pending_words: newList }).eq("id", userId)
       .then(({ error: e }) => { if (e) console.error("[DB word-list flush]", e.code, e.message); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, wordList]);
@@ -406,7 +408,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
         if (newCards?.length) { await performLinking(newCards.map((c: any) => c.id)); allProcessed = [...allProcessed, ...newCards]; }
       }
 
-      syncWordList([]);
+      flushWordList([]);
       setShowList(false);
       if (allProcessed.length > 0) {
         setAddedSummary(Array.from(new Map(allProcessed.map(c => [c.japanese, c])).values()));
