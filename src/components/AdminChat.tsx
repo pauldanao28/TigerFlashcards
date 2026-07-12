@@ -1217,9 +1217,17 @@ export default function AdminChat({ userId }: { userId: string }) {
                 </span>
               )}
             </div>
-            <button onClick={() => setShowQuiz(false)} className="p-2 rounded-full hover:bg-slate-100 transition-colors active:scale-90">
-              <X size={16} className="text-slate-500" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button onClick={() => setShowList(true)} className="relative p-2 rounded-full hover:bg-slate-100 transition-colors active:scale-90">
+                <List size={16} className="text-slate-500" />
+                {wordList.length > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 bg-indigo-600 text-white text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">{wordList.length}</span>
+                )}
+              </button>
+              <button onClick={() => setShowQuiz(false)} className="p-2 rounded-full hover:bg-slate-100 transition-colors active:scale-90">
+                <X size={16} className="text-slate-500" />
+              </button>
+            </div>
           </div>
 
           {/* Loading */}
