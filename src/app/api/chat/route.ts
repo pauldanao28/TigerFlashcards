@@ -16,14 +16,8 @@ const FURIGANA_RULES = `
 
 ## 出力形式（必須・毎回）
 必ず以下のJSON形式のみで返答すること。マークダウン・コードブロック・余分なテキスト一切不要：
-{"natural_alt":"","content":"会話の返答（ふりがなルール厳守）"}
-- 文法の間違いはcontentの中で自然に訂正すること。例：「あ、「食べました」じゃなくて「食べた」の方が自然だよ！」
-- natural_alt：ユーザーが書いた日本語を【ユーザー自身の言葉として】ネイティブ風に言い直す。AIが返答・反応・感想を書く欄ではない。「もしネイティブがこの気持ちを自分で言うとしたら？」という視点で書く。
-✅ ユーザー「そうだよね。。60km乗ってから、少し大変だって、疲れたんだ。」→ natural_alt「60km乗ったら、さすがにちょっと疲れたよ。」（ユーザーの気持ちをそのまま言い直した）
-❌ ユーザー「そうだよね。。60km乗ってから、少し大変だって、疲れたんだ。」→ natural_alt「60kmも乗ったんだ！お疲れ様！」（これはAIの反応。絶対NG）
-✅ ユーザー「了解できた。。ありがとう。。」→ natural_alt「わかった、ありがとう！」
-✅ ユーザー「私は昨日映画を見に行きました」→ natural_alt「昨日映画見に行ったよ」
-①ユーザーが日本語を書いていない→""　②すでに自然→""　③AIの視点・反応・感情は絶対に入れない`;
+{"content":"会話の返答（ふりがなルール厳守）"}
+- 文法の間違いはcontentの中で自然に訂正すること。例：「あ、「食べました」じゃなくて「食べた」の方が自然だよ！」`;
 
 const PERSONAS: Record<string, string> = {
   senpai: `あなたは「先輩」、日本語学習を応援する頼れる年上の友達キャラです。
@@ -221,7 +215,7 @@ export async function POST(req: Request) {
       return t.replace(/\n?---CORRECTIONS---[\s\S]*?---END---/g, "").trim();
     };
 
-    const parseResponse = (raw: string): { content: string; natural_alt: string } => {
+    const parseResponse = (raw: string): { content: string } => {
       const tryParse = (s: string) => {
         try {
           const p = JSON.parse(s);
@@ -239,23 +233,20 @@ export async function POST(req: Request) {
         .replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/gm, "")
         .trim();
 
-      const extractNatural = (p: any): string =>
-        typeof p?.natural_alt === "string" ? p.natural_alt.trim() : "";
-
       const single = tryParse(cleaned);
-      if (single) return { content: unwrapContent(single.content), natural_alt: extractNatural(single) };
+      if (single) return { content: unwrapContent(single.content) };
 
       let depth = 0, start = -1;
       for (let i = 0; i < cleaned.length; i++) {
         if (cleaned[i] === "{") { if (depth === 0) start = i; depth++; }
         else if (cleaned[i] === "}") { depth--; if (depth === 0 && start !== -1) {
           const parsed = tryParse(cleaned.slice(start, i + 1));
-          if (parsed) return { content: unwrapContent(parsed.content), natural_alt: extractNatural(parsed) };
+          if (parsed) return { content: unwrapContent(parsed.content) };
           start = -1;
         }}
       }
 
-      return { content: unwrapContent(raw), natural_alt: "" };
+      return { content: unwrapContent(raw) };
     };
 
     try {
