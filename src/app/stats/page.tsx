@@ -627,6 +627,9 @@ export default function StatsPage() {
 
   const addWordListToDeck = async (words: string[]) => {
     if (!words.length) return;
+    // Cancel any debounced sync from typing — it could otherwise fire mid-add (this can take
+    // a few seconds for AI generation) and overwrite the empty-list flush below with stale data.
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     setWordListAdding(true);
     try {
       await processWords(words);

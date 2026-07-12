@@ -377,6 +377,9 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
   const addListToDeck = async (text: string) => {
     const words = [...new Set(text.split("\n").map(w => w.trim()).filter(Boolean))];
     if (!words.length || !defaultDeckId) return;
+    // Cancel any debounced sync from typing — it could otherwise fire mid-add (this can take
+    // a few seconds for AI generation) and overwrite the empty-list flush below with stale data.
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     setBatchAdding(true);
 
     const performLinking = async (cardIds: string[]) => {
