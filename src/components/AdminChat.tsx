@@ -524,8 +524,13 @@ export default function AdminChat({ userId }: { userId: string }) {
       const natural_alt: string = (() => {
         const raw = (data.natural_alt ?? "").trim();
         if (!raw) return "";
-        if (raw === (data.content ?? "").trim()) return "";
-        if ((data.content ?? "").trim().startsWith(raw.slice(0, 10))) return "";
+        // Reject if it matches or starts like the AI's response
+        const aiReply = (data.content ?? "").trim();
+        if (raw === aiReply) return "";
+        if (aiReply.startsWith(raw.slice(0, 10))) return "";
+        // Reject if it's more than 2x longer than the user's original message
+        // (a rephrase shouldn't add new content)
+        if (raw.length > text.length * 2) return "";
         return raw;
       })();
       const finalUserMsg: Message = natural_alt ? { ...userMsg, natural_alt } : userMsg;
