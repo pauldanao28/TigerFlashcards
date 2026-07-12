@@ -1017,8 +1017,8 @@ export default function AdminChat({ userId }: { userId: string }) {
       {/* ── Word tooltip (bottom sheet) ── */}
       {tooltip && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setTooltip(null)} />
-          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
+          <div className="fixed inset-0 z-[350] bg-black/20" onClick={() => setTooltip(null)} />
+          <div className="fixed bottom-0 left-0 right-0 z-[360] bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
             style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3 mb-3">
