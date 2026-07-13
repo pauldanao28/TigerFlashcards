@@ -57,10 +57,17 @@ ${mistakeSummary ? `最近の間違い：\n${mistakeSummary}` : ""}
       .replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/gm, "")
       .trim();
 
+    const shuffleChoices = (questions: any[]) =>
+      questions.map(q =>
+        Array.isArray(q.choices)
+          ? { ...q, choices: [...q.choices].sort(() => Math.random() - 0.5) }
+          : q
+      );
+
     try {
       const parsed = JSON.parse(cleaned);
       if (Array.isArray(parsed.questions) && parsed.questions.length > 0) {
-        return NextResponse.json(parsed);
+        return NextResponse.json({ questions: shuffleChoices(parsed.questions) });
       }
     } catch {}
 
@@ -73,7 +80,7 @@ ${mistakeSummary ? `最近の間違い：\n${mistakeSummary}` : ""}
         if (depth === 0 && start !== -1) {
           try {
             const parsed = JSON.parse(cleaned.slice(start, i + 1));
-            if (Array.isArray(parsed.questions)) return NextResponse.json(parsed);
+            if (Array.isArray(parsed.questions)) return NextResponse.json({ questions: shuffleChoices(parsed.questions) });
           } catch {}
           start = -1;
         }
