@@ -5,7 +5,11 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 const prompt = (words: string[]) => `Task: Analyze or translate this list of terms: [${words.join(", ")}].
-1. If the input is Japanese (Kanji/Kana): the "japanese" field must be the plain DICTIONARY FORM (辞書形), never the form as typed. If the input is a conjugated or inflected verb/i-adjective (て-form, た-form, ます-form, negative, passive, potential, causative, etc.), normalize it to its dictionary form before returning it — e.g. "食べた"→"食べる", "飲みます"→"飲む", "美味しかった"→"美味しい". Provide the reading, English translation, and example for that dictionary form.
+1. If the input is Japanese (Kanji/Kana): the "japanese" field must be the plain DICTIONARY FORM (辞書形), never the form as typed.
+   - Verb/i-adjective conjugations (て-form, た-form, ます-form, negative, passive, potential, causative, etc.) → normalize to dictionary form, e.g. "食べた"→"食べる", "飲みます"→"飲む", "美味しかった"→"美味しい".
+   - Na-adjectives with an attached copula (だった, でした, じゃない, じゃなかった, etc.) → strip the copula and return the bare stem, e.g. "静かだった"→"静か", "綺麗じゃない"→"綺麗", "元気でした"→"元気".
+   - Nouns don't conjugate — return them as-is.
+   Provide the reading, English translation, and example for that dictionary/stem form.
 2. If the input is English: Provide the most common Kanji (dictionary form), reading, and example.
 3. Identify the Part of Speech (e.g., noun, verb, adjective, adverb).
 4. Classify the JLPT level of each word: N5 (easiest), N4, N3, N2, N1 (hardest). If unsure, pick the closest level.
