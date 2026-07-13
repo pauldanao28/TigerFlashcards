@@ -156,10 +156,17 @@ export default function Dashboard() {
   const h = new Date().getHours();
   const greeting = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 
-  // Overall level: only count scores that have been earned (non-null)
+  // Weighted avg: vocab 40%, others 20% each (nulls = 0)
+  const v = data.vocab_score ?? 0;
+  const g = data.grammar_score ?? 0;
+  const r = data.reading_score ?? 0;
+  const l = data.listening_score ?? 0;
+  const overallScore = v * 0.4 + g * 0.2 + r * 0.2 + l * 0.2;
+
+  // Overall level = weakest pillar among attempted skills (mirrors real JLPT rules)
   const availableScores = [data.vocab_score, data.reading_score, data.listening_score, data.grammar_score].filter((s): s is number => s !== null);
-  const overallScore = availableScores.length > 0 ? availableScores.reduce((a, b) => a + b, 0) / availableScores.length : 0;
-  const overallLevel = jlptLevel(overallScore);
+  const weakestScore = availableScores.length > 0 ? Math.min(...availableScores) : 0;
+  const overallLevel = jlptLevel(weakestScore);
 
   return (
     <div className="min-h-screen bg-slate-50 pb-28">

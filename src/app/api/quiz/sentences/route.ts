@@ -2,6 +2,10 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 import { difficultyLabel } from "@/lib/scoring";
 
+function nextLevelLabel(score: number): string {
+  return difficultyLabel(Math.min(100, score + 20));
+}
+
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
 export async function POST(req: Request) {
@@ -17,6 +21,7 @@ export async function POST(req: Request) {
       .join("\n");
 
     const grammarTarget = difficultyLabel(difficulty);
+    const nextTarget = nextLevelLabel(difficulty);
 
     const prompt = `You are a Japanese sentence generator for language learners.
 
@@ -30,6 +35,7 @@ Rules:
 - Wrap ONLY the conjugated form of the target word as it appears in the sentence with【】
 - The "word" field must always be the dictionary form (as given in the list)
 - Provide a natural English translation
+- Exposure rule: naturally include 1 vocabulary word from the next level up (${nextTarget}) somewhere in the sentence — not as the target word, just as supporting context to expose the learner to new words worth mining
 
 Words:
 ${wordList}
