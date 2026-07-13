@@ -707,6 +707,11 @@ export default function StudyView() {
     return counts;
   }, [cards]);
   const jlptTotal = cards.length;
+  const dominantJlptLevel = useMemo(() => {
+    const levels = (["N5", "N4", "N3", "N2", "N1"] as const);
+    return levels.reduce((best, level) =>
+      jlptDistribution[level] > jlptDistribution[best] ? level : best, levels[0]);
+  }, [jlptDistribution]);
   const [showJlptBreakdown, setShowJlptBreakdown] = useState(false);
 
   return (
@@ -790,7 +795,7 @@ export default function StudyView() {
                   onClick={() => setShowJlptBreakdown(true)}
                   className="flex items-center gap-2 mt-0.5 active:scale-95 transition-transform"
                 >
-                  <div className="flex-1 h-1 rounded-full overflow-hidden flex bg-slate-200/50">
+                  <div className="flex-1 h-1.5 rounded-full overflow-hidden flex bg-slate-200">
                     {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
                       const pct = (jlptDistribution[level] / jlptTotal) * 100;
                       if (pct === 0) return null;
@@ -799,8 +804,8 @@ export default function StudyView() {
                       );
                     })}
                   </div>
-                  <span className="text-[8px] font-black uppercase tracking-widest text-slate-300 whitespace-nowrap">
-                    {t.by_level}
+                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">
+                    {dominantJlptLevel} {Math.round((jlptDistribution[dominantJlptLevel] / jlptTotal) * 100)}%
                   </span>
                 </button>
               )}
@@ -853,7 +858,7 @@ export default function StudyView() {
                     onClick={() => setShowJlptBreakdown(true)}
                     className="flex items-center gap-2.5 -mt-0.5 hover:opacity-80 active:scale-95 transition-all"
                   >
-                    <div className="flex-1 h-1.5 rounded-full overflow-hidden flex bg-slate-100">
+                    <div className="flex-1 h-2 rounded-full overflow-hidden flex bg-slate-200">
                       {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
                         const pct = (jlptDistribution[level] / jlptTotal) * 100;
                         if (pct === 0) return null;
@@ -862,8 +867,8 @@ export default function StudyView() {
                         );
                       })}
                     </div>
-                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 whitespace-nowrap">
-                      {t.by_level}
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">
+                      {dominantJlptLevel} {Math.round((jlptDistribution[dominantJlptLevel] / jlptTotal) * 100)}%
                     </span>
                   </button>
                 )}
@@ -1183,7 +1188,9 @@ export default function StudyView() {
                       <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
                         <div className={`h-full rounded-full ${JLPT_BAR_COLOR[level]}`} style={{ width: `${pct}%` }} />
                       </div>
-                      <span className="shrink-0 w-9 text-right text-xs font-black text-slate-600">{count}</span>
+                      <span className="shrink-0 w-20 text-right text-xs font-black text-slate-600">
+                        {count} <span className="text-slate-400 font-bold">· {pct}%</span>
+                      </span>
                     </div>
                   );
                 })}

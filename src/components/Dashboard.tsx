@@ -6,6 +6,8 @@ import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { getLevel, jlptLevel, vocabMastery } from "@/lib/scoring";
 
+type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
+
 interface ProfileScores {
   name: string | null;
   streak: number;
@@ -14,7 +16,23 @@ interface ProfileScores {
   listening_score: number | null;
   grammar_score: number | null;
   deck_size: number;
+  jlpt_counts: Record<JlptLevel, number>;
 }
+
+const JLPT_BAR_COLOR: Record<JlptLevel, string> = {
+  N5: "bg-emerald-500",
+  N4: "bg-teal-500",
+  N3: "bg-amber-500",
+  N2: "bg-orange-500",
+  N1: "bg-rose-500",
+};
+const JLPT_BADGE_COLOR: Record<JlptLevel, string> = {
+  N5: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  N4: "bg-teal-100 text-teal-700 border-teal-200",
+  N3: "bg-amber-100 text-amber-700 border-amber-200",
+  N2: "bg-orange-100 text-orange-700 border-orange-200",
+  N1: "bg-rose-100 text-rose-700 border-rose-200",
+};
 
 function ScoreTile({
   href,
@@ -113,8 +131,26 @@ export default function Dashboard() {
         }
         return rows;
       };
+      const fetchJlptCounts = async (): Promise<Record<JlptLevel, number>> => {
+        const counts: Record<JlptLevel, number> = { N5: 0, N4: 0, N3: 0, N2: 0, N1: 0 };
+        if (!deckId) return counts;
+        for (let from = 0; ; from += PAGE) {
+          const { data } = await supabase
+            .from("master_cards")
+            .select("jlpt_level, deck_cards!inner(deck_id)")
+            .eq("deck_cards.deck_id", deckId)
+            .range(from, from + PAGE - 1);
+          if (data) {
+            for (const row of data as unknown as { jlpt_level: JlptLevel | null }[]) {
+              if (row.jlpt_level && row.jlpt_level in counts) counts[row.jlpt_level]++;
+            }
+          }
+          if (!data || data.length < PAGE) break;
+        }
+        return counts;
+      };
 
-      const [deckCards, scoreRows] = await Promise.all([fetchAllDeckCards(), fetchAllScores()]);
+      const [deckCards, scoreRows, jlptCounts] = await Promise.all([fetchAllDeckCards(), fetchAllScores(), fetchJlptCounts()]);
 
       // Build score map and compute per-card accuracies (0 for unlearned)
       const scoreMap = new Map(scoreRows.map((s) => [s.card_id, s.scores_json]));
@@ -139,6 +175,7 @@ export default function Dashboard() {
         listening_score: p?.listening_score ?? null,
         grammar_score: p?.grammar_score ?? null,
         deck_size: deckSize,
+        jlpt_counts: jlptCounts,
       });
     };
     load();
@@ -208,6 +245,35 @@ export default function Dashboard() {
         <ScoreTile href="/quizzes?open=sentence"   emoji="📖" label="Reading"    score={data.reading_score}   sub="Sentence quiz" />
         <ScoreTile href="/quizzes?open=listening"  emoji="🎧" label="Listening"  score={data.listening_score} sub="Listening quiz" />
       </div>
+
+      {/* Vocabulary by JLPT level */}
+      {data.deck_size > 0 && (
+        <div className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vocabulary by Level</p>
+            <p className="text-[10px] font-black text-slate-400">{data.deck_size.toLocaleString()} cards</p>
+          </div>
+          <div className="space-y-2.5">
+            {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
+              const count = data.jlpt_counts[level];
+              const pct = data.deck_size > 0 ? Math.round((count / data.deck_size) * 100) : 0;
+              return (
+                <div key={level} className="flex items-center gap-3">
+                  <span className={`shrink-0 w-9 text-[10px] px-1.5 py-0.5 rounded-md border font-black text-center uppercase tracking-tighter ${JLPT_BADGE_COLOR[level]}`}>
+                    {level}
+                  </span>
+                  <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${JLPT_BAR_COLOR[level]}`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="shrink-0 w-20 text-right text-xs font-black text-slate-600">
+                    {count} <span className="text-slate-400 font-bold">· {pct}%</span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
