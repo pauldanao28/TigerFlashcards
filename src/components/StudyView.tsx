@@ -17,6 +17,7 @@ import LoadingScreen from "@/components/LoadingScreen";
 import CoachMarks from "@/components/CoachMarks";
 import { SocialDock } from "@/components/SocialDock";
 import SentenceQuiz from "@/components/SentenceQuiz";
+import ListeningQuiz from "@/components/ListeningQuiz";
 import { FlashcardData } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
 const DAILY_GOAL = 10;
@@ -47,6 +48,7 @@ export default function StudyView() {
   const goalFired = useRef(false);
 
   const [showQuiz, setShowQuiz] = useState(false);
+  const [showListeningQuiz, setShowListeningQuiz] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
   const [audioPulse, setAudioPulse] = useState(0);
   const [autoPlayJp, setAutoPlayJp] = useState(true);
@@ -746,6 +748,13 @@ export default function StudyView() {
                 <span className="text-sm leading-none">📝</span>
                 <span className="text-[10px] font-black uppercase tracking-widest text-amber-600">Quiz</span>
               </button>
+              <button
+                onClick={() => setShowListeningQuiz(true)}
+                className="bg-white h-9 px-4 rounded-full shadow-sm border border-indigo-200 flex items-center justify-center gap-2 active:scale-95 transition-all w-fit"
+              >
+                <span className="text-sm leading-none">🎧</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Listen</span>
+              </button>
             </div>
           </div>
           {/* --- THE FIX: Change this div --- */}
@@ -840,6 +849,13 @@ export default function StudyView() {
             >
               <span className="text-xl leading-none">📝</span>
               <span className="text-sm font-black uppercase tracking-[0.2em] text-amber-600">Quiz</span>
+            </button>
+            <button
+              onClick={() => setShowListeningQuiz(true)}
+              className="bg-white h-11 px-8 rounded-full shadow-sm border border-indigo-200 flex items-center gap-3 hover:border-indigo-300 transition-all active:scale-95"
+            >
+              <span className="text-xl leading-none">🎧</span>
+              <span className="text-sm font-black uppercase tracking-[0.2em] text-indigo-600">Listen</span>
             </button>
             {/* NEW: Social Toggle */}
             <button
@@ -1116,6 +1132,11 @@ export default function StudyView() {
       <AnimatePresence>
         {showQuiz && user?.id && (
           <SentenceQuiz userId={user.id} isAdmin={isAdmin} onClose={() => setShowQuiz(false)} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showListeningQuiz && user?.id && (
+          <ListeningQuiz userId={user.id} isAdmin={isAdmin} onClose={() => setShowListeningQuiz(false)} />
         )}
       </AnimatePresence>
     </>
