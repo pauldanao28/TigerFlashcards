@@ -64,6 +64,25 @@ export function bootstrapReadingScore(
   return Math.round(avg);
 }
 
+// JLPT cumulative vocab targets — used as the mastery denominator floor.
+export const JLPT_VOCAB_FLOOR: Record<string, number> = {
+  N1: 10000,
+  N2: 6000,
+  N3: 3750,
+  N4: 1500,
+  N5: 800,
+};
+
+// Compute vocab mastery % from per-card combined accuracies.
+// denominator = max(deck_size, JLPT floor) so small decks can't hit 100% easily.
+// cardAccuracies: one entry per deck card, value 0-100 (0 for unlearned cards).
+export function vocabMastery(cardAccuracies: number[], nlevel: string): number {
+  const floor = JLPT_VOCAB_FLOOR[nlevel] ?? 800;
+  const denominator = Math.max(cardAccuracies.length, floor);
+  const sum = cardAccuracies.reduce((a, b) => a + b, 0);
+  return Math.min(100, Math.round(sum / denominator));
+}
+
 // Overall JLPT level estimate from a 0-100 skill score.
 export function jlptLevel(score: number): string {
   if (score >= 80) return "N1";

@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
-import { getLevel, jlptLevel, bootstrapVocabScore } from "@/lib/scoring";
+import { getLevel, jlptLevel, vocabMastery } from "@/lib/scoring";
 
 interface ProfileScores {
   name: string | null;
@@ -70,25 +70,49 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      const [profileRes, scoresRes] = await Promise.all([
+      // Round 1: profile + default deck + all user_scores in parallel
+      const [profileRes, deckRes, scoresRes] = await Promise.all([
         supabase
           .from("profiles")
-          .select("full_name, streak_count, vocab_score, reading_score, listening_score, grammar_score")
+          .select("full_name, streak_count, reading_score, listening_score, grammar_score")
           .eq("id", user.id)
           .single(),
-        supabase.from("user_scores").select("scores_json").eq("user_id", user.id),
+        supabase.from("decks").select("id").eq("user_id", user.id).eq("is_default", true).single(),
+        supabase.from("user_scores").select("card_id, scores_json").eq("user_id", user.id),
       ]);
 
       const p = profileRes.data;
-      let vocabScore = p?.vocab_score ?? null;
+      const deckId = deckRes.data?.id;
 
-      // Only bootstrap vocab_score — reading/listening/grammar start at 0 and
-      // are earned through quiz sessions, not inferred from card accuracy.
-      if (vocabScore == null) {
-        const rows = (scoresRes.data ?? []) as { scores_json: any }[];
-        vocabScore = bootstrapVocabScore(rows);
-        supabase.from("profiles").update({ vocab_score: vocabScore }).eq("id", user.id);
-      }
+      // Round 2: deck card IDs (needs deckId)
+      const deckCardsRes = deckId
+        ? await supabase.from("deck_cards").select("card_id").eq("deck_id", deckId)
+        : { data: [] as { card_id: string }[] };
+
+      // Build score map and compute per-card accuracies (0 for unlearned)
+      const scoreMap = new Map(
+        (scoresRes.data ?? []).map((s: any) => [s.card_id, s.scores_json])
+      );
+      const deckCardIds = (deckCardsRes.data ?? []).map((dc) => dc.card_id);
+      const accuracies = deckCardIds.map((id) => {
+        const sc = scoreMap.get(id);
+        const jp = sc?.jp_to_en?.percent ?? 0;
+        const en = sc?.en_to_jp?.percent ?? 0;
+        return (jp + en) / 2;
+      });
+
+      // Use non-vocab scores to determine JLPT floor (avoids circular dependency)
+      const nonVocabScores = [p?.reading_score, p?.listening_score, p?.grammar_score].filter(
+        (s): s is number => s !== null
+      );
+      const levelScore =
+        nonVocabScores.length > 0
+          ? nonVocabScores.reduce((a, b) => a + b, 0) / nonVocabScores.length
+          : 0;
+      const nlevel = jlptLevel(levelScore);
+      const vocabScore = vocabMastery(accuracies, nlevel);
+
+      supabase.from("profiles").update({ vocab_score: vocabScore }).eq("id", user.id);
 
       setData({
         name: p?.full_name ?? null,
