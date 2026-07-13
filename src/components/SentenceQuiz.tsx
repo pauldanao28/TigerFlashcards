@@ -256,15 +256,21 @@ export default function SentenceQuiz({ userId, isAdmin = false, focusWeak = true
     setError(null);
 
     try {
-      // Fetch every card's score (no DB-side limit) — the app picks the bottom 100 hardest
-      // cards and randomizes 20 from those; only those 20 ever get sent to the AI.
-      const { data, error: dbErr } = await supabase
-        .from("user_scores")
-        .select("scores_json, master_cards!card_id(id, japanese, reading, english)")
-        .eq("user_id", userId)
-        .limit(50000);
-
-      if (dbErr || !data) throw new Error("Could not load your cards");
+      // Paginate all scored cards — server max_rows cap overrides .limit(), so use .range()
+      const PAGE = 1000;
+      const allRows: any[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data: page, error: pageErr } = await supabase
+          .from("user_scores")
+          .select("scores_json, master_cards!card_id(id, japanese, reading, english)")
+          .eq("user_id", userId)
+          .range(from, from + PAGE - 1);
+        if (pageErr) throw new Error("Could not load your cards");
+        if (page) allRows.push(...page);
+        if (!page || page.length < PAGE) break;
+      }
+      const data = allRows;
+      if (!data.length) throw new Error("Could not load your cards");
 
       const allCards = data
         .map((row: any) => {

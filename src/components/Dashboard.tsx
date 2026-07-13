@@ -71,30 +71,54 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      // Round 1: profile + default deck + all user_scores in parallel
-      const [profileRes, deckRes, scoresRes] = await Promise.all([
+      // Round 1: profile + default deck in parallel
+      const [profileRes, deckRes] = await Promise.all([
         supabase
           .from("profiles")
           .select("full_name, streak_count, reading_score, listening_score, grammar_score")
           .eq("id", user.id)
           .single(),
         supabase.from("decks").select("id").eq("user_id", user.id).eq("is_default", true).single(),
-        supabase.from("user_scores").select("card_id, scores_json").eq("user_id", user.id).limit(50000),
       ]);
 
       const p = profileRes.data;
       const deckId = deckRes.data?.id;
 
-      // Round 2: deck card IDs (needs deckId) — high limit avoids default 1000-row cap
-      const deckCardsRes = deckId
-        ? await supabase.from("deck_cards").select("card_id").eq("deck_id", deckId).limit(50000)
-        : { data: [] as { card_id: string }[] };
+      // Round 2: paginate deck_cards and user_scores in parallel
+      const PAGE = 1000;
+      const fetchAllDeckCards = async (): Promise<{ card_id: string }[]> => {
+        if (!deckId) return [];
+        const rows: { card_id: string }[] = [];
+        for (let from = 0; ; from += PAGE) {
+          const { data } = await supabase
+            .from("deck_cards")
+            .select("card_id")
+            .eq("deck_id", deckId)
+            .range(from, from + PAGE - 1);
+          if (data) rows.push(...data);
+          if (!data || data.length < PAGE) break;
+        }
+        return rows;
+      };
+      const fetchAllScores = async (): Promise<{ card_id: string; scores_json: any }[]> => {
+        const rows: { card_id: string; scores_json: any }[] = [];
+        for (let from = 0; ; from += PAGE) {
+          const { data } = await supabase
+            .from("user_scores")
+            .select("card_id, scores_json")
+            .eq("user_id", user.id)
+            .range(from, from + PAGE - 1);
+          if (data) rows.push(...data);
+          if (!data || data.length < PAGE) break;
+        }
+        return rows;
+      };
+
+      const [deckCards, scoreRows] = await Promise.all([fetchAllDeckCards(), fetchAllScores()]);
 
       // Build score map and compute per-card accuracies (0 for unlearned)
-      const scoreMap = new Map(
-        (scoresRes.data ?? []).map((s: any) => [s.card_id, s.scores_json])
-      );
-      const deckCardIds = (deckCardsRes.data ?? []).map((dc) => dc.card_id);
+      const scoreMap = new Map(scoreRows.map((s) => [s.card_id, s.scores_json]));
+      const deckCardIds = deckCards.map((dc) => dc.card_id);
       const accuracies = deckCardIds.map((id) => {
         const sc = scoreMap.get(id);
         const jp = sc?.jp_to_en?.percent ?? 0;
