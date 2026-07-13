@@ -112,6 +112,7 @@ export default function Dashboard() {
             .from("deck_cards")
             .select("card_id")
             .eq("deck_id", deckId)
+            .order("card_id")
             .range(from, from + PAGE - 1);
           if (data) rows.push(...data);
           if (!data || data.length < PAGE) break;
@@ -125,6 +126,7 @@ export default function Dashboard() {
             .from("user_scores")
             .select("card_id, scores_json")
             .eq("user_id", user.id)
+            .order("card_id")
             .range(from, from + PAGE - 1);
           if (data) rows.push(...data);
           if (!data || data.length < PAGE) break;
@@ -137,8 +139,9 @@ export default function Dashboard() {
         for (let from = 0; ; from += PAGE) {
           const { data } = await supabase
             .from("master_cards")
-            .select("jlpt_level, deck_cards!inner(deck_id)")
+            .select("id, jlpt_level, deck_cards!inner(deck_id)")
             .eq("deck_cards.deck_id", deckId)
+            .order("id")
             .range(from, from + PAGE - 1);
           if (data) {
             for (const row of data as unknown as { jlpt_level: JlptLevel | null }[]) {
@@ -179,7 +182,12 @@ export default function Dashboard() {
       });
     };
     load();
-  }, [user]);
+    // Depend on user.id (a stable primitive), not the user object — Supabase's
+    // onAuthStateChange emits a new object reference on every event (token refresh,
+    // tab focus, etc.) even for the same session, which was re-triggering this whole
+    // fetch-and-recompute sequence repeatedly and made the displayed numbers flicker.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   if (!data) {
     return (
