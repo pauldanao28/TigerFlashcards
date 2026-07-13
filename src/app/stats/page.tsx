@@ -689,18 +689,23 @@ export default function StatsPage() {
   // 1. Global Totals (Tries, Pass, Fail)
   const globalStats = useMemo(() => calculateGlobalStats(cards), [cards]);
 
-  const jlptDistribution = useMemo(() => {
-    const counts: Record<"N5" | "N4" | "N3" | "N2" | "N1", number> = {
-      N5: 0,
-      N4: 0,
-      N3: 0,
-      N2: 0,
-      N1: 0,
+  const jlptStats = useMemo(() => {
+    const stats: Record<"N5" | "N4" | "N3" | "N2" | "N1", { total: number; mastered: number }> = {
+      N5: { total: 0, mastered: 0 },
+      N4: { total: 0, mastered: 0 },
+      N3: { total: 0, mastered: 0 },
+      N2: { total: 0, mastered: 0 },
+      N1: { total: 0, mastered: 0 },
     };
     for (const c of cards) {
-      if (c.jlpt_level && c.jlpt_level in counts) counts[c.jlpt_level]++;
+      if (!c.jlpt_level || !(c.jlpt_level in stats)) continue;
+      const s = c.scores;
+      const totalAttempts = (s?.jp_to_en?.total || 0) + (s?.en_to_jp?.total || 0);
+      const avgAccuracy = ((s?.jp_to_en?.percent || 0) + (s?.en_to_jp?.percent || 0)) / 2;
+      stats[c.jlpt_level].total++;
+      if (totalAttempts > 0 && avgAccuracy >= 80) stats[c.jlpt_level].mastered++;
     }
-    return counts;
+    return stats;
   }, [cards]);
   // 1. Global Totals (Tries, Pass, Fail)
   // Separate Global Totals for both directions
@@ -1703,26 +1708,37 @@ export default function StatsPage() {
                   {totalCards} {t.vocabulary}
                 </p>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
-                  const count = jlptDistribution[level];
-                  const pct = totalCards > 0 ? Math.round((count / totalCards) * 100) : 0;
+                  const { total, mastered } = jlptStats[level];
+                  const pct = totalCards > 0 ? Math.round((total / totalCards) * 100) : 0;
+                  const masteryPct = total > 0 ? Math.round((mastered / total) * 100) : 0;
                   return (
-                    <div key={level} className="flex items-center gap-3">
-                      <span
-                        className={`shrink-0 w-9 text-[10px] px-1.5 py-0.5 rounded-md border font-black text-center uppercase tracking-tighter ${getJlptColor(level)}`}
-                      >
-                        {level}
-                      </span>
-                      <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-500 ${getJlptBarColor(level)}`}
-                          style={{ width: `${pct}%` }}
-                        />
+                    <div key={level} className="flex flex-col gap-1">
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`shrink-0 w-9 text-[10px] px-1.5 py-0.5 rounded-md border font-black text-center uppercase tracking-tighter ${getJlptColor(level)}`}
+                        >
+                          {level}
+                        </span>
+                        <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${getJlptBarColor(level)}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="shrink-0 w-20 text-right text-xs font-black text-slate-600">
+                          {total} <span className="text-slate-400 font-bold">· {pct}%</span>
+                        </span>
                       </div>
-                      <span className="shrink-0 w-9 text-right text-xs font-black text-slate-600">
-                        {count}
-                      </span>
+                      <div className="flex items-center gap-3 pl-12">
+                        <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full bg-indigo-400" style={{ width: `${masteryPct}%` }} />
+                        </div>
+                        <span className="shrink-0 w-20 text-right text-[10px] font-bold text-slate-400">
+                          {masteryPct}% mastered
+                        </span>
+                      </div>
                     </div>
                   );
                 })}

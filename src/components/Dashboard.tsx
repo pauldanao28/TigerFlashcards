@@ -16,7 +16,7 @@ interface ProfileScores {
   listening_score: number | null;
   grammar_score: number | null;
   deck_size: number;
-  jlpt_counts: Record<JlptLevel, number>;
+  jlpt_stats: Record<JlptLevel, { total: number; mastered: number }>;
 }
 
 const JLPT_BAR_COLOR: Record<JlptLevel, string> = {
@@ -67,8 +67,7 @@ function ScoreTile({
       <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p>
       <div>
         <div className="flex items-end justify-between mb-1">
-          <span className={`text-2xl font-black ${level.color}`}>{Math.round(s)}</span>
-          <span className="text-[10px] text-slate-400 font-bold">{Math.round(s)}%</span>
+          <span className={`text-2xl font-black ${level.color}`}>{Math.round(s)}%</span>
         </div>
         <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
           <div
@@ -133,9 +132,9 @@ export default function Dashboard() {
         }
         return rows;
       };
-      const fetchJlptCounts = async (): Promise<Record<JlptLevel, number>> => {
-        const counts: Record<JlptLevel, number> = { N5: 0, N4: 0, N3: 0, N2: 0, N1: 0 };
-        if (!deckId) return counts;
+      const fetchJlptCards = async (): Promise<{ id: string; jlpt_level: JlptLevel | null }[]> => {
+        if (!deckId) return [];
+        const rows: { id: string; jlpt_level: JlptLevel | null }[] = [];
         for (let from = 0; ; from += PAGE) {
           const { data } = await supabase
             .from("master_cards")
@@ -143,17 +142,13 @@ export default function Dashboard() {
             .eq("deck_cards.deck_id", deckId)
             .order("id")
             .range(from, from + PAGE - 1);
-          if (data) {
-            for (const row of data as unknown as { jlpt_level: JlptLevel | null }[]) {
-              if (row.jlpt_level && row.jlpt_level in counts) counts[row.jlpt_level]++;
-            }
-          }
+          if (data) rows.push(...(data as unknown as { id: string; jlpt_level: JlptLevel | null }[]));
           if (!data || data.length < PAGE) break;
         }
-        return counts;
+        return rows;
       };
 
-      const [deckCards, scoreRows, jlptCounts] = await Promise.all([fetchAllDeckCards(), fetchAllScores(), fetchJlptCounts()]);
+      const [deckCards, scoreRows, jlptCards] = await Promise.all([fetchAllDeckCards(), fetchAllScores(), fetchJlptCards()]);
 
       // Build score map and compute per-card accuracies (0 for unlearned)
       const scoreMap = new Map(scoreRows.map((s) => [s.card_id, s.scores_json]));
@@ -168,6 +163,24 @@ export default function Dashboard() {
       const deckSize = deckCardIds.length;
       const vocabScore = vocabMastery(accuracies, deckSize);
 
+      // Per-level mastery — same "mastered" definition as the stats page (>=80% accuracy
+      // with at least one attempt), so the two surfaces agree on what "mastered" means.
+      const jlptStats: Record<JlptLevel, { total: number; mastered: number }> = {
+        N5: { total: 0, mastered: 0 },
+        N4: { total: 0, mastered: 0 },
+        N3: { total: 0, mastered: 0 },
+        N2: { total: 0, mastered: 0 },
+        N1: { total: 0, mastered: 0 },
+      };
+      for (const card of jlptCards) {
+        if (!card.jlpt_level || !(card.jlpt_level in jlptStats)) continue;
+        const sc = scoreMap.get(card.id);
+        const totalAttempts = (sc?.jp_to_en?.total ?? 0) + (sc?.en_to_jp?.total ?? 0);
+        const avgAccuracy = ((sc?.jp_to_en?.percent ?? 0) + (sc?.en_to_jp?.percent ?? 0)) / 2;
+        jlptStats[card.jlpt_level].total++;
+        if (totalAttempts > 0 && avgAccuracy >= 80) jlptStats[card.jlpt_level].mastered++;
+      }
+
       supabase.from("profiles").update({ vocab_score: vocabScore }).eq("id", user.id);
 
       setData({
@@ -178,7 +191,7 @@ export default function Dashboard() {
         listening_score: p?.listening_score ?? null,
         grammar_score: p?.grammar_score ?? null,
         deck_size: deckSize,
-        jlpt_counts: jlptCounts,
+        jlpt_stats: jlptStats,
       });
     };
     load();
@@ -236,7 +249,7 @@ export default function Dashboard() {
           </div>
           <div className="text-right">
             <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Avg Score</p>
-            <p className="text-3xl font-black text-white mt-0.5">{Math.round(overallScore)}</p>
+            <p className="text-3xl font-black text-white mt-0.5">{Math.round(overallScore)}%</p>
           </div>
         </div>
       </div>
@@ -261,21 +274,32 @@ export default function Dashboard() {
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vocabulary by Level</p>
             <p className="text-[10px] font-black text-slate-400">{data.deck_size.toLocaleString()} cards</p>
           </div>
-          <div className="space-y-2.5">
+          <div className="space-y-3.5">
             {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
-              const count = data.jlpt_counts[level];
-              const pct = data.deck_size > 0 ? Math.round((count / data.deck_size) * 100) : 0;
+              const { total, mastered } = data.jlpt_stats[level];
+              const pct = data.deck_size > 0 ? Math.round((total / data.deck_size) * 100) : 0;
+              const masteryPct = total > 0 ? Math.round((mastered / total) * 100) : 0;
               return (
-                <div key={level} className="flex items-center gap-3">
-                  <span className={`shrink-0 w-9 text-[10px] px-1.5 py-0.5 rounded-md border font-black text-center uppercase tracking-tighter ${JLPT_BADGE_COLOR[level]}`}>
-                    {level}
-                  </span>
-                  <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${JLPT_BAR_COLOR[level]}`} style={{ width: `${pct}%` }} />
+                <div key={level} className="flex flex-col gap-1">
+                  <div className="flex items-center gap-3">
+                    <span className={`shrink-0 w-9 text-[10px] px-1.5 py-0.5 rounded-md border font-black text-center uppercase tracking-tighter ${JLPT_BADGE_COLOR[level]}`}>
+                      {level}
+                    </span>
+                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${JLPT_BAR_COLOR[level]}`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="shrink-0 w-20 text-right text-xs font-black text-slate-600">
+                      {total} <span className="text-slate-400 font-bold">· {pct}%</span>
+                    </span>
                   </div>
-                  <span className="shrink-0 w-20 text-right text-xs font-black text-slate-600">
-                    {count} <span className="text-slate-400 font-bold">· {pct}%</span>
-                  </span>
+                  <div className="flex items-center gap-3 pl-11">
+                    <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-indigo-400" style={{ width: `${masteryPct}%` }} />
+                    </div>
+                    <span className="shrink-0 w-20 text-right text-[10px] font-bold text-slate-400">
+                      {masteryPct}% mastered
+                    </span>
+                  </div>
                 </div>
               );
             })}
