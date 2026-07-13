@@ -100,12 +100,12 @@ export function vocabFloor(deckSize: number): number {
 }
 
 // Compute vocab mastery % from per-card combined accuracies (0-100 each).
-// Denominator = vocabFloor(deckSize) so score reflects coverage of the JLPT tier.
-// Unlearned deck cards contribute 0 accuracy.
+// A card is "known" when its combined accuracy >= 70%.
+// Score = known_cards / vocabFloor(deckSize) so unlearned/unmined cards don't inflate the score.
 export function vocabMastery(cardAccuracies: number[], deckSize: number): number {
+  const known = cardAccuracies.filter(a => a >= 70).length;
   const denominator = vocabFloor(deckSize);
-  const sum = cardAccuracies.reduce((a, b) => a + b, 0);
-  return Math.min(100, Math.round(sum / denominator));
+  return Math.min(100, Math.round((known / denominator) * 100));
 }
 
 // Overall JLPT level estimate from a 0-100 skill score.

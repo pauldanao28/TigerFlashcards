@@ -421,7 +421,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
         const itemsArray = Array.isArray(items) ? items : [items];
         const seen = new Set<string>();
         const deduped = itemsArray
-          .map((item: any) => ({ japanese: String(item.japanese).trim(), reading: String(item.reading || "").replace(/[a-zA-Z\s]/g, ""), english: String(item.english || "").trim(), partOfSpeech: String(item.partOfSpeech || "noun").trim().toLowerCase(), exampleSentence: item.exampleSentence || { jp: "", en: "" }, creator_id: userId }))
+          .map((item: any) => ({ japanese: String(item.japanese).trim(), reading: String(item.reading || "").replace(/[a-zA-Z\s]/g, ""), english: String(item.english || "").trim(), partOfSpeech: String(item.partOfSpeech || "noun").trim().toLowerCase(), jlpt_level: item.jlpt_level ?? null, exampleSentence: item.exampleSentence || { jp: "", en: "" }, creator_id: userId }))
           .filter((item: any) => { if (seen.has(item.japanese)) return false; seen.add(item.japanese); return true; });
         const { data: newCards, error: mErr } = await supabase.from("master_cards").upsert(deduped, { onConflict: "japanese" }).select("*");
         if (mErr) throw mErr;

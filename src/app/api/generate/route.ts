@@ -8,6 +8,7 @@ const prompt = (words: string[]) => `Task: Analyze or translate this list of ter
 1. If the input is Japanese (Kanji/Kana): Provide the reading, English translation, and example.
 2. If the input is English: Provide the most common Kanji, reading, and example.
 3. Identify the Part of Speech (e.g., noun, verb, adjective, adverb).
+4. Classify the JLPT level of each word: N5 (easiest), N4, N3, N2, N1 (hardest). If unsure, pick the closest level.
 
 Rules for the "english" field:
 - Plain, concise translation only. No parentheses, no brackets, no qualifiers, no "to " prefix for verbs.
@@ -21,6 +22,7 @@ Output ONLY raw JSON as an ARRAY of objects:
     "reading": "...",
     "english": "...",
     "partOfSpeech": "...",
+    "jlpt_level": "N5",
     "alternatives": [],
     "contextNote": "...",
     "exampleSentence": { "jp": "...", "en": "..." }
