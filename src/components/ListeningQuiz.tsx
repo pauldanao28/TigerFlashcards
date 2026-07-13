@@ -198,6 +198,13 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
       .then(({ data }) => { if (data?.listening_score != null) listeningScoreRef.current = data.listening_score; });
   }, [userId]);
 
+  const recentMistakesRef = useRef<{ mistake: string; correct: string; reason: string }[]>([]);
+  useEffect(() => {
+    supabase.from("listening_corrections").select("mistake, correct, reason")
+      .eq("user_id", userId).order("created_at", { ascending: false }).limit(20)
+      .then(({ data }) => { if (data) recentMistakesRef.current = data; });
+  }, [userId]);
+
   useEffect(() => {
     supabase.from("profiles").select("pending_words").eq("id", userId).maybeSingle()
       .then(({ data, error: dbErr }) => {
@@ -263,7 +270,7 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
       const res = await fetch("/api/quiz/listening", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count: QUESTIONS_PER_ROUND, difficulty: listeningScoreRef.current }),
+        body: JSON.stringify({ count: QUESTIONS_PER_ROUND, difficulty: listeningScoreRef.current, recentMistakes: recentMistakesRef.current }),
       });
       if (!res.ok) throw new Error("Failed to generate listening quiz");
       const { questions: qs } = await res.json();
@@ -410,6 +417,13 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
       const newListeningScore = rollingAvg(listeningScoreRef.current, sess);
       listeningScoreRef.current = newListeningScore;
       supabase.from("profiles").update({ listening_score: newListeningScore }).eq("id", userId);
+      const missed = newResults.filter(r => !r.gotIt).map(r => ({
+        user_id: userId,
+        mistake: r.q.word,
+        correct: r.q.english,
+        reason: r.q.sentence_jp,
+      }));
+      if (missed.length > 0) supabase.from("listening_corrections").insert(missed);
     } else {
       setCurrentIdx(i => i + 1);
       setRevealed(false);

@@ -6,13 +6,18 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
 export async function POST(req: Request) {
   try {
-    const { count = 20, difficulty = 30 } = await req.json().catch(() => ({}));
+    const { count = 20, difficulty = 30, recentMistakes = [] } = await req.json().catch(() => ({}));
     const n = Math.min(30, Math.max(1, Number(count) || 20));
     const grammarTarget = difficultyLabel(Number(difficulty) || 30);
 
     // Adjust simple/complex sentence ratio based on difficulty
     const simpleRatio = difficulty >= 80 ? 20 : difficulty >= 60 ? 40 : difficulty >= 40 ? 60 : difficulty >= 20 ? 75 : 90;
     const complexRatio = 100 - simpleRatio;
+
+    const missedChunks = (recentMistakes as { mistake: string; correct: string; reason: string }[]).slice(0, 10);
+    const mistakeSection = missedChunks.length > 0
+      ? `\nThe learner recently missed these chunks:\n${missedChunks.map(m => `- ${m.mistake}（${m.correct}）: ${m.reason}`).join("\n")}\nInclude 1-3 of these chunks in this batch so the learner gets another chance to recognize them by ear.\n`
+      : "";
 
     const prompt = `You are a Japanese sentence generator for learners who want to recognize common verb and noun+verb "chunks" fast by ear, for listening practice.
 
@@ -28,7 +33,7 @@ Rules:
 - "reading" is the reading of the dictionary-form chunk in hiragana.
 - "english" is a short meaning of the chunk itself (a few words).
 - "sentence_en" is a natural English translation of the full sentence.
-
+${mistakeSection}
 Return ONLY a valid JSON array, no markdown, no explanation:
 [{"word":"電話をかける","reading":"でんわをかける","english":"to make a phone call","sentence_jp":"友達に【電話をかけた】。","sentence_en":"I called my friend."}]`;
 
