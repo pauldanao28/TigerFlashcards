@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
-import { getLevel, jlptLevel, vocabMastery } from "@/lib/scoring";
+import { getLevel, jlptLevel, vocabMastery, JLPT_VOCAB_FLOOR } from "@/lib/scoring";
 
 type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
 
@@ -19,12 +19,20 @@ interface ProfileScores {
   jlpt_stats: Record<JlptLevel, { total: number; mastered: number }>;
 }
 
+// Solid = mastered portion, light = added-but-not-yet-mastered portion — same hue per level.
 const JLPT_BAR_COLOR: Record<JlptLevel, string> = {
   N5: "bg-emerald-500",
   N4: "bg-teal-500",
   N3: "bg-amber-500",
   N2: "bg-orange-500",
   N1: "bg-rose-500",
+};
+const JLPT_BAR_LIGHT_COLOR: Record<JlptLevel, string> = {
+  N5: "bg-emerald-200",
+  N4: "bg-teal-200",
+  N3: "bg-amber-200",
+  N2: "bg-orange-200",
+  N1: "bg-rose-200",
 };
 const JLPT_BADGE_COLOR: Record<JlptLevel, string> = {
   N5: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -277,7 +285,10 @@ export default function Dashboard() {
           <div className="space-y-3.5">
             {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
               const { total, mastered } = data.jlpt_stats[level];
-              const pct = data.deck_size > 0 ? Math.round((total / data.deck_size) * 100) : 0;
+              const floor = JLPT_VOCAB_FLOOR[level];
+              const floorPct = Math.round((total / floor) * 100);
+              const masteredOfFloorPct = Math.min(100, Math.round((mastered / floor) * 100));
+              const addedNotMasteredOfFloorPct = Math.min(100 - masteredOfFloorPct, Math.round(((total - mastered) / floor) * 100));
               const masteryPct = total > 0 ? Math.round((mastered / total) * 100) : 0;
               return (
                 <div key={level} className="flex flex-col gap-1">
@@ -285,20 +296,14 @@ export default function Dashboard() {
                     <span className={`shrink-0 w-9 text-[10px] px-1.5 py-0.5 rounded-md border font-black text-center uppercase tracking-tighter ${JLPT_BADGE_COLOR[level]}`}>
                       {level}
                     </span>
-                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${JLPT_BAR_COLOR[level]}`} style={{ width: `${pct}%` }} />
+                    <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
+                      <div className={`h-full ${JLPT_BAR_COLOR[level]}`} style={{ width: `${masteredOfFloorPct}%` }} />
+                      <div className={`h-full ${JLPT_BAR_LIGHT_COLOR[level]}`} style={{ width: `${addedNotMasteredOfFloorPct}%` }} />
                     </div>
-                    <span className="shrink-0 w-20 text-right text-xs font-black text-slate-600">
-                      {total} <span className="text-slate-400 font-bold">· {pct}%</span>
-                    </span>
                   </div>
-                  <div className="flex items-center gap-3 pl-11">
-                    <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full bg-indigo-400" style={{ width: `${masteryPct}%` }} />
-                    </div>
-                    <span className="shrink-0 w-20 text-right text-[10px] font-bold text-slate-400">
-                      {masteryPct}% mastered
-                    </span>
+                  <div className="flex items-center justify-between pl-12 text-[10px] font-bold text-slate-400">
+                    <span>{total}/{floor} = {floorPct}%</span>
+                    <span>{mastered}/{total} Mastered ({masteryPct}%)</span>
                   </div>
                 </div>
               );

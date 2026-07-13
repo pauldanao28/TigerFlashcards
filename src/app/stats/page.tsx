@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Logo from "@/components/Logo";
 import SentenceQuiz from "@/components/SentenceQuiz";
 import { calculateGlobalStats } from "@/lib/stats";
+import { JLPT_VOCAB_FLOOR } from "@/lib/scoring";
 import LoadingScreen from "@/components/LoadingScreen";
 import { List, X, Plus, Loader2 } from "lucide-react";
 
@@ -813,6 +814,17 @@ export default function StatsPage() {
       case "N2": return "bg-orange-500";
       case "N1": return "bg-rose-500";
       default: return "bg-slate-300";
+    }
+  };
+
+  const getJlptBarLightColor = (level: string) => {
+    switch (level) {
+      case "N5": return "bg-emerald-200";
+      case "N4": return "bg-teal-200";
+      case "N3": return "bg-amber-200";
+      case "N2": return "bg-orange-200";
+      case "N1": return "bg-rose-200";
+      default: return "bg-slate-200";
     }
   };
 
@@ -1711,7 +1723,10 @@ export default function StatsPage() {
               <div className="space-y-4">
                 {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
                   const { total, mastered } = jlptStats[level];
-                  const pct = totalCards > 0 ? Math.round((total / totalCards) * 100) : 0;
+                  const floor = JLPT_VOCAB_FLOOR[level];
+                  const floorPct = Math.round((total / floor) * 100);
+                  const masteredOfFloorPct = Math.min(100, Math.round((mastered / floor) * 100));
+                  const addedNotMasteredOfFloorPct = Math.min(100 - masteredOfFloorPct, Math.round(((total - mastered) / floor) * 100));
                   const masteryPct = total > 0 ? Math.round((mastered / total) * 100) : 0;
                   return (
                     <div key={level} className="flex flex-col gap-1">
@@ -1721,23 +1736,20 @@ export default function StatsPage() {
                         >
                           {level}
                         </span>
-                        <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
                           <div
-                            className={`h-full rounded-full transition-all duration-500 ${getJlptBarColor(level)}`}
-                            style={{ width: `${pct}%` }}
+                            className={`h-full transition-all duration-500 ${getJlptBarColor(level)}`}
+                            style={{ width: `${masteredOfFloorPct}%` }}
+                          />
+                          <div
+                            className={`h-full transition-all duration-500 ${getJlptBarLightColor(level)}`}
+                            style={{ width: `${addedNotMasteredOfFloorPct}%` }}
                           />
                         </div>
-                        <span className="shrink-0 w-20 text-right text-xs font-black text-slate-600">
-                          {total} <span className="text-slate-400 font-bold">· {pct}%</span>
-                        </span>
                       </div>
-                      <div className="flex items-center gap-3 pl-12">
-                        <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full bg-indigo-400" style={{ width: `${masteryPct}%` }} />
-                        </div>
-                        <span className="shrink-0 w-20 text-right text-[10px] font-bold text-slate-400">
-                          {masteryPct}% mastered
-                        </span>
+                      <div className="flex items-center justify-between pl-12 text-[10px] font-bold text-slate-400">
+                        <span>{total}/{floor} = {floorPct}%</span>
+                        <span>{mastered}/{total} Mastered ({masteryPct}%)</span>
                       </div>
                     </div>
                   );
