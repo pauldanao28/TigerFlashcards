@@ -469,7 +469,8 @@ export default function SentenceQuiz({ userId, isAdmin = false, focusWeak = true
     if (currentIdx + 1 >= quizCards.length) {
       setPhase("done");
       const passedTotal = newResults.filter(r => r.passed).length;
-      const sess = sessionScore(passedTotal, newResults.length, readingScoreRef.current);
+      const targetDiff = Math.min(100, readingScoreRef.current + 20);
+      const sess = sessionScore(passedTotal, newResults.length, targetDiff);
       const newReadingScore = readingScoreRef.current === 0 ? Math.round(sess) : rollingAvg(readingScoreRef.current, sess);
       readingScoreRef.current = newReadingScore;
       supabase.from("profiles").update({ reading_score: newReadingScore }).eq("id", userId)

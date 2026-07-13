@@ -413,7 +413,8 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
     if (currentIdx + 1 >= questions.length) {
       setPhase("done");
       const gotCount = newResults.filter(r => r.gotIt).length;
-      const sess = sessionScore(gotCount, newResults.length, listeningScoreRef.current);
+      const targetDiff = Math.min(100, listeningScoreRef.current + 20);
+      const sess = sessionScore(gotCount, newResults.length, targetDiff);
       const newListeningScore = listeningScoreRef.current === 0 ? Math.round(sess) : rollingAvg(listeningScoreRef.current, sess);
       listeningScoreRef.current = newListeningScore;
       supabase.from("profiles").update({ listening_score: newListeningScore }).eq("id", userId)

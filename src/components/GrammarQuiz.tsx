@@ -309,7 +309,8 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
         finalWrong.map(w => ({ user_id: userId, mistake: w.mistake, correct: w.correct, reason: w.reason }))
       );
     }
-    const sess = sessionScore(finalScore, totalQ, grammarScoreRef.current);
+    const targetDiff = Math.min(100, grammarScoreRef.current + 20);
+    const sess = sessionScore(finalScore, totalQ, targetDiff);
     const newGrammarScore = grammarScoreRef.current === 0 ? Math.round(sess) : rollingAvg(grammarScoreRef.current, sess);
     grammarScoreRef.current = newGrammarScore;
     supabase.from("profiles").update({ grammar_score: newGrammarScore }).eq("id", userId)
