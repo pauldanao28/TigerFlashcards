@@ -165,6 +165,7 @@ function ListeningSentence({ sentence, onWordTap }: { sentence: string; onWordTa
 export default function ListeningQuiz({ userId, isAdmin = false, onClose }: ListeningQuizProps) {
   const [phase, setPhase] = useState<"intro" | "loading" | "quiz" | "done">("intro");
   const [starting, setStarting] = useState(false);
+  const [focusWeak, setFocusWeak] = useState(true);
   const [questions, setQuestions] = useState<ListeningQuestion[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [revealed, setRevealed] = useState(false);
@@ -272,27 +273,30 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
     setError(null);
 
     try {
-      // Fetch weak deck cards to anchor chunks to words the user struggles with
+      // Fetch weak deck cards to anchor chunks to words the user struggles with —
+      // skipped entirely in "Random" mode so chunks are drawn without deck bias.
       let weakWords: { japanese: string; english: string }[] = [];
-      const { data: deckRow } = await supabase.from("decks").select("id").eq("user_id", userId).eq("is_default", true).single();
-      if (deckRow?.id) {
-        const { data: dcRows } = await supabase.from("deck_cards").select("card_id").eq("deck_id", deckRow.id).limit(300);
-        const cardIds = (dcRows ?? []).map(r => r.card_id);
-        if (cardIds.length > 0) {
-          const [{ data: cards }, { data: scores }] = await Promise.all([
-            supabase.from("master_cards").select("id, japanese, english").in("id", cardIds),
-            supabase.from("user_scores").select("card_id, scores_json").eq("user_id", userId).in("card_id", cardIds),
-          ]);
-          const scoreMap = new Map((scores ?? []).map(s => [s.card_id, s.scores_json]));
-          weakWords = (cards ?? [])
-            .map(c => {
-              const sc = scoreMap.get(c.id);
-              const combined = ((sc?.jp_to_en?.percent ?? 0) + (sc?.en_to_jp?.percent ?? 0)) / 2;
-              return { japanese: c.japanese, english: c.english, combined };
-            })
-            .sort((a, b) => a.combined - b.combined)
-            .slice(0, 10)
-            .map(({ japanese, english }) => ({ japanese, english }));
+      if (focusWeak) {
+        const { data: deckRow } = await supabase.from("decks").select("id").eq("user_id", userId).eq("is_default", true).single();
+        if (deckRow?.id) {
+          const { data: dcRows } = await supabase.from("deck_cards").select("card_id").eq("deck_id", deckRow.id).limit(300);
+          const cardIds = (dcRows ?? []).map(r => r.card_id);
+          if (cardIds.length > 0) {
+            const [{ data: cards }, { data: scores }] = await Promise.all([
+              supabase.from("master_cards").select("id, japanese, english").in("id", cardIds),
+              supabase.from("user_scores").select("card_id, scores_json").eq("user_id", userId).in("card_id", cardIds),
+            ]);
+            const scoreMap = new Map((scores ?? []).map(s => [s.card_id, s.scores_json]));
+            weakWords = (cards ?? [])
+              .map(c => {
+                const sc = scoreMap.get(c.id);
+                const combined = ((sc?.jp_to_en?.percent ?? 0) + (sc?.en_to_jp?.percent ?? 0)) / 2;
+                return { japanese: c.japanese, english: c.english, combined };
+              })
+              .sort((a, b) => a.combined - b.combined)
+              .slice(0, 10)
+              .map(({ japanese, english }) => ({ japanese, english }));
+          }
         }
       }
 
@@ -312,7 +316,7 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
     } finally {
       loadingRef.current = false;
     }
-  }, [isAdmin]);
+  }, [isAdmin, focusWeak]);
 
   // ── Tap a kanji word → tooltip with Jisho lookup, same as the Sensei chat ────
   const handleWordClick = useCallback((word: string, reading: string, e: React.MouseEvent | React.TouchEvent) => {
@@ -526,6 +530,19 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
             <p className="text-indigo-800 font-bold text-xs leading-relaxed">
               🎯 {QUESTIONS_PER_ROUND} sentences per round at your current N level. Chunks you miss get re-drilled in the next round. Score well to advance levels.
             </p>
+          </div>
+          <div className="w-full flex items-center justify-between">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Chunk selection</p>
+            <button
+              onClick={() => setFocusWeak(v => !v)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${
+                focusWeak
+                  ? "bg-amber-50 border-amber-200 text-amber-700"
+                  : "bg-slate-100 border-slate-200 text-slate-500"
+              }`}
+            >
+              {focusWeak ? "🎯 Weak cards" : "🎲 Random"}
+            </button>
           </div>
           {!isAdmin && (
             <p className="text-slate-300 font-black uppercase tracking-widest text-[10px]">
