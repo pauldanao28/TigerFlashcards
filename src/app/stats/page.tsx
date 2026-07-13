@@ -6,9 +6,8 @@ import { FlashcardData } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
 import { useLang } from "@/context/LanguageContext";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
-import SentenceQuiz from "@/components/SentenceQuiz";
 import { calculateGlobalStats } from "@/lib/stats";
 import { JLPT_VOCAB_FLOOR } from "@/lib/scoring";
 import LoadingScreen from "@/components/LoadingScreen";
@@ -59,7 +58,6 @@ export default function StatsPage() {
   const [previewPack, setPreviewPack] = useState<any | null>(null);
   const [addedWordsSummary, setAddedWordsSummary] = useState<any[]>([]);
   const [showSummaryOverlay, setShowSummaryOverlay] = useState(false);
-  const [showQuiz, setShowQuiz] = useState(false);
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [pendingWords, setPendingWords] = useState<string[]>([]);
   const [showWordList, setShowWordList] = useState(false);
@@ -1488,24 +1486,6 @@ export default function StatsPage() {
                 </button>
               </div>
 
-              {/* SENSEI + QUIZ ROW */}
-              {user && (
-                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                  <Link
-                    href="/sensei"
-                    className="w-full md:w-auto bg-violet-600 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-violet-700 transition-all active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <span className="text-sm">先生</span> Sensei
-                  </Link>
-                  <button
-                    onClick={() => setShowQuiz(true)}
-                    className="w-full md:w-auto bg-amber-500 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-amber-600 transition-all active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <span className="text-sm">📝</span> Sentence Quiz
-                  </button>
-                </div>
-              )}
-
               {/* ADMIN ROW */}
               {isAdmin && (
                 <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
@@ -2614,15 +2594,6 @@ export default function StatsPage() {
           </div>
         )}
 
-        <AnimatePresence>
-          {showQuiz && user && (
-            <SentenceQuiz
-              userId={user.id}
-              isAdmin={isAdmin}
-              onClose={() => setShowQuiz(false)}
-            />
-          )}
-        </AnimatePresence>
       </main>
     </div>
   );
