@@ -6,7 +6,7 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
 export async function POST(req: Request) {
   try {
-    const { profile, grammarScore, recentMistakes = [] } = await req.json();
+    const { profile, grammarScore, recentMistakes = [], weakWords = [] } = await req.json();
 
     const nLevel = grammarScore != null ? jlptLevel(grammarScore) : null;
     const levelDesc = grammarScore != null
@@ -19,7 +19,12 @@ export async function POST(req: Request) {
       .map((m: { mistake: string; correct: string; reason: string }) => `誤：${m.mistake} → 正：${m.correct}（${m.reason}）`)
       .join("\n");
 
-    const prompt = `あなたは日本語クイズ生成AIです。
+    const weakList = (weakWords as { japanese: string; english: string }[]).slice(0, 10);
+    const weakVocabNote = weakList.length > 0
+      ? `\n語彙ヒント（学習者の苦手単語）：${weakList.map(w => `${w.japanese}（${w.english}）`).join("、")}\nこれらの単語を問題文の語彙として自然に盛り込むこと（文法ポイントとしてではなく）。\n`
+      : "";
+
+    const prompt = `${weakVocabNote}あなたは日本語クイズ生成AIです。
 ${nLevel ? `【重要】このクイズは厳密に${nLevel}レベル専用です。${nLevel}の文法・語彙・文構造のみを使用すること。それより簡単でも難しくもないこと。` : ""}
 レベル詳細：${levelDesc}
 弱点文法：${weakPoints.length > 0 ? weakPoints.join("、") : "基礎文法全般"}

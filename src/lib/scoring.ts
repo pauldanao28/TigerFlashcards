@@ -19,10 +19,18 @@ export function getLevel(score: number): SkillLevel {
   return LEVELS.find(l => score >= l.min) ?? LEVELS[LEVELS.length - 1];
 }
 
-// Rolling average — sessions weighted 30%, history weighted 70%.
-// Prevents single good/bad session from spiking the score.
+// Rolling average — sessions weighted 15%, history weighted 85%.
+// Heavy anchoring to past performance prevents single-day grinding.
 export function rollingAvg(oldScore: number, sessionScore: number): number {
-  return Math.min(100, Math.max(0, oldScore * 0.7 + sessionScore * 0.3));
+  return Math.min(100, Math.max(0, oldScore * 0.85 + sessionScore * 0.15));
+}
+
+// Diminishing returns multiplier — 1st/2nd quiz of day = full weight,
+// 3rd/4th = 50%, 5th+ = 25%. Pass quizzes completed BEFORE this session.
+export function dailySessionWeight(completedBeforeThis: number): number {
+  if (completedBeforeThis < 2) return 1.0;
+  if (completedBeforeThis < 4) return 0.5;
+  return 0.25;
 }
 
 // session_score = accuracy × difficulty — means perfect score on easy content

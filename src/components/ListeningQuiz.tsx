@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, List, Volume2, ChevronLeft, Ear } from "lucide-react";
 import { speak, playTTS, stopTTS } from "@/lib/tts";
-import { sessionScore, rollingAvg, tierScoreCap } from "@/lib/scoring";
+import { sessionScore, rollingAvg, tierScoreCap, dailySessionWeight } from "@/lib/scoring";
 
 interface ListeningQuestion {
   word: string;
@@ -266,10 +266,34 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
     setError(null);
 
     try {
+      // Fetch weak deck cards to anchor chunks to words the user struggles with
+      let weakWords: { japanese: string; english: string }[] = [];
+      const { data: deckRow } = await supabase.from("decks").select("id").eq("user_id", userId).eq("is_default", true).single();
+      if (deckRow?.id) {
+        const { data: dcRows } = await supabase.from("deck_cards").select("card_id").eq("deck_id", deckRow.id).limit(300);
+        const cardIds = (dcRows ?? []).map(r => r.card_id);
+        if (cardIds.length > 0) {
+          const [{ data: cards }, { data: scores }] = await Promise.all([
+            supabase.from("master_cards").select("id, japanese, english").in("id", cardIds),
+            supabase.from("user_scores").select("card_id, scores_json").eq("user_id", userId).in("card_id", cardIds),
+          ]);
+          const scoreMap = new Map((scores ?? []).map(s => [s.card_id, s.scores_json]));
+          weakWords = (cards ?? [])
+            .map(c => {
+              const sc = scoreMap.get(c.id);
+              const combined = ((sc?.jp_to_en?.percent ?? 0) + (sc?.en_to_jp?.percent ?? 0)) / 2;
+              return { japanese: c.japanese, english: c.english, combined };
+            })
+            .sort((a, b) => a.combined - b.combined)
+            .slice(0, 10)
+            .map(({ japanese, english }) => ({ japanese, english }));
+        }
+      }
+
       const res = await fetch("/api/quiz/listening", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count: QUESTIONS_PER_ROUND, difficulty: listeningScoreRef.current, recentMistakes: recentMistakesRef.current }),
+        body: JSON.stringify({ count: QUESTIONS_PER_ROUND, difficulty: listeningScoreRef.current, recentMistakes: recentMistakesRef.current, weakWords }),
       });
       if (!res.ok) throw new Error("Failed to generate listening quiz");
       const { questions: qs } = await res.json();
@@ -413,7 +437,8 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
       setPhase("done");
       const gotCount = newResults.filter(r => r.gotIt).length;
       const targetDiff = Math.min(100, listeningScoreRef.current + 20);
-      const sess = sessionScore(gotCount, newResults.length, targetDiff);
+      const weight = dailySessionWeight(getDailyCount() - 1);
+      const sess = sessionScore(gotCount, newResults.length, targetDiff) * weight;
       const cap = tierScoreCap(listeningScoreRef.current);
       const newListeningScore = Math.min(cap, listeningScoreRef.current === 0 ? Math.round(sess) : rollingAvg(listeningScoreRef.current, sess));
       listeningScoreRef.current = newListeningScore;

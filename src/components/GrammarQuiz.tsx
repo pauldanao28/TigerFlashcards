@@ -3,7 +3,22 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { X, ChevronLeft, Loader2, List, Volume2 } from "lucide-react";
 import { speak } from "@/lib/tts";
-import { sessionScore, rollingAvg, tierScoreCap } from "@/lib/scoring";
+import { sessionScore, rollingAvg, tierScoreCap, dailySessionWeight } from "@/lib/scoring";
+
+const GRAMMAR_DAILY_KEY = "flashkado-grammar-quiz-daily";
+function getGrammarDailyCount(): number {
+  const today = new Date().toLocaleDateString("en-CA");
+  try {
+    const s = localStorage.getItem(GRAMMAR_DAILY_KEY);
+    if (!s) return 0;
+    const { date, count } = JSON.parse(s);
+    return date === today ? (count as number) : 0;
+  } catch { return 0; }
+}
+function incrementGrammarDailyCount(): void {
+  const today = new Date().toLocaleDateString("en-CA");
+  localStorage.setItem(GRAMMAR_DAILY_KEY, JSON.stringify({ date: today, count: getGrammarDailyCount() + 1 }));
+}
 
 interface GrammarQuizProps {
   userId: string;
@@ -265,21 +280,46 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
     setPhase("loading");
     setError(null);
     setTooltip(null);
+    incrementGrammarDailyCount();
     try {
-      const [profileRes, spRes, mistakesRes] = await Promise.all([
+      const [profileRes, spRes, mistakesRes, deckRow] = await Promise.all([
         supabase.from("profiles").select("grammar_score").eq("id", userId).single(),
         supabase.from("sensei_profile").select("*").eq("user_id", userId).maybeSingle(),
         supabase.from("grammar_corrections").select("mistake, correct, reason").eq("user_id", userId).limit(20),
+        supabase.from("decks").select("id").eq("user_id", userId).eq("is_default", true).single(),
       ]);
 
       if (profileRes.data?.grammar_score != null) {
         grammarScoreRef.current = profileRes.data.grammar_score;
       }
 
+      // Fetch top 10 weak cards to seed grammar vocabulary
+      let weakWords: { japanese: string; english: string }[] = [];
+      if (deckRow.data?.id) {
+        const { data: dcRows } = await supabase.from("deck_cards").select("card_id").eq("deck_id", deckRow.data.id).limit(300);
+        const cardIds = (dcRows ?? []).map(r => r.card_id);
+        if (cardIds.length > 0) {
+          const [{ data: cards }, { data: scores }] = await Promise.all([
+            supabase.from("master_cards").select("id, japanese, english").in("id", cardIds),
+            supabase.from("user_scores").select("card_id, scores_json").eq("user_id", userId).in("card_id", cardIds),
+          ]);
+          const scoreMap = new Map((scores ?? []).map(s => [s.card_id, s.scores_json]));
+          weakWords = (cards ?? [])
+            .map(c => {
+              const sc = scoreMap.get(c.id);
+              const combined = ((sc?.jp_to_en?.percent ?? 0) + (sc?.en_to_jp?.percent ?? 0)) / 2;
+              return { japanese: c.japanese, english: c.english, combined };
+            })
+            .sort((a, b) => a.combined - b.combined)
+            .slice(0, 10)
+            .map(({ japanese, english }) => ({ japanese, english }));
+        }
+      }
+
       const res = await fetch("/api/quiz", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile: spRes.data ?? null, grammarScore: grammarScoreRef.current, recentMistakes: mistakesRes.data ?? [] }),
+        body: JSON.stringify({ profile: spRes.data ?? null, grammarScore: grammarScoreRef.current, recentMistakes: mistakesRes.data ?? [], weakWords }),
       });
       const data = await res.json();
       if (Array.isArray(data.questions) && data.questions.length > 0) {
@@ -310,7 +350,8 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
       );
     }
     const targetDiff = Math.min(100, grammarScoreRef.current + 20);
-    const sess = sessionScore(finalScore, totalQ, targetDiff);
+    const weight = dailySessionWeight(getGrammarDailyCount() - 1);
+    const sess = sessionScore(finalScore, totalQ, targetDiff) * weight;
     const cap = tierScoreCap(grammarScoreRef.current);
     const newGrammarScore = Math.min(cap, grammarScoreRef.current === 0 ? Math.round(sess) : rollingAvg(grammarScoreRef.current, sess));
     grammarScoreRef.current = newGrammarScore;
