@@ -379,12 +379,15 @@ export default function StatsPage() {
     }
   };
 
-  const processWords = async (inputList: string[]) => {
-    if (!user || !defaultDeckId)
-      return alert("Please log in and ensure deck is initialized.");
+  const processWords = async (inputList: string[]): Promise<Set<string>> => {
+    const succeededWords = new Set<string>();
+    if (!user || !defaultDeckId) {
+      alert("Please log in and ensure deck is initialized.");
+      return succeededWords;
+    }
 
     const rawInput = inputList.join("\n").normalize("NFKC").trim();
-    if (!rawInput) return;
+    if (!rawInput) return succeededWords;
 
     // --- 1. Tokenization Logic ---
     let wordsToProcess: string[] = [];
@@ -418,7 +421,7 @@ export default function StatsPage() {
     }
 
     const uniqueInputWords = [...new Set(wordsToProcess)];
-    if (uniqueInputWords.length === 0) return;
+    if (uniqueInputWords.length === 0) return succeededWords;
 
     setLoading(true);
 
@@ -440,11 +443,12 @@ export default function StatsPage() {
         setLoading(false);
         setInput("");
         setBatchInput("");
-        return alert(
+        alert(
           t.limit_reached_msg
             .replace("{{current}}", currentToday.toString())
             .replace("{{limit}}", DAILY_LIMIT.toString()),
         );
+        return succeededWords;
       }
 
       if (currentToday + uniqueInputWords.length > DAILY_LIMIT) {
@@ -505,6 +509,7 @@ export default function StatsPage() {
         allProcessedCards = [...existingCards];
         const foundIds = existingCards.map((c) => c.id);
         if (foundIds.length > 0) await performLinking(foundIds);
+        existingCards.forEach((c) => succeededWords.add(c.japanese));
       }
 
       const existingMap = new Map(
@@ -540,6 +545,7 @@ export default function StatsPage() {
               partOfSpeech: String(item.partOfSpeech || "noun")
                 .trim()
                 .toLowerCase(),
+              jlpt_level: item.jlpt_level ?? null,
               exampleSentence: item.exampleSentence || { jp: "", en: "" },
               creator_id: user.id,
             }))
@@ -576,6 +582,7 @@ export default function StatsPage() {
             allProcessedCards = [...allProcessedCards, ...newCards];
             await performLinking(newCards.map((c) => c.id));
           }
+          wordsForAI.forEach((w) => succeededWords.add(w));
         } catch (aiErr: any) {
           console.error("AI Step Failed:", aiErr.message);
           alert(`AI processing failed: ${aiErr.message}`);
@@ -602,6 +609,7 @@ export default function StatsPage() {
     } finally {
       setLoading(false);
     }
+    return succeededWords;
   };
 
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -632,8 +640,10 @@ export default function StatsPage() {
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     setWordListAdding(true);
     try {
-      await processWords(words);
-      flushWordList([]);
+      const succeededWords = await processWords(words);
+      // Only drop the words that actually made it into the deck — anything that failed
+      // (AI error, daily limit) stays in the list so it isn't silently lost.
+      flushWordList(words.filter((w) => !succeededWords.has(w)));
       setWordListText("");
       setShowWordList(false);
     } finally {

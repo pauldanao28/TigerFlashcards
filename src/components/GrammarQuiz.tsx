@@ -240,37 +240,46 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
       ]);
     };
 
+    let allProcessed: any[] = [];
+    const succeededWords = new Set<string>();
     try {
-      let allProcessed: any[] = [];
       const { data: existing } = await supabase.from("master_cards").select("*").in("japanese", words);
-      if (existing?.length) { await performLinking(existing.map((c: any) => c.id)); allProcessed = [...existing]; }
+      if (existing?.length) {
+        await performLinking(existing.map((c: any) => c.id));
+        allProcessed = [...existing];
+        existing.forEach((c: any) => succeededWords.add(c.japanese));
+      }
 
       const existingSet = new Set(existing?.map((c: any) => c.japanese) ?? []);
       const wordsForAI = words.filter(w => !existingSet.has(w));
 
       if (wordsForAI.length > 0) {
-        const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ words: wordsForAI }) });
-        if (!res.ok) throw new Error("AI error");
-        const items = await res.json();
-        const itemsArray = Array.isArray(items) ? items : [items];
-        const seen = new Set<string>();
-        const deduped = itemsArray
-          .map((item: any) => ({ japanese: String(item.japanese).trim(), reading: String(item.reading || "").replace(/[a-zA-Z\s]/g, ""), english: String(item.english || "").trim(), partOfSpeech: String(item.partOfSpeech || "noun").trim().toLowerCase(), jlpt_level: item.jlpt_level ?? null, exampleSentence: item.exampleSentence || { jp: "", en: "" }, creator_id: userId }))
-          .filter((item: any) => { if (seen.has(item.japanese)) return false; seen.add(item.japanese); return true; });
-        const { data: newCards, error: mErr } = await supabase.from("master_cards").upsert(deduped, { onConflict: "japanese" }).select("*");
-        if (mErr) throw mErr;
-        if (newCards?.length) { await performLinking(newCards.map((c: any) => c.id)); allProcessed = [...allProcessed, ...newCards]; }
+        try {
+          const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ words: wordsForAI }) });
+          if (!res.ok) throw new Error("AI error");
+          const items = await res.json();
+          const itemsArray = Array.isArray(items) ? items : [items];
+          const seen = new Set<string>();
+          const deduped = itemsArray
+            .map((item: any) => ({ japanese: String(item.japanese).trim(), reading: String(item.reading || "").replace(/[a-zA-Z\s]/g, ""), english: String(item.english || "").trim(), partOfSpeech: String(item.partOfSpeech || "noun").trim().toLowerCase(), jlpt_level: item.jlpt_level ?? null, exampleSentence: item.exampleSentence || { jp: "", en: "" }, creator_id: userId }))
+            .filter((item: any) => { if (seen.has(item.japanese)) return false; seen.add(item.japanese); return true; });
+          const { data: newCards, error: mErr } = await supabase.from("master_cards").upsert(deduped, { onConflict: "japanese" }).select("*");
+          if (mErr) throw mErr;
+          if (newCards?.length) { await performLinking(newCards.map((c: any) => c.id)); allProcessed = [...allProcessed, ...newCards]; }
+          wordsForAI.forEach(w => succeededWords.add(w));
+        } catch (aiErr) {
+          console.error("AI step failed:", aiErr);
+        }
       }
-
-      flushWordList([]);
+    } catch (err) {
+      console.error("Batch add failed:", err);
+    } finally {
+      flushWordList(words.filter(w => !succeededWords.has(w)));
       setShowList(false);
       if (allProcessed.length > 0) {
         setAddedSummary(Array.from(new Map(allProcessed.map(c => [c.japanese, c])).values()));
         setShowSummary(true);
       }
-    } catch (err) {
-      console.error("Batch add failed:", err);
-    } finally {
       setBatchAdding(false);
     }
   };
