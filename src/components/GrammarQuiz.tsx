@@ -1,13 +1,15 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
-import { X } from "lucide-react";
+import { X, ChevronLeft, Loader2 } from "lucide-react";
 import { sessionScore, rollingAvg } from "@/lib/scoring";
 
 interface GrammarQuizProps {
   userId: string;
   onClose: () => void;
 }
+
+type Phase = "intro" | "loading" | "quiz" | "done";
 
 type QuizQuestion =
   | { type: "grammar"; sentence: string; blank_hint: string; choices: string[]; answer: string; explanation: string }
@@ -19,31 +21,22 @@ function stripFurigana(text: string): string {
 }
 
 export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
-  const [loading, setLoading] = useState(true);
-  const [initError, setInitError] = useState(false);
+  const [phase, setPhase] = useState<Phase>("intro");
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [writingInput, setWritingInput] = useState("");
   const [writingSubmitted, setWritingSubmitted] = useState(false);
   const [score, setScore] = useState(0);
-  const [done, setDone] = useState(false);
   const [wrong, setWrong] = useState<{ mistake: string; correct: string; reason: string }[]>([]);
   const grammarScoreRef = useRef<number>(0);
-  const startedRef = useRef(false);
 
-  const startQuiz = async () => {
-    setLoading(true);
-    setInitError(false);
-    setQuestions([]);
-    setIndex(0);
-    setSelected(null);
-    setScore(0);
-    setDone(false);
-    setWrong([]);
-    setWritingInput("");
-    setWritingSubmitted(false);
-
+  const load = async () => {
+    setStarting(true);
+    setPhase("loading");
+    setError(null);
     try {
       const [profileRes, spRes, mistakesRes] = await Promise.all([
         supabase.from("profiles").select("grammar_score").eq("id", userId).single(),
@@ -63,83 +56,105 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
       const data = await res.json();
       if (Array.isArray(data.questions) && data.questions.length > 0) {
         setQuestions(data.questions);
+        setIndex(0);
+        setSelected(null);
+        setScore(0);
+        setWrong([]);
+        setWritingInput("");
+        setWritingSubmitted(false);
+        setPhase("quiz");
       } else {
-        setInitError(true);
+        setError("Failed to generate quiz. Please try again.");
+        setPhase("intro");
       }
     } catch {
-      setInitError(true);
+      setError("Something went wrong. Please try again.");
+      setPhase("intro");
     }
-    setLoading(false);
+    setStarting(false);
   };
 
-  useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-    startQuiz();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const finishQuiz = (finalScore: number, totalQ: number, finalWrong: typeof wrong) => {
-    setDone(true);
+    setPhase("done");
     if (finalWrong.length > 0) {
       supabase.from("grammar_corrections").insert(
         finalWrong.map(w => ({ user_id: userId, mistake: w.mistake, correct: w.correct, reason: w.reason }))
       );
     }
     const sess = sessionScore(finalScore, totalQ, grammarScoreRef.current);
-    const newScore = rollingAvg(grammarScoreRef.current, sess);
-    grammarScoreRef.current = newScore;
-    supabase.from("profiles").update({ grammar_score: newScore }).eq("id", userId);
+    const newGrammarScore = rollingAvg(grammarScoreRef.current, sess);
+    grammarScoreRef.current = newGrammarScore;
+    supabase.from("profiles").update({ grammar_score: newGrammarScore }).eq("id", userId);
   };
 
-  const pct = done && questions.length > 0 ? score / questions.length : 0;
+  const pct = phase === "done" && questions.length > 0 ? score / questions.length : 0;
 
   return (
     <div className="fixed inset-0 z-[300] bg-slate-50 flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white shrink-0">
-        <div className="flex items-center gap-2.5">
-          <span className="text-base">📝</span>
-          <span className="font-black text-[11px] uppercase tracking-widest text-slate-700">Grammar Quiz</span>
-          {!loading && questions.length > 0 && !done && (
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 ml-1">
-              {index + 1} / {questions.length}
-            </span>
-          )}
+        <div className="flex items-center gap-3">
+          {phase === "quiz" ? (
+            <button onClick={() => setPhase("intro")} className="flex items-center gap-0.5 text-slate-400 hover:text-slate-700 active:scale-90 transition-all">
+              <ChevronLeft size={14} />
+              <span className="text-[9px] font-black uppercase tracking-widest">Back</span>
+            </button>
+          ) : null}
+          <div className="flex items-center gap-2.5">
+            <span className="text-base">📝</span>
+            <span className="font-black text-[11px] uppercase tracking-widest text-slate-700">Grammar Quiz</span>
+            {phase === "quiz" && questions.length > 0 && (
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 ml-1">
+                {index + 1} / {questions.length}
+              </span>
+            )}
+          </div>
         </div>
         <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 transition-colors active:scale-90">
           <X size={16} className="text-slate-500" />
         </button>
       </div>
 
+      {/* Intro */}
+      {phase === "intro" && (
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 max-w-lg mx-auto w-full text-center gap-5">
+          <span className="text-5xl">📝</span>
+          <div>
+            <h2 className="text-xl font-black text-slate-900 mb-2">How it works</h2>
+            <p className="text-slate-500 font-medium text-sm leading-relaxed">
+              A short AI-generated quiz based on your level and past mistakes. You&apos;ll get fill-in-the-blank grammar questions, Japanese-to-English reading, and free-writing prompts.
+            </p>
+          </div>
+          <div className="w-full bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-3 text-left">
+            <p className="text-emerald-800 font-bold text-xs leading-relaxed">
+              🧠 Questions are tailored to your grammar level and common mistakes from Sensei chats.
+            </p>
+          </div>
+          {error && (
+            <p className="text-red-500 font-bold text-xs">{error}</p>
+          )}
+          <button
+            onClick={load}
+            disabled={starting}
+            className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all shadow-sm disabled:opacity-40 flex items-center justify-center gap-2"
+          >
+            {starting ? <Loader2 size={14} className="animate-spin" /> : null}
+            {starting ? "Please wait…" : "Start Quiz"}
+          </button>
+        </div>
+      )}
+
       {/* Loading */}
-      {loading && (
+      {phase === "loading" && (
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
           <div className="w-9 h-9 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">Generating quiz…</p>
+          <p className="text-slate-300 font-bold text-[10px]">Please wait, this can take a few seconds</p>
         </div>
       )}
 
-      {/* Error */}
-      {!loading && (initError || questions.length === 0) && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-5 px-8 text-center">
-          <span className="text-5xl">😓</span>
-          <p className="text-slate-600 font-bold text-sm">Failed to generate quiz.</p>
-          <div className="flex gap-3">
-            <button onClick={onClose}
-              className="px-6 py-3 bg-slate-100 text-slate-600 rounded-2xl font-black text-[11px] uppercase tracking-widest active:scale-95 transition-all">
-              Close
-            </button>
-            <button onClick={startQuiz}
-              className="px-6 py-3 bg-emerald-500 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest active:scale-95 transition-all">
-              Try Again
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Done screen */}
-      {!loading && done && (
+      {/* Done */}
+      {phase === "done" && (
         <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 max-w-lg mx-auto w-full">
           <div className="text-center mb-8">
             <div className="text-6xl mb-4">{pct >= 0.8 ? "🏆" : pct >= 0.5 ? "💪" : "📚"}</div>
@@ -155,7 +170,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
               className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all">
               Done
             </button>
-            <button onClick={startQuiz}
+            <button onClick={load}
               className="flex-1 py-4 bg-emerald-500 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all shadow-sm">
               Try Again
             </button>
@@ -163,8 +178,8 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
         </div>
       )}
 
-      {/* Questions */}
-      {!loading && !done && questions.length > 0 && (() => {
+      {/* Quiz */}
+      {phase === "quiz" && questions.length > 0 && (() => {
         const q = questions[index];
         const isLast = index + 1 >= questions.length;
 
@@ -194,6 +209,10 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
           <div className="flex-1 flex flex-col px-5 py-5 max-w-lg mx-auto w-full min-h-0 overflow-y-auto">
             {/* Progress bar */}
             <div className="mb-5 shrink-0">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{index + 1} / {questions.length}</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500">{score} correct</span>
+              </div>
               <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
                 <div className="h-full bg-emerald-500 rounded-full transition-all duration-300"
                   style={{ width: `${(index / questions.length) * 100}%` }} />
@@ -279,7 +298,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
               );
             })()}
 
-            {/* Writing: EN → JP free text */}
+            {/* Writing: EN → JP */}
             {q.type === "writing" && (
               <div className="flex flex-col gap-4">
                 <div className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5">
