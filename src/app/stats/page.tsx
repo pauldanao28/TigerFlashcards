@@ -2352,7 +2352,7 @@ export default function StatsPage() {
 
         {/* ── Word List Modal ── */}
         {showWordList && (
-          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center px-4 pt-4 pb-28 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
             <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
               <div className="p-5 border-b border-slate-100 flex justify-between items-center">
                 <div>
