@@ -973,14 +973,14 @@ export default function StatsPage() {
             </div>
           </div>
 
-          {/* RIGHT: Back to Study (Settings-Style) */}
+          {/* RIGHT: Settings */}
           <div className="flex-shrink-0">
-            <Link
-              href="/"
+            <button
+              onClick={() => setShowSettings(true)}
               className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 font-black text-slate-600 transition-all active:scale-95 h-10 uppercase tracking-widest text-[10px]"
             >
-              <span>←</span> {t.back_to_study}
-            </Link>
+              <span>⚙️</span> {t.settings}
+            </button>
           </div>
         </div>
       </header>
@@ -1055,23 +1055,20 @@ export default function StatsPage() {
             </div>
           )}
 
-          {/* Settings Toggle */}
-          <div className="flex justify-end mb-4">
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 font-bold text-slate-600 transition-all active:scale-95"
-            >
-              <span>{showSettings ? "✕" : "⚙️"}</span>
-              {/* Use t.close_settings or t.settings */}
-              <span className="text-sm">
-                {showSettings ? t.close_settings : t.settings}
-              </span>
-            </button>
-          </div>
-
-          {/* Settings Panel */}
+          {/* Settings — full-screen overlay, same pattern as the quiz components */}
           {showSettings && (
-            <div className="mb-8 p-6 bg-white rounded-3xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-top-4">
+            <div className="fixed inset-0 z-[300] bg-slate-50 flex flex-col">
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100 bg-white shrink-0">
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="flex items-center gap-0.5 text-slate-400 hover:text-slate-700 active:scale-90 transition-all"
+                >
+                  <span>←</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest">{t.back_to_study}</span>
+                </button>
+                <span className="font-black text-[11px] uppercase tracking-widest text-slate-700">{t.settings}</span>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 max-w-3xl w-full mx-auto">
               <div className="mb-8">
                 {/* Header Section */}
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -1397,6 +1394,7 @@ export default function StatsPage() {
                     {t.delete_btn}
                   </button>
                 </div>
+              </div>
               </div>
             </div>
           )}
