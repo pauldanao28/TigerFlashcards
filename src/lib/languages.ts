@@ -26,6 +26,7 @@ export const translations = {
     vocabulary: "Vocabulary",
     mastered: "Mastered",
     struggling: "Struggling",
+    by_level: "Vocabulary by Level",
     settings: "Settings",
     close: "Close",
     close_settings: "Close Settings",
@@ -211,6 +212,7 @@ export const translations = {
     vocabulary: "語彙力", // Goiryoku (or simply ボキャブラリー)
     mastered: "習得済み", // Shūtoku-zumi (Completed/Learned)
     struggling: "要復習", // Yō-fukushū (Needs Review - sounds better than "failing")
+    by_level: "レベル別語彙", // Reberu-betsu goi (Vocabulary by level)
     settings: "設定", // Settei
     close: "閉じる",
     close_settings: "設定を閉じる", // Settei o tojiru

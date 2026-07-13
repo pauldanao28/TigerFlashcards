@@ -23,6 +23,21 @@ import { FlashcardData } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
 const DAILY_GOAL = 10;
 
+const JLPT_BAR_COLOR: Record<"N5" | "N4" | "N3" | "N2" | "N1", string> = {
+  N5: "bg-emerald-500",
+  N4: "bg-teal-500",
+  N3: "bg-amber-500",
+  N2: "bg-orange-500",
+  N1: "bg-rose-500",
+};
+const JLPT_BADGE_COLOR: Record<"N5" | "N4" | "N3" | "N2" | "N1", string> = {
+  N5: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  N4: "bg-teal-100 text-teal-700 border-teal-200",
+  N3: "bg-amber-100 text-amber-700 border-amber-200",
+  N2: "bg-orange-100 text-orange-700 border-orange-200",
+  N1: "bg-rose-100 text-rose-700 border-rose-200",
+};
+
 export default function StudyView() {
   const { user, loading } = useAuth();
   // --- 1. State Management ---
@@ -678,6 +693,22 @@ export default function StudyView() {
     [accuracyPercent],
   );
 
+  const jlptDistribution = useMemo(() => {
+    const counts: Record<"N5" | "N4" | "N3" | "N2" | "N1", number> = {
+      N5: 0,
+      N4: 0,
+      N3: 0,
+      N2: 0,
+      N1: 0,
+    };
+    for (const c of cards) {
+      if (c.jlpt_level && c.jlpt_level in counts) counts[c.jlpt_level]++;
+    }
+    return counts;
+  }, [cards]);
+  const jlptTotal = cards.length;
+  const [showJlptBreakdown, setShowJlptBreakdown] = useState(false);
+
   return (
     <>
       {/* 1. Add the opening fragment here */}
@@ -754,6 +785,25 @@ export default function StudyView() {
                   {accuracyPercent}%
                 </span>
               </div>
+              {jlptTotal > 0 && (
+                <button
+                  onClick={() => setShowJlptBreakdown(true)}
+                  className="flex items-center gap-2 mt-0.5 active:scale-95 transition-transform"
+                >
+                  <div className="flex-1 h-1 rounded-full overflow-hidden flex bg-slate-200/50">
+                    {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
+                      const pct = (jlptDistribution[level] / jlptTotal) * 100;
+                      if (pct === 0) return null;
+                      return (
+                        <div key={level} className={JLPT_BAR_COLOR[level]} style={{ width: `${pct}%` }} />
+                      );
+                    })}
+                  </div>
+                  <span className="text-[8px] font-black uppercase tracking-widest text-slate-300 whitespace-nowrap">
+                    {t.by_level}
+                  </span>
+                </button>
+              )}
             </div>
             </div>
           </div>
@@ -767,42 +817,58 @@ export default function StudyView() {
         {/* --- 2. DESKTOP NAVIGATION --- */}
         <div className="hidden md:flex relative top-0 w-full z-50 px-8 py-8 items-center justify-between pointer-events-auto">
           <div className="flex items-center gap-6 h-14">
-            <Link
-              href="/"
-              className="flex items-center gap-5 hover:opacity-80 transition-opacity"
-            >
+            <Link href="/" className="hover:opacity-80 transition-opacity">
               <Logo className="w-12 h-14" />
-              <div className="flex items-center gap-5 bg-white px-6 py-4 rounded-[2rem] border-2 border-slate-50 shadow-xl shadow-slate-200/50 backdrop-blur-md">
-                <div className="flex flex-col gap-2 min-w-[220px]">
-                  <div className="flex justify-between items-center px-1">
-                    <span className="text-base font-black uppercase tracking-tighter text-slate-900 italic">
-                      {profileName || ""}
-                    </span>
-                    <div
-                      className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest ${language === "jp" ? "bg-indigo-50 border-indigo-100 text-indigo-600" : "bg-orange-50 border-orange-100 text-orange-600"}`}
-                    >
-                      <span>{t.mastery}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="relative flex-1 h-3 bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${accuracyPercent}%` }}
-                        className={`h-full shadow-[0_0_12px_rgba(0,0,0,0.1)] transition-all duration-1000 ${language === "jp" ? "bg-indigo-500" : "bg-orange-500"}`}
-                      />
-                    </div>
-                    <div className="flex flex-col items-end min-w-[45px]">
-                      <span
-                        className={`text-sm font-black leading-none ${language === "jp" ? "text-indigo-600" : "text-orange-600"}`}
-                      >
-                        {accuracyPercent}%
-                      </span>
-                    </div>
+            </Link>
+            <div className="flex items-center gap-5 bg-white px-6 py-4 rounded-[2rem] border-2 border-slate-50 shadow-xl shadow-slate-200/50 backdrop-blur-md">
+              <div className="flex flex-col gap-2 min-w-[220px]">
+                <div className="flex justify-between items-center px-1">
+                  <span className="text-base font-black uppercase tracking-tighter text-slate-900 italic">
+                    {profileName || ""}
+                  </span>
+                  <div
+                    className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest ${language === "jp" ? "bg-indigo-50 border-indigo-100 text-indigo-600" : "bg-orange-50 border-orange-100 text-orange-600"}`}
+                  >
+                    <span>{t.mastery}</span>
                   </div>
                 </div>
+                <div className="flex items-center gap-4">
+                  <div className="relative flex-1 h-3 bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${accuracyPercent}%` }}
+                      className={`h-full shadow-[0_0_12px_rgba(0,0,0,0.1)] transition-all duration-1000 ${language === "jp" ? "bg-indigo-500" : "bg-orange-500"}`}
+                    />
+                  </div>
+                  <div className="flex flex-col items-end min-w-[45px]">
+                    <span
+                      className={`text-sm font-black leading-none ${language === "jp" ? "text-indigo-600" : "text-orange-600"}`}
+                    >
+                      {accuracyPercent}%
+                    </span>
+                  </div>
+                </div>
+                {jlptTotal > 0 && (
+                  <button
+                    onClick={() => setShowJlptBreakdown(true)}
+                    className="flex items-center gap-2.5 -mt-0.5 hover:opacity-80 active:scale-95 transition-all"
+                  >
+                    <div className="flex-1 h-1.5 rounded-full overflow-hidden flex bg-slate-100">
+                      {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
+                        const pct = (jlptDistribution[level] / jlptTotal) * 100;
+                        if (pct === 0) return null;
+                        return (
+                          <div key={level} className={JLPT_BAR_COLOR[level]} style={{ width: `${pct}%` }} />
+                        );
+                      })}
+                    </div>
+                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 whitespace-nowrap">
+                      {t.by_level}
+                    </span>
+                  </button>
+                )}
               </div>
-            </Link>
+            </div>
           </div>
           <div className="flex items-center">
             <div className="h-11 flex items-center min-w-[200px]">
@@ -1081,6 +1147,49 @@ export default function StudyView() {
       <AnimatePresence>
         {showListeningQuiz && user?.id && (
           <ListeningQuiz userId={user.id} isAdmin={isAdmin} onClose={() => setShowListeningQuiz(false)} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showJlptBreakdown && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[210] bg-black/20"
+              onClick={() => setShowJlptBreakdown(false)}
+            />
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[211] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm"
+              style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+            >
+              <div className="flex items-center justify-between mb-5">
+                <p className="text-slate-800 font-black text-sm uppercase tracking-tight">{t.by_level}</p>
+                <button onClick={() => setShowJlptBreakdown(false)} className="text-slate-300 hover:text-slate-500">✕</button>
+              </div>
+              <div className="space-y-3">
+                {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
+                  const count = jlptDistribution[level];
+                  const pct = jlptTotal > 0 ? Math.round((count / jlptTotal) * 100) : 0;
+                  return (
+                    <div key={level} className="flex items-center gap-3">
+                      <span className={`shrink-0 w-9 text-[10px] px-1.5 py-0.5 rounded-md border font-black text-center uppercase tracking-tighter ${JLPT_BADGE_COLOR[level]}`}>
+                        {level}
+                      </span>
+                      <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${JLPT_BAR_COLOR[level]}`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="shrink-0 w-9 text-right text-xs font-black text-slate-600">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </>

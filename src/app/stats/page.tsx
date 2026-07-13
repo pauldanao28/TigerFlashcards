@@ -688,6 +688,20 @@ export default function StatsPage() {
 
   // 1. Global Totals (Tries, Pass, Fail)
   const globalStats = useMemo(() => calculateGlobalStats(cards), [cards]);
+
+  const jlptDistribution = useMemo(() => {
+    const counts: Record<"N5" | "N4" | "N3" | "N2" | "N1", number> = {
+      N5: 0,
+      N4: 0,
+      N3: 0,
+      N2: 0,
+      N1: 0,
+    };
+    for (const c of cards) {
+      if (c.jlpt_level && c.jlpt_level in counts) counts[c.jlpt_level]++;
+    }
+    return counts;
+  }, [cards]);
   // 1. Global Totals (Tries, Pass, Fail)
   // Separate Global Totals for both directions
   // const globalStats = useMemo(() => {
@@ -783,6 +797,17 @@ export default function StatsPage() {
       case "N2": return "bg-orange-100 text-orange-700 border-orange-200";
       case "N1": return "bg-rose-100 text-rose-700 border-rose-200";
       default: return "bg-slate-100 text-slate-600 border-slate-200";
+    }
+  };
+
+  const getJlptBarColor = (level: string) => {
+    switch (level) {
+      case "N5": return "bg-emerald-500";
+      case "N4": return "bg-teal-500";
+      case "N3": return "bg-amber-500";
+      case "N2": return "bg-orange-500";
+      case "N1": return "bg-rose-500";
+      default: return "bg-slate-300";
     }
   };
 
@@ -1665,6 +1690,42 @@ export default function StatsPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* JLPT Level Distribution */}
+            <div className="col-span-2 md:col-span-3 bg-white rounded-[2rem] border border-slate-200 shadow-sm p-6">
+              <div className="flex items-center justify-between mb-5">
+                <p className="text-slate-800 font-black text-sm uppercase tracking-tight">
+                  {t.by_level}
+                </p>
+                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
+                  {totalCards} {t.vocabulary}
+                </p>
+              </div>
+              <div className="space-y-3">
+                {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
+                  const count = jlptDistribution[level];
+                  const pct = totalCards > 0 ? Math.round((count / totalCards) * 100) : 0;
+                  return (
+                    <div key={level} className="flex items-center gap-3">
+                      <span
+                        className={`shrink-0 w-9 text-[10px] px-1.5 py-0.5 rounded-md border font-black text-center uppercase tracking-tighter ${getJlptColor(level)}`}
+                      >
+                        {level}
+                      </span>
+                      <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${getJlptBarColor(level)}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="shrink-0 w-9 text-right text-xs font-black text-slate-600">
+                        {count}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
