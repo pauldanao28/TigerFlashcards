@@ -765,6 +765,17 @@ export default function StatsPage() {
     return "bg-slate-100 text-slate-600 border-slate-200";
   };
 
+  const getJlptColor = (level: string) => {
+    switch (level) {
+      case "N5": return "bg-emerald-100 text-emerald-700 border-emerald-200";
+      case "N4": return "bg-teal-100 text-teal-700 border-teal-200";
+      case "N3": return "bg-amber-100 text-amber-700 border-amber-200";
+      case "N2": return "bg-orange-100 text-orange-700 border-orange-200";
+      case "N1": return "bg-rose-100 text-rose-700 border-rose-200";
+      default: return "bg-slate-100 text-slate-600 border-slate-200";
+    }
+  };
+
   const updateBlocklist = async (newList: string[]) => {
     const { error } = await supabase
       .from("profiles")
@@ -2172,6 +2183,13 @@ export default function StatsPage() {
                         {card.partOfSpeech}
                       </span>
                     )}
+                    {card.jlpt_level && (
+                      <span
+                        className={`ml-1.5 text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getJlptColor(card.jlpt_level)}`}
+                      >
+                        {card.jlpt_level}
+                      </span>
+                    )}
                     <div className="text-sm font-bold text-indigo-500">
                       {card.reading}
                     </div>
@@ -2265,6 +2283,13 @@ export default function StatsPage() {
                             {card.partOfSpeech}
                           </span>
                         )}
+                        {card.jlpt_level && (
+                          <span
+                            className={`ml-1.5 text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getJlptColor(card.jlpt_level)}`}
+                          >
+                            {card.jlpt_level}
+                          </span>
+                        )}
                         <div className="text-xs text-indigo-500 font-medium">
                           {card.reading}
                         </div>
@@ -2340,7 +2365,7 @@ export default function StatsPage() {
           {filteredCards.length > displayLimit && (
             <div className="mt-8 mb-12 flex justify-center">
               <button
-                onClick={() => setDisplayLimit((prev) => prev + 50)}
+                onClick={() => setDisplayLimit((prev) => prev + 200)}
                 className="bg-white border border-slate-200 px-8 py-3 rounded-2xl font-bold text-slate-600 hover:bg-slate-50"
               >
                 {t.load_more} ({filteredCards.length - displayLimit}{" "}
