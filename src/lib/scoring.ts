@@ -64,21 +64,38 @@ export function bootstrapReadingScore(
   return Math.round(avg);
 }
 
-// JLPT cumulative vocab targets — used as the mastery denominator floor.
+// JLPT cumulative vocab targets — cards needed to reach each level.
 export const JLPT_VOCAB_FLOOR: Record<string, number> = {
-  N1: 10000,
-  N2: 6000,
-  N3: 3750,
-  N4: 1500,
   N5: 800,
+  N4: 1500,
+  N3: 3750,
+  N2: 6000,
+  N1: 10000,
 };
 
-// Compute vocab mastery % from per-card combined accuracies.
-// denominator = max(deck_size, JLPT floor) so small decks can't hit 100% easily.
-// cardAccuracies: one entry per deck card, value 0-100 (0 for unlearned cards).
-export function vocabMastery(cardAccuracies: number[], nlevel: string): number {
-  const floor = JLPT_VOCAB_FLOOR[nlevel] ?? 800;
-  const denominator = Math.max(cardAccuracies.length, floor);
+// Which JLPT tier a deck size falls into — determines the mastery floor.
+export function deckJlptTier(deckSize: number): string {
+  if (deckSize >= 6000) return "N1";
+  if (deckSize >= 3750) return "N2";
+  if (deckSize >= 1500) return "N3";
+  if (deckSize >= 800) return "N4";
+  return "N5";
+}
+
+// Floor = target card count for the next JLPT tier above your current deck size.
+export function vocabFloor(deckSize: number): number {
+  if (deckSize >= 6000) return 10000;
+  if (deckSize >= 3750) return 6000;
+  if (deckSize >= 1500) return 3750;
+  if (deckSize >= 800) return 1500;
+  return 800;
+}
+
+// Compute vocab mastery % from per-card combined accuracies (0-100 each).
+// Denominator = vocabFloor(deckSize) so score reflects coverage of the JLPT tier.
+// Unlearned deck cards contribute 0 accuracy.
+export function vocabMastery(cardAccuracies: number[], deckSize: number): number {
+  const denominator = vocabFloor(deckSize);
   const sum = cardAccuracies.reduce((a, b) => a + b, 0);
   return Math.min(100, Math.round(sum / denominator));
 }

@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { useLang } from "@/context/LanguageContext";
 import { calculateGlobalStats } from "@/lib/stats";
 import { processReferral } from "@/lib/social";
-import { rollingAvg, jlptLevel, vocabMastery } from "@/lib/scoring";
+import { rollingAvg, vocabMastery } from "@/lib/scoring";
 
 import Auth from "@/components/Auth";
 import Logo from "@/components/Logo";
@@ -49,7 +49,6 @@ export default function StudyView() {
   const goalFired = useRef(false);
   const vocabScoreRef = useRef<number>(0);
   const vocabSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const jlptNLevelRef = useRef<string>("N5");
 
   const [showQuiz, setShowQuiz] = useState(false);
   const [showListeningQuiz, setShowListeningQuiz] = useState(false);
@@ -122,9 +121,6 @@ export default function StudyView() {
         setProfileName(p.full_name);
         setIsAdmin(p.is_admin ?? false);
         if (p.vocab_score != null) vocabScoreRef.current = p.vocab_score;
-        const nonVocab = [p.reading_score, p.listening_score, p.grammar_score].filter((s: number | null) => s != null) as number[];
-        const levelScore = nonVocab.length > 0 ? nonVocab.reduce((a: number, b: number) => a + b, 0) / nonVocab.length : 0;
-        jlptNLevelRef.current = jlptLevel(levelScore);
 
         // 1. Progress check
         const today = new Date().toLocaleDateString("en-CA");
@@ -504,7 +500,7 @@ export default function StudyView() {
           const en = c.scores?.en_to_jp?.percent ?? 0;
           return (jp + en) / 2;
         });
-        const newVocabScore = vocabMastery(accuracies, jlptNLevelRef.current);
+        const newVocabScore = vocabMastery(accuracies, updatedCards.length);
         vocabScoreRef.current = newVocabScore;
         if (vocabSaveTimerRef.current) clearTimeout(vocabSaveTimerRef.current);
         vocabSaveTimerRef.current = setTimeout(() => {

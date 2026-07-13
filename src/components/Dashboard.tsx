@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
-import { getLevel, jlptLevel, vocabMastery } from "@/lib/scoring";
+import { getLevel, jlptLevel, vocabMastery, vocabFloor } from "@/lib/scoring";
 
 interface ProfileScores {
   name: string | null;
@@ -13,6 +13,7 @@ interface ProfileScores {
   reading_score: number | null;
   listening_score: number | null;
   grammar_score: number | null;
+  deck_size: number;
 }
 
 function ScoreTile({
@@ -101,16 +102,8 @@ export default function Dashboard() {
         return (jp + en) / 2;
       });
 
-      // Use non-vocab scores to determine JLPT floor (avoids circular dependency)
-      const nonVocabScores = [p?.reading_score, p?.listening_score, p?.grammar_score].filter(
-        (s): s is number => s !== null
-      );
-      const levelScore =
-        nonVocabScores.length > 0
-          ? nonVocabScores.reduce((a, b) => a + b, 0) / nonVocabScores.length
-          : 0;
-      const nlevel = jlptLevel(levelScore);
-      const vocabScore = vocabMastery(accuracies, nlevel);
+      const deckSize = deckCardIds.length;
+      const vocabScore = vocabMastery(accuracies, deckSize);
 
       supabase.from("profiles").update({ vocab_score: vocabScore }).eq("id", user.id);
 
@@ -121,6 +114,7 @@ export default function Dashboard() {
         reading_score: p?.reading_score ?? null,
         listening_score: p?.listening_score ?? null,
         grammar_score: p?.grammar_score ?? null,
+        deck_size: deckSize,
       });
     };
     load();
@@ -178,7 +172,7 @@ export default function Dashboard() {
 
       {/* 2×2 skill tiles */}
       <div className="px-4 grid grid-cols-2 gap-3">
-        <ScoreTile href="/study"   emoji="🃏" label="Vocabulary" score={data.vocab_score}     />
+        <ScoreTile href="/study"   emoji="🃏" label="Vocabulary" score={data.vocab_score}     sub={`${data.deck_size.toLocaleString()} / ${vocabFloor(data.deck_size).toLocaleString()} cards`} />
         <ScoreTile href="/sensei"  emoji="📝" label="Grammar"    score={data.grammar_score}   />
         <ScoreTile href="/quizzes" emoji="📖" label="Reading"    score={data.reading_score}   sub="Sentence quiz" />
         <ScoreTile href="/quizzes" emoji="🎧" label="Listening"  score={data.listening_score} sub="Listening quiz" />
