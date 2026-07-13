@@ -733,53 +733,11 @@ export default function StudyView() {
               </div>
             </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Link
-                href="/sensei"
-                className="bg-white h-9 px-4 rounded-full shadow-sm border border-violet-200 flex items-center justify-center gap-2 active:scale-95 transition-all w-fit"
-              >
-                <span className="text-sm leading-none">先生</span>
-                <span className="text-[10px] font-black uppercase tracking-widest text-violet-600">Sensei</span>
-              </Link>
-              <button
-                onClick={() => setShowQuiz(true)}
-                className="bg-white h-9 px-4 rounded-full shadow-sm border border-amber-200 flex items-center justify-center gap-2 active:scale-95 transition-all w-fit"
-              >
-                <span className="text-sm leading-none">📝</span>
-                <span className="text-[10px] font-black uppercase tracking-widest text-amber-600">Quiz</span>
-              </button>
-              <button
-                onClick={() => setShowListeningQuiz(true)}
-                className="bg-white h-9 px-4 rounded-full shadow-sm border border-indigo-200 flex items-center justify-center gap-2 active:scale-95 transition-all w-fit"
-              >
-                <span className="text-sm leading-none">🎧</span>
-                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Listen</span>
-              </button>
-            </div>
           </div>
-          {/* --- THE FIX: Change this div --- */}
-          <div className="absolute top-4 right-4 flex flex-col items-end gap-2 pointer-events-auto">
-            {/* Using 'absolute' here prevents this stack from "pushing" the header 
-        height down. This keeps the header thin and the cards high.
-    */}
+          <div className="absolute top-4 right-4 pointer-events-auto">
             <div className="h-9 w-32">
               <LanguageToggle language={language} setLanguage={setLanguage} />
             </div>
-            <Link
-              href="/stats"
-              className="bg-white h-9 w-32 rounded-full shadow-sm border border-slate-200 flex items-center justify-center gap-1.5 active:scale-95 transition-all"
-            >
-              <span className="text-xs">📊</span>
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">
-                {t.stats}
-              </span>
-            </Link>
-            <button
-              onClick={() => setIsSocialOpen(!isSocialOpen)}
-              className="bg-white h-9 w-9 rounded-full shadow-sm border border-slate-200 flex items-center justify-center hover:border-black transition-all active:scale-95 shadow-indigo-100/50"
-            >
-              <span className="text-sm">👥</span>
-            </button>
           </div>
         </div>
 
@@ -823,47 +781,10 @@ export default function StudyView() {
               </div>
             </Link>
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center">
             <div className="h-11 flex items-center min-w-[200px]">
               <LanguageToggle language={language} setLanguage={setLanguage} />
             </div>
-            <Link
-              href="/stats"
-              className="bg-white h-11 px-8 rounded-full shadow-sm border border-slate-100 flex items-center gap-3 hover:border-slate-300 transition-all active:scale-95"
-            >
-              <span className="text-xl leading-none">📊</span>
-              <span className="text-sm font-black uppercase tracking-[0.2em] text-slate-700">
-                {t.stats}
-              </span>
-            </Link>
-            <Link
-              href="/sensei"
-              className="bg-white h-11 px-8 rounded-full shadow-sm border border-violet-200 flex items-center gap-3 hover:border-violet-300 transition-all active:scale-95"
-            >
-              <span className="text-xl leading-none">先生</span>
-              <span className="text-sm font-black uppercase tracking-[0.2em] text-violet-600">Sensei</span>
-            </Link>
-            <button
-              onClick={() => setShowQuiz(true)}
-              className="bg-white h-11 px-8 rounded-full shadow-sm border border-amber-200 flex items-center gap-3 hover:border-amber-300 transition-all active:scale-95"
-            >
-              <span className="text-xl leading-none">📝</span>
-              <span className="text-sm font-black uppercase tracking-[0.2em] text-amber-600">Quiz</span>
-            </button>
-            <button
-              onClick={() => setShowListeningQuiz(true)}
-              className="bg-white h-11 px-8 rounded-full shadow-sm border border-indigo-200 flex items-center gap-3 hover:border-indigo-300 transition-all active:scale-95"
-            >
-              <span className="text-xl leading-none">🎧</span>
-              <span className="text-sm font-black uppercase tracking-[0.2em] text-indigo-600">Listen</span>
-            </button>
-            {/* NEW: Social Toggle */}
-            <button
-              onClick={() => setIsSocialOpen(!isSocialOpen)}
-              className="bg-white h-9 w-9 md:h-11 md:w-11 rounded-full shadow-sm border border-slate-200 flex items-center justify-center hover:border-black transition-all active:scale-95"
-            >
-              <span className="text-sm md:text-lg">👥</span>
-            </button>
           </div>
         </div>
         {/* --- 3. MAIN STUDY AREA (PULLED UP FOR MOBILE) --- */}

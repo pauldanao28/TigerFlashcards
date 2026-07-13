@@ -868,7 +868,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   };
 
   return (
-    <div ref={containerRef} className="fixed left-0 right-0 top-0 flex flex-col bg-slate-50" style={{ height: "100dvh" }}>
+    <div ref={containerRef} className="fixed left-0 right-0 top-0 flex flex-col bg-slate-50 pb-14 md:pb-0" style={{ height: "100dvh" }}>
 
       {/* ── Persona selector ── */}
       <div className="sticky top-0 z-10 bg-white border-b border-slate-100 px-4 pt-4 pb-3">
