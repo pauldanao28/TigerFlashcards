@@ -5,6 +5,7 @@ import { FlashcardData } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { useLang } from "@/context/LanguageContext";
 import { speak } from "@/lib/tts";
+import { useAppAlert } from "@/context/AlertContext";
 
 interface FlashcardProps {
   card: FlashcardData;
@@ -39,6 +40,7 @@ export default function Flashcard({
   audioPulse,
 }: FlashcardProps) {
   const { t } = useLang();
+  const { showAlert } = useAppAlert();
   //const [flipped, setFlipped] = useState(false);
   const [hasVibrated, setHasVibrated] = useState(false);
   const [isReady, setIsReady] = useState(false);
@@ -212,9 +214,9 @@ export default function Flashcard({
     });
 
     if (error) {
-      alert(error.message);
+      showAlert(error.message);
     } else {
-      alert(t.report_sent);
+      showAlert(t.report_sent);
     }
   };
 

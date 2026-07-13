@@ -16,7 +16,6 @@ export const translations = {
     syncing_deck: "Syncing Deck...",
     days: "Days",
     back: "Back",
-    back_to_study: "Back to Study",
     signout: "Sign Out",
     active_collection: "Active Collection",
     save: "Save",
@@ -202,7 +201,6 @@ export const translations = {
     syncing_deck: "デッキを同期中...", // Dekki o dōkichū...
     days: "日", // Hi/Nichi
     back: "戻る",
-    back_to_study: "学習に戻る", // Gakushū ni modoru (Return to learning)
     signout: "ログアウト", // Log-out (Standard katakana)
     active_collection: "現在のコレクション", // Genzai no korekushon (Current Collection)
     save: "保存する", // Hozon suru (To Save/Preserve)

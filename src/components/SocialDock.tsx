@@ -8,6 +8,7 @@ import {
   handleAcceptRequest,
   handleIgnoreRequest,
 } from "@/lib/social";
+import { useAppAlert } from "@/context/AlertContext";
 
 export const SocialDock = ({
   userId, // Added your unique ID
@@ -22,6 +23,7 @@ export const SocialDock = ({
   onClose: () => void;
   fetchFriends?: () => Promise<void>;
 }) => {
+  const { showAlert } = useAppAlert();
   const [newFriend, setNewFriend] = useState("");
   const [activeTab, setActiveTab] = useState<"friends" | "pending">("friends");
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
@@ -70,14 +72,14 @@ export const SocialDock = ({
     const result = await addFriendByUsername(newFriend);
 
     if (result.success) {
-      alert(`Success! Request sent to ${result.name}`);
+      showAlert(`Success! Request sent to ${result.name}`);
       if (typeof fetchFriends === "function") {
         await fetchFriends();
       }
       setNewFriend(""); // Clear input
     } else if (result.error) {
       // This will show "Already in your circle" or "User not found"
-      alert(result.error);
+      showAlert(result.error);
     }
   };
 
@@ -85,7 +87,7 @@ export const SocialDock = ({
   const handleSocialAction = async () => {
     // 1. Safety check: stop if we don't have a name
     if (!username) {
-      alert("Error getting username. Please wait a moment.");
+      showAlert("Error getting username. Please wait a moment.");
       return; // Stop the function here
     }
 
@@ -93,9 +95,9 @@ export const SocialDock = ({
 
     try {
       await navigator.clipboard.writeText(shareUrl);
-      alert("Link copied to clipboard!");
+      showAlert("Link copied to clipboard!");
     } catch (err) {
-      alert("Failed to copy link.");
+      showAlert("Failed to copy link.");
     }
     //}
   };
@@ -284,7 +286,7 @@ export const SocialDock = ({
                             e.preventDefault();
                             const result = await cancelFriendRequest(friend.id);
                             if (result?.error)
-                              alert("Failed to cancel: " + result.error);
+                              showAlert("Failed to cancel: " + result.error);
                           }}
                         >
                           Cancel Request
@@ -297,7 +299,7 @@ export const SocialDock = ({
                               const { error } = await handleAcceptRequest(
                                 friend.id,
                               );
-                              if (error) alert("Could not accept");
+                              if (error) showAlert("Could not accept");
                             }}
                             className="flex-1 py-1.5 bg-black text-white text-[9px] font-black uppercase rounded-lg hover:opacity-80 transition-opacity"
                           >
@@ -308,7 +310,7 @@ export const SocialDock = ({
                               const { error } = await handleIgnoreRequest(
                                 friend.id,
                               );
-                              if (error) alert("Could not ignore");
+                              if (error) showAlert("Could not ignore");
                             }}
                             className="flex-1 py-1.5 bg-slate-100 text-slate-400 text-[9px] font-black uppercase rounded-lg hover:bg-red-50 hover:text-red-500 transition-all"
                           >

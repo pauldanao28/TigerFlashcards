@@ -174,6 +174,15 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
   const [tooltip, setTooltip] = useState<WordTooltip | null>(null);
   const [backConfirm, setBackConfirm] = useState(false);
 
+  // Warn on accidental refresh/tab-close mid-quiz — progress lives only in React state
+  // and a lost quiz still burns one of today's limited slots.
+  useEffect(() => {
+    if (phase !== "quiz") return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [phase]);
+
   // ── Pending word list — shared with the Sensei chat's list (same profiles.pending_words field) ──
   const [wordList, setWordList] = useState<string[]>([]);
   const [showList, setShowList] = useState(false);
@@ -890,7 +899,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
           <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden max-h-[80vh]">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <div>
-                <h2 className="text-base font-black text-slate-800 uppercase italic tracking-tighter">Word List</h2>
+                <h2 className="text-base font-black text-slate-800 uppercase italic tracking-tighter">To Add</h2>
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{wordList.length} word{wordList.length !== 1 ? "s" : ""} · one per line</p>
               </div>
               <button onClick={() => { flushWordList(); setShowList(false); }} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400"><X size={14} /></button>

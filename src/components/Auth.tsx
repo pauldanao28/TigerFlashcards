@@ -6,10 +6,12 @@ import { supabase } from "@/lib/supabase";
 import { useLang } from "@/context/LanguageContext";
 import LanguageToggle from "@/components/LanguageToggle";
 import { processReferral } from "@/lib/social";
+import { useAppAlert } from "@/context/AlertContext";
 
 export default function Auth() {
   const router = useRouter();
   const { t, lang, setLang } = useLang();
+  const { showAlert } = useAppAlert();
 
   // States
   const [loading, setLoading] = useState(false);
@@ -39,7 +41,7 @@ export default function Auth() {
         { redirectTo: `${getURL()}/update-password` },
       );
       error = resetError;
-      if (!error) alert("Check your email for the reset link!");
+      if (!error) await showAlert("Check your email for the reset link!");
     } else if (isRegistering) {
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
@@ -64,9 +66,9 @@ export default function Auth() {
         // --- REFERRAL LOGIC END ---
 
         if (data.user?.identities?.length === 0) {
-          alert("This email is already registered. Try logging in!");
+          await showAlert("This email is already registered. Try logging in!");
         } else {
-          alert("Check your email for the confirmation link!");
+          await showAlert("Check your email for the confirmation link!");
         }
         router.push("/");
       }
@@ -81,7 +83,7 @@ export default function Auth() {
       }
     }
 
-    if (error) alert(error.message);
+    if (error) await showAlert(error.message);
     setLoading(false);
   };
 
@@ -90,7 +92,7 @@ export default function Auth() {
       provider: "google",
       options: { redirectTo: `${getURL()}/auth/callback` },
     });
-    if (error) alert(error.message);
+    if (error) await showAlert(error.message);
   };
 
   const handleFacebookLogin = async () => {
@@ -101,7 +103,7 @@ export default function Auth() {
         scopes: "public_profile,email",
       },
     });
-    if (error) alert(error.message);
+    if (error) await showAlert(error.message);
   };
 
   return (

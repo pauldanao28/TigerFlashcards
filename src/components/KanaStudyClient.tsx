@@ -4,8 +4,10 @@ import { useState } from "react";
 import { HIRAGANA_DATA, KATAKANA_DATA, type KanaCharacter } from "@/lib/kana";
 import Link from "next/link";
 import { ChevronLeft, Loader2 } from "lucide-react";
+import { useAppAlert } from "@/context/AlertContext";
 
 export default function KanaStudyClient() {
+  const { showAlert } = useAppAlert();
   const [mode, setMode] = useState<"hiragana" | "katakana">("hiragana");
   const data = mode === "hiragana" ? HIRAGANA_DATA : KATAKANA_DATA;
 
@@ -43,7 +45,7 @@ export default function KanaStudyClient() {
         setCurrentIndex((prev) => prev + 1);
       } else {
         setIsQuizMode(false);
-        alert("Otsukaresama! You finished the set! 🎉");
+        showAlert("Otsukaresama! You finished the set! 🎉");
       }
     }, 150);
   };

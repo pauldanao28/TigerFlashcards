@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { UploadGuardProvider } from "@/context/UploadGuardContext";
+import { AlertProvider } from "@/context/AlertContext";
 import BottomNav from "@/components/BottomNav";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://flashkado.com";
@@ -93,8 +95,12 @@ export default function RootLayout({
       <body className="antialiased bg-slate-50 text-slate-900">
         <AuthProvider>
           <LanguageProvider>
-            {children}
-            <BottomNav />
+            <AlertProvider>
+              <UploadGuardProvider>
+                {children}
+                <BottomNav />
+              </UploadGuardProvider>
+            </AlertProvider>
           </LanguageProvider>
         </AuthProvider>
       </body>

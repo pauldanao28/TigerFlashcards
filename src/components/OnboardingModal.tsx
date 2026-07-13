@@ -3,6 +3,7 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAppAlert } from "@/context/AlertContext";
 
 interface OnboardingProps {
   userId: string;
@@ -15,6 +16,7 @@ export default function OnboardingModal({
   defaultName,
   onComplete,
 }: OnboardingProps) {
+  const { showAlert } = useAppAlert();
   const [step, setStep] = useState(1); // 1: Name, 2: Path Selection
   const [name, setName] = useState(defaultName || "");
   const [loading, setLoading] = useState(false);
@@ -171,7 +173,7 @@ export default function OnboardingModal({
 
       onComplete(true);
     } catch (error: any) {
-      alert(error.message);
+      showAlert(error.message);
     } finally {
       setLoading(false);
     }
@@ -197,7 +199,7 @@ export default function OnboardingModal({
       onComplete(false);
       router.push("/stats");
     } catch (err) {
-      alert("Initialization failed.");
+      showAlert("Initialization failed.");
     } finally {
       setLoading(false);
     }

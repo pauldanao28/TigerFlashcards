@@ -4,9 +4,11 @@ import { supabase } from "@/lib/supabase";
 import { useLang } from "@/context/LanguageContext";
 import LoadingScreen from "@/components/LoadingScreen";
 import Link from "next/link";
+import { useAppAlert } from "@/context/AlertContext";
 
 export default function AdminDashboard() {
   const { t, lang } = useLang();
+  const { showAlert } = useAppAlert();
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -133,7 +135,7 @@ export default function AdminDashboard() {
 
     if (error) {
       console.error("Update failed:", error.message);
-      alert(`Failed to update: ${error.message}`);
+      showAlert(`Failed to update: ${error.message}`);
     } else {
       fetchData();
     }
@@ -167,7 +169,7 @@ export default function AdminDashboard() {
       })
       .eq("id", cardId);
 
-    if (cardError) return alert("Update failed: " + cardError.message);
+    if (cardError) { showAlert("Update failed: " + cardError.message); return; }
 
     // 3. Mark as resolved AND track WHO did it
     await supabase

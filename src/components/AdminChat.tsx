@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { Send, Trash2, X, Loader2, List, Plus, Volume2, VolumeX, BookOpen, SlidersHorizontal, ChevronLeft } from "lucide-react";
 import { speak, playTTS, stopTTS, getVoice, setVoice, VOICE_OPTIONS, VoiceId } from "@/lib/tts";
 import { rollingAvg } from "@/lib/scoring";
+import { useAppAlert } from "@/context/AlertContext";
 
 function uuid(): string {
   try { return self.crypto.randomUUID(); } catch { /* fall through */ }
@@ -134,6 +135,7 @@ function parseFurigana(text: string): Segment[] {
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function AdminChat({ userId }: { userId: string }) {
   const router = useRouter();
+  const { showConfirm } = useAppAlert();
   const [activePersona, setActivePersona] = useState<PersonaKey>("senpai");
   // Sync from localStorage after hydration to avoid SSR/client mismatch
   useEffect(() => {
@@ -651,8 +653,9 @@ export default function AdminChat({ userId }: { userId: string }) {
 
   // ── Clear chat for current persona ─────────────────────────────────────────
 
-  const clearChat = () => {
-    if (confirm(`${persona.label}との会話履歴を全て削除しますか？`)) {
+  const clearChat = async () => {
+    const ok = await showConfirm(`${persona.label}との会話履歴を全て削除しますか？`, { danger: true });
+    if (ok) {
       setMessages([]);
       localStorage.removeItem(chatStorageKey(activePersona));
       supabase.from("sensei_messages").delete().eq("user_id", userId).eq("persona", activePersona);
@@ -1079,8 +1082,8 @@ export default function AdminChat({ userId }: { userId: string }) {
       {/* ── Action confirmation modal ── */}
       {confirmAction && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setConfirmAction(null)} />
-          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
+          <div className="fixed inset-0 z-[240] bg-black/20" onClick={() => setConfirmAction(null)} />
+          <div className="fixed bottom-0 left-0 right-0 z-[241] bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
             style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
             onClick={(e) => e.stopPropagation()}>
             <p className="text-base font-black text-slate-800 mb-1">{CONFIRM_COPY[confirmAction].title}</p>
@@ -1214,7 +1217,7 @@ export default function AdminChat({ userId }: { userId: string }) {
           <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
               <div>
-                <h2 className="text-base font-black text-slate-800 uppercase italic tracking-tighter">Word List</h2>
+                <h2 className="text-base font-black text-slate-800 uppercase italic tracking-tighter">To Add</h2>
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{wordList.length} word{wordList.length !== 1 ? "s" : ""} · one per line</p>
               </div>
               <button onClick={() => { flushWordList(); setShowList(false); }} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400"><X size={14} /></button>

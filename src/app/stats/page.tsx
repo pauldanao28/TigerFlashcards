@@ -6,6 +6,8 @@ import { FlashcardData } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
 import { useLang } from "@/context/LanguageContext";
+import { useUploadGuard } from "@/context/UploadGuardContext";
+import { useAppAlert } from "@/context/AlertContext";
 import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
 import { calculateGlobalStats } from "@/lib/stats";
@@ -16,6 +18,8 @@ import { List, X, Plus, Loader2 } from "lucide-react";
 export default function StatsPage() {
   const router = useRouter();
   const { t, setLang, lang } = useLang();
+  const { setIsBusy: setUploadBusy } = useUploadGuard();
+  const { showAlert, showConfirm } = useAppAlert();
   const [cards, setCards] = useState<FlashcardData[]>([]);
   const [input, setInput] = useState("");
   const [batchInput, setBatchInput] = useState("");
@@ -64,6 +68,9 @@ export default function StatsPage() {
   const [wordListAdding, setWordListAdding] = useState(false);
   const [wordListText, setWordListText] = useState("");
   useEffect(() => { if (showWordList) setWordListText(pendingWords.join("\n")); }, [showWordList]);
+  // Safety net: don't let the nav-guard get stuck "busy" forever if this page unmounts
+  // some other way (browser back/forward) while a batch upload was mid-flight.
+  useEffect(() => () => setUploadBusy(false), [setUploadBusy]);
 
   useEffect(() => {
     const fetchTodayCount = async () => {
@@ -250,7 +257,7 @@ export default function StatsPage() {
       .eq("id", defaultDeckId);
 
     if (error) {
-      alert("Failed to update deck name");
+      showAlert("Failed to update deck name");
     } else {
       setDeckTitle(tempTitle.trim());
       setIsEditingTitle(false);
@@ -276,9 +283,9 @@ export default function StatsPage() {
     });
 
     if (error) {
-      alert("Failed to send report.");
+      showAlert("Failed to send report.");
     } else {
-      alert(t.report_sent);
+      showAlert(t.report_sent);
     }
   };
 
@@ -350,7 +357,8 @@ export default function StatsPage() {
 
   const handleDeleteAccount = async () => {
     try {
-      if (!confirm(t.delete_confirm)) return;
+      const ok = await showConfirm(t.delete_confirm, { title: t.delete_account, confirmLabel: t.delete_btn, danger: true });
+      if (!ok) return;
 
       // Call the Postgres function we just created
       const { error } = await supabase.rpc("delete_user_forever");
@@ -367,14 +375,14 @@ export default function StatsPage() {
       window.location.href = "/";
     } catch (error) {
       console.error("Error deleting account:", error);
-      alert("Failed to delete account. Please try logging in again first.");
+      showAlert("Failed to delete account. Please try logging in again first.");
     }
   };
 
   const processWords = async (inputList: string[]): Promise<Set<string>> => {
     const succeededWords = new Set<string>();
     if (!user || !defaultDeckId) {
-      alert("Please log in and ensure deck is initialized.");
+      showAlert("Please log in and ensure deck is initialized.");
       return succeededWords;
     }
 
@@ -435,7 +443,7 @@ export default function StatsPage() {
         setLoading(false);
         setInput("");
         setBatchInput("");
-        alert(
+        showAlert(
           t.limit_reached_msg
             .replace("{{current}}", currentToday.toString())
             .replace("{{limit}}", DAILY_LIMIT.toString()),
@@ -449,7 +457,7 @@ export default function StatsPage() {
         wordsToActuallyProcess = uniqueInputWords.slice(0, allowedCount);
 
         // Optional: Inform the user we are only doing a partial add
-        alert(
+        showAlert(
           t.partial_limit_msg.replace("{{count}}", allowedCount.toString()),
         );
       }
@@ -577,7 +585,7 @@ export default function StatsPage() {
           wordsForAI.forEach((w) => succeededWords.add(w));
         } catch (aiErr: any) {
           console.error("AI Step Failed:", aiErr.message);
-          alert(`AI processing failed: ${aiErr.message}`);
+          showAlert(`AI processing failed: ${aiErr.message}`);
         }
       }
 
@@ -597,7 +605,7 @@ export default function StatsPage() {
       setShowBatch(false);
     } catch (e: any) {
       console.error("ProcessWords Error:", e);
-      alert(`Major Error: ${e.message}`);
+      showAlert(`Major Error: ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -644,8 +652,8 @@ export default function StatsPage() {
   };
 
   const deleteCard = async (id: string, isFromSummary = false) => {
-    // Only show the browser confirm if it's NOT from the quick-summary overlay
-    if (!isFromSummary && !confirm("Remove this card from your collection?"))
+    // Only show the confirmation if it's NOT from the quick-summary overlay
+    if (!isFromSummary && !(await showConfirm("Remove this card from your collection?")))
       return;
 
     // 1. Database Cleanup (Linking & Scores)
@@ -662,7 +670,7 @@ export default function StatsPage() {
       .eq("user_id", user?.id);
 
     if (linkErr || scoreErr) {
-      alert(`Could not delete: ${linkErr?.message || scoreErr?.message}`);
+      showAlert(`Could not delete: ${linkErr?.message || scoreErr?.message}`);
       return;
     }
 
@@ -827,7 +835,7 @@ export default function StatsPage() {
 
     if (!error) {
       setUserBlocklist(newList);
-      alert("Blocklist updated!");
+      showAlert("Blocklist updated!");
     }
   };
 
@@ -850,7 +858,7 @@ export default function StatsPage() {
 
   const importPack = async (pack: any) => {
     if (!defaultDeckId) {
-      alert(
+      showAlert(
         "Deck ID is missing. Still loading your profile... please try again in 1 second.",
       );
       fetchDecks(); // Manually trigger a refresh
@@ -912,7 +920,7 @@ export default function StatsPage() {
       fetchCards();
     } catch (error: any) {
       console.error(error);
-      alert("Error: " + error.message);
+      showAlert("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -1021,7 +1029,7 @@ export default function StatsPage() {
               className="relative flex items-center gap-1.5 px-4 py-2 bg-slate-800 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-700 transition-all"
             >
               <List size={13} />
-              <span>Word List</span>
+              <span>To Add</span>
               {pendingWords.length > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 bg-indigo-600 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center">{pendingWords.length}</span>
               )}
@@ -1046,7 +1054,14 @@ export default function StatsPage() {
                 }
               />
               <button
-                onClick={() => processWords([batchInput])}
+                onClick={async () => {
+                  setUploadBusy(true);
+                  try {
+                    await processWords([batchInput]);
+                  } finally {
+                    setUploadBusy(false);
+                  }
+                }}
                 disabled={loading}
                 className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-transform"
               >
@@ -1064,7 +1079,7 @@ export default function StatsPage() {
                   className="flex items-center gap-0.5 text-slate-400 hover:text-slate-700 active:scale-90 transition-all"
                 >
                   <span>←</span>
-                  <span className="text-[9px] font-black uppercase tracking-widest">{t.back_to_study}</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest">{t.back}</span>
                 </button>
                 <span className="font-black text-[11px] uppercase tracking-widest text-slate-700">{t.settings}</span>
               </div>
@@ -1384,11 +1399,7 @@ export default function StatsPage() {
                   </div>
 
                   <button
-                    onClick={() => {
-                      if (confirm(t.delete_confirm)) {
-                        handleDeleteAccount();
-                      }
-                    }}
+                    onClick={handleDeleteAccount}
                     className="w-full sm:w-auto px-6 py-2.5 bg-white border border-red-200 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white hover:border-red-600 transition-all active:scale-95 shadow-sm"
                   >
                     {t.delete_btn}
@@ -2445,13 +2456,13 @@ export default function StatsPage() {
           )}
         </div>
 
-        {/* ── Word List Modal ── */}
+        {/* ── To Add Modal ── */}
         {showWordList && (
           <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center px-4 pt-4 pb-28 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
             <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
               <div className="p-5 border-b border-slate-100 flex justify-between items-center">
                 <div>
-                  <h2 className="text-base font-black text-slate-800 uppercase italic tracking-tighter">Word List</h2>
+                  <h2 className="text-base font-black text-slate-800 uppercase italic tracking-tighter">To Add</h2>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{pendingWords.length} word{pendingWords.length !== 1 ? "s" : ""} · one per line</p>
                 </div>
                 <button
