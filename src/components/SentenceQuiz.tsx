@@ -111,7 +111,7 @@ function TappableText({ text, keyPrefix, onWordTap }: { text: string; keyPrefix:
 
 // Highlighted (target) word span — tappable. Its furigana stays hidden until the answer is
 // revealed, so it doesn't give away the reading before the user has guessed the meaning.
-function HighlightedWord({ word, reading, showReading, onWordTap }: { word: string; reading: string; showReading: boolean; onWordTap: WordTapHandler }) {
+function HighlightedWord({ word, reading, onWordTap }: { word: string; reading: string; onWordTap: WordTapHandler }) {
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   return (
     <mark
@@ -128,19 +128,18 @@ function HighlightedWord({ word, reading, showReading, onWordTap }: { word: stri
       }}
     >
       {word}
-      {showReading && reading && <span className="text-[0.65em] font-bold opacity-70 ml-0.5">（{reading}）</span>}
     </mark>
   );
 }
 
-function HighlightedSentence({ sentence, word, reading, showReading, onWordTap }: { sentence: string; word: string; reading: string; showReading: boolean; onWordTap: WordTapHandler }) {
+function HighlightedSentence({ sentence, word, reading, onWordTap }: { sentence: string; word: string; reading: string; onWordTap: WordTapHandler }) {
   if (sentence.includes("【")) {
     const parts = sentence.split(/【(.*?)】/);
     return (
       <>
         {parts.map((part, i) =>
           i % 2 === 1 ? (
-            <HighlightedWord key={i} word={part} reading={reading} showReading={showReading} onWordTap={onWordTap} />
+            <HighlightedWord key={i} word={part} reading={reading} onWordTap={onWordTap} />
           ) : (
             <TappableText key={i} text={part} keyPrefix={`p${i}`} onWordTap={onWordTap} />
           )
@@ -154,7 +153,7 @@ function HighlightedSentence({ sentence, word, reading, showReading, onWordTap }
     return (
       <>
         <TappableText text={sentence.slice(0, idx)} keyPrefix="pre" onWordTap={onWordTap} />
-        <HighlightedWord word={word} reading={reading} showReading={showReading} onWordTap={onWordTap} />
+        <HighlightedWord word={word} reading={reading} onWordTap={onWordTap} />
         <TappableText text={sentence.slice(idx + word.length)} keyPrefix="post" onWordTap={onWordTap} />
       </>
     );
@@ -621,41 +620,38 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
               <div className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5">
                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3">Read the sentence</p>
                 <p className="text-xl leading-relaxed text-slate-800 font-medium">
-                  <HighlightedSentence sentence={currentCard.sentence_jp} word={currentCard.japanese} reading={currentCard.reading} showReading={revealed} onWordTap={handleWordClick} />
+                  <HighlightedSentence sentence={currentCard.sentence_jp} word={currentCard.japanese} reading={currentCard.reading} onWordTap={handleWordClick} />
                 </p>
               </div>
 
-              {/* Word card */}
-              <div className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5">
-                <div className="flex items-baseline gap-2 mb-1">
-                  <span
-                    className="text-2xl font-black text-slate-900 cursor-pointer active:opacity-60 transition-opacity"
-                    onClick={(e) => handleWordClick(currentCard.japanese, currentCard.reading, e)}
+              {/* Word card — only after reveal */}
+              <AnimatePresence>
+                {revealed && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    transition={{ duration: 0.15 }}
+                    className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5"
                   >
-                    {currentCard.japanese.split("").map((ch, ci) =>
-                      kanjiRe.test(ch) ? <span key={ci} className="underline decoration-dotted decoration-indigo-400 underline-offset-4">{ch}</span> : ch
-                    )}
-                  </span>
-                  {revealed && (
-                    <span className="text-sm text-slate-400 font-medium">{currentCard.reading}</span>
-                  )}
-                </div>
-                <AnimatePresence>
-                  {revealed && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.15 }}
-                    >
-                      <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-3">Meaning</p>
-                      <p className="text-indigo-600 font-bold text-base">{currentCard.english}</p>
-                      <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-2">Translation</p>
-                      <p className="text-slate-500 text-sm italic">{currentCard.sentence_en}</p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+                    <div className="flex items-baseline gap-2 mb-1">
+                      <span
+                        className="text-2xl font-black text-slate-900 cursor-pointer active:opacity-60 transition-opacity"
+                        onClick={(e) => handleWordClick(currentCard.japanese, currentCard.reading, e)}
+                      >
+                        {currentCard.japanese.split("").map((ch, ci) =>
+                          kanjiRe.test(ch) ? <span key={ci} className="underline decoration-dotted decoration-indigo-400 underline-offset-4">{ch}</span> : ch
+                        )}
+                      </span>
+                      <span className="text-sm text-slate-400 font-medium">{currentCard.reading}</span>
+                    </div>
+                    <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-3">Meaning</p>
+                    <p className="text-indigo-600 font-bold text-base">{currentCard.english}</p>
+                    <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-2">Translation</p>
+                    <p className="text-slate-500 text-sm italic">{currentCard.sentence_en}</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <div className="mt-auto shrink-0 pb-safe">
                 {!revealed ? (
