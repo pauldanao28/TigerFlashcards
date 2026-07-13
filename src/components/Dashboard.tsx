@@ -30,25 +30,30 @@ function ScoreTile({
 }) {
   const s = score ?? 0;
   const level = getLevel(s);
+  const nlevel = jlptLevel(s);
+  const barColor = s >= 80 ? "bg-red-400" : s >= 60 ? "bg-orange-400" : s >= 40 ? "bg-amber-400" : s >= 20 ? "bg-emerald-400" : "bg-indigo-400";
   return (
     <Link href={href} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm active:scale-95 transition-all flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <span className="text-2xl">{emoji}</span>
-        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${level.bg} ${level.color}`}>
-          {level.nameJp}
-        </span>
+        <div className="flex items-center gap-1">
+          <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${level.bg} ${level.color}`}>
+            {nlevel}
+          </span>
+          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-500`}>
+            {level.nameJp}
+          </span>
+        </div>
       </div>
       <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p>
       <div>
         <div className="flex items-end justify-between mb-1">
           <span className={`text-2xl font-black ${level.color}`}>{Math.round(s)}</span>
-          <span className="text-[10px] text-slate-300 font-bold">/100</span>
+          <span className="text-[10px] text-slate-400 font-bold">{Math.round(s)}%</span>
         </div>
-        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all ${
-              s >= 80 ? "bg-red-400" : s >= 60 ? "bg-orange-400" : s >= 40 ? "bg-amber-400" : s >= 20 ? "bg-emerald-400" : "bg-indigo-400"
-            }`}
+            className={`h-full rounded-full transition-all ${barColor}`}
             style={{ width: `${s}%` }}
           />
         </div>
