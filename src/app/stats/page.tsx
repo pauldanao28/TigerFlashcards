@@ -1408,7 +1408,31 @@ export default function StatsPage() {
 
             {/* Right Side: Navigation Buttons */}
             <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto md:ml-auto">
-              {/* SENSEI + QUIZ ROW: All logged-in users */}
+              {/* UTILITY ROW: Study & Logout */}
+              <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+                <Link
+                  href="/study/kana"
+                  className="flex-1 md:flex-none md:px-5 bg-emerald-50 py-3 rounded-2xl shadow-sm font-bold text-emerald-700 border border-emerald-100 hover:bg-emerald-100 transition-all text-sm whitespace-nowrap flex items-center justify-center gap-2"
+                >
+                  <span className="text-lg">あ</span> {t.study_kana}
+                </Link>
+
+                <Link
+                  href="/minigames/focus"
+                  className="flex-1 md:flex-none md:px-5 bg-indigo-50 py-3 rounded-2xl shadow-sm font-bold text-indigo-700 border border-indigo-100 hover:bg-indigo-100 transition-all text-sm whitespace-nowrap flex items-center justify-center gap-2"
+                >
+                  <span className="text-lg">🎮</span> {t.mini_games}
+                </Link>
+
+                <button
+                  onClick={handleLogout}
+                  className="flex-1 md:flex-none md:px-5 bg-rose-50 py-3 rounded-2xl shadow-sm font-bold text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all text-sm whitespace-nowrap flex items-center justify-center"
+                >
+                  {t.signout}
+                </button>
+              </div>
+
+              {/* SENSEI + QUIZ ROW */}
               {user && (
                 <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
                   <Link
@@ -1426,10 +1450,9 @@ export default function StatsPage() {
                 </div>
               )}
 
-              {/* ADMIN ROW: Stacked on mobile, side-by-side on desktop */}
+              {/* ADMIN ROW */}
               {isAdmin && (
                 <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                  {/* Admin Reports */}
                   <Link
                     href="/admin"
                     className="w-full md:w-auto bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2"
@@ -1437,43 +1460,14 @@ export default function StatsPage() {
                     <span className="text-sm">🚩</span> {t.admin_title}
                   </Link>
 
-                  {/* Admin Users Performance */}
                   <Link
                     href="/admin/users"
                     className="w-full md:w-auto bg-indigo-600 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
                   >
                     <span className="text-sm">📊</span> {t.admin_user_stats}
                   </Link>
-
                 </div>
               )}
-
-              {/* UTILITY ROW: Study & Logout - Shared row on mobile */}
-              <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-                {/* NEW: Study Kana Button */}
-                <Link
-                  href="/study/kana" // Ensure this matches your actual route
-                  className="flex-1 md:flex-none md:px-5 bg-emerald-50 py-3 rounded-2xl shadow-sm font-bold text-emerald-700 border border-emerald-100 hover:bg-emerald-100 transition-all text-sm whitespace-nowrap flex items-center justify-center gap-2"
-                >
-                  <span className="text-lg">あ</span> {t.study_kana}
-                </Link>
-
-                {/* Mini Games Button */}
-                <Link
-                  href="/minigames/focus"
-                  className="flex-1 md:flex-none md:px-5 bg-indigo-50 py-3 rounded-2xl shadow-sm font-bold text-indigo-700 border border-indigo-100 hover:bg-indigo-100 transition-all text-sm whitespace-nowrap flex items-center justify-center gap-2"
-                >
-                  <span className="text-lg">🎮</span> {t.mini_games}
-                </Link>
-
-                {/* Signout (Now sitting next to Games) */}
-                <button
-                  onClick={handleLogout}
-                  className="flex-1 md:flex-none md:px-5 bg-rose-50 py-3 rounded-2xl shadow-sm font-bold text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all text-sm whitespace-nowrap flex items-center justify-center"
-                >
-                  {t.signout}
-                </button>
-              </div>
             </div>
           </div>
 

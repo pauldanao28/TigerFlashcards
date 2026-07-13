@@ -46,6 +46,7 @@ function getSegmenter(): Intl.Segmenter | null {
 interface SentenceQuizProps {
   userId: string;
   isAdmin?: boolean;
+  focusWeak?: boolean;
   onClose: () => void;
 }
 
@@ -162,7 +163,7 @@ function HighlightedSentence({ sentence, word, reading, showReading, onWordTap }
   return <TappableText text={sentence} keyPrefix="full" onWordTap={onWordTap} />;
 }
 
-export default function SentenceQuiz({ userId, isAdmin = false, onClose }: SentenceQuizProps) {
+export default function SentenceQuiz({ userId, isAdmin = false, focusWeak = true, onClose }: SentenceQuizProps) {
   const [phase, setPhase] = useState<"intro" | "loading" | "quiz" | "done">("intro");
   const [starting, setStarting] = useState(false);
   const [quizCards, setQuizCards] = useState<QuizCard[]>([]);
@@ -264,7 +265,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
 
       if (dbErr || !data) throw new Error("Could not load your cards");
 
-      const scored = data
+      const allCards = data
         .map((row: any) => {
           const card = row.master_cards;
           if (!card) return null;
@@ -273,13 +274,15 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
           const enPct = s.en_to_jp?.percent ?? 0;
           return { ...card, scores: s, combined: (jpPct + enPct) / 2 };
         })
-        .filter(Boolean)
-        .sort((a: any, b: any) => a.combined - b.combined)
-        .slice(0, 100);
+        .filter(Boolean);
 
-      if (scored.length === 0) throw new Error("Add some cards to your deck first");
+      if (allCards.length === 0) throw new Error("Add some cards to your deck first");
 
-      const pick = [...scored].sort(() => Math.random() - 0.5).slice(0, Math.min(20, scored.length));
+      const pool = focusWeak
+        ? [...allCards].sort((a: any, b: any) => a.combined - b.combined).slice(0, 100)
+        : allCards;
+
+      const pick = [...pool].sort(() => Math.random() - 0.5).slice(0, Math.min(20, pool.length));
 
       const res = await fetch("/api/quiz/sentences", {
         method: "POST",
@@ -315,7 +318,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
     } finally {
       loadingRef.current = false;
     }
-  }, [userId]);
+  }, [userId, focusWeak]);
 
   // ── Tap a kanji word → tooltip with Jisho lookup, same as the Sensei chat ────
   const handleWordClick = useCallback((word: string, reading: string, e: React.MouseEvent | React.TouchEvent) => {

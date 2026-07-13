@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import LoadingScreen from "@/components/LoadingScreen";
 import SentenceQuiz from "@/components/SentenceQuiz";
 import ListeningQuiz from "@/components/ListeningQuiz";
+import GrammarQuiz from "@/components/GrammarQuiz";
 
 export default function QuizzesPage() {
   const router = useRouter();
@@ -13,6 +13,8 @@ export default function QuizzesPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showSentence, setShowSentence] = useState(false);
   const [showListening, setShowListening] = useState(false);
+  const [showGrammar, setShowGrammar] = useState(false);
+  const [focusWeak, setFocusWeak] = useState(true);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -34,8 +36,23 @@ export default function QuizzesPage() {
         <h1 className="text-2xl font-black text-slate-900 italic mt-0.5">Quizzes</h1>
       </div>
 
+      {/* Focus toggle */}
+      <div className="px-5 pt-4 pb-1 flex items-center justify-between">
+        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Card selection</p>
+        <button
+          onClick={() => setFocusWeak(v => !v)}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${
+            focusWeak
+              ? "bg-amber-50 border-amber-200 text-amber-700"
+              : "bg-slate-100 border-slate-200 text-slate-500"
+          }`}
+        >
+          {focusWeak ? "🎯 Weak cards" : "🎲 Random"}
+        </button>
+      </div>
+
       {/* Quiz cards */}
-      <div className="px-4 pt-4 flex flex-col gap-3">
+      <div className="px-4 pt-2 flex flex-col gap-3">
         {/* Reading / Sentence Quiz */}
         <button
           onClick={() => setShowSentence(true)}
@@ -66,28 +83,31 @@ export default function QuizzesPage() {
           </div>
         </button>
 
-        {/* Grammar Quiz → Sensei */}
-        <Link
-          href="/sensei"
-          className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm active:scale-95 transition-all block"
+        {/* Grammar Quiz */}
+        <button
+          onClick={() => setShowGrammar(true)}
+          className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm active:scale-95 transition-all text-left w-full"
         >
           <div className="flex items-center gap-4">
             <span className="text-3xl">📝</span>
             <div className="flex-1">
               <p className="font-black text-slate-900">Grammar Quiz</p>
-              <p className="text-xs text-slate-400 mt-0.5">AI grammar practice with your Sensei</p>
+              <p className="text-xs text-slate-400 mt-0.5">AI grammar practice based on your level</p>
             </div>
             <span className="text-slate-300 text-lg">›</span>
           </div>
-        </Link>
+        </button>
       </div>
 
       {/* Overlays */}
       {showSentence && (
-        <SentenceQuiz userId={userId} isAdmin={isAdmin} onClose={() => setShowSentence(false)} />
+        <SentenceQuiz userId={userId} isAdmin={isAdmin} focusWeak={focusWeak} onClose={() => setShowSentence(false)} />
       )}
       {showListening && (
         <ListeningQuiz userId={userId} isAdmin={isAdmin} onClose={() => setShowListening(false)} />
+      )}
+      {showGrammar && (
+        <GrammarQuiz userId={userId} onClose={() => setShowGrammar(false)} />
       )}
     </div>
   );

@@ -64,6 +64,15 @@ export function bootstrapReadingScore(
   return Math.round(avg);
 }
 
+// Overall JLPT level estimate from a 0-100 skill score.
+export function jlptLevel(score: number): string {
+  if (score >= 80) return "N1";
+  if (score >= 60) return "N2";
+  if (score >= 40) return "N3";
+  if (score >= 20) return "N4";
+  return "N5";
+}
+
 // Difficulty label for quiz API prompts.
 export function difficultyLabel(score: number): string {
   if (score >= 80) return "N1 / advanced — complex grammar, keigo, classical patterns, long compound sentences";

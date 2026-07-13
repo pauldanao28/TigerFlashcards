@@ -25,10 +25,9 @@ const PERSONAS: Record<PersonaKey, { label: string; kanji: string; emoji: string
   idol:    { label: "アイドル", kanji: "☆", emoji: "⭐", color: "text-pink-600", bg: "bg-pink-50", ring: "ring-pink-400", desc: "Idol coach" },
 };
 
-const CONFIRM_COPY: Record<"back" | "sync" | "quiz", { title: string; body: string; action: string }> = {
+const CONFIRM_COPY: Record<"back" | "sync", { title: string; body: string; action: string }> = {
   back: { title: "Leave the chat?", body: "You'll return to the home screen. Your conversation is saved.", action: "Leave" },
   sync: { title: "Sync your profile?", body: "Sensei will re-read this conversation to update what it knows about you.", action: "Sync" },
-  quiz: { title: "Start the grammar quiz?", body: "A short quiz based on your recent mistakes and profile.", action: "Start" },
 };
 
 const PERSONA_ORDER: PersonaKey[] = ["senpai", "sensei", "samurai", "idol"];
@@ -160,24 +159,10 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [weakCards, setWeakCards] = useState<string[]>([]);
   const [weakCardDetails, setWeakCardDetails] = useState<{ japanese: string; reading: string; english: string }[]>([]);
   const [activeScenario, setActiveScenario] = useState("free");
-  const [confirmAction, setConfirmAction] = useState<"back" | "sync" | "quiz" | null>(null);
+  const [confirmAction, setConfirmAction] = useState<"back" | "sync" | null>(null);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [showVoicePicker, setShowVoicePicker] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<VoiceId>(() => getVoice());
-  const [showQuiz, setShowQuiz] = useState(false);
-  const [quizLoading, setQuizLoading] = useState(false);
-  type QuizQuestion =
-    | { type: "grammar";  sentence: string; blank_hint: string; choices: string[]; answer: string; explanation: string }
-    | { type: "reading";  japanese: string; choices: string[]; answer: string; explanation: string }
-    | { type: "writing";  english: string; answer: string; hint?: string; explanation: string };
-  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
-  const [quizIndex, setQuizIndex] = useState(0);
-  const [quizSelected, setQuizSelected] = useState<string | null>(null);
-  const [quizWritingInput, setQuizWritingInput] = useState("");
-  const [quizWritingSubmitted, setQuizWritingSubmitted] = useState(false);
-  const [quizScore, setQuizScore] = useState(0);
-  const [quizDone, setQuizDone] = useState(false);
-  const [quizWrong, setQuizWrong] = useState<{ mistake: string; correct: string; reason: string }[]>([]);
   const [profileSyncing, setProfileSyncing] = useState(false);
   const [profileSynced, setProfileSynced] = useState<"ok" | "err" | false>(false);
   const greetingFiredRef = useRef(false);
@@ -662,34 +647,6 @@ export default function AdminChat({ userId }: { userId: string }) {
 
   // ── Clear chat for current persona ─────────────────────────────────────────
 
-  const openQuiz = async () => {
-    setShowQuiz(true);
-    setQuizLoading(true);
-    setQuizQuestions([]);
-    setQuizIndex(0);
-    setQuizSelected(null);
-    setQuizScore(0);
-    setQuizDone(false);
-    setQuizWrong([]);
-    setQuizWritingInput("");
-    setQuizWritingSubmitted(false);
-    try {
-      const { data: mistakes } = await supabase
-        .from("grammar_corrections")
-        .select("mistake, correct, reason")
-        .eq("user_id", userId)
-        .limit(20);
-      const res = await fetch("/api/quiz", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile, recentMistakes: mistakes ?? [] }),
-      });
-      const data = await res.json();
-      if (Array.isArray(data.questions)) setQuizQuestions(data.questions);
-    } catch {}
-    setQuizLoading(false);
-  };
-
   const clearChat = () => {
     if (confirm(`${persona.label}との会話履歴を全て削除しますか？`)) {
       setMessages([]);
@@ -905,11 +862,6 @@ export default function AdminChat({ userId }: { userId: string }) {
               {wordList.length > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 bg-indigo-600 text-white text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">{wordList.length}</span>
               )}
-            </button>
-            {/* Grammar quiz */}
-            <button onClick={() => setConfirmAction("quiz")} title="Grammar quiz"
-              className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-xl transition-colors text-slate-300 hover:text-emerald-500 hover:bg-emerald-50">
-              <span className="text-[13px]">📝</span>
             </button>
             <button onClick={() => setShowVoicePicker(true)} title="Change voice"
               className="flex items-center gap-1 text-xs font-bold px-2 py-1.5 rounded-xl transition-colors text-slate-300 hover:text-violet-500 hover:bg-violet-50">
@@ -1140,7 +1092,6 @@ export default function AdminChat({ userId }: { userId: string }) {
                   setConfirmAction(null);
                   if (action === "back") router.push("/");
                   else if (action === "sync") syncProfile();
-                  else if (action === "quiz") openQuiz();
                 }}
                 className="flex-1 py-3.5 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all shadow-sm">
                 {CONFIRM_COPY[confirmAction].action}
@@ -1214,253 +1165,6 @@ export default function AdminChat({ userId }: { userId: string }) {
               <button onClick={() => setShowSummary(false)} className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-[0.98] shadow-lg">Got it</button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* ── Grammar Quiz (full-screen) ── */}
-      {showQuiz && (
-        <div className="fixed inset-0 z-[300] bg-slate-50 flex flex-col">
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white shrink-0">
-            <div className="flex items-center gap-2.5">
-              <span className="text-base">📝</span>
-              <span className="font-black text-[11px] uppercase tracking-widest text-slate-700">Grammar Quiz</span>
-              {!quizLoading && quizQuestions.length > 0 && !quizDone && (
-                <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 ml-1">
-                  {quizIndex + 1} / {quizQuestions.length}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-1">
-              <button onClick={() => setShowList(true)} className="relative p-2 rounded-full hover:bg-slate-100 transition-colors active:scale-90">
-                <List size={16} className="text-slate-500" />
-                {wordList.length > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 bg-indigo-600 text-white text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">{wordList.length}</span>
-                )}
-              </button>
-              <button onClick={() => setShowQuiz(false)} className="p-2 rounded-full hover:bg-slate-100 transition-colors active:scale-90">
-                <X size={16} className="text-slate-500" />
-              </button>
-            </div>
-          </div>
-
-          {/* Loading */}
-          {quizLoading && (
-            <div className="flex-1 flex flex-col items-center justify-center gap-4">
-              <div className="w-9 h-9 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-              <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">Generating quiz…</p>
-            </div>
-          )}
-
-          {/* Error */}
-          {!quizLoading && quizQuestions.length === 0 && (
-            <div className="flex-1 flex flex-col items-center justify-center gap-5 px-8 text-center">
-              <span className="text-5xl">😓</span>
-              <p className="text-slate-600 font-bold text-sm">Failed to generate quiz.</p>
-              <div className="flex gap-3">
-                <button onClick={() => setShowQuiz(false)} className="px-6 py-3 bg-slate-100 text-slate-600 rounded-2xl font-black text-[11px] uppercase tracking-widest active:scale-95 transition-all">
-                  Close
-                </button>
-                <button onClick={openQuiz} className="px-6 py-3 bg-emerald-500 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest active:scale-95 transition-all">
-                  Try Again
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Done */}
-          {!quizLoading && quizDone && (() => {
-            const pct = quizScore / quizQuestions.length;
-            return (
-              <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 max-w-lg mx-auto w-full">
-                <div className="text-center mb-8">
-                  <div className="text-6xl mb-4">{pct >= 0.8 ? "🏆" : pct >= 0.5 ? "💪" : "📚"}</div>
-                  <h2 className="text-4xl font-black text-slate-900 mb-1">
-                    {quizScore}<span className="text-slate-300 font-bold text-2xl"> / {quizQuestions.length}</span>
-                  </h2>
-                  <p className="text-slate-400 font-black uppercase tracking-widest text-[10px] mt-1">
-                    {Math.round(pct * 100)}% correct · {pct >= 0.8 ? "Excellent!" : pct >= 0.5 ? "Good work!" : "Keep practicing!"}
-                  </p>
-                </div>
-                <div className="flex gap-3 w-full">
-                  <button onClick={() => setShowQuiz(false)}
-                    className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all">
-                    Done
-                  </button>
-                  <button onClick={openQuiz}
-                    className="flex-1 py-4 bg-emerald-500 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all shadow-sm">
-                    Try Again
-                  </button>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Questions */}
-          {!quizLoading && !quizDone && quizQuestions.length > 0 && (() => {
-            const q = quizQuestions[quizIndex];
-            const isLast = quizIndex + 1 >= quizQuestions.length;
-            const advance = (wrong?: { mistake: string; correct: string; reason: string }) => {
-              const nextWrong = wrong ? [...quizWrong, wrong] : quizWrong;
-              if (wrong) setQuizWrong(nextWrong);
-              if (isLast) {
-                setQuizDone(true);
-                if (nextWrong.length > 0) {
-                  supabase.from("grammar_corrections").insert(
-                    nextWrong.map(w => ({ user_id: userId, persona: activePersona, mistake: w.mistake, correct: w.correct, reason: w.reason }))
-                  );
-                }
-              } else {
-                setQuizIndex(i => i + 1);
-                setQuizSelected(null);
-                setQuizWritingInput("");
-                setQuizWritingSubmitted(false);
-              }
-            };
-            const advanceBtn = (wrong?: { mistake: string; correct: string; reason: string }) => (
-              <button onClick={() => advance(wrong)} className="w-full py-4 bg-slate-800 text-white font-black text-[11px] uppercase tracking-widest rounded-2xl active:scale-95 transition-all">
-                {isLast ? "See Results" : "Next →"}
-              </button>
-            );
-
-            return (
-              <div className="flex-1 flex flex-col px-5 py-5 max-w-lg mx-auto w-full min-h-0 overflow-y-auto">
-                {/* Progress bar */}
-                <div className="mb-5 shrink-0">
-                  <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-emerald-500 rounded-full transition-all duration-300"
-                      style={{ width: `${(quizIndex / quizQuestions.length) * 100}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* ── Grammar: fill-in-the-blank ── */}
-                {q.type === "grammar" && (() => {
-                  const answered = quizSelected !== null;
-                  const isCorrect = quizSelected === q.answer;
-                  return (
-                    <div className="flex flex-col gap-4">
-                      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-indigo-400 mb-3">Fill in the blank</p>
-                        {q.blank_hint && <p className="text-[11px] text-slate-400 font-bold mb-2">{renderContent(q.blank_hint, "model")}</p>}
-                        <p className="text-xl leading-relaxed text-slate-800 font-medium">{renderContent(q.sentence, "model")}</p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {q.choices.map((choice) => {
-                          let style = "bg-white border-slate-200 text-slate-700 hover:bg-slate-50";
-                          if (answered) {
-                            if (choice === q.answer) style = "bg-emerald-50 border-emerald-400 text-emerald-700";
-                            else if (choice === quizSelected) style = "bg-red-50 border-red-400 text-red-700";
-                            else style = "bg-white border-slate-200 text-slate-400";
-                          }
-                          return (
-                            <button key={choice}
-                              onClick={(e) => { if ((e.target as HTMLElement).closest("[data-word]")) return; if (!answered) { setQuizSelected(choice); if (choice === q.answer) setQuizScore(s => s + 1); } }}
-                              className={`px-4 py-4 rounded-2xl border-2 text-sm font-black transition-all ${style}`}>
-                              {renderContent(choice, "model")}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {answered && (
-                        <div className={`rounded-2xl p-4 text-sm ${isCorrect ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>
-                          <p className="font-black mb-1">{isCorrect ? "✓ Correct!" : <span>✗ Answer: {renderContent(q.answer, "model")}</span>}</p>
-                          <p className="text-xs leading-relaxed">{renderContent(q.explanation, "model")}</p>
-                        </div>
-                      )}
-                      {answered && advanceBtn(isCorrect ? undefined : { mistake: quizSelected!, correct: q.answer, reason: q.sentence })}
-                    </div>
-                  );
-                })()}
-
-                {/* ── Reading: JP → EN translation ── */}
-                {q.type === "reading" && (() => {
-                  const answered = quizSelected !== null;
-                  const isCorrect = quizSelected === q.answer;
-                  return (
-                    <div className="flex flex-col gap-4">
-                      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-violet-400 mb-3">Translate to English</p>
-                        <p className="text-xl leading-relaxed text-slate-800 font-medium">{renderContent(q.japanese, "model")}</p>
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        {q.choices.map((choice) => {
-                          let style = "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 text-left";
-                          if (answered) {
-                            if (choice === q.answer) style = "bg-emerald-50 border-emerald-400 text-emerald-700 text-left";
-                            else if (choice === quizSelected) style = "bg-red-50 border-red-400 text-red-700 text-left";
-                            else style = "bg-white border-slate-200 text-slate-400 text-left";
-                          }
-                          return (
-                            <button key={choice} disabled={answered}
-                              onClick={() => { setQuizSelected(choice); if (choice === q.answer) setQuizScore(s => s + 1); }}
-                              className={`px-4 py-4 rounded-2xl border-2 text-sm font-bold transition-all ${style}`}>
-                              {choice}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {answered && (
-                        <div className={`rounded-2xl p-4 text-sm ${isCorrect ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>
-                          <p className="font-black mb-1">{isCorrect ? "✓ Correct!" : `✗ Answer: ${q.answer}`}</p>
-                          <p className="text-xs leading-relaxed">{renderContent(q.explanation, "model")}</p>
-                        </div>
-                      )}
-                      {answered && advanceBtn(isCorrect ? undefined : { mistake: quizSelected!, correct: q.answer, reason: q.japanese })}
-                    </div>
-                  );
-                })()}
-
-                {/* ── Writing: EN → JP free text + self-grade ── */}
-                {q.type === "writing" && (
-                  <div className="flex flex-col gap-4">
-                    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-amber-500 mb-3">Write in Japanese</p>
-                      <p className="text-xl leading-relaxed text-slate-800 font-medium">{q.english}</p>
-                      {q.hint && <p className="text-[11px] text-amber-600 font-bold mt-3">💡 {renderContent(q.hint, "model")}</p>}
-                    </div>
-                    {!quizWritingSubmitted ? (
-                      <>
-                        <textarea
-                          value={quizWritingInput}
-                          onChange={e => setQuizWritingInput(e.target.value)}
-                          placeholder="日本語で書いてください..."
-                          rows={3}
-                          className="w-full rounded-2xl border-2 border-slate-200 px-4 py-3 text-base font-bold text-slate-800 outline-none focus:border-amber-400 resize-none bg-white"
-                        />
-                        <button
-                          disabled={!quizWritingInput.trim()}
-                          onClick={() => setQuizWritingSubmitted(true)}
-                          className="w-full py-4 bg-amber-500 text-white font-black text-[11px] uppercase tracking-widest rounded-2xl active:scale-95 transition-all disabled:opacity-40">
-                          Check Answer
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5">
-                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3">Model answer</p>
-                          <p className="text-base font-bold text-slate-800">{renderContent(q.answer, "model")}</p>
-                          <p className="text-xs text-slate-500 mt-2 leading-relaxed">{renderContent(q.explanation, "model")}</p>
-                        </div>
-                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest text-center">Did you get it right?</p>
-                        <div className="flex gap-3">
-                          <button onClick={() => { setQuizScore(s => s + 1); advance(); }}
-                            className="flex-1 py-4 bg-emerald-50 text-emerald-600 rounded-2xl font-black border-b-4 border-emerald-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] tracking-widest">
-                            ✓ Got it
-                          </button>
-                          <button onClick={() => advance({ mistake: quizWritingInput, correct: q.answer, reason: q.english })}
-                            className="flex-1 py-4 bg-rose-50 text-rose-600 rounded-2xl font-black border-b-4 border-rose-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] tracking-widest">
-                            ✗ Missed
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
         </div>
       )}
 
