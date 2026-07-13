@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import LoadingScreen from "@/components/LoadingScreen";
@@ -7,7 +7,7 @@ import SentenceQuiz from "@/components/SentenceQuiz";
 import ListeningQuiz from "@/components/ListeningQuiz";
 import GrammarQuiz from "@/components/GrammarQuiz";
 
-export default function QuizzesPage() {
+function QuizzesInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [userId, setUserId] = useState<string | null>(null);
@@ -115,5 +115,13 @@ export default function QuizzesPage() {
         <GrammarQuiz userId={userId} onClose={() => setShowGrammar(false)} />
       )}
     </div>
+  );
+}
+
+export default function QuizzesPage() {
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <QuizzesInner />
+    </Suspense>
   );
 }
