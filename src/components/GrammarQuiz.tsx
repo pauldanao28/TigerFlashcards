@@ -279,7 +279,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
       const res = await fetch("/api/quiz", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile: spRes.data ?? null, recentMistakes: mistakesRes.data ?? [] }),
+        body: JSON.stringify({ profile: spRes.data ?? null, grammarScore: grammarScoreRef.current, recentMistakes: mistakesRes.data ?? [] }),
       });
       const data = await res.json();
       if (Array.isArray(data.questions) && data.questions.length > 0) {

@@ -1,13 +1,16 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+import { difficultyLabel, jlptLevel } from "@/lib/scoring";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
 export async function POST(req: Request) {
   try {
-    const { profile, recentMistakes = [] } = await req.json();
+    const { profile, grammarScore, recentMistakes = [] } = await req.json();
 
-    const level = profile?.level ?? "beginner";
+    const level = grammarScore != null
+      ? `${jlptLevel(grammarScore)} (${difficultyLabel(grammarScore)})`
+      : (profile?.level ?? "beginner");
     const weakPoints = profile?.grammar_weak_points ?? [];
     const commonErrors = profile?.common_errors ?? [];
 
