@@ -79,15 +79,15 @@ export default function Dashboard() {
           .eq("id", user.id)
           .single(),
         supabase.from("decks").select("id").eq("user_id", user.id).eq("is_default", true).single(),
-        supabase.from("user_scores").select("card_id, scores_json").eq("user_id", user.id),
+        supabase.from("user_scores").select("card_id, scores_json").eq("user_id", user.id).limit(50000),
       ]);
 
       const p = profileRes.data;
       const deckId = deckRes.data?.id;
 
-      // Round 2: deck card IDs (needs deckId)
+      // Round 2: deck card IDs (needs deckId) — high limit avoids default 1000-row cap
       const deckCardsRes = deckId
-        ? await supabase.from("deck_cards").select("card_id").eq("deck_id", deckId)
+        ? await supabase.from("deck_cards").select("card_id").eq("deck_id", deckId).limit(50000)
         : { data: [] as { card_id: string }[] };
 
       // Build score map and compute per-card accuracies (0 for unlearned)
