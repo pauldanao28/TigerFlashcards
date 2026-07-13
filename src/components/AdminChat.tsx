@@ -991,7 +991,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       {tooltip && (
         <>
           <div className="fixed inset-0 z-[350] bg-black/20" onClick={() => setTooltip(null)} />
-          <div className="fixed bottom-0 left-0 right-0 z-[360] bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
+          <div className="fixed bottom-14 md:bottom-0 left-0 right-0 z-[360] bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
             style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3 mb-3">
@@ -1083,7 +1083,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       {confirmAction && (
         <>
           <div className="fixed inset-0 z-[240] bg-black/20" onClick={() => setConfirmAction(null)} />
-          <div className="fixed bottom-0 left-0 right-0 z-[241] bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
+          <div className="fixed bottom-14 md:bottom-0 left-0 right-0 z-[241] bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
             style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
             onClick={(e) => e.stopPropagation()}>
             <p className="text-base font-black text-slate-800 mb-1">{CONFIRM_COPY[confirmAction].title}</p>
@@ -1111,8 +1111,8 @@ export default function AdminChat({ userId }: { userId: string }) {
       {/* ── Error modal ── */}
       {errorMsg && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setErrorMsg(null)} />
-          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
+          <div className="fixed inset-0 z-[240] bg-black/20" onClick={() => setErrorMsg(null)} />
+          <div className="fixed bottom-14 md:bottom-0 left-0 right-0 z-[241] bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
             style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3 mb-3">
@@ -1131,7 +1131,7 @@ export default function AdminChat({ userId }: { userId: string }) {
 
       {/* ── Summary modal ── */}
       {showSummary && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 flex flex-col max-h-[80vh] overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <div>
@@ -1177,7 +1177,7 @@ export default function AdminChat({ userId }: { userId: string }) {
 
       {/* ── Voice picker modal ── */}
       {showVoicePicker && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center px-4 pt-4 pb-28 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[220] flex items-end sm:items-center justify-center px-4 pt-4 pb-28 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
               <div>
@@ -1213,7 +1213,7 @@ export default function AdminChat({ userId }: { userId: string }) {
 
       {/* ── Word list modal ── */}
       {showList && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center px-4 pt-4 pb-28 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[220] flex items-end sm:items-center justify-center px-4 pt-4 pb-28 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
               <div>

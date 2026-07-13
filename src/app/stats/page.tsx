@@ -1743,7 +1743,7 @@ export default function StatsPage() {
           {viewMode !== "none" && (
             /* 1. Backdrop Overlay */
             <div
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+              className="fixed inset-0 z-[220] flex items-center justify-center p-4 sm:p-6"
               onClick={() => setViewMode("none")} // Click backdrop to close
             >
               {/* 2. Blurred background */}
@@ -1846,7 +1846,7 @@ export default function StatsPage() {
 
           {/* --- Daily Activity Overlay --- */}
           {showHistory && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+            <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 sm:p-6">
               {/* Backdrop */}
               <div
                 className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-300"
@@ -2101,7 +2101,7 @@ export default function StatsPage() {
 
           {/* --- Starter Pack Preview Overlay --- */}
           {previewPack && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+            <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 sm:p-6">
               {/* Backdrop */}
               <div
                 className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-300"
@@ -2458,7 +2458,7 @@ export default function StatsPage() {
 
         {/* ── To Add Modal ── */}
         {showWordList && (
-          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center px-4 pt-4 pb-28 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[220] flex items-end sm:items-center justify-center px-4 pt-4 pb-28 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
             <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
               <div className="p-5 border-b border-slate-100 flex justify-between items-center">
                 <div>
@@ -2494,7 +2494,7 @@ export default function StatsPage() {
         )}
 
         {showSummaryOverlay && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 flex flex-col max-h-[80vh] overflow-hidden">
               {/* Header */}
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
@@ -2597,7 +2597,7 @@ export default function StatsPage() {
         )}
 
         {loading && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex flex-col items-center justify-center text-white">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[220] flex flex-col items-center justify-center text-white">
             <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
             <p className="text-lg font-bold animate-pulse">{t.ai_building}</p>
           </div>
