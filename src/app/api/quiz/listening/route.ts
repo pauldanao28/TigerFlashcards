@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
-import { difficultyLabel } from "@/lib/scoring";
+import { difficultyLabel, jlptLevel } from "@/lib/scoring";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
@@ -8,7 +8,9 @@ export async function POST(req: Request) {
   try {
     const { count = 20, difficulty = 30, recentMistakes = [] } = await req.json().catch(() => ({}));
     const n = Math.min(30, Math.max(1, Number(count) || 20));
-    const grammarTarget = difficultyLabel(Number(difficulty) || 30);
+    const diffNum = Number(difficulty) || 30;
+    const nLevel = jlptLevel(diffNum);
+    const grammarTarget = difficultyLabel(diffNum);
 
     // Adjust simple/complex sentence ratio based on difficulty
     const simpleRatio = difficulty >= 80 ? 20 : difficulty >= 60 ? 40 : difficulty >= 40 ? 60 : difficulty >= 20 ? 75 : 90;
@@ -21,11 +23,13 @@ export async function POST(req: Request) {
 
     const prompt = `You are a Japanese sentence generator for learners who want to recognize common verb and noun+verb "chunks" fast by ear, for listening practice.
 
+IMPORTANT: This quiz is strictly for ${nLevel} level learners. All sentences must use ONLY ${nLevel}-appropriate grammar, vocabulary, and sentence structures (${grammarTarget}). Do not use easier or harder content.
+
 Generate ${n} natural Japanese sentences, each built around ONE commonly used verb or a common noun+verb collocation (e.g. 電話をかける, 気をつける, 時間がかかる, 頑張る, 我慢する, 約束を守る).
 
 Rules:
 - Pick genuinely high-frequency, everyday chunks — the kind that show up constantly in spoken Japanese. Don't repeat the same chunk twice in this batch.
-- Grammar difficulty target: ${grammarTarget}
+- All chunks and sentences must be at ${nLevel} level — not simpler, not harder.
 - Sentence mix: about ${simpleRatio}% should be short and simple (one clause), about ${complexRatio}% should be longer or more complex (two clauses, embedded structures).
 - Freely use any natural verb form — dictionary form, て-form, た-form, ている, たい, polite/casual — whatever fits the sentence best.
 - Wrap ONLY the target chunk as it appears in the sentence with【】.
