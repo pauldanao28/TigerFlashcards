@@ -261,7 +261,8 @@ export default function SentenceQuiz({ userId, isAdmin = false, focusWeak = true
       const { data, error: dbErr } = await supabase
         .from("user_scores")
         .select("scores_json, master_cards!card_id(id, japanese, reading, english)")
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .limit(50000);
 
       if (dbErr || !data) throw new Error("Could not load your cards");
 
