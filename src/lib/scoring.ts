@@ -109,6 +109,18 @@ export function jlptLevel(score: number): string {
   return "N5";
 }
 
+// Max score achievable while answering questions at a given tier.
+// Prevents grinding a lower tier to skip into a higher one — you can
+// reach the entry of the next tier but not progress through it without
+// actually facing that tier's questions.
+export function tierScoreCap(currentScore: number): number {
+  if (currentScore < 20) return 20;
+  if (currentScore < 40) return 40;
+  if (currentScore < 60) return 60;
+  if (currentScore < 80) return 80;
+  return 100;
+}
+
 // Difficulty label for quiz API prompts.
 export function difficultyLabel(score: number): string {
   if (score >= 80) return "N1 / advanced — complex grammar, keigo, classical patterns, long compound sentences";

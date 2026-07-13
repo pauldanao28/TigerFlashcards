@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, List, Volume2, ChevronLeft, Ear } from "lucide-react";
 import { speak, playTTS, stopTTS } from "@/lib/tts";
-import { sessionScore, rollingAvg } from "@/lib/scoring";
+import { sessionScore, rollingAvg, tierScoreCap } from "@/lib/scoring";
 
 interface ListeningQuestion {
   word: string;
@@ -415,7 +415,8 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
       const gotCount = newResults.filter(r => r.gotIt).length;
       const targetDiff = Math.min(100, listeningScoreRef.current + 20);
       const sess = sessionScore(gotCount, newResults.length, targetDiff);
-      const newListeningScore = listeningScoreRef.current === 0 ? Math.round(sess) : rollingAvg(listeningScoreRef.current, sess);
+      const cap = tierScoreCap(listeningScoreRef.current);
+      const newListeningScore = Math.min(cap, listeningScoreRef.current === 0 ? Math.round(sess) : rollingAvg(listeningScoreRef.current, sess));
       listeningScoreRef.current = newListeningScore;
       supabase.from("profiles").update({ listening_score: newListeningScore }).eq("id", userId)
         .then(({ error }) => { if (error) console.error("[listening_score save]", error.code, error.message); });

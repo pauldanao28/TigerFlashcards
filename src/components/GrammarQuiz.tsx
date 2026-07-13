@@ -3,7 +3,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { X, ChevronLeft, Loader2, List, Volume2 } from "lucide-react";
 import { speak } from "@/lib/tts";
-import { sessionScore, rollingAvg } from "@/lib/scoring";
+import { sessionScore, rollingAvg, tierScoreCap } from "@/lib/scoring";
 
 interface GrammarQuizProps {
   userId: string;
@@ -311,7 +311,8 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
     }
     const targetDiff = Math.min(100, grammarScoreRef.current + 20);
     const sess = sessionScore(finalScore, totalQ, targetDiff);
-    const newGrammarScore = grammarScoreRef.current === 0 ? Math.round(sess) : rollingAvg(grammarScoreRef.current, sess);
+    const cap = tierScoreCap(grammarScoreRef.current);
+    const newGrammarScore = Math.min(cap, grammarScoreRef.current === 0 ? Math.round(sess) : rollingAvg(grammarScoreRef.current, sess));
     grammarScoreRef.current = newGrammarScore;
     supabase.from("profiles").update({ grammar_score: newGrammarScore }).eq("id", userId)
       .then(({ error }) => { if (error) console.error("[grammar_score save]", error.code, error.message); });
