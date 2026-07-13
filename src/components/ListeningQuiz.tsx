@@ -208,16 +208,13 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
     supabase.from("profiles").select("pending_words").eq("id", userId).maybeSingle()
       .then(({ data, error: dbErr }) => {
         if (dbErr) { console.error("[DB word-list load]", dbErr.code, dbErr.message); return; }
-        const dbWords: string[] | null = data?.pending_words ?? null;
-        if (dbWords && dbWords.length > 0) {
-          setWordList(dbWords);
-          localStorage.setItem(WORD_LIST_KEY, JSON.stringify(dbWords));
-        } else {
-          try {
-            const saved = localStorage.getItem(WORD_LIST_KEY);
-            setWordList(saved ? JSON.parse(saved) : []);
-          } catch { setWordList([]); }
-        }
+        // The DB is always the source of truth — an empty list here means the user
+        // cleared it (or never had one), not that a save failed. localStorage is only
+        // ever written FROM the DB (a display cache), never read back INTO it — reading
+        // it back used to resurrect stale/cleared words from a previous session.
+        const dbWords: string[] = data?.pending_words ?? [];
+        setWordList(dbWords);
+        localStorage.setItem(WORD_LIST_KEY, JSON.stringify(dbWords));
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);

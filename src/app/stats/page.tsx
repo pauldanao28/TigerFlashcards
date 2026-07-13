@@ -181,20 +181,13 @@ export default function StatsPage() {
             fetchStarterPacks(),
             supabase.from("profiles").select("pending_words").eq("id", user.id).single(),
           ]);
-          const dbWords: string[] | null = pendingData.data?.pending_words ?? null;
-          if (dbWords && dbWords.length > 0) {
-            setPendingWords(dbWords);
-            localStorage.setItem(`flashkado-word-list-${user.id}`, JSON.stringify(dbWords));
-          } else {
-            try {
-              const saved = localStorage.getItem(`flashkado-word-list-${user.id}`);
-              const parsed: string[] = saved ? JSON.parse(saved) : [];
-              if (parsed.length > 0) {
-                setPendingWords(parsed);
-                supabase.from("profiles").update({ pending_words: parsed }).eq("id", user.id);
-              }
-            } catch { /* ignore malformed cache */ }
-          }
+          // The DB is always the source of truth — an empty list here means the user
+          // cleared it (or never had one), not that a save failed. localStorage is only
+          // ever written FROM the DB (a display cache), never read back INTO it — reading
+          // it back used to resurrect stale/cleared words from a previous session.
+          const dbWords: string[] = pendingData.data?.pending_words ?? [];
+          setPendingWords(dbWords);
+          localStorage.setItem(`flashkado-word-list-${user.id}`, JSON.stringify(dbWords));
         } catch (error) {
           console.error("Error loading stats:", error);
         } finally {

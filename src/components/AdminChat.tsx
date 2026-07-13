@@ -351,22 +351,13 @@ export default function AdminChat({ userId }: { userId: string }) {
       .then(({ data, error }) => {
         if (error) console.error("[DB word-list load]", error.code, error.message);
         if (data?.grammar_score != null) grammarScoreRef.current = data.grammar_score;
-        const dbWords: string[] | null = data?.pending_words ?? null;
-        if (dbWords && dbWords.length > 0) {
-          setWordList(dbWords);
-          localStorage.setItem(WORD_LIST_KEY, JSON.stringify(dbWords));
-        } else {
-          // Fall back to localStorage if DB returned nothing
-          try {
-            const saved = localStorage.getItem(WORD_LIST_KEY);
-            const parsed: string[] = saved ? JSON.parse(saved) : [];
-            setWordList(parsed);
-            if (parsed.length > 0) {
-              supabase.from("profiles").update({ pending_words: parsed }).eq("id", userId)
-                .then(({ error: e }) => { if (e) console.error("[DB word-list restore]", e.code, e.message); });
-            }
-          } catch { setWordList([]); }
-        }
+        // The DB is always the source of truth — an empty list here means the user
+        // cleared it (or never had one), not that a save failed. localStorage is only
+        // ever written FROM the DB (a display cache), never read back INTO it — reading
+        // it back used to resurrect stale/cleared words from a previous session.
+        const dbWords: string[] = data?.pending_words ?? [];
+        setWordList(dbWords);
+        localStorage.setItem(WORD_LIST_KEY, JSON.stringify(dbWords));
         wordListLoadedRef.current = true;
       });
   }, [userId]);
