@@ -345,7 +345,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
               <span className="absolute -top-0.5 -right-0.5 bg-indigo-600 text-white text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">{wordList.length}</span>
             )}
           </button>
-          <button onClick={phase === "quiz" ? () => setBackConfirm(true) : onClose} className="p-2 rounded-full hover:bg-slate-100 transition-colors active:scale-90">
+          <button onClick={phase === "loading" || phase === "quiz" ? () => setBackConfirm(true) : onClose} className="p-2 rounded-full hover:bg-slate-100 transition-colors active:scale-90">
             <X size={16} className="text-slate-500" />
           </button>
         </div>
@@ -602,7 +602,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
             style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
             onClick={(e) => e.stopPropagation()}>
             <p className="text-base font-black text-slate-800 mb-1">Leave the quiz?</p>
-            <p className="text-xs text-slate-500 leading-relaxed mb-4">Your progress in this session won&apos;t be saved.</p>
+            <p className="text-xs text-slate-500 leading-relaxed mb-4">This counts as one of today&apos;s quiz slots. You&apos;ll need to generate a new quiz when you return.</p>
             <div className="flex gap-3">
               <button onClick={() => setBackConfirm(false)}
                 className="flex-1 py-3.5 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all">

@@ -494,7 +494,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, focusWeak = true
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white shrink-0">
         <div className="flex items-center gap-3">
-          <button onClick={() => setBackConfirm(true)} className="flex items-center gap-0.5 text-slate-400 hover:text-slate-700 active:scale-90 transition-all">
+          <button onClick={() => phase === "intro" || phase === "done" ? onClose() : setBackConfirm(true)} className="flex items-center gap-0.5 text-slate-400 hover:text-slate-700 active:scale-90 transition-all">
             <ChevronLeft size={14} />
             <span className="text-[9px] font-black uppercase tracking-widest">Back</span>
           </button>
@@ -762,7 +762,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, focusWeak = true
             style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
             onClick={(e) => e.stopPropagation()}>
             <p className="text-base font-black text-slate-800 mb-1">Leave the quiz?</p>
-            <p className="text-xs text-slate-500 leading-relaxed mb-4">Your progress in this session won&apos;t be saved.</p>
+            <p className="text-xs text-slate-500 leading-relaxed mb-4">This counts as one of today&apos;s quiz slots. You&apos;ll need to generate a new quiz when you return.</p>
             <div className="flex gap-3">
               <button onClick={() => setBackConfirm(false)}
                 className="flex-1 py-3.5 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all">
