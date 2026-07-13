@@ -15,7 +15,6 @@ function QuizzesInner() {
   const [showSentence, setShowSentence] = useState(false);
   const [showListening, setShowListening] = useState(false);
   const [showGrammar, setShowGrammar] = useState(false);
-  const [focusWeak, setFocusWeak] = useState(true);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -39,21 +38,6 @@ function QuizzesInner() {
       <div className="bg-white border-b border-slate-100 px-5 pt-14 pb-5">
         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Practice</p>
         <h1 className="text-2xl font-black text-slate-900 italic mt-0.5">Quizzes</h1>
-      </div>
-
-      {/* Focus toggle */}
-      <div className="px-5 pt-4 pb-1 flex items-center justify-between">
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Card selection</p>
-        <button
-          onClick={() => setFocusWeak(v => !v)}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${
-            focusWeak
-              ? "bg-amber-50 border-amber-200 text-amber-700"
-              : "bg-slate-100 border-slate-200 text-slate-500"
-          }`}
-        >
-          {focusWeak ? "🎯 Weak cards" : "🎲 Random"}
-        </button>
       </div>
 
       {/* Quiz cards */}
@@ -106,7 +90,7 @@ function QuizzesInner() {
 
       {/* Overlays */}
       {showSentence && (
-        <SentenceQuiz userId={userId} isAdmin={isAdmin} focusWeak={focusWeak} onClose={() => setShowSentence(false)} />
+        <SentenceQuiz userId={userId} isAdmin={isAdmin} onClose={() => setShowSentence(false)} />
       )}
       {showListening && (
         <ListeningQuiz userId={userId} isAdmin={isAdmin} onClose={() => setShowListening(false)} />

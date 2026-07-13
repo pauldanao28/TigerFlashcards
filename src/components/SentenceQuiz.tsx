@@ -46,7 +46,6 @@ function getSegmenter(): Intl.Segmenter | null {
 interface SentenceQuizProps {
   userId: string;
   isAdmin?: boolean;
-  focusWeak?: boolean;
   onClose: () => void;
 }
 
@@ -163,8 +162,9 @@ function HighlightedSentence({ sentence, word, reading, showReading, onWordTap }
   return <TappableText text={sentence} keyPrefix="full" onWordTap={onWordTap} />;
 }
 
-export default function SentenceQuiz({ userId, isAdmin = false, focusWeak = true, onClose }: SentenceQuizProps) {
+export default function SentenceQuiz({ userId, isAdmin = false, onClose }: SentenceQuizProps) {
   const [phase, setPhase] = useState<"intro" | "loading" | "quiz" | "done">("intro");
+  const [focusWeak, setFocusWeak] = useState(true);
   const [starting, setStarting] = useState(false);
   const [quizCards, setQuizCards] = useState<QuizCard[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -535,6 +535,19 @@ export default function SentenceQuiz({ userId, isAdmin = false, focusWeak = true
             <p className="text-amber-800 font-bold text-xs leading-relaxed">
               ⚠️ Pass/Fail updates that card&apos;s score. Your overall reading score also updates at the end of the session.
             </p>
+          </div>
+          <div className="w-full flex items-center justify-between">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Card selection</p>
+            <button
+              onClick={() => setFocusWeak(v => !v)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${
+                focusWeak
+                  ? "bg-amber-50 border-amber-200 text-amber-700"
+                  : "bg-slate-100 border-slate-200 text-slate-500"
+              }`}
+            >
+              {focusWeak ? "🎯 Weak cards" : "🎲 Random"}
+            </button>
           </div>
           {!isAdmin && (
             <p className="text-slate-300 font-black uppercase tracking-widest text-[10px]">
