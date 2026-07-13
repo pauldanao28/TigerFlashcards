@@ -196,10 +196,10 @@ export default function Dashboard() {
 
       {/* 2×2 skill tiles */}
       <div className="px-4 grid grid-cols-2 gap-3">
-        <ScoreTile href="/study"   emoji="🃏" label="Vocabulary" score={data.vocab_score}     sub={`${data.deck_size.toLocaleString()} cards in deck`} />
-        <ScoreTile href="/sensei"  emoji="📝" label="Grammar"    score={data.grammar_score}   />
-        <ScoreTile href="/quizzes" emoji="📖" label="Reading"    score={data.reading_score}   sub="Sentence quiz" />
-        <ScoreTile href="/quizzes" emoji="🎧" label="Listening"  score={data.listening_score} sub="Listening quiz" />
+        <ScoreTile href="/study"                    emoji="🃏" label="Vocabulary" score={data.vocab_score}     sub={`${data.deck_size.toLocaleString()} cards in deck`} />
+        <ScoreTile href="/quizzes?open=grammar"    emoji="📝" label="Grammar"    score={data.grammar_score}   />
+        <ScoreTile href="/quizzes?open=sentence"   emoji="📖" label="Reading"    score={data.reading_score}   sub="Sentence quiz" />
+        <ScoreTile href="/quizzes?open=listening"  emoji="🎧" label="Listening"  score={data.listening_score} sub="Listening quiz" />
       </div>
     </div>
   );

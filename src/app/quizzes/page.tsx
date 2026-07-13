@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import LoadingScreen from "@/components/LoadingScreen";
 import SentenceQuiz from "@/components/SentenceQuiz";
@@ -9,6 +9,7 @@ import GrammarQuiz from "@/components/GrammarQuiz";
 
 export default function QuizzesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [userId, setUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showSentence, setShowSentence] = useState(false);
@@ -23,8 +24,12 @@ export default function QuizzesPage() {
       setUserId(uid);
       const { data } = await supabase.from("profiles").select("is_admin").eq("id", uid).single();
       setIsAdmin(!!data?.is_admin);
+      const open = searchParams.get("open");
+      if (open === "sentence") setShowSentence(true);
+      else if (open === "listening") setShowListening(true);
+      else if (open === "grammar") setShowGrammar(true);
     });
-  }, [router]);
+  }, [router, searchParams]);
 
   if (!userId) return <LoadingScreen />;
 
