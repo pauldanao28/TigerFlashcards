@@ -18,16 +18,11 @@ export async function POST(req: Request) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        system_instruction: {
-          parts: [{ text: "You are a Japanese TTS voice. Speak naturally in a standard Tokyo accent. Do not add any commentary — only speak the given text." }],
-        },
         contents: [{ role: "user", parts: [{ text }] }],
         generationConfig: {
           responseModalities: ["AUDIO"],
           speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName },
-            },
+            voiceConfig: { prebuiltVoiceConfig: { voiceName } },
           },
         },
       }),
