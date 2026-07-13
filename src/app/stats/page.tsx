@@ -891,7 +891,7 @@ export default function StatsPage() {
   if (initLoading) return <LoadingScreen />;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 pb-20 md:pb-0">
       {/* Single Parent Wrapper */}
       {/* 1. STICKY HEADER: Edge-to-Edge */}
       <header className="sticky top-0 z-50 w-full bg-slate-50/80 backdrop-blur-md border-b border-slate-200 px-4 py-4 md:px-8">
@@ -1412,7 +1412,7 @@ export default function StatsPage() {
               {user && (
                 <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
                   <Link
-                    href="/admin/chat"
+                    href="/sensei"
                     className="w-full md:w-auto bg-violet-600 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-violet-700 transition-all active:scale-95 flex items-center justify-center gap-2"
                   >
                     <span className="text-sm">先生</span> Sensei

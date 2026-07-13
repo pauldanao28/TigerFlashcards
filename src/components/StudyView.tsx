@@ -735,7 +735,7 @@ export default function StudyView() {
             </div>
             <div className="flex items-center gap-2">
               <Link
-                href="/admin/chat"
+                href="/sensei"
                 className="bg-white h-9 px-4 rounded-full shadow-sm border border-violet-200 flex items-center justify-center gap-2 active:scale-95 transition-all w-fit"
               >
                 <span className="text-sm leading-none">先生</span>
@@ -837,7 +837,7 @@ export default function StudyView() {
               </span>
             </Link>
             <Link
-              href="/admin/chat"
+              href="/sensei"
               className="bg-white h-11 px-8 rounded-full shadow-sm border border-violet-200 flex items-center gap-3 hover:border-violet-300 transition-all active:scale-95"
             >
               <span className="text-xl leading-none">先生</span>
@@ -1050,9 +1050,9 @@ export default function StudyView() {
 
         {/* --- 4. BOTTOM BUTTONS (LOWERED) --- */}
         {!dataLoading && cards.length > 0 && currentCard && (
-          <div className="w-full flex justify-center pt-4 pb-12 md:pb-16 lg:pb-24">
-            {/* pb-12: Pushes buttons UP on mobile to clear the home bar/keyboard.
-              md:pb-16: Standard desktop height.
+          <div className="w-full flex justify-center pt-4 pb-28 md:pb-16 lg:pb-24">
+            {/* pb-28: Clears fixed BottomNav (h-14) + home bar on mobile.
+              md:pb-16: Standard desktop height (BottomNav is hidden on md+).
               lg:pb-24: Extra breathing room for larger MacBook screens.
           */}
             <div className="w-full max-w-md flex gap-4 px-6 mb-safe">
