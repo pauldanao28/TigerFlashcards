@@ -8,8 +8,9 @@ export async function POST(req: Request) {
   try {
     const { profile, grammarScore, recentMistakes = [] } = await req.json();
 
-    const level = grammarScore != null
-      ? `${jlptLevel(grammarScore)} (${difficultyLabel(grammarScore)})`
+    const nLevel = grammarScore != null ? jlptLevel(grammarScore) : null;
+    const levelDesc = grammarScore != null
+      ? difficultyLabel(grammarScore)
       : (profile?.level ?? "beginner");
     const weakPoints = profile?.grammar_weak_points ?? [];
     const commonErrors = profile?.common_errors ?? [];
@@ -19,7 +20,8 @@ export async function POST(req: Request) {
       .join("\n");
 
     const prompt = `あなたは日本語クイズ生成AIです。
-レベル：${level}
+${nLevel ? `【重要】このクイズは厳密に${nLevel}レベル専用です。${nLevel}の文法・語彙・文構造のみを使用すること。それより簡単でも難しくもないこと。` : ""}
+レベル詳細：${levelDesc}
 弱点文法：${weakPoints.length > 0 ? weakPoints.join("、") : "基礎文法全般"}
 よくある間違い：${commonErrors.length > 0 ? commonErrors.join("、") : "なし"}
 ${mistakeSummary ? `最近の間違い：\n${mistakeSummary}` : ""}
@@ -41,7 +43,7 @@ ${mistakeSummary ? `最近の間違い：\n${mistakeSummary}` : ""}
 - readingのjapaneseは難しい漢字にふりがなを付ける（例：彼女（かのじょ））。choicesは自然な英訳4つ、answerはその中の1つ。
 - writingのanswerは自然な日本語の模範解答。hintは短い文法ヒント（英語）。
 - explanationはすべて日本語で1〜2文。
-- レベルと弱点に合った難易度にすること。`;
+${nLevel ? `- すべての問題が${nLevel}レベルであること。例文はあくまでフォーマット例であり、難易度の参考にしないこと。` : "- レベルと弱点に合った難易度にすること。"}`;
 
     const tryWithModel = async (modelId: string) => {
       const model = genAI.getGenerativeModel({ model: modelId });
