@@ -622,12 +622,12 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
 
       {/* Done */}
       {phase === "done" && (
-        <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 max-w-lg mx-auto w-full">
+        <div className="flex-1 flex flex-col items-center overflow-y-auto px-6 py-8 max-w-lg mx-auto w-full">
           <motion.div
             initial={{ scale: 0.85, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: "spring", stiffness: 300, damping: 22 }}
-            className="text-center mb-8"
+            className="text-center mb-8 w-full"
           >
             <div className="text-6xl mb-4">
               {gotItCount >= 16 ? "🏆" : gotItCount >= 10 ? "💪" : "📚"}
@@ -641,7 +641,7 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
           {results.filter(r => !r.gotIt).length > 0 && (
             <div className="w-full bg-white rounded-3xl border border-slate-100 shadow-sm px-5 py-4 mb-4">
               <p className="text-[9px] font-black uppercase tracking-widest text-rose-400 mb-3">Review these chunks</p>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto">
                 {results.filter(r => !r.gotIt).map((r, i) => (
                   <div key={i} className="bg-rose-50 border border-rose-100 rounded-xl px-3 py-1.5 flex items-center gap-1.5">
                     <span className="text-sm font-black text-rose-700">{r.q.word}</span>
