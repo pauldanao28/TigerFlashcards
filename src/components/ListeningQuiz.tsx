@@ -113,7 +113,7 @@ function TappableText({ text, keyPrefix, onWordTap }: { text: string; keyPrefix:
 // Highlighted target chunk — each kanji-bearing word inside it is independently tappable
 // (a chunk like 電話をかける is 電話 + を + かける, not one lookup unit), while the whole
 // span stays visually marked as the chunk being drilled. Reading stays hidden until revealed.
-function HighlightedChunk({ text, reading, showReading, onWordTap }: { text: string; reading: string; showReading: boolean; onWordTap: WordTapHandler }) {
+function HighlightedChunk({ text, onWordTap }: { text: string; onWordTap: WordTapHandler }) {
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const segmenter = getSegmenter();
   const subSegs = segmenter ? [...segmenter.segment(text)] : [{ segment: text, isWordLike: false }];
@@ -140,19 +140,18 @@ function HighlightedChunk({ text, reading, showReading, onWordTap }: { text: str
         }
         return <span key={i}>{sub.segment}</span>;
       })}
-      {showReading && reading && <span className="text-[0.65em] font-bold opacity-70 ml-0.5">（{reading}）</span>}
     </mark>
   );
 }
 
-function ListeningSentence({ sentence, reading, showReading, onWordTap }: { sentence: string; reading: string; showReading: boolean; onWordTap: WordTapHandler }) {
+function ListeningSentence({ sentence, onWordTap }: { sentence: string; onWordTap: WordTapHandler }) {
   if (sentence.includes("【")) {
     const parts = sentence.split(/【(.*?)】/);
     return (
       <>
         {parts.map((part, i) =>
           i % 2 === 1 ? (
-            <HighlightedChunk key={i} text={part} reading={reading} showReading={showReading} onWordTap={onWordTap} />
+            <HighlightedChunk key={i} text={part} onWordTap={onWordTap} />
           ) : (
             <TappableText key={i} text={part} keyPrefix={`p${i}`} onWordTap={onWordTap} />
           )
@@ -578,10 +577,14 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
                     </button>
                   </div>
                   <p className="text-xl leading-relaxed text-slate-800 font-medium">
-                    <ListeningSentence sentence={currentQ.sentence_jp} reading={currentQ.reading} showReading={revealed} onWordTap={handleWordClick} />
+                    <ListeningSentence sentence={currentQ.sentence_jp} onWordTap={handleWordClick} />
                   </p>
                   <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-4">Chunk meaning</p>
-                  <p className="text-indigo-600 font-bold text-base">{currentQ.word} — {currentQ.english}</p>
+                  <p className="text-indigo-600 font-bold text-base">
+                    {currentQ.word}
+                    {currentQ.reading && <span className="text-sm font-medium text-indigo-400 ml-1">（{currentQ.reading}）</span>}
+                    {" — "}{currentQ.english}
+                  </p>
                   <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-2">Translation</p>
                   <p className="text-slate-500 text-sm italic">{currentQ.sentence_en}</p>
                 </div>
