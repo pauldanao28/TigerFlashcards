@@ -1,11 +1,12 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+import { difficultyLabel } from "@/lib/scoring";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
 export async function POST(req: Request) {
   try {
-    const { cards } = await req.json();
+    const { cards, difficulty = 30 } = await req.json();
 
     if (!Array.isArray(cards) || cards.length === 0) {
       return NextResponse.json({ error: "cards must be a non-empty array" }, { status: 400 });
@@ -15,12 +16,14 @@ export async function POST(req: Request) {
       .map((c, i) => `${i + 1}. ${c.japanese}（${c.reading}）= ${c.english}`)
       .join("\n");
 
+    const grammarTarget = difficultyLabel(difficulty);
+
     const prompt = `You are a Japanese sentence generator for language learners.
 
 For each word below, write one short, natural Japanese sentence that uses that word.
 
 Rules:
-- Grammar difficulty: N4 level
+- Grammar difficulty: ${grammarTarget}
 - Sentence length: 1–2 short clauses, natural and concise
 - Freely use any natural verb/adjective form — dictionary form, て-form, た-form, ている, てから, ないで, たい, polite/casual — whatever fits the sentence best
 - Vary sentence structures across words (don't repeat the same pattern)

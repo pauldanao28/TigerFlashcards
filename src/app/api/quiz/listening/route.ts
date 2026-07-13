@@ -1,12 +1,18 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+import { difficultyLabel } from "@/lib/scoring";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
 export async function POST(req: Request) {
   try {
-    const { count = 20 } = await req.json().catch(() => ({}));
+    const { count = 20, difficulty = 30 } = await req.json().catch(() => ({}));
     const n = Math.min(30, Math.max(1, Number(count) || 20));
+    const grammarTarget = difficultyLabel(Number(difficulty) || 30);
+
+    // Adjust simple/complex sentence ratio based on difficulty
+    const simpleRatio = difficulty >= 80 ? 20 : difficulty >= 60 ? 40 : difficulty >= 40 ? 60 : difficulty >= 20 ? 75 : 90;
+    const complexRatio = 100 - simpleRatio;
 
     const prompt = `You are a Japanese sentence generator for learners who want to recognize common verb and noun+verb "chunks" fast by ear, for listening practice.
 
@@ -14,7 +20,8 @@ Generate ${n} natural Japanese sentences, each built around ONE commonly used ve
 
 Rules:
 - Pick genuinely high-frequency, everyday chunks — the kind that show up constantly in spoken Japanese. Don't repeat the same chunk twice in this batch.
-- About 80% of sentences should be short and simple (N5–N4, one clause, common vocabulary). About 20% should be longer and more complex (N3-ish, two clauses) to occasionally stretch the listener.
+- Grammar difficulty target: ${grammarTarget}
+- Sentence mix: about ${simpleRatio}% should be short and simple (one clause), about ${complexRatio}% should be longer or more complex (two clauses, embedded structures).
 - Freely use any natural verb form — dictionary form, て-form, た-form, ている, たい, polite/casual — whatever fits the sentence best.
 - Wrap ONLY the target chunk as it appears in the sentence with【】.
 - The "word" field must always be the dictionary form of the chunk (e.g. "電話をかける", not "電話をかけた").

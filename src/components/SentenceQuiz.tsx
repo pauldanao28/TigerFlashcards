@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, List, Volume2, ChevronLeft } from "lucide-react";
 import { speak } from "@/lib/tts";
+import { sessionScore, rollingAvg } from "@/lib/scoring";
 
 interface QuizCard {
   id: string;
@@ -184,10 +185,16 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
 
   const scoringRef = useRef(false);
   const loadingRef = useRef(false);
+  const readingScoreRef = useRef<number>(0);
 
   useEffect(() => {
     supabase.from("decks").select("id").eq("user_id", userId).eq("is_default", true).single()
       .then(({ data }) => { if (data) setDefaultDeckId(data.id); });
+  }, [userId]);
+
+  useEffect(() => {
+    supabase.from("profiles").select("reading_score").eq("id", userId).maybeSingle()
+      .then(({ data }) => { if (data?.reading_score != null) readingScoreRef.current = data.reading_score; });
   }, [userId]);
 
   useEffect(() => {
@@ -279,6 +286,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           cards: pick.map((c: any) => ({ japanese: c.japanese, reading: c.reading, english: c.english })),
+          difficulty: readingScoreRef.current,
         }),
       });
 
@@ -450,6 +458,11 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
 
     if (currentIdx + 1 >= quizCards.length) {
       setPhase("done");
+      const passedTotal = newResults.filter(r => r.passed).length;
+      const sess = sessionScore(passedTotal, newResults.length, readingScoreRef.current);
+      const newReadingScore = rollingAvg(readingScoreRef.current, sess);
+      readingScoreRef.current = newReadingScore;
+      supabase.from("profiles").update({ reading_score: newReadingScore }).eq("id", userId);
     } else {
       setCurrentIdx(i => i + 1);
       setRevealed(false);

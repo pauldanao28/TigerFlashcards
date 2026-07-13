@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { useLang } from "@/context/LanguageContext";
 import { calculateGlobalStats } from "@/lib/stats";
 import { processReferral } from "@/lib/social";
+import { rollingAvg } from "@/lib/scoring";
 
 import Auth from "@/components/Auth";
 import Logo from "@/components/Logo";
@@ -46,6 +47,8 @@ export default function StudyView() {
   const [showStreakBanner, setShowStreakBanner] = useState(false);
   const [goalStreak, setGoalStreak] = useState(0);
   const goalFired = useRef(false);
+  const vocabScoreRef = useRef<number>(0);
+  const vocabSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [showQuiz, setShowQuiz] = useState(false);
   const [showListeningQuiz, setShowListeningQuiz] = useState(false);
@@ -117,6 +120,7 @@ export default function StudyView() {
         setHasOnboarded(p.has_onboarded);
         setProfileName(p.full_name);
         setIsAdmin(p.is_admin ?? false);
+        if (p.vocab_score != null) vocabScoreRef.current = p.vocab_score;
 
         // 1. Progress check
         const today = new Date().toLocaleDateString("en-CA");
@@ -484,6 +488,19 @@ export default function StudyView() {
         },
         { onConflict: "user_id,card_id" },
       );
+
+      // 5b. Vocab score EMA — slow rolling average per card swipe
+      {
+        const jpPct = mode === "jp_to_en" ? nextPercent : (s.jp_to_en?.percent ?? 0);
+        const enPct = mode === "en_to_jp" ? nextPercent : (s.en_to_jp?.percent ?? 0);
+        const cardAccuracy = (jpPct + enPct) / 2;
+        const newVocabScore = Math.min(100, Math.max(0, vocabScoreRef.current * 0.97 + cardAccuracy * 0.03));
+        vocabScoreRef.current = newVocabScore;
+        if (vocabSaveTimerRef.current) clearTimeout(vocabSaveTimerRef.current);
+        vocabSaveTimerRef.current = setTimeout(() => {
+          supabase.from("profiles").update({ vocab_score: newVocabScore }).eq("id", user?.id);
+        }, 2000);
+      }
 
       // 6. Progress & Daily Goal
       if (isPass) {

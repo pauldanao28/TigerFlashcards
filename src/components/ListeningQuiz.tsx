@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, List, Volume2, ChevronLeft, Ear } from "lucide-react";
 import { speak, playTTS, stopTTS } from "@/lib/tts";
+import { sessionScore, rollingAvg } from "@/lib/scoring";
 
 interface ListeningQuestion {
   word: string;
@@ -185,10 +186,16 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
   const WORD_LIST_KEY = `flashkado-word-list-${userId}`;
 
   const loadingRef = useRef(false);
+  const listeningScoreRef = useRef<number>(0);
 
   useEffect(() => {
     supabase.from("decks").select("id").eq("user_id", userId).eq("is_default", true).single()
       .then(({ data }) => { if (data) setDefaultDeckId(data.id); });
+  }, [userId]);
+
+  useEffect(() => {
+    supabase.from("profiles").select("listening_score").eq("id", userId).maybeSingle()
+      .then(({ data }) => { if (data?.listening_score != null) listeningScoreRef.current = data.listening_score; });
   }, [userId]);
 
   useEffect(() => {
@@ -256,7 +263,7 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
       const res = await fetch("/api/quiz/listening", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count: QUESTIONS_PER_ROUND }),
+        body: JSON.stringify({ count: QUESTIONS_PER_ROUND, difficulty: listeningScoreRef.current }),
       });
       if (!res.ok) throw new Error("Failed to generate listening quiz");
       const { questions: qs } = await res.json();
@@ -394,9 +401,15 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
   const handleRate = (gotIt: boolean) => {
     const q = questions[currentIdx];
     stopTTS();
-    setResults(prev => [...prev, { q, gotIt }]);
+    const newResults = [...results, { q, gotIt }];
+    setResults(newResults);
     if (currentIdx + 1 >= questions.length) {
       setPhase("done");
+      const gotCount = newResults.filter(r => r.gotIt).length;
+      const sess = sessionScore(gotCount, newResults.length, listeningScoreRef.current);
+      const newListeningScore = rollingAvg(listeningScoreRef.current, sess);
+      listeningScoreRef.current = newListeningScore;
+      supabase.from("profiles").update({ listening_score: newListeningScore }).eq("id", userId);
     } else {
       setCurrentIdx(i => i + 1);
       setRevealed(false);

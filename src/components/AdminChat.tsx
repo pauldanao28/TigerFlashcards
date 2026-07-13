@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Send, Trash2, X, Loader2, List, Plus, Volume2, VolumeX, BookOpen, SlidersHorizontal, ChevronLeft } from "lucide-react";
 import { speak, playTTS, stopTTS, getVoice, setVoice, VOICE_OPTIONS, VoiceId } from "@/lib/tts";
+import { rollingAvg } from "@/lib/scoring";
 
 function uuid(): string {
   try { return self.crypto.randomUUID(); } catch { /* fall through */ }
@@ -184,6 +185,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   const lastAnalyzedIndexRef = useRef(0);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const lastProfileUpdateRef = useRef(0);
+  const grammarScoreRef = useRef<number>(0);
   const sheetOpenRef = useRef(false); // true while bottom sheet is open — suppress auto-scroll
   const jishoDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -360,9 +362,10 @@ export default function AdminChat({ userId }: { userId: string }) {
   const WORD_LIST_KEY = `flashkado-word-list-${userId}`;
 
   useEffect(() => {
-    supabase.from("profiles").select("pending_words").eq("id", userId).maybeSingle()
+    supabase.from("profiles").select("pending_words, grammar_score").eq("id", userId).maybeSingle()
       .then(({ data, error }) => {
         if (error) console.error("[DB word-list load]", error.code, error.message);
+        if (data?.grammar_score != null) grammarScoreRef.current = data.grammar_score;
         const dbWords: string[] | null = data?.pending_words ?? null;
         if (dbWords && dbWords.length > 0) {
           setWordList(dbWords);
@@ -451,10 +454,16 @@ export default function AdminChat({ userId }: { userId: string }) {
         body: JSON.stringify({ messages: newMessages, currentProfile: profile ?? {} }),
       });
       const data = await res.json();
-      const { corrections, ...updated } = data as SenseiProfile & { corrections?: { mistake: string; correct: string; reason: string }[] };
+      const { corrections, grammar_score: aiGrammarScore, ...updated } = data as SenseiProfile & { corrections?: { mistake: string; correct: string; reason: string }[]; grammar_score?: number };
       setProfile(updated as SenseiProfile);
       supabase.from("sensei_profile").upsert([{ ...updated, user_id: userId }], { onConflict: "user_id" })
         .then(({ error }) => { if (error) console.error("[sensei_profile upsert]", error.code, error.message, error.details); });
+      if (typeof aiGrammarScore === "number" && aiGrammarScore > 0) {
+        const newGrammarScore = rollingAvg(grammarScoreRef.current, aiGrammarScore);
+        grammarScoreRef.current = newGrammarScore;
+        supabase.from("profiles").update({ grammar_score: newGrammarScore }).eq("id", userId)
+          .then(({ error }) => { if (error) console.error("[grammar_score save]", error.code, error.message); });
+      }
       if (Array.isArray(corrections) && corrections.length > 0) {
         supabase.from("grammar_corrections").insert(
           corrections.map(c => ({ user_id: userId, persona: activePersona, mistake: c.mistake, correct: c.correct, reason: c.reason }))
