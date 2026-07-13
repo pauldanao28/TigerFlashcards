@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
-import { getLevel, jlptLevel, bootstrapVocabScore, bootstrapReadingScore } from "@/lib/scoring";
+import { getLevel, jlptLevel, bootstrapVocabScore } from "@/lib/scoring";
 
 interface ProfileScores {
   name: string | null;
@@ -76,29 +76,20 @@ export default function Dashboard() {
 
       const p = profileRes.data;
       let vocabScore = p?.vocab_score ?? null;
-      let readingScore = p?.reading_score ?? null;
 
-      if (vocabScore == null || readingScore == null) {
+      // Only bootstrap vocab_score — reading/listening/grammar start at 0 and
+      // are earned through quiz sessions, not inferred from card accuracy.
+      if (vocabScore == null) {
         const rows = (scoresRes.data ?? []) as { scores_json: any }[];
-        const updates: Record<string, number> = {};
-        if (vocabScore == null) {
-          vocabScore = bootstrapVocabScore(rows);
-          updates.vocab_score = vocabScore;
-        }
-        if (readingScore == null) {
-          readingScore = bootstrapReadingScore(rows);
-          updates.reading_score = readingScore;
-        }
-        if (Object.keys(updates).length > 0) {
-          supabase.from("profiles").update(updates).eq("id", user.id);
-        }
+        vocabScore = bootstrapVocabScore(rows);
+        supabase.from("profiles").update({ vocab_score: vocabScore }).eq("id", user.id);
       }
 
       setData({
         name: p?.full_name ?? null,
         streak: p?.streak_count ?? 0,
         vocab_score: vocabScore,
-        reading_score: readingScore,
+        reading_score: p?.reading_score ?? null,
         listening_score: p?.listening_score ?? null,
         grammar_score: p?.grammar_score ?? null,
       });
@@ -118,6 +109,7 @@ export default function Dashboard() {
   const h = new Date().getHours();
   const greeting = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 
+  // Overall level: only count scores that have been earned (non-null)
   const availableScores = [data.vocab_score, data.reading_score, data.listening_score, data.grammar_score].filter((s): s is number => s !== null);
   const overallScore = availableScores.length > 0 ? availableScores.reduce((a, b) => a + b, 0) / availableScores.length : 0;
   const overallLevel = jlptLevel(overallScore);
@@ -125,22 +117,29 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-slate-50 pb-28">
       {/* Header */}
-      <div className="bg-white border-b border-slate-100 px-5 pt-14 pb-5">
+      <div className="bg-white border-b border-slate-100 px-5 pt-14 pb-6">
         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{greeting}</p>
-        <div className="flex items-center justify-between mt-0.5">
-          <h1 className="text-2xl font-black text-slate-900 italic leading-tight">
-            {name || "Learner"} 👋
-          </h1>
-          <span className="text-[11px] font-black text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
-            {overallLevel}
-          </span>
-        </div>
+        <h1 className="text-2xl font-black text-slate-900 italic mt-0.5 leading-tight">
+          {name || "Learner"} 👋
+        </h1>
         {streak > 0 && (
           <span className="mt-2 inline-flex items-center gap-1.5 bg-orange-50 border border-orange-100 px-3 py-1 rounded-full">
             <span>🔥</span>
             <span className="text-[10px] font-black text-orange-600">{streak} day streak</span>
           </span>
         )}
+
+        {/* Overall level banner */}
+        <div className="mt-4 bg-indigo-600 rounded-2xl px-5 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Overall Level</p>
+            <p className="text-4xl font-black text-white mt-0.5">{overallLevel}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Avg Score</p>
+            <p className="text-3xl font-black text-white mt-0.5">{Math.round(overallScore)}</p>
+          </div>
+        </div>
       </div>
 
       {/* Section label */}
