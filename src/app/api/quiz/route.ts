@@ -21,10 +21,10 @@ export async function POST(req: Request) {
 よくある間違い：${commonErrors.length > 0 ? commonErrors.join("、") : "なし"}
 ${mistakeSummary ? `最近の間違い：\n${mistakeSummary}` : ""}
 
-以下の3種類の問題を合計10問作成してください：
-- type "grammar"：4問　空欄補充（助詞・動詞活用など）
-- type "reading"：3問　日本語文の英訳（4択）
-- type "writing"：3問　英文の和訳（自由記述・自己採点）
+以下の3種類の問題を合計20問作成してください：
+- type "grammar"：5問　空欄補充（助詞・動詞活用など）
+- type "reading"：10問　日本語文の読解・英訳（4択）
+- type "writing"：5問　英文の和訳（自由記述・自己採点）
 
 必ず以下のJSON形式のみで返答すること。コードブロック・余分なテキスト一切不要：
 {"questions":[
