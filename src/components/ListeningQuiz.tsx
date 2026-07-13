@@ -485,7 +485,7 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
           </div>
           <div className="w-full bg-indigo-50 border border-indigo-100 rounded-2xl px-4 py-3 text-left">
             <p className="text-indigo-800 font-bold text-xs leading-relaxed">
-              🎯 {QUESTIONS_PER_ROUND} sentences per round · mostly common everyday chunks, occasionally a longer one.
+              🎯 {QUESTIONS_PER_ROUND} sentences per round at your current N level. Chunks you miss get re-drilled in the next round. Score well to advance levels.
             </p>
           </div>
           {!isAdmin && (

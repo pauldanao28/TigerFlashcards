@@ -528,13 +528,12 @@ export default function SentenceQuiz({ userId, isAdmin = false, focusWeak = true
           <div>
             <h2 className="text-xl font-black text-slate-900 mb-2">How it works</h2>
             <p className="text-slate-500 font-medium text-sm leading-relaxed">
-              You&apos;ll see a Japanese sentence with a word from your deck highlighted. Read it, guess what the
-              highlighted word means from context, then reveal the answer to check yourself.
+              AI generates a sentence for each of your weakest cards at your current N level. Read it, guess the highlighted word from context, then reveal to check yourself.
             </p>
           </div>
           <div className="w-full bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 text-left">
             <p className="text-amber-800 font-bold text-xs leading-relaxed">
-              ⚠️ Marking Pass or Fail here updates that card&apos;s grade — same as a regular study session.
+              ⚠️ Pass/Fail updates that card&apos;s score. Your overall reading score also updates at the end of the session.
             </p>
           </div>
           {!isAdmin && (

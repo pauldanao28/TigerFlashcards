@@ -361,12 +361,12 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
           <div>
             <h2 className="text-xl font-black text-slate-900 mb-2">How it works</h2>
             <p className="text-slate-500 font-medium text-sm leading-relaxed">
-              A short AI-generated quiz based on your level and past mistakes. You&apos;ll get fill-in-the-blank grammar questions, Japanese-to-English reading, and free-writing prompts.
+              An AI-generated quiz matched to your current N level. You&apos;ll get fill-in-the-blank grammar, Japanese-to-English reading, and free-writing prompts.
             </p>
           </div>
           <div className="w-full bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-3 text-left">
             <p className="text-emerald-800 font-bold text-xs leading-relaxed">
-              🧠 Questions are tailored to your grammar level and common mistakes from Sensei chats. Tap any kanji to look it up.
+              🧠 Questions are based on your grammar score and past mistakes. Score well consistently to advance N levels. Tap any kanji to look it up.
             </p>
           </div>
           {error && <p className="text-red-500 font-bold text-xs">{error}</p>}
