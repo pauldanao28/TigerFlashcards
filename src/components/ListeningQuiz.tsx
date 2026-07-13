@@ -414,9 +414,10 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
       setPhase("done");
       const gotCount = newResults.filter(r => r.gotIt).length;
       const sess = sessionScore(gotCount, newResults.length, listeningScoreRef.current);
-      const newListeningScore = rollingAvg(listeningScoreRef.current, sess);
+      const newListeningScore = listeningScoreRef.current === 0 ? Math.round(sess) : rollingAvg(listeningScoreRef.current, sess);
       listeningScoreRef.current = newListeningScore;
-      supabase.from("profiles").update({ listening_score: newListeningScore }).eq("id", userId);
+      supabase.from("profiles").update({ listening_score: newListeningScore }).eq("id", userId)
+        .then(({ error }) => { if (error) console.error("[listening_score save]", error.code, error.message); });
       const missed = newResults.filter(r => !r.gotIt).map(r => ({
         user_id: userId,
         mistake: r.q.word,

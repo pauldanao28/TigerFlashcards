@@ -470,9 +470,10 @@ export default function SentenceQuiz({ userId, isAdmin = false, focusWeak = true
       setPhase("done");
       const passedTotal = newResults.filter(r => r.passed).length;
       const sess = sessionScore(passedTotal, newResults.length, readingScoreRef.current);
-      const newReadingScore = rollingAvg(readingScoreRef.current, sess);
+      const newReadingScore = readingScoreRef.current === 0 ? Math.round(sess) : rollingAvg(readingScoreRef.current, sess);
       readingScoreRef.current = newReadingScore;
-      supabase.from("profiles").update({ reading_score: newReadingScore }).eq("id", userId);
+      supabase.from("profiles").update({ reading_score: newReadingScore }).eq("id", userId)
+        .then(({ error }) => { if (error) console.error("[reading_score save]", error.code, error.message); });
     } else {
       setCurrentIdx(i => i + 1);
       setRevealed(false);

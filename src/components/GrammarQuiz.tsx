@@ -310,9 +310,10 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
       );
     }
     const sess = sessionScore(finalScore, totalQ, grammarScoreRef.current);
-    const newGrammarScore = rollingAvg(grammarScoreRef.current, sess);
+    const newGrammarScore = grammarScoreRef.current === 0 ? Math.round(sess) : rollingAvg(grammarScoreRef.current, sess);
     grammarScoreRef.current = newGrammarScore;
-    supabase.from("profiles").update({ grammar_score: newGrammarScore }).eq("id", userId);
+    supabase.from("profiles").update({ grammar_score: newGrammarScore }).eq("id", userId)
+      .then(({ error }) => { if (error) console.error("[grammar_score save]", error.code, error.message); });
   };
 
   const pct = phase === "done" && questions.length > 0 ? score / questions.length : 0;
