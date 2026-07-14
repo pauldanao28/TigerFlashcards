@@ -205,14 +205,14 @@ export default function Dashboard() {
       }
 
       // Determine vocab N-level: highest N-level (N1 > N2 > … > N5) where mastery % is greatest.
-      // A level qualifies when you've mastered at least half your own cards there (and ≥10 total
-      // to prevent tiny samples like 2/2 from counting). Higher N-levels win ties (iterated first).
+      // A level qualifies only when you have ≥50% of its JLPT vocab target in your deck
+      // (e.g. N5 needs ≥400 cards, N4 ≥350). Guards tiny-sample inflation. Falls back to N5.
       const NLEVEL_ORDER: JlptLevel[] = ["N1", "N2", "N3", "N4", "N5"];
       let vocabNLevel: JlptLevel = "N5";
       let bestRatio = -1;
       for (const lvl of NLEVEL_ORDER) {
         const { total, mastered } = jlptStats[lvl];
-        if (total < 10 || mastered < Math.floor(total / 2)) continue;
+        if (total < Math.floor(JLPT_VOCAB_INCREMENT[lvl] / 2)) continue;
         const ratio = mastered / total;
         if (ratio > bestRatio) {
           bestRatio = ratio;
