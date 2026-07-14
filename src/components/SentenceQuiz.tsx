@@ -446,7 +446,12 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
     } catch (err) {
       console.error("Batch add failed:", err);
     } finally {
-      flushWordList(words.filter(w => !succeededWords.has(w)));
+      const remaining = words.filter(w => !succeededWords.has(w));
+      // Bypass the stale-closure risk of flushWordList — set state and DB directly
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+      setWordList(remaining);
+      localStorage.setItem(WORD_LIST_KEY, JSON.stringify(remaining));
+      supabase.from("profiles").update({ pending_words: remaining }).eq("id", userId);
       setShowList(false);
       if (allProcessed.length > 0) {
         setAddedSummary(Array.from(new Map(allProcessed.map(c => [c.japanese, c])).values()));

@@ -18,7 +18,9 @@ export default function AdminDashboard() {
   );
   const [systemFeedbacks, setSystemFeedbacks] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
   const [editForm, setEditForm] = useState({
+    japanese: "",
     english: "",
     reading: "",
     partOfSpeech: "",
@@ -145,11 +147,39 @@ export default function AdminDashboard() {
   const startManualEdit = (report: any) => {
     setEditingId(report.id);
     setEditForm({
+      japanese: report.master_cards.japanese || "",
       english: report.master_cards.english || "",
       reading: report.master_cards.reading || "",
       partOfSpeech: report.master_cards.partOfSpeech || "noun",
       exampleJp: report.master_cards.exampleSentence?.jp || "",
     });
+  };
+
+  const handleRegenerate = async () => {
+    if (!editForm.japanese.trim()) return;
+    setRegenerating(true);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ words: [editForm.japanese.trim()] }),
+      });
+      if (!res.ok) throw new Error("API error");
+      const data = await res.json();
+      const card = Array.isArray(data) ? data[0] : data;
+      setEditForm((f) => ({
+        ...f,
+        japanese: card.japanese || f.japanese,
+        english: card.english || "",
+        reading: card.reading || "",
+        partOfSpeech: card.partOfSpeech || "noun",
+        exampleJp: card.exampleSentence?.jp || "",
+      }));
+    } catch {
+      showAlert("Regeneration failed. Try again.");
+    } finally {
+      setRegenerating(false);
+    }
   };
 
   const handleManualSave = async (reportId: string, cardId: string) => {
@@ -162,10 +192,11 @@ export default function AdminDashboard() {
     const { error: cardError } = await supabase
       .from("master_cards")
       .update({
+        japanese: editForm.japanese,
         english: editForm.english,
         reading: editForm.reading,
         partOfSpeech: editForm.partOfSpeech,
-        exampleSentence: { jp: editForm.exampleJp, en: "" }, // Keeps original structure
+        exampleSentence: { jp: editForm.exampleJp, en: "" },
       })
       .eq("id", cardId);
 
@@ -336,18 +367,33 @@ export default function AdminDashboard() {
                   {editingId === report.id ? (
                     /* MANUAL EDIT FORM */
                     <div className="bg-slate-50 p-6 rounded-[2rem] grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-4">
+                      {/* Kanji field — full width with regenerate button */}
+                      <div className="md:col-span-2 space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
+                          Kanji / Japanese
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            value={editForm.japanese}
+                            onChange={(e) => setEditForm({ ...editForm, japanese: e.target.value })}
+                            className="flex-1 p-3 bg-white border border-slate-200 rounded-xl font-bold text-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <button
+                            onClick={handleRegenerate}
+                            disabled={regenerating || !editForm.japanese.trim()}
+                            className="px-5 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all disabled:opacity-50 whitespace-nowrap"
+                          >
+                            {regenerating ? "..." : "↺ Regenerate"}
+                          </button>
+                        </div>
+                      </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
                           Meaning (English)
                         </label>
                         <input
                           value={editForm.english}
-                          onChange={(e) =>
-                            setEditForm({
-                              ...editForm,
-                              english: e.target.value,
-                            })
-                          }
+                          onChange={(e) => setEditForm({ ...editForm, english: e.target.value })}
                           className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       </div>
@@ -357,12 +403,7 @@ export default function AdminDashboard() {
                         </label>
                         <input
                           value={editForm.reading}
-                          onChange={(e) =>
-                            setEditForm({
-                              ...editForm,
-                              reading: e.target.value,
-                            })
-                          }
+                          onChange={(e) => setEditForm({ ...editForm, reading: e.target.value })}
                           className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       </div>
@@ -372,12 +413,7 @@ export default function AdminDashboard() {
                         </label>
                         <input
                           value={editForm.partOfSpeech}
-                          onChange={(e) =>
-                            setEditForm({
-                              ...editForm,
-                              reading: e.target.value,
-                            })
-                          }
+                          onChange={(e) => setEditForm({ ...editForm, partOfSpeech: e.target.value })}
                           className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       </div>
@@ -387,20 +423,13 @@ export default function AdminDashboard() {
                         </label>
                         <input
                           value={editForm.exampleJp}
-                          onChange={(e) =>
-                            setEditForm({
-                              ...editForm,
-                              exampleJp: e.target.value,
-                            })
-                          }
+                          onChange={(e) => setEditForm({ ...editForm, exampleJp: e.target.value })}
                           className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       </div>
                       <div className="md:col-span-2 flex gap-3 pt-4">
                         <button
-                          onClick={() =>
-                            handleManualSave(report.id, report.master_cards.id)
-                          }
+                          onClick={() => handleManualSave(report.id, report.master_cards.id)}
                           className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-indigo-100 active:scale-95 transition-all"
                         >
                           Save & Resolve
