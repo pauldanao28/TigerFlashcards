@@ -693,26 +693,27 @@ export default function StudyView() {
     return Math.round(raw);
   }, [cards, language]);
 
-  // Level-up detection: fire a toast on any masteryPercent change (up or down) for the same mode
-  const prevMasteryRef = useRef<{ percent: number; lang: "jp" | "en" } | null>(null);
-  const [levelUpToast, setLevelUpToast] = useState<{ level: string; lang: "jp" | "en"; direction: "up" | "down" } | null>(null);
+  // Level-up detection: track whichever % is visible — per-N-level when filtered, overall when "All"
+  const trackedPercent = jlptFilter !== "All" ? (jlptLevelMastery ?? masteryPercent) : masteryPercent;
+  const prevMasteryRef = useRef<{ percent: number; lang: "jp" | "en"; filter: string } | null>(null);
+  const [levelUpToast, setLevelUpToast] = useState<{ level: string; lang: "jp" | "en"; direction: "up" | "down"; filter?: string } | null>(null);
   useEffect(() => {
     const prev = prevMasteryRef.current;
-    if (prev === null || prev.lang !== language) {
-      prevMasteryRef.current = { percent: masteryPercent, lang: language };
+    if (prev === null || prev.lang !== language || prev.filter !== jlptFilter) {
+      prevMasteryRef.current = { percent: trackedPercent, lang: language, filter: jlptFilter };
       return;
     }
-    if (masteryPercent > prev.percent) {
-      setLevelUpToast({ level: `${masteryPercent}%`, lang: language, direction: "up" });
+    if (trackedPercent > prev.percent) {
+      setLevelUpToast({ level: `${trackedPercent}%`, lang: language, direction: "up", filter: jlptFilter !== "All" ? jlptFilter : undefined });
       navigator.vibrate?.([60, 40, 100]);
       setTimeout(() => setLevelUpToast(null), 4000);
-    } else if (masteryPercent < prev.percent) {
-      setLevelUpToast({ level: `${masteryPercent}%`, lang: language, direction: "down" });
+    } else if (trackedPercent < prev.percent) {
+      setLevelUpToast({ level: `${trackedPercent}%`, lang: language, direction: "down", filter: jlptFilter !== "All" ? jlptFilter : undefined });
       navigator.vibrate?.([30, 60, 30]);
       setTimeout(() => setLevelUpToast(null), 4000);
     }
-    prevMasteryRef.current = { percent: masteryPercent, lang: language };
-  }, [masteryPercent, language]);
+    prevMasteryRef.current = { percent: trackedPercent, lang: language, filter: jlptFilter };
+  }, [trackedPercent, language, jlptFilter]);
 
   // 4. Dynamic Colors based on mode
   const modeColorClass =
@@ -850,6 +851,7 @@ export default function StudyView() {
                       levelUpToast.direction === "up" ? "text-indigo-500" : "text-amber-500"
                     }`}
                   >
+                    {levelUpToast.filter ? `${levelUpToast.filter} · ` : ""}
                     {levelUpToast.lang === "jp" ? "🇯🇵 Recognition" : "🇺🇸 Recall"} is now{" "}
                     <span className="font-black">{levelUpToast.level}</span>
                   </motion.p>
