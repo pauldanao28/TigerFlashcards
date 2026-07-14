@@ -11,7 +11,7 @@ import { useAppAlert } from "@/context/AlertContext";
 import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
 import { calculateGlobalStats } from "@/lib/stats";
-import { JLPT_VOCAB_FLOOR } from "@/lib/scoring";
+import { JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
 import LoadingScreen from "@/components/LoadingScreen";
 import { List, X, Plus, Loader2 } from "lucide-react";
 
@@ -1705,7 +1705,7 @@ export default function StatsPage() {
               <div className="space-y-4">
                 {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
                   const { total, mastered } = jlptStats[level];
-                  const floor = JLPT_VOCAB_FLOOR[level];
+                  const floor = JLPT_VOCAB_INCREMENT[level];
                   const floorPct = Math.round((total / floor) * 100);
                   const masteredOfFloorPct = Math.min(100, Math.round((mastered / floor) * 100));
                   const addedNotMasteredOfFloorPct = Math.min(100 - masteredOfFloorPct, Math.round(((total - mastered) / floor) * 100));

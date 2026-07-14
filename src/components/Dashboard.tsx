@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
-import { getLevel, jlptLevel, vocabMastery, JLPT_VOCAB_FLOOR } from "@/lib/scoring";
+import { getLevel, jlptLevel, vocabMastery, JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
 
 type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
 
@@ -285,7 +285,7 @@ export default function Dashboard() {
           <div className="space-y-3.5">
             {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
               const { total, mastered } = data.jlpt_stats[level];
-              const floor = JLPT_VOCAB_FLOOR[level];
+              const floor = JLPT_VOCAB_INCREMENT[level];
               const floorPct = Math.round((total / floor) * 100);
               const masteredOfFloorPct = Math.min(100, Math.round((mastered / floor) * 100));
               const addedNotMasteredOfFloorPct = Math.min(100 - masteredOfFloorPct, Math.round(((total - mastered) / floor) * 100));

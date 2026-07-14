@@ -81,6 +81,19 @@ export const JLPT_VOCAB_FLOOR: Record<string, number> = {
   N1: 10000,
 };
 
+// Incremental (level-specific) targets derived from the cumulative JLPT_VOCAB_FLOOR above —
+// e.g. N4's cumulative floor of 1500 already includes the ~800 N5 words, so the vocab that's
+// actually *new* to N4 is 1500-800=700. Used for per-level breakdowns where a level's own
+// tagged card count should be compared against its own target, not a cumulative one that
+// already includes easier levels.
+export const JLPT_VOCAB_INCREMENT: Record<string, number> = {
+  N5: JLPT_VOCAB_FLOOR.N5,
+  N4: JLPT_VOCAB_FLOOR.N4 - JLPT_VOCAB_FLOOR.N5,
+  N3: JLPT_VOCAB_FLOOR.N3 - JLPT_VOCAB_FLOOR.N4,
+  N2: JLPT_VOCAB_FLOOR.N2 - JLPT_VOCAB_FLOOR.N3,
+  N1: JLPT_VOCAB_FLOOR.N1 - JLPT_VOCAB_FLOOR.N2,
+};
+
 // Which JLPT tier a deck size falls into — determines the mastery floor.
 export function deckJlptTier(deckSize: number): string {
   if (deckSize >= 6000) return "N1";
