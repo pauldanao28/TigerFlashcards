@@ -3,7 +3,7 @@ import Auth from "@/components/Auth";
 
 export const metadata: Metadata = {
   title: "Sign In",
-  description: "Sign in or create a free FlashKado account to start learning Japanese with AI-powered flashcards.",
+  description: "Sign in or create a free FlashKado account to start learning Japanese with AI flashcards, reading, listening, writing, and a chat tutor.",
   robots: { index: false, follow: false },
 };
 

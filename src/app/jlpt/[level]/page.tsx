@@ -106,20 +106,24 @@ export async function generateMetadata({
   if (!data) return {};
 
   return {
-    title: `Free JLPT ${data.level} Flashcards — ${data.label} Japanese Vocabulary`,
-    description: `Study ${data.wordCount} JLPT ${data.level} vocabulary words with free AI-powered flashcards and spaced repetition. ${data.tip}`,
+    title: `Free JLPT ${data.level} Study App — Flashcards, Reading, Listening & Writing`,
+    description: `Study ${data.wordCount} JLPT ${data.level} vocabulary words plus reading, listening, and writing practice — all in one free AI-powered app with spaced repetition. ${data.tip}`,
     keywords: [
       `JLPT ${data.level}`,
       `JLPT ${data.level} vocabulary`,
       `JLPT ${data.level} flashcards`,
       `JLPT ${data.level} study`,
+      `JLPT ${data.level} reading practice`,
+      `JLPT ${data.level} listening practice`,
+      `JLPT ${data.level} grammar`,
       `${data.label} Japanese`,
       "free Japanese flashcards",
+      "all-in-one Japanese app",
       "JLPT study app",
     ],
     openGraph: {
-      title: `Free JLPT ${data.level} Flashcards — FlashKado`,
-      description: `Study ${data.wordCount} JLPT ${data.level} vocabulary words with AI-powered spaced repetition. Free forever.`,
+      title: `Free JLPT ${data.level} Study App — FlashKado`,
+      description: `Study ${data.wordCount} JLPT ${data.level} vocabulary words plus reading, listening, and writing practice, all in one free AI-powered app.`,
     },
   };
 }
@@ -156,10 +160,10 @@ export default async function JLPTLevelPage({
           JLPT {data.level} · {data.label}
         </span>
         <h1 className="text-4xl md:text-5xl font-black text-slate-900 leading-tight mb-4">
-          Free JLPT {data.level} Japanese Flashcards
+          Free JLPT {data.level} Study App
         </h1>
         <p className="text-lg text-slate-500 max-w-xl mx-auto mb-8">
-          {data.description}
+          {data.description} FlashKado pairs {data.level} vocabulary with AI-generated reading, listening, writing, and grammar practice — plus a chat tutor — all in one app.
         </p>
         <Link
           href="/login"
@@ -172,14 +176,18 @@ export default async function JLPTLevelPage({
 
       {/* Stats bar */}
       <section className="bg-white border-y border-slate-100 py-8">
-        <div className="max-w-3xl mx-auto px-6 grid grid-cols-3 gap-6 text-center">
+        <div className="max-w-3xl mx-auto px-6 grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
           <div>
             <div className="text-3xl font-black text-indigo-600">{data.wordCount}</div>
             <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mt-1">Vocabulary Words</div>
           </div>
           <div>
+            <div className="text-3xl font-black text-indigo-600">5</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mt-1">Skills in One App</div>
+          </div>
+          <div>
             <div className="text-3xl font-black text-indigo-600">AI</div>
-            <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mt-1">Powered Cards</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mt-1">Powered Practice</div>
           </div>
           <div>
             <div className="text-3xl font-black text-indigo-600">Free</div>
@@ -244,12 +252,18 @@ export default async function JLPTLevelPage({
       {/* How FlashKado helps */}
       <section className="bg-indigo-600 py-14">
         <div className="max-w-3xl mx-auto px-6 text-center">
-          <h2 className="text-3xl font-black text-white mb-4">
-            Why FlashKado for JLPT {data.level}?
+          <h2 className="text-3xl font-black text-white mb-2">
+            One App, Every JLPT {data.level} Skill
           </h2>
+          <p className="text-indigo-200 text-sm max-w-lg mx-auto mb-4">
+            No juggling five different apps. FlashKado covers vocabulary, reading, listening, writing, and conversation practice in one place, from N5 all the way to N1.
+          </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-10 text-left">
             {[
-              { title: "AI Card Generation", body: "Type any Japanese word and get a full flashcard with reading, meaning, example sentence, and context — instantly." },
+              { title: "AI Flashcards", body: "Type any Japanese word and get a full flashcard with reading, meaning, example sentence, and context — instantly." },
+              { title: "Reading & Listening Quizzes", body: "AI-generated sentences and audio drawn from your weakest words, so comprehension practice targets exactly what you need." },
+              { title: "Grammar & Writing", body: "A structured pool of real JLPT grammar patterns, unlocked level by level and drilled through fill-in-the-blank, translation, and writing prompts." },
+              { title: "AI Chat Tutor", body: "Practice real conversation and get corrections from an AI sensei that adapts to your level." },
               { title: "Spaced Repetition", body: "Our algorithm shows you hard words more often and easy words less, so you learn in the least amount of time." },
               { title: "Friend Streaks", body: "Study with friends, see each other's daily progress, and keep each other accountable with streak tracking." },
             ].map((feat) => (
@@ -292,7 +306,7 @@ export default async function JLPTLevelPage({
         {" · "}
         <Link href="/privacy" className="hover:text-slate-600">Privacy Policy</Link>
         {" · "}
-        Free AI Japanese Flashcards
+        All-in-One AI Japanese Learning App
       </footer>
     </main>
   );

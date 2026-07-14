@@ -20,19 +20,26 @@ export const viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "FlashKado — Free AI Japanese Flashcards",
+    default: "FlashKado — All-in-One AI Japanese Learning App",
     template: "%s | FlashKado",
   },
   description:
-    "Learn Japanese vocabulary faster with AI-powered flashcards and spaced repetition. Free JLPT N5–N1 study tool with friend streaks and smart card scheduling.",
+    "The only Japanese app you need: AI flashcards, reading, listening, writing, and an AI chat tutor, all built around spaced repetition. Free JLPT N5–N1 study tool from beginner to fluent.",
   keywords: [
     "Japanese flashcards",
-    "JLPT study",
     "learn Japanese",
+    "AI Japanese tutor",
+    "Japanese chatbot",
+    "JLPT study",
     "spaced repetition Japanese",
     "JLPT N5 vocabulary",
     "JLPT N4 vocabulary",
+    "Japanese reading practice",
+    "Japanese listening practice",
+    "Japanese writing practice",
+    "Japanese grammar practice",
     "free Japanese learning",
+    "all-in-one Japanese app",
     "AI flashcards",
     "Japanese vocabulary app",
   ],
@@ -43,23 +50,23 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: siteUrl,
     siteName: "FlashKado",
-    title: "FlashKado — Free AI Japanese Flashcards",
+    title: "FlashKado — All-in-One AI Japanese Learning App",
     description:
-      "Learn Japanese vocabulary faster with AI-powered flashcards and spaced repetition. Free JLPT N5–N1 study tool.",
+      "AI flashcards, reading, listening, writing, and a chat tutor in one app. Free JLPT N5–N1 study tool with spaced repetition and friend streaks.",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "FlashKado — AI Japanese Flashcards",
+        alt: "FlashKado — All-in-One AI Japanese Learning App",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "FlashKado — Free AI Japanese Flashcards",
+    title: "FlashKado — All-in-One AI Japanese Learning App",
     description:
-      "Learn Japanese vocabulary faster with AI-powered flashcards and spaced repetition. Free JLPT N5–N1 study tool.",
+      "AI flashcards, reading, listening, writing, and a chat tutor in one app. Free JLPT N5–N1 study tool with spaced repetition and friend streaks.",
     images: ["/og-image.png"],
   },
   icons: {

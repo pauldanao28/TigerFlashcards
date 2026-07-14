@@ -49,7 +49,9 @@ export default function WelcomeView() {
           </Link>
 
           <p className="text-[9px] font-bold uppercase tracking-widest text-slate-300 mt-2 opacity-50">
-            Smart Japanese Flashcards with AI
+            {lang === "en"
+              ? "Flashcards · Reading · Listening · Writing · AI Chat"
+              : "単語 · 読解 · リスニング · ライティング · AIチャット"}
           </p>
         </div>
       </div>
