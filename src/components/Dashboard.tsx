@@ -17,6 +17,7 @@ interface ProfileScores {
   grammar_score: number | null;
   deck_size: number;
   jlpt_stats: Record<JlptLevel, { total: number; mastered: number }>;
+  vocab_nlevel: JlptLevel;
 }
 
 // Solid = mastered portion, light = added-but-not-yet-mastered portion — same hue per level.
@@ -55,16 +56,18 @@ function ScoreTile({
   label,
   score,
   sub,
+  nlevelOverride,
 }: {
   href: string;
   emoji: string;
   label: string;
   score: number | null;
   sub?: string;
+  nlevelOverride?: JlptLevel;
 }) {
   const s = score ?? 0;
   const level = getLevel(s);
-  const nlevel = jlptLevel(s);
+  const nlevel = nlevelOverride ?? jlptLevel(s);
   const barColor = s >= 80 ? "bg-red-400" : s >= 60 ? "bg-orange-400" : s >= 40 ? "bg-amber-400" : s >= 20 ? "bg-emerald-400" : "bg-indigo-400";
   return (
     <Link href={href} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm active:scale-95 transition-all flex flex-col gap-2">
@@ -201,6 +204,22 @@ export default function Dashboard() {
         if (totalAttempts > 0 && avgAccuracy >= 80) jlptStats[card.jlpt_level].mastered++;
       }
 
+      // Determine vocab N-level: highest N-level (N1 > N2 > … > N5) where mastery % is greatest,
+      // among levels with ≥ 50 cards. Higher N-levels win ties (iterated first).
+      const NLEVEL_ORDER: JlptLevel[] = ["N1", "N2", "N3", "N4", "N5"];
+      const MIN_LEVEL_CARDS = 50;
+      let vocabNLevel: JlptLevel = "N5";
+      let bestRatio = -1;
+      for (const lvl of NLEVEL_ORDER) {
+        const { total, mastered } = jlptStats[lvl];
+        if (total < MIN_LEVEL_CARDS) continue;
+        const ratio = mastered / total;
+        if (ratio > bestRatio) {
+          bestRatio = ratio;
+          vocabNLevel = lvl;
+        }
+      }
+
       const profileUpdates: Record<string, number> = { vocab_score: vocabScore };
 
       let grammarScore = p?.grammar_score ?? null;
@@ -227,6 +246,7 @@ export default function Dashboard() {
         grammar_score: grammarScore,
         deck_size: deckSize,
         jlpt_stats: jlptStats,
+        vocab_nlevel: vocabNLevel,
       };
       _dashboardCache.set(user.id, fresh);
       setData(fresh);
@@ -298,7 +318,7 @@ export default function Dashboard() {
 
       {/* 2×2 skill tiles */}
       <div className="px-4 grid grid-cols-2 gap-3">
-        <ScoreTile href="/study"                    emoji="🃏" label="Vocabulary" score={data.vocab_score}     sub={`${data.deck_size.toLocaleString()} cards in deck`} />
+        <ScoreTile href="/study"                    emoji="🃏" label="Vocabulary" score={data.vocab_score}     sub={`${data.deck_size.toLocaleString()} cards in deck`} nlevelOverride={data.vocab_nlevel} />
         <ScoreTile href="/quizzes?open=grammar"    emoji="📝" label="Grammar"    score={data.grammar_score}   />
         <ScoreTile href="/quizzes?open=sentence"   emoji="📖" label="Reading"    score={data.reading_score}   sub="Sentence quiz" />
         <ScoreTile href="/quizzes?open=listening"  emoji="🎧" label="Listening"  score={data.listening_score} sub="Listening quiz" />
