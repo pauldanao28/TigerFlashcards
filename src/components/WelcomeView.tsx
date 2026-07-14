@@ -26,16 +26,8 @@ export default function WelcomeView() {
 
   return (
     <main className="h-[100dvh] max-h-[100dvh] w-full bg-white flex flex-col fixed inset-0 touch-none overflow-hidden">
-      {/* Watermark — 語 means "language/word"; decorative but on-theme */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none select-none absolute -top-8 -right-6 text-[220px] font-black leading-none text-slate-100 z-0"
-      >
-        語
-      </div>
-
       {/* Language toggle — top right */}
-      <div className="absolute top-10 right-5 z-10 w-36">
+      <div className="absolute top-10 right-5 z-20 w-36">
         <LanguageToggle language={lang} setLanguage={setLang} />
       </div>
 
