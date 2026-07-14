@@ -29,6 +29,13 @@ const JLPT_BAR_COLOR: Record<"N5" | "N4" | "N3" | "N2" | "N1", string> = {
   N2: "bg-orange-500",
   N1: "bg-rose-500",
 };
+const JLPT_BAR_LIGHT_COLOR: Record<"N5" | "N4" | "N3" | "N2" | "N1", string> = {
+  N5: "bg-emerald-200",
+  N4: "bg-teal-200",
+  N3: "bg-amber-200",
+  N2: "bg-orange-200",
+  N1: "bg-rose-200",
+};
 const JLPT_BADGE_COLOR: Record<"N5" | "N4" | "N3" | "N2" | "N1", string> = {
   N5: "bg-emerald-100 text-emerald-700 border-emerald-200",
   N4: "bg-teal-100 text-teal-700 border-teal-200",
@@ -929,7 +936,10 @@ export default function StudyView() {
                   >
                     <div className="flex-1 h-1.5 rounded-full overflow-hidden flex bg-slate-200">
                       {jlptFilter !== "All" ? (
-                        <div className={`h-full rounded-full ${JLPT_BAR_COLOR[jlptFilter]}`} style={{ width: `${jlptLevelMastery ?? 0}%` }} />
+                        <>
+                          <div className={`h-full ${JLPT_BAR_COLOR[jlptFilter]}`} style={{ width: `${jlptLevelMastery ?? 0}%` }} />
+                          <div className={`h-full ${JLPT_BAR_LIGHT_COLOR[jlptFilter]}`} style={{ width: `${100 - (jlptLevelMastery ?? 0)}%` }} />
+                        </>
                       ) : (["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
                         const pct = (jlptDistribution[level] / jlptTotal) * 100;
                         if (pct === 0) return null;
@@ -1028,7 +1038,10 @@ export default function StudyView() {
                     >
                       <div className="flex-1 h-2 rounded-full overflow-hidden flex bg-slate-200">
                         {jlptFilter !== "All" ? (
-                          <div className={`h-full rounded-full ${JLPT_BAR_COLOR[jlptFilter]}`} style={{ width: `${jlptLevelMastery ?? 0}%` }} />
+                          <>
+                            <div className={`h-full ${JLPT_BAR_COLOR[jlptFilter]}`} style={{ width: `${jlptLevelMastery ?? 0}%` }} />
+                            <div className={`h-full ${JLPT_BAR_LIGHT_COLOR[jlptFilter]}`} style={{ width: `${100 - (jlptLevelMastery ?? 0)}%` }} />
+                          </>
                         ) : (["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
                           const pct = (jlptDistribution[level] / jlptTotal) * 100;
                           if (pct === 0) return null;
