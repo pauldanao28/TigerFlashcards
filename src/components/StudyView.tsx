@@ -922,25 +922,36 @@ export default function StudyView() {
                 </span>
               </div>
               {jlptTotal > 0 && (
-                <button
-                  onClick={() => setShowJlptBreakdown(true)}
-                  className="flex items-center gap-2 mt-0.5 active:scale-95 transition-transform"
-                >
-                  <div className="flex-1 h-1.5 rounded-full overflow-hidden flex bg-slate-200">
-                    {jlptFilter !== "All" ? (
-                      <div className={`h-full rounded-full ${JLPT_BAR_COLOR[jlptFilter]}`} style={{ width: `${jlptLevelMastery ?? 0}%` }} />
-                    ) : (["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
-                      const pct = (jlptDistribution[level] / jlptTotal) * 100;
-                      if (pct === 0) return null;
-                      return <div key={level} className={JLPT_BAR_COLOR[level]} style={{ width: `${pct}%` }} />;
-                    })}
-                  </div>
-                  <span className={`text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${jlptFilter !== "All" ? JLPT_BADGE_COLOR[jlptFilter].split(" ")[1] : "text-slate-500"}`}>
-                    {jlptFilter !== "All"
-                      ? `${jlptFilter} ${jlptLevelMastery ?? 0}%`
-                      : `${dominantJlptLevel} ${Math.round((jlptDistribution[dominantJlptLevel] / jlptTotal) * 100)}%`}
-                  </span>
-                </button>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <button
+                    onClick={() => setShowJlptBreakdown(true)}
+                    className="flex flex-1 items-center gap-2 active:scale-95 transition-transform"
+                  >
+                    <div className="flex-1 h-1.5 rounded-full overflow-hidden flex bg-slate-200">
+                      {jlptFilter !== "All" ? (
+                        <div className={`h-full rounded-full ${JLPT_BAR_COLOR[jlptFilter]}`} style={{ width: `${jlptLevelMastery ?? 0}%` }} />
+                      ) : (["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
+                        const pct = (jlptDistribution[level] / jlptTotal) * 100;
+                        if (pct === 0) return null;
+                        return <div key={level} className={JLPT_BAR_COLOR[level]} style={{ width: `${pct}%` }} />;
+                      })}
+                    </div>
+                    <span className={`text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${jlptFilter !== "All" ? JLPT_BADGE_COLOR[jlptFilter].split(" ")[1] : "text-slate-500"}`}>
+                      {jlptFilter !== "All"
+                        ? `${jlptFilter} ${jlptLevelMastery ?? 0}%`
+                        : `${dominantJlptLevel} ${Math.round((jlptDistribution[dominantJlptLevel] / jlptTotal) * 100)}%`}
+                      <span className="opacity-40 font-normal"> ›</span>
+                    </span>
+                  </button>
+                  {jlptFilter !== "All" && (
+                    <button
+                      onClick={() => setJlptFilter("All")}
+                      className={`shrink-0 text-[10px] font-black leading-none px-1 py-0.5 rounded active:scale-95 transition-all ${JLPT_BADGE_COLOR[jlptFilter]}`}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
               )}
             </div>
             </div>
@@ -1010,25 +1021,36 @@ export default function StudyView() {
                   </div>
                 </div>
                 {jlptTotal > 0 && (
-                  <button
-                    onClick={() => setShowJlptBreakdown(true)}
-                    className="flex items-center gap-2.5 -mt-0.5 hover:opacity-80 active:scale-95 transition-all"
-                  >
-                    <div className="flex-1 h-2 rounded-full overflow-hidden flex bg-slate-200">
-                      {jlptFilter !== "All" ? (
-                        <div className={`h-full rounded-full ${JLPT_BAR_COLOR[jlptFilter]}`} style={{ width: `${jlptLevelMastery ?? 0}%` }} />
-                      ) : (["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
-                        const pct = (jlptDistribution[level] / jlptTotal) * 100;
-                        if (pct === 0) return null;
-                        return <div key={level} className={JLPT_BAR_COLOR[level]} style={{ width: `${pct}%` }} />;
-                      })}
-                    </div>
-                    <span className={`text-[10px] font-black uppercase tracking-widest whitespace-nowrap ${jlptFilter !== "All" ? JLPT_BADGE_COLOR[jlptFilter].split(" ")[1] : "text-slate-500"}`}>
-                      {jlptFilter !== "All"
-                        ? `${jlptFilter} ${jlptLevelMastery ?? 0}%`
-                        : `${dominantJlptLevel} ${Math.round((jlptDistribution[dominantJlptLevel] / jlptTotal) * 100)}%`}
-                    </span>
-                  </button>
+                  <div className="flex items-center gap-1.5 -mt-0.5">
+                    <button
+                      onClick={() => setShowJlptBreakdown(true)}
+                      className="flex flex-1 items-center gap-2.5 hover:opacity-80 active:scale-95 transition-all"
+                    >
+                      <div className="flex-1 h-2 rounded-full overflow-hidden flex bg-slate-200">
+                        {jlptFilter !== "All" ? (
+                          <div className={`h-full rounded-full ${JLPT_BAR_COLOR[jlptFilter]}`} style={{ width: `${jlptLevelMastery ?? 0}%` }} />
+                        ) : (["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
+                          const pct = (jlptDistribution[level] / jlptTotal) * 100;
+                          if (pct === 0) return null;
+                          return <div key={level} className={JLPT_BAR_COLOR[level]} style={{ width: `${pct}%` }} />;
+                        })}
+                      </div>
+                      <span className={`text-[10px] font-black uppercase tracking-widest whitespace-nowrap ${jlptFilter !== "All" ? JLPT_BADGE_COLOR[jlptFilter].split(" ")[1] : "text-slate-500"}`}>
+                        {jlptFilter !== "All"
+                          ? `${jlptFilter} ${jlptLevelMastery ?? 0}%`
+                          : `${dominantJlptLevel} ${Math.round((jlptDistribution[dominantJlptLevel] / jlptTotal) * 100)}%`}
+                        <span className="opacity-40 font-normal"> ›</span>
+                      </span>
+                    </button>
+                    {jlptFilter !== "All" && (
+                      <button
+                        onClick={() => setJlptFilter("All")}
+                        className={`shrink-0 text-[10px] font-black leading-none px-1.5 py-0.5 rounded active:scale-95 transition-all ${JLPT_BADGE_COLOR[jlptFilter]}`}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
