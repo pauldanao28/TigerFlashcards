@@ -704,9 +704,11 @@ export default function StudyView() {
     }
     if (masteryPercent > prev.percent) {
       setLevelUpToast({ level: `${masteryPercent}%`, lang: language, direction: "up" });
+      navigator.vibrate?.([60, 40, 100]);
       setTimeout(() => setLevelUpToast(null), 4000);
     } else if (masteryPercent < prev.percent) {
       setLevelUpToast({ level: `${masteryPercent}%`, lang: language, direction: "down" });
+      navigator.vibrate?.([30, 60, 30]);
       setTimeout(() => setLevelUpToast(null), 4000);
     }
     prevMasteryRef.current = { percent: masteryPercent, lang: language };
