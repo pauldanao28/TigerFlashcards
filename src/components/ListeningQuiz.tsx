@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, List, Volume2, ChevronLeft, Ear } from "lucide-react";
 import { speak, playTTS, stopTTS } from "@/lib/tts";
-import { sessionScore, rollingAvg, tierScoreCap, dailySessionWeight } from "@/lib/scoring";
+import { sessionScore, rollingAvg, tierScoreCap } from "@/lib/scoring";
 
 interface ListeningQuestion {
   word: string;
@@ -44,24 +44,7 @@ interface ListeningQuizProps {
   onClose: () => void;
 }
 
-const QUIZ_DAILY_LIMIT = 5;
-const QUIZ_DAILY_KEY = "flashkado-listening-quiz-daily";
 const QUESTIONS_PER_ROUND = 20;
-
-function getDailyCount(): number {
-  const today = new Date().toLocaleDateString("en-CA");
-  try {
-    const s = localStorage.getItem(QUIZ_DAILY_KEY);
-    if (!s) return 0;
-    const { date, count } = JSON.parse(s);
-    return date === today ? (count as number) : 0;
-  } catch { return 0; }
-}
-
-function incrementDailyCount(): void {
-  const today = new Date().toLocaleDateString("en-CA");
-  localStorage.setItem(QUIZ_DAILY_KEY, JSON.stringify({ date: today, count: getDailyCount() + 1 }));
-}
 
 type WordTapHandler = (word: string, reading: string, e: React.MouseEvent | React.TouchEvent) => void;
 
@@ -256,15 +239,9 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
 
   const load = useCallback(async () => {
     if (loadingRef.current) return;
-    if (!isAdmin && getDailyCount() >= QUIZ_DAILY_LIMIT) {
-      setError(`Daily limit reached — ${QUIZ_DAILY_LIMIT} quizzes per day. Come back tomorrow!`);
-      setPhase("loading");
-      return;
-    }
     stopTTS();
     setTooltip(null);
     loadingRef.current = true;
-    if (!isAdmin) incrementDailyCount();
     setPhase("loading");
     setCurrentIdx(0);
     setResults([]);
@@ -460,8 +437,7 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
       setPhase("done");
       const gotCount = newResults.filter(r => r.gotIt).length;
       const targetDiff = Math.min(100, listeningScoreRef.current + 20);
-      const weight = dailySessionWeight(getDailyCount() - 1);
-      const sess = sessionScore(gotCount, newResults.length, targetDiff) * weight;
+      const sess = sessionScore(gotCount, newResults.length, targetDiff);
       const cap = tierScoreCap(listeningScoreRef.current);
       const newListeningScore = Math.min(cap, listeningScoreRef.current === 0 ? Math.round(sess) : rollingAvg(listeningScoreRef.current, sess));
       listeningScoreRef.current = newListeningScore;
@@ -502,11 +478,6 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
           <div className="flex items-center gap-2.5">
             <span className="text-base">🎧</span>
             <span className="font-black text-[11px] uppercase tracking-widest text-slate-700">Listening Chunks</span>
-            {!isAdmin && (
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 ml-1">
-                {Math.max(0, QUIZ_DAILY_LIMIT - getDailyCount())}/{QUIZ_DAILY_LIMIT} left today
-              </span>
-            )}
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -549,14 +520,9 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
             </button>
           </div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">20 questions · ~10–15 min</p>
-          {!isAdmin && (
-            <p className="text-slate-300 font-black uppercase tracking-widest text-[10px]">
-              {Math.max(0, QUIZ_DAILY_LIMIT - getDailyCount())}/{QUIZ_DAILY_LIMIT} quizzes left today
-            </p>
-          )}
           <button
             onClick={() => { setStarting(true); load(); }}
-            disabled={starting || (!isAdmin && getDailyCount() >= QUIZ_DAILY_LIMIT)}
+            disabled={starting}
             className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all shadow-sm disabled:opacity-40 flex items-center justify-center gap-2"
           >
             {starting ? <Loader2 size={14} className="animate-spin" /> : null}
@@ -571,11 +537,6 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
           <div className="w-9 h-9 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">Generating quiz…</p>
           <p className="text-slate-300 font-bold text-[10px]">Please wait, this can take a few seconds</p>
-          {!isAdmin && (
-            <p className="text-slate-300 font-black uppercase tracking-widest text-[10px] mt-1">
-              {Math.max(0, QUIZ_DAILY_LIMIT - getDailyCount())}/{QUIZ_DAILY_LIMIT} quizzes left today
-            </p>
-          )}
         </div>
       )}
 
@@ -714,12 +675,6 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
             </div>
           )}
 
-          {!isAdmin && (
-            <p className="text-slate-300 font-black uppercase tracking-widest text-[10px] mb-4">
-              {Math.max(0, QUIZ_DAILY_LIMIT - getDailyCount())}/{QUIZ_DAILY_LIMIT} quizzes left today
-            </p>
-          )}
-
           <div className="flex gap-3 w-full">
             <button
               onClick={onClose}
@@ -727,18 +682,12 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
             >
               Done
             </button>
-            {(!isAdmin && getDailyCount() >= QUIZ_DAILY_LIMIT) ? (
-              <div className="flex-1 py-4 bg-slate-100 text-slate-400 rounded-2xl font-black uppercase tracking-widest text-[10px] text-center">
-                Limit reached
-              </div>
-            ) : (
-              <button
-                onClick={load}
-                className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all shadow-sm"
-              >
-                Play Again
-              </button>
-            )}
+            <button
+              onClick={load}
+              className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all shadow-sm"
+            >
+              Play Again
+            </button>
           </div>
         </div>
       )}
