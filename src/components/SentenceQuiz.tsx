@@ -667,6 +667,15 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
                       </span>
                       <span className="text-sm text-slate-400 font-medium">{currentCard.reading}</span>
                     </div>
+                    {(() => {
+                      const inSentence = currentCard.sentence_jp?.match(/【(.*?)】/)?.[1];
+                      return inSentence && inSentence !== currentCard.japanese ? (
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">In sentence</span>
+                          <span className="text-slate-600 text-sm font-medium">{inSentence}</span>
+                        </div>
+                      ) : null;
+                    })()}
                     <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-3">Meaning</p>
                     <p className="text-indigo-600 font-bold text-base">{currentCard.english}</p>
                     <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-2">Translation</p>
