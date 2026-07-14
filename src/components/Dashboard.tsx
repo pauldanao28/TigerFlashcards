@@ -89,9 +89,14 @@ function ScoreTile({
   );
 }
 
+// Module-level cache — survives Next.js client-side navigation, clears on full reload
+const _dashboardCache = new Map<string, ProfileScores>();
+
 export default function Dashboard() {
   const { user } = useAuth();
-  const [data, setData] = useState<ProfileScores | null>(null);
+  const [data, setData] = useState<ProfileScores | null>(
+    () => _dashboardCache.get(user?.id ?? "") ?? null
+  );
 
 
 
@@ -208,7 +213,7 @@ export default function Dashboard() {
 
       supabase.from("profiles").update(profileUpdates).eq("id", user.id);
 
-      setData({
+      const fresh: ProfileScores = {
         name: p?.full_name ?? null,
         streak: p?.streak_count ?? 0,
         vocab_score: vocabScore,
@@ -217,7 +222,9 @@ export default function Dashboard() {
         grammar_score: grammarScore,
         deck_size: deckSize,
         jlpt_stats: jlptStats,
-      });
+      };
+      _dashboardCache.set(user.id, fresh);
+      setData(fresh);
     };
     load();
     // Depend on user.id (a stable primitive), not the user object — Supabase's

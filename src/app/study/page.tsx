@@ -1,21 +1,18 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/context/AuthContext";
 import StudyView from "@/components/StudyView";
 import LoadingScreen from "@/components/LoadingScreen";
 
 export default function StudyPage() {
   const router = useRouter();
-  const [ready, setReady] = useState(false);
+  const { user, loading } = useAuth();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) router.replace("/login");
-      else setReady(true);
-    });
-  }, [router]);
+    if (!loading && !user) router.replace("/login");
+  }, [loading, user, router]);
 
-  if (!ready) return <LoadingScreen />;
+  if (loading || !user) return <LoadingScreen />;
   return <StudyView />;
 }
