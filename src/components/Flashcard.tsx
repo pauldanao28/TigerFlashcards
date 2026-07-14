@@ -56,26 +56,43 @@ export default function Flashcard({
 
   const isAudioUnlocked = useRef(false);
 
-  // 1. Create a simple helper for playing UI sounds
   const playUISound = (type: "success" | "fail", enabled: boolean) => {
     if (!enabled || typeof window === "undefined") return;
+    try {
+      const ctx = new AudioContext();
+      const gain = ctx.createGain();
+      gain.connect(ctx.destination);
 
-    const audio = new Audio(
-      type === "success" ? "/sounds/success.mp3" : "/sounds/fail.mp3",
-    );
+      if (type === "success") {
+        // Soft ascending two-tone chime
+        [523.25, 783.99].forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          osc.type = "sine";
+          osc.frequency.value = freq;
+          osc.connect(gain);
+          osc.start(ctx.currentTime + i * 0.1);
+          osc.stop(ctx.currentTime + i * 0.1 + 0.18);
+          gain.gain.setValueAtTime(0.18, ctx.currentTime + i * 0.1);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.1 + 0.18);
+        });
+      } else {
+        // Soft single low thud
+        const osc = ctx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(220, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(110, ctx.currentTime + 0.15);
+        osc.connect(gain);
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.2);
+      }
 
-    audio.volume = 0.4; // Keep it subtle
-    audio
-      .play()
-      .catch((e) => console.log("Audio play blocked until interaction", e));
+      setTimeout(() => ctx.close(), 600);
+    } catch { /* audio not available */ }
   };
 
   const forceUnlock = () => {
-    if (isAudioUnlocked.current) return;
-    // Unlock Audio context on iOS with a silent play
-    const silent = new Audio("/sounds/success.mp3");
-    silent.volume = 0;
-    silent.play().catch(() => {});
     isAudioUnlocked.current = true;
   };
 
@@ -163,10 +180,10 @@ export default function Flashcard({
 
     if (info.offset.x > swipeThreshold) {
       onSwipe?.("right");
-      playUISound("success", sfxEnabled ?? true);
+      playUISound("success", sfxEnabled ?? false);
     } else if (info.offset.x < -swipeThreshold) {
       onSwipe?.("left");
-      playUISound("fail", sfxEnabled ?? true);
+      playUISound("fail", sfxEnabled ?? false);
     }
     setHasVibrated(false);
   };
