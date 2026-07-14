@@ -204,15 +204,15 @@ export default function Dashboard() {
         if (totalAttempts > 0 && avgAccuracy >= 80) jlptStats[card.jlpt_level].mastered++;
       }
 
-      // Determine vocab N-level: highest N-level (N1 > N2 > … > N5) where mastery % is greatest,
-      // among levels with ≥ 50 cards. Higher N-levels win ties (iterated first).
+      // Determine vocab N-level: highest N-level (N1 > N2 > … > N5) where mastery % is greatest.
+      // A level qualifies when you've mastered at least half your own cards there (and ≥10 total
+      // to prevent tiny samples like 2/2 from counting). Higher N-levels win ties (iterated first).
       const NLEVEL_ORDER: JlptLevel[] = ["N1", "N2", "N3", "N4", "N5"];
-      const MIN_LEVEL_CARDS = 50;
       let vocabNLevel: JlptLevel = "N5";
       let bestRatio = -1;
       for (const lvl of NLEVEL_ORDER) {
         const { total, mastered } = jlptStats[lvl];
-        if (total < MIN_LEVEL_CARDS) continue;
+        if (total < 10 || mastered < Math.floor(total / 2)) continue;
         const ratio = mastered / total;
         if (ratio > bestRatio) {
           bestRatio = ratio;
