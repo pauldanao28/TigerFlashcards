@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, BookOpen, ScrollText, BarChart2 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 type Tab = {
   href: string;
@@ -22,7 +23,9 @@ const SHOW_ON = new Set(["/", "/study", "/quizzes", "/sensei", "/stats"]);
 
 export default function BottomNav() {
   const path = usePathname();
+  const { user, loading } = useAuth();
   if (!SHOW_ON.has(path)) return null;
+  if (loading || !user) return null;
 
   return (
     <nav
