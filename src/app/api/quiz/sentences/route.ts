@@ -8,6 +8,68 @@ function nextLevelLabel(score: number): string {
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
+function kanjiChars(s: string): string[] {
+  return Array.from(s).filter(ch => /[一-龯㐀-䶿々〻]/.test(ch));
+}
+
+function bracketedIsValid(word: string, bracketed: string): boolean {
+  const wk = kanjiChars(word);
+  if (wk.length === 0) {
+    // Kana-only word (する, くる, etc.) — accept if bracketed starts with same char or stem
+    const stem = word.length > 1 ? word.slice(0, -1) : word;
+    return bracketed.startsWith(stem) || bracketed[0] === word[0];
+  }
+  const bk = kanjiChars(bracketed);
+  // All kanji in target must appear at the start of bracketed's kanji sequence
+  return bk.length >= wk.length && wk.every((k, i) => bk[i] === k);
+}
+
+function repairBracket(word: string, sentenceJp: string): string {
+  const raw = sentenceJp.replace(/【(.*?)】/g, "$1");
+
+  // 1. Exact dictionary form in sentence
+  const exactIdx = raw.indexOf(word);
+  if (exactIdx >= 0) {
+    return raw.slice(0, exactIdx) + `【${word}】` + raw.slice(exactIdx + word.length);
+  }
+
+  // 2. Find kanji stem + trailing hiragana (conjugated form)
+  const wk = kanjiChars(word);
+  if (wk.length > 0) {
+    let searchFrom = 0;
+    while (searchFrom < raw.length) {
+      const firstKanjiIdx = raw.indexOf(wk[0], searchFrom);
+      if (firstKanjiIdx === -1) break;
+      // Walk through the kanji sequence, skipping interleaved hiragana
+      let ri = firstKanjiIdx, ki = 0;
+      while (ki < wk.length && ri < raw.length) {
+        if (raw[ri] === wk[ki]) { ki++; ri++; }
+        else if (/[ぁ-ん]/.test(raw[ri])) { ri++; }
+        else break;
+      }
+      if (ki === wk.length) {
+        // Extend through trailing hiragana (conjugation ending)
+        while (ri < raw.length && /[ぁ-んー]/.test(raw[ri])) ri++;
+        const conjugated = raw.slice(firstKanjiIdx, ri);
+        return raw.slice(0, firstKanjiIdx) + `【${conjugated}】` + raw.slice(ri);
+      }
+      searchFrom = firstKanjiIdx + 1;
+    }
+  }
+
+  // 3. Last resort: bracket just the dictionary form (no real sentence context)
+  return `【${word}】`;
+}
+
+function validateSentences(sentences: any[]): any[] {
+  return sentences.map((s: any) => {
+    const match = s.sentence_jp?.match(/【(.*?)】/);
+    if (!match) return s; // no brackets — pass through as-is
+    if (bracketedIsValid(s.word, match[1])) return s;
+    return { ...s, sentence_jp: repairBracket(s.word, s.sentence_jp) };
+  });
+}
+
 export async function POST(req: Request) {
   try {
     const { cards, difficulty = 30 } = await req.json();
@@ -67,14 +129,14 @@ Return ONLY a valid JSON array, no markdown, no explanation:
 
     try {
       const parsed = JSON.parse(cleaned);
-      if (Array.isArray(parsed)) return NextResponse.json({ sentences: parsed });
+      if (Array.isArray(parsed)) return NextResponse.json({ sentences: validateSentences(parsed) });
     } catch {}
 
     const arrMatch = cleaned.match(/\[[\s\S]*\]/);
     if (arrMatch) {
       try {
         const parsed = JSON.parse(arrMatch[0]);
-        if (Array.isArray(parsed)) return NextResponse.json({ sentences: parsed });
+        if (Array.isArray(parsed)) return NextResponse.json({ sentences: validateSentences(parsed) });
       } catch {}
     }
 
