@@ -7,6 +7,14 @@ import { translations } from "@/lib/languages";
 import { speak } from "@/lib/tts";
 import { useAppAlert } from "@/context/AlertContext";
 
+const JLPT_BADGE_COLOR: Record<string, string> = {
+  N5: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  N4: "bg-teal-100 text-teal-700 border-teal-200",
+  N3: "bg-amber-100 text-amber-700 border-amber-200",
+  N2: "bg-orange-100 text-orange-700 border-orange-200",
+  N1: "bg-rose-100 text-rose-700 border-rose-200",
+};
+
 interface FlashcardProps {
   card: FlashcardData;
   language: "en" | "jp";
@@ -357,7 +365,7 @@ export default function Flashcard({
           <div className="absolute inset-0 flex flex-col bg-indigo-600 text-white rounded-3xl shadow-2xl [transform:rotateY(180deg)] [backface-visibility:hidden] p-8 text-center overflow-hidden">
             {card?.jlpt_level && (
               <div className="absolute top-4 left-4 z-10">
-                <span className="px-3 py-1 bg-white/20 rounded-full text-[10px] font-black uppercase tracking-widest border border-white/10">
+                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${JLPT_BADGE_COLOR[card.jlpt_level] ?? "bg-white/20 text-white border-white/10"}`}>
                   {card.jlpt_level}
                 </span>
               </div>
