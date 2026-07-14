@@ -37,18 +37,66 @@ const JLPT_BADGE_COLOR: Record<"N5" | "N4" | "N3" | "N2" | "N1", string> = {
   N1: "bg-rose-100 text-rose-700 border-rose-200",
 };
 
+interface StudyCacheEntry {
+  userId: string;
+  cards: FlashcardData[];
+  deckId: string | null;
+  currentCard: FlashcardData | null;
+}
+let _studyCache: StudyCacheEntry | null = null;
+
+function getNextPriorityCard(
+  allCards: FlashcardData[],
+  lang: "jp" | "en",
+  lastCardId?: string,
+): FlashcardData | null {
+  if (allCards.length === 0) return null;
+  const mode = lang === "jp" ? "jp_to_en" : "en_to_jp";
+
+  const getScore = (c: FlashcardData) => c.scores?.[mode]?.percent || 0;
+  const getTries = (c: FlashcardData) => c.scores?.[mode]?.total || 0;
+
+  const sorted = [...allCards].sort((a, b) => getScore(a) - getScore(b));
+  const hardCards = sorted.slice(0, 10);
+  const easyCards = allCards.filter(
+    (c) => getScore(c) >= 85 && getTries(c) >= 15,
+  );
+  const mediumCards = allCards.filter(
+    (c) =>
+      !hardCards.some((h) => h.id === c.id) &&
+      !easyCards.some((e) => e.id === c.id),
+  );
+
+  const roll = Math.random();
+  let pool =
+    roll < 0.65 && hardCards.length
+      ? hardCards
+      : roll < 0.95 && mediumCards.length
+        ? mediumCards
+        : easyCards.length
+          ? easyCards
+          : allCards;
+
+  const filtered = pool.filter((c) => c.id !== lastCardId);
+  return filtered.length
+    ? filtered[Math.floor(Math.random() * filtered.length)]
+    : allCards[0];
+}
+
 export default function StudyView() {
   const { user, loading } = useAuth();
   // --- 1. State Management ---
   const [hasOnboarded, setHasOnboarded] = useState<boolean | null>(null);
 
-  const [cards, setCards] = useState<FlashcardData[]>([]);
-  const [currentCard, setCurrentCard] = useState<FlashcardData | null>(null);
-  const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
+  const cached = _studyCache?.userId === user?.id ? _studyCache : null;
+  const hasCachedData = !!cached && cached.cards.length > 0;
+  const [cards, setCards] = useState<FlashcardData[]>(() => cached?.cards ?? []);
+  const [currentCard, setCurrentCard] = useState<FlashcardData | null>(() => cached?.currentCard ?? null);
+  const [defaultDeckId, setDefaultDeckId] = useState<string | null>(() => cached?.deckId ?? null);
 
-  const [dataLoading, setDataLoading] = useState(true); // Cards loading
+  const [dataLoading, setDataLoading] = useState(!hasCachedData);
   const [aiLoading, setAiLoading] = useState(false); // AI Syncing
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(hasCachedData);
 
   const [language, setLanguage] = useState<"en" | "jp">("jp");
   const [streak, setStreak] = useState(0);
@@ -214,13 +262,14 @@ export default function StudyView() {
         // This prevents the card from "jumping" when you return to the tab.
         setCurrentCard((prev) => {
           if (prev) return prev; // Keep the card that was already there
-          return getNextPriorityCard(flattened);
+          return getNextPriorityCard(flattened, "jp");
         });
+        _studyCache = { userId: user.id, cards: flattened, deckId: defaultDeckId, currentCard: null };
       }
     }
     setDataLoading(false);
     setHasLoadedOnce(true);
-  }, [user, defaultDeckId, language]);
+  }, [user, defaultDeckId]);
 
   useEffect(() => {
     fetchInitialData();
@@ -361,43 +410,12 @@ export default function StudyView() {
     };
   }, []);
 
-  // --- 5. Spaced Repetition Logic ---
-  const getNextPriorityCard = (
-    allCards: FlashcardData[],
-    lastCardId?: string,
-  ) => {
-    if (allCards.length === 0) return null;
-    const mode = language === "jp" ? "jp_to_en" : "en_to_jp";
-
-    const getScore = (c: FlashcardData) => c.scores?.[mode]?.percent || 0;
-    const getTries = (c: FlashcardData) => c.scores?.[mode]?.total || 0;
-
-    const sorted = [...allCards].sort((a, b) => getScore(a) - getScore(b));
-    const hardCards = sorted.slice(0, 10);
-    const easyCards = allCards.filter(
-      (c) => getScore(c) >= 85 && getTries(c) >= 15,
-    );
-    const mediumCards = allCards.filter(
-      (c) =>
-        !hardCards.some((h) => h.id === c.id) &&
-        !easyCards.some((e) => e.id === c.id),
-    );
-
-    const roll = Math.random();
-    let pool =
-      roll < 0.65 && hardCards.length
-        ? hardCards
-        : roll < 0.95 && mediumCards.length
-          ? mediumCards
-          : easyCards.length
-            ? easyCards
-            : allCards;
-
-    const filtered = pool.filter((c) => c.id !== lastCardId);
-    return filtered.length
-      ? filtered[Math.floor(Math.random() * filtered.length)]
-      : allCards[0];
-  };
+  // Keep module-level cache in sync so re-mounting the component skips the loading spinner
+  useEffect(() => {
+    if (user?.id && cards.length > 0) {
+      _studyCache = { userId: user.id, cards, deckId: defaultDeckId, currentCard };
+    }
+  }, [user?.id, cards, currentCard, defaultDeckId]);
 
   // --- 6. Interaction Handlers ---
   const updateStreak = async () => {
@@ -542,7 +560,7 @@ export default function StudyView() {
       );
 
       setCards(updatedCards);
-      setCurrentCard(getNextPriorityCard(updatedCards, currentCard.id));
+      setCurrentCard(getNextPriorityCard(updatedCards, language, currentCard.id));
       setIsFlipped(false);
     },
     [
