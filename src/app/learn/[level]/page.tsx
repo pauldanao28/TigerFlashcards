@@ -48,18 +48,17 @@ export default function LearnLevelPage() {
   const [scores, setScores] = useState<Record<string, PatternScore>>({});
   const [loading, setLoading] = useState(true);
 
-  if (!JLPT_LEVELS.includes(slug)) {
-    router.replace("/quizzes");
-    return null;
-  }
-
-  const meta = LEVEL_META[slug];
-  const jlptLevel = meta.label;
+  const isValidSlug = JLPT_LEVELS.includes(slug);
+  const meta = isValidSlug ? LEVEL_META[slug] : null;
+  const jlptLevel = meta?.label;
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) { router.replace("/login"); return; }
-      const uid = session.user.id;
+    if (!isValidSlug || !jlptLevel) { router.replace("/quizzes"); return; }
+    (async () => {
+      // Public page: patterns load for everyone. Scores (and the mastery bar/badges
+      // they drive) only load when there's a session — no login wall to browse.
+      const { data: { session } } = await supabase.auth.getSession();
+      const uid = session?.user.id ?? null;
       setUserId(uid);
 
       const [{ data: pData }, { data: sData }] = await Promise.all([
@@ -68,10 +67,9 @@ export default function LearnLevelPage() {
           .select("id, pattern, meaning, jlpt_level, example_jp")
           .eq("jlpt_level", jlptLevel)
           .order("pattern"),
-        supabase
-          .from("user_grammar_scores")
-          .select("pattern_id, pass, fail, total, percent")
-          .eq("user_id", uid),
+        uid
+          ? supabase.from("user_grammar_scores").select("pattern_id, pass, fail, total, percent").eq("user_id", uid)
+          : Promise.resolve({ data: [] as PatternScore[] }),
       ]);
 
       setPatterns(pData ?? []);
@@ -79,10 +77,10 @@ export default function LearnLevelPage() {
       for (const row of sData ?? []) scoreMap[row.pattern_id] = row;
       setScores(scoreMap);
       setLoading(false);
-    });
-  }, [router, slug, jlptLevel]);
+    })();
+  }, [isValidSlug, slug, jlptLevel, router]);
 
-  if (!userId || loading) return <LoadingScreen />;
+  if (!isValidSlug || !meta || loading) return <LoadingScreen />;
 
   const mastered = patterns.filter((p) => {
     const s = scores[p.id];
@@ -110,8 +108,8 @@ export default function LearnLevelPage() {
           </div>
         </div>
 
-        {/* Mastery bar */}
-        {patterns.length > 0 && (
+        {/* Mastery bar — logged-in users only */}
+        {userId && patterns.length > 0 && (
           <div className="mt-4">
             <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">
               <span>Mastered</span>
@@ -125,6 +123,15 @@ export default function LearnLevelPage() {
             </div>
           </div>
         )}
+        {!userId && patterns.length > 0 && (
+          <Link
+            href="/login"
+            className="mt-4 flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 hover:border-indigo-200 transition-colors"
+          >
+            <span className="text-xs font-bold text-slate-500">Sign in to track your mastery on each pattern</span>
+            <span className="text-indigo-600 text-xs font-black shrink-0 ml-2">Start Free →</span>
+          </Link>
+        )}
       </div>
 
       {/* Pattern list */}
@@ -134,53 +141,33 @@ export default function LearnLevelPage() {
         ) : (
           patterns.map((p) => {
             const s = scores[p.id];
-            const tried = s && s.total > 0;
             const mastered = s && s.total >= MASTERY_MIN_ATTEMPTS && s.percent >= MASTERY_MIN_PERCENT;
-            const pct = tried ? s.percent : null;
 
             return (
               <div
                 key={p.id}
                 className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-black text-slate-900 text-base">{p.pattern}</span>
-                      {mastered && (
-                        <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${meta.badgeColor}`}>
-                          Mastered
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-500 mt-0.5">{p.meaning}</p>
-                    {p.example_jp && (
-                      <div className="flex items-center gap-2 mt-2">
-                        <p className="text-sm text-slate-700 font-medium">{p.example_jp}</p>
-                        <button
-                          onClick={() => speak(p.example_jp!)}
-                          className="shrink-0 text-slate-300 hover:text-indigo-500 active:scale-90 transition-all"
-                        >
-                          <Volume2 size={14} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Score pill */}
-                  <div className="shrink-0 text-right">
-                    {tried ? (
-                      <div className="flex flex-col items-end gap-0.5">
-                        <span className={`text-xs font-black ${pct! >= 80 ? "text-emerald-600" : pct! >= 50 ? "text-amber-600" : "text-rose-500"}`}>
-                          {pct}%
-                        </span>
-                        <span className="text-[9px] text-slate-300 font-bold">{s.total} tries</span>
-                      </div>
-                    ) : (
-                      <span className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">New</span>
-                    )}
-                  </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-black text-slate-900 text-base">{p.pattern}</span>
+                  {mastered && (
+                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${meta.badgeColor}`}>
+                      Mastered
+                    </span>
+                  )}
                 </div>
+                <p className="text-xs text-slate-500 mt-0.5">{p.meaning}</p>
+                {p.example_jp && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <p className="text-sm text-slate-700 font-medium">{p.example_jp}</p>
+                    <button
+                      onClick={() => speak(p.example_jp!)}
+                      className="shrink-0 text-slate-300 hover:text-indigo-500 active:scale-90 transition-all"
+                    >
+                      <Volume2 size={14} />
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })
