@@ -8,7 +8,7 @@ import { useAppAlert } from "@/context/AlertContext";
 
 export default function AdminDashboard() {
   const t = translations.en;
-  const { showAlert } = useAppAlert();
+  const { showAlert, showConfirm } = useAppAlert();
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -225,7 +225,12 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteCard = async (reportId: string, cardId: string, japanese: string) => {
-    if (!window.confirm(`Delete "${japanese}" from master_cards? This cannot be undone.`)) return;
+    const confirmed = await showConfirm(`Delete "${japanese}" from the card library? This cannot be undone.`, {
+      title: "Delete Card",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!confirmed) return;
 
     const { error } = await supabase.from("master_cards").delete().eq("id", cardId);
     if (error) {
