@@ -109,6 +109,7 @@ export default function StudyView() {
   const [showStreakBanner, setShowStreakBanner] = useState(false);
   const [goalStreak, setGoalStreak] = useState(0);
   const goalFired = useRef(false);
+  const hasInteracted = useRef(false); // suppresses autoplay on first mount (tab switch)
   const vocabScoreRef = useRef<number>(0);
   const vocabSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -462,6 +463,7 @@ export default function StudyView() {
   const handleScore = useCallback(
     async (isPass: boolean) => {
       if (!currentCard || !user) return;
+      hasInteracted.current = true;
 
       // 1. Calculate Score Updates
       const mode = language === "jp" ? "jp_to_en" : "en_to_jp";
@@ -1060,8 +1062,8 @@ export default function StudyView() {
                     language={language}
                     userId={user?.id || ""}
                     onSwipe={onSwipe}
-                    autoPlayJp={autoPlayJp}
-                    autoPlayEn={autoPlayEn}
+                    autoPlayJp={autoPlayJp && hasInteracted.current}
+                    autoPlayEn={autoPlayEn && hasInteracted.current}
                     sfxEnabled={sfxEnabled}
                     isFlipped={isFlipped}
                     onFlip={setIsFlipped}
