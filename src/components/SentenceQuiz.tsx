@@ -919,7 +919,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
               />
             </div>
             <div className="p-4 border-t border-slate-100 flex gap-3">
-              <button onClick={() => syncWordList([])} disabled={wordList.length === 0}
+              <button onClick={() => flushWordList([])} disabled={wordList.length === 0}
                 className="px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all disabled:opacity-40">
                 Clear
               </button>
