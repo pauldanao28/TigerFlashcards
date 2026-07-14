@@ -808,10 +808,38 @@ export default function StudyView() {
             </div>
             </div>
           </div>
+          {/* Mode toggle — top right */}
+          <button
+            onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
+            className={`pointer-events-auto flex flex-col items-center gap-0.5 px-3 py-2 rounded-2xl border font-black transition-all active:scale-95 ${
+              language === "jp"
+                ? "bg-indigo-50 border-indigo-100 text-indigo-600"
+                : "bg-orange-50 border-orange-100 text-orange-600"
+            }`}
+          >
+            <span className="text-base leading-none">{language === "jp" ? "🇯🇵" : "🇺🇸"}</span>
+            <span className="text-[8px] uppercase tracking-widest leading-none">
+              {language === "jp" ? t.recognition : t.recall}
+            </span>
+          </button>
         </div>
 
         {/* --- 2. DESKTOP NAVIGATION --- */}
         <div className="hidden md:flex relative top-0 w-full z-50 px-8 py-8 items-center justify-between pointer-events-auto">
+          {/* Mode toggle — desktop top right */}
+          <button
+            onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
+            className={`absolute right-8 top-8 flex flex-col items-center gap-1 px-4 py-2.5 rounded-2xl border font-black transition-all hover:scale-105 active:scale-95 shadow-sm ${
+              language === "jp"
+                ? "bg-indigo-50 border-indigo-100 text-indigo-600"
+                : "bg-orange-50 border-orange-100 text-orange-600"
+            }`}
+          >
+            <span className="text-lg leading-none">{language === "jp" ? "🇯🇵" : "🇺🇸"}</span>
+            <span className="text-[9px] uppercase tracking-widest leading-none">
+              {language === "jp" ? t.recognition : t.recall}
+            </span>
+          </button>
           <div className="flex items-center gap-6 h-14">
             <Link href="/" className="hover:opacity-80 transition-opacity">
               <Logo className="w-12 h-14" />
@@ -952,23 +980,15 @@ export default function StudyView() {
               )}
             </div>
 
-            {/* Study direction toggle + accuracy */}
+            {/* Accuracy info */}
             {!dataLoading && cards.length > 0 && currentCard && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
-                  className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
-                    language === "jp"
-                      ? "bg-indigo-50 text-indigo-600 border-indigo-100"
-                      : "bg-orange-50 text-orange-600 border-orange-100"
-                  }`}
-                >
-                  {language === "jp" ? `🇯🇵 ${t.recognition}` : `🇺🇸 ${t.recall}`}
-                </button>
-                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
-                  {currentCard.scores?.[language === "jp" ? "jp_to_en" : "en_to_jp"]?.percent || 0}%
+              <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] text-center">
+                {language === "jp" ? `🇯🇵 ${t.recognition}` : `🇺🇸 ${t.recall}`}
+                {" | "}
+                <span className="font-black text-slate-300">
+                  {currentCard.scores?.[language === "jp" ? "jp_to_en" : "en_to_jp"]?.percent || 0}% {t.accuracy}
                 </span>
-              </div>
+              </span>
             )}
           </div>
 
