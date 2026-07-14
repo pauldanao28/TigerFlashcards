@@ -31,49 +31,29 @@ function FlashcardScreen() {
 function ListeningScreen() {
   return (
     <div className="flex flex-col h-full bg-slate-50 px-3 pt-2 pb-3 gap-2">
-      <p className="text-[7px] font-black uppercase tracking-widest text-slate-400">Listen &amp; choose</p>
-      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-2.5 flex items-center gap-2">
-        <div className="w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center shrink-0">
-          <span className="text-white text-[7px] ml-0.5">▶</span>
+      <p className="text-[7px] font-black uppercase tracking-widest text-slate-400">Listen &amp; recall</p>
+      <div className="flex-1 flex flex-col items-center justify-center gap-3">
+        {/* Big play button */}
+        <div className="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center shadow-lg shadow-indigo-200">
+          <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+            <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+          </svg>
         </div>
-        <div className="flex gap-px items-end h-5 flex-1">
-          {[3, 5, 4, 7, 5, 3, 6, 4, 5, 3, 6, 5, 4, 3, 5].map((h, i) => (
-            <div
-              key={i}
-              className={`flex-1 rounded-sm ${i < 6 ? "bg-indigo-400" : "bg-slate-200"}`}
-              style={{ height: `${h * 3}px` }}
-            />
-          ))}
+        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Tap to listen</p>
+        {/* Revealed sentence */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-3 w-full text-center">
+          <p className="text-[13px] font-black text-slate-800">毎日勉強します</p>
+          <p className="text-[7px] text-slate-300 font-medium mt-1">revealed</p>
         </div>
-        <span className="text-[7px] text-slate-400 font-bold">0:04</span>
       </div>
-      <div className="flex-1 flex flex-col gap-1.5">
-        {[
-          { text: "I go to school every day", correct: true },
-          { text: "I went to school today", correct: false },
-          { text: "I came home from school", correct: false },
-          { text: "I study hard at school", correct: false },
-        ].map((opt, i) => (
-          <div
-            key={i}
-            className={`rounded-xl px-2.5 py-2 flex items-center gap-2 flex-1 ${
-              opt.correct
-                ? "bg-emerald-50 border border-emerald-200"
-                : "bg-white border border-slate-100 shadow-sm"
-            }`}
-          >
-            <span
-              className={`text-[7px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 ${
-                opt.correct ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-400"
-              }`}
-            >
-              {opt.correct ? "✓" : String.fromCharCode(65 + i)}
-            </span>
-            <p className={`text-[8px] font-bold leading-tight ${opt.correct ? "text-emerald-700" : "text-slate-500"}`}>
-              {opt.text}
-            </p>
-          </div>
-        ))}
+      <div className="flex gap-2">
+        <div className="flex-1 bg-rose-50 border border-rose-100 rounded-xl py-2.5 text-center">
+          <p className="text-[8px] font-black text-rose-500">✕ Missed It</p>
+        </div>
+        <div className="flex-1 bg-emerald-50 border border-emerald-100 rounded-xl py-2.5 text-center">
+          <p className="text-[8px] font-black text-emerald-600">✓ Got It</p>
+        </div>
       </div>
     </div>
   );
@@ -159,7 +139,7 @@ const COPY = {
     },
     {
       title: "Listening Practice",
-      desc: "Real Japanese audio, no text crutch. Listen, understand, choose.",
+      desc: "Real Japanese audio, no text crutch. Listen, then reveal the sentence and grade yourself.",
     },
     {
       title: "Grammar Quiz",
