@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
-import { getLevel, jlptLevel, vocabMastery, JLPT_VOCAB_INCREMENT, grammarPatternScore } from "@/lib/scoring";
+import { getLevel, jlptLevel, JLPT_VOCAB_INCREMENT, grammarPatternScore } from "@/lib/scoring";
 
 type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
 
@@ -175,19 +175,12 @@ export default function Dashboard() {
 
       const [deckCards, scoreRows, jlptCards] = await Promise.all([fetchAllDeckCards(), fetchAllScores(), fetchJlptCards()]);
 
-      // Build score map and compute per-card accuracies (0 for unlearned)
+      // Build score map
       const scoreMap = new Map(scoreRows.map((s) => [s.card_id, s.scores_json]));
-      const deckCardIds = deckCards.map((dc) => dc.card_id);
-      const accuracies = deckCardIds.map((id) => {
-        const sc = scoreMap.get(id);
-        return Math.max(sc?.jp_to_en?.percent ?? 0, sc?.en_to_jp?.percent ?? 0);
-      });
+      const deckSize = deckCards.length;
 
-      const deckSize = deckCardIds.length;
-      const vocabScore = vocabMastery(accuracies, deckSize);
-
-      // Per-level mastery — same "mastered" definition as the stats page (>=80% accuracy
-      // with at least one attempt), so the two surfaces agree on what "mastered" means.
+      // Per-level stats: total cards and mastered (≥80% combined avg, ≥1 attempt) for breakdown UI.
+      // Also tracks mastered-for-score (max(jp,en) ≥70%) for the weighted progress score.
       const jlptStats: Record<JlptLevel, { total: number; mastered: number }> = {
         N5: { total: 0, mastered: 0 },
         N4: { total: 0, mastered: 0 },
@@ -195,14 +188,26 @@ export default function Dashboard() {
         N2: { total: 0, mastered: 0 },
         N1: { total: 0, mastered: 0 },
       };
+      const jlptMasteredForScore: Partial<Record<JlptLevel, number>> = {};
       for (const card of jlptCards) {
         if (!card.jlpt_level || !(card.jlpt_level in jlptStats)) continue;
         const sc = scoreMap.get(card.id);
         const totalAttempts = (sc?.jp_to_en?.total ?? 0) + (sc?.en_to_jp?.total ?? 0);
         const avgAccuracy = ((sc?.jp_to_en?.percent ?? 0) + (sc?.en_to_jp?.percent ?? 0)) / 2;
-        jlptStats[card.jlpt_level].total++;
-        if (totalAttempts > 0 && avgAccuracy >= 80) jlptStats[card.jlpt_level].mastered++;
+        const maxAccuracy = Math.max(sc?.jp_to_en?.percent ?? 0, sc?.en_to_jp?.percent ?? 0);
+        const lvl = card.jlpt_level as JlptLevel;
+        jlptStats[lvl].total++;
+        if (totalAttempts > 0 && avgAccuracy >= 80) jlptStats[lvl].mastered++;
+        if (maxAccuracy >= 70) jlptMasteredForScore[lvl] = (jlptMasteredForScore[lvl] ?? 0) + 1;
       }
+
+      // Grammar-style overall vocab score: each N-level contributes up to 20 pts
+      // (mastered_at_level / JLPT_INCREMENT × 20), capped per level. True 0–100 JLPT progression.
+      let rawVocabScore = 0;
+      for (const lvl of ["N5", "N4", "N3", "N2", "N1"] as JlptLevel[]) {
+        rawVocabScore += Math.min((jlptMasteredForScore[lvl] ?? 0) / JLPT_VOCAB_INCREMENT[lvl], 1) * 20;
+      }
+      const vocabScore = Math.round(rawVocabScore);
 
       // Determine vocab N-level: highest N-level (N1 > N2 > … > N5) where mastery % is greatest.
       // A level qualifies only when you have ≥50% of its JLPT vocab target in your deck
