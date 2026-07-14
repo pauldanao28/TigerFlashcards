@@ -41,6 +41,13 @@ const JLPT_BADGE_COLOR: Record<JlptLevel, string> = {
   N2: "bg-orange-100 text-orange-700 border-orange-200",
   N1: "bg-rose-100 text-rose-700 border-rose-200",
 };
+const JLPT_TEXT_COLOR: Record<JlptLevel, string> = {
+  N5: "text-emerald-700",
+  N4: "text-teal-700",
+  N3: "text-amber-700",
+  N2: "text-orange-700",
+  N1: "text-rose-700",
+};
 
 function ScoreTile({
   href,
@@ -64,7 +71,7 @@ function ScoreTile({
       <div className="flex items-center justify-between">
         <span className="text-2xl">{emoji}</span>
         <div className="flex items-center gap-1">
-          <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${level.bg} ${level.color}`}>
+          <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${JLPT_BADGE_COLOR[nlevel as JlptLevel]}`}>
             {nlevel}
           </span>
           <span className={`text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-500`}>
@@ -75,7 +82,7 @@ function ScoreTile({
       <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p>
       <div>
         <div className="flex items-end justify-between mb-1">
-          <span className={`text-2xl font-black ${level.color}`}>{Math.round(s)}%</span>
+          <span className={`text-2xl font-black ${JLPT_TEXT_COLOR[nlevel as JlptLevel]}`}>{Math.round(s)}%</span>
         </div>
         <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
           <div
