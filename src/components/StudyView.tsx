@@ -50,7 +50,7 @@ export default function StudyView() {
   const [aiLoading, setAiLoading] = useState(false); // AI Syncing
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
-  const [language] = useState<"en" | "jp">("jp");
+  const [language, setLanguage] = useState<"en" | "jp">("jp");
   const [streak, setStreak] = useState(0);
   const [sessionStreak, setSessionStreak] = useState(0);
   const [dailyProgress, setDailyProgress] = useState(0);
@@ -952,17 +952,23 @@ export default function StudyView() {
               )}
             </div>
 
-            {/* Accuracy Label (Directly above the card) */}
+            {/* Study direction toggle + accuracy */}
             {!dataLoading && cards.length > 0 && currentCard && (
-              <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] text-center">
-                {language === "jp" ? `🇯🇵 ${t.recognition}` : `🇺🇸 ${t.recall}`} |{" "}
-                <span className="font-black text-slate-300">
-                  {currentCard.scores?.[
-                    language === "jp" ? "jp_to_en" : "en_to_jp"
-                  ]?.percent || 0}
-                  % {t.accuracy}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
+                  className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                    language === "jp"
+                      ? "bg-indigo-50 text-indigo-600 border-indigo-100"
+                      : "bg-orange-50 text-orange-600 border-orange-100"
+                  }`}
+                >
+                  {language === "jp" ? `🇯🇵 ${t.recognition}` : `🇺🇸 ${t.recall}`}
+                </button>
+                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                  {currentCard.scores?.[language === "jp" ? "jp_to_en" : "en_to_jp"]?.percent || 0}%
                 </span>
-              </span>
+              </div>
             )}
           </div>
 
