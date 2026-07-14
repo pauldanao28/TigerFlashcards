@@ -242,18 +242,8 @@ export default function WelcomeView() {
             className="w-full h-full bg-white rounded-[31px] overflow-hidden transition-opacity duration-150"
             style={{ opacity: visible ? 1 : 0 }}
           >
-            {/* Status bar */}
-            <div className="flex justify-between items-center px-4 pt-5 pb-1 shrink-0">
-              <span className="text-[8px] font-black text-slate-800">12:15</span>
-              <div className="flex items-end gap-px">
-                {[8, 11, 14, 17].map((h, i) => (
-                  <div key={i} className="w-[2.5px] bg-slate-800 rounded-sm" style={{ height: h }} />
-                ))}
-                <span className="text-[8px] font-black text-slate-800 ml-1.5">5G</span>
-              </div>
-            </div>
             {/* Feature content */}
-            <div className="h-[calc(100%-32px)]">
+            <div className="h-full pt-5">
               <Screen />
             </div>
           </div>
