@@ -355,6 +355,13 @@ export default function Flashcard({
 
           {/* BACK SIDE */}
           <div className="absolute inset-0 flex flex-col bg-indigo-600 text-white rounded-3xl shadow-2xl [transform:rotateY(180deg)] [backface-visibility:hidden] p-8 text-center overflow-hidden">
+            {card?.jlpt_level && (
+              <div className="absolute top-4 left-4 z-10">
+                <span className="px-3 py-1 bg-white/20 rounded-full text-[10px] font-black uppercase tracking-widest border border-white/10">
+                  {card.jlpt_level}
+                </span>
+              </div>
+            )}
             {card?.partOfSpeech && (
               <div className="absolute top-4 right-4 z-10">
                 <span className="px-3 py-1 bg-white/20 rounded-full text-[10px] font-bold uppercase tracking-widest border border-white/10">
