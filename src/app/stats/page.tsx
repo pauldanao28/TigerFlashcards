@@ -703,9 +703,9 @@ export default function StatsPage() {
       if (!c.jlpt_level || !(c.jlpt_level in stats)) continue;
       const s = c.scores;
       const totalAttempts = (s?.jp_to_en?.total || 0) + (s?.en_to_jp?.total || 0);
-      const avgAccuracy = ((s?.jp_to_en?.percent || 0) + (s?.en_to_jp?.percent || 0)) / 2;
+      const maxAccuracy = Math.max(s?.jp_to_en?.percent || 0, s?.en_to_jp?.percent || 0);
       stats[c.jlpt_level].total++;
-      if (totalAttempts > 0 && avgAccuracy >= 80) stats[c.jlpt_level].mastered++;
+      if (totalAttempts > 0 && maxAccuracy >= 70) stats[c.jlpt_level].mastered++;
     }
     return stats;
   }, [cards]);
@@ -738,17 +738,17 @@ export default function StatsPage() {
   //   );
   // }, [cards]);
 
-  // 2. Mastered (Avg Accuracy > 80% and has been attempted)
-  // 1. Get the lists of objects
+  // Mastered = max(jp_to_en, en_to_jp) ≥ 70% with at least one attempt
   const masteredList = useMemo(() => {
     return cards.filter((c) => {
       const s = c.scores;
       const totalAttempts =
         (s?.jp_to_en?.total || 0) + (s?.en_to_jp?.total || 0);
-      const avgAccuracy =
-        ((s?.jp_to_en?.percent || 0) + (s?.en_to_jp?.percent || 0)) / 2;
-
-      return totalAttempts > 0 && avgAccuracy >= 80;
+      const maxAccuracy = Math.max(
+        s?.jp_to_en?.percent || 0,
+        s?.en_to_jp?.percent || 0,
+      );
+      return totalAttempts > 0 && maxAccuracy >= 70;
     });
   }, [cards]);
 
