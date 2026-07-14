@@ -91,7 +91,7 @@ function QuizzesInner() {
 
       {/* Learn section */}
       <div className="px-4 pt-6 pb-2">
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Learn</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Learn First</p>
         <div className="flex flex-col gap-3">
           <Link
             href="/study/kana"
@@ -110,7 +110,7 @@ function QuizzesInner() {
             return (
               <Link
                 key={lvl}
-                href={`/jlpt/${lvl.toLowerCase()}`}
+                href={`/learn/${lvl.toLowerCase()}`}
                 className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm active:scale-95 transition-all text-left w-full flex items-center gap-4"
               >
                 <span className={`text-xl font-black w-8 text-center ${colors[lvl]}`}>{lvl}</span>
