@@ -172,18 +172,25 @@ export default function Flashcard({
     }
   }, [isFlipped, card?.id, autoPlayJp, autoPlayEn]);
 
+  const swipeHaptic = (type: "success" | "fail") => {
+    if (typeof window === "undefined" || /iPad|iPhone|iPod/.test(navigator.userAgent)) return;
+    if (!navigator.vibrate) return;
+    navigator.vibrate(type === "success" ? [40] : [10, 60, 10]);
+  };
+
   const handleDragEnd = (event: any, info: any) => {
     const swipeThreshold = 100;
 
-    // 🔥 THE FIX: Unlock immediately on the user's physical release
     forceUnlock();
 
     if (info.offset.x > swipeThreshold) {
       onSwipe?.("right");
       playUISound("success", sfxEnabled ?? false);
+      swipeHaptic("success");
     } else if (info.offset.x < -swipeThreshold) {
       onSwipe?.("left");
       playUISound("fail", sfxEnabled ?? false);
+      swipeHaptic("fail");
     }
     setHasVibrated(false);
   };
