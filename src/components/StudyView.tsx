@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { translations } from "@/lib/languages";
 import { calculateGlobalStats } from "@/lib/stats";
 import { processReferral } from "@/lib/social";
-import { rollingAvg, vocabMastery, JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
+import { rollingAvg, vocabMastery, JLPT_VOCAB_INCREMENT, jlptLevel } from "@/lib/scoring";
 
 import Auth from "@/components/Auth";
 import Logo from "@/components/Logo";
@@ -693,6 +693,25 @@ export default function StudyView() {
     return Math.round(raw);
   }, [cards, language]);
 
+  // Level-up detection: fire a toast when N-level crosses a threshold on the same mode
+  const prevMasteryRef = useRef<{ percent: number; lang: "jp" | "en" } | null>(null);
+  const [levelUpToast, setLevelUpToast] = useState<{ level: string; lang: "jp" | "en" } | null>(null);
+  const NLEVEL_ORDER = ["N5", "N4", "N3", "N2", "N1"];
+  useEffect(() => {
+    const prev = prevMasteryRef.current;
+    if (prev === null || prev.lang !== language) {
+      prevMasteryRef.current = { percent: masteryPercent, lang: language };
+      return;
+    }
+    const prevNLevel = jlptLevel(prev.percent);
+    const newNLevel = jlptLevel(masteryPercent);
+    if (NLEVEL_ORDER.indexOf(newNLevel) > NLEVEL_ORDER.indexOf(prevNLevel)) {
+      setLevelUpToast({ level: newNLevel, lang: language });
+      setTimeout(() => setLevelUpToast(null), 4000);
+    }
+    prevMasteryRef.current = { percent: masteryPercent, lang: language };
+  }, [masteryPercent, language]);
+
   // 4. Dynamic Colors based on mode
   const modeColorClass =
     language === "jp"
@@ -763,6 +782,33 @@ export default function StudyView() {
             }
           />
         )}
+
+        {/* Level-Up Toast */}
+        <AnimatePresence>
+          {levelUpToast && (
+            <motion.div
+              initial={{ opacity: 0, y: 80, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 80, scale: 0.9 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-24 md:bottom-12 left-0 right-0 z-[200] flex justify-center pointer-events-none px-6"
+            >
+              <div className="bg-white rounded-3xl shadow-2xl shadow-indigo-100/60 border border-indigo-100 px-8 py-5 flex items-center gap-5 max-w-sm w-full">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-2xl shrink-0">
+                  🎖️
+                </div>
+                <div className="flex flex-col gap-1">
+                  <p className="text-slate-800 font-black text-sm uppercase tracking-widest leading-none">
+                    Level Up!
+                  </p>
+                  <p className="text-indigo-600 font-bold text-[11px] uppercase tracking-wider leading-none mt-1">
+                    {levelUpToast.lang === "jp" ? "🇯🇵 Recognition" : "🇺🇸 Recall"} reached <span className="font-black">{levelUpToast.level}</span>
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Streak Banner */}
         <AnimatePresence>
