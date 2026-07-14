@@ -19,10 +19,18 @@ export function getLevel(score: number): SkillLevel {
   return LEVELS.find(l => score >= l.min) ?? LEVELS[LEVELS.length - 1];
 }
 
-// Rolling average — sessions weighted 30%, history weighted 70%.
-// Prevents single good/bad session from spiking the score.
+// Rolling average — sessions weighted 15%, history weighted 85%.
+// Heavy anchoring to past performance prevents single-day grinding.
 export function rollingAvg(oldScore: number, sessionScore: number): number {
-  return Math.min(100, Math.max(0, oldScore * 0.7 + sessionScore * 0.3));
+  return Math.min(100, Math.max(0, oldScore * 0.85 + sessionScore * 0.15));
+}
+
+// Diminishing returns multiplier — 1st/2nd quiz of day = full weight,
+// 3rd/4th = 50%, 5th+ = 25%. Pass quizzes completed BEFORE this session.
+export function dailySessionWeight(completedBeforeThis: number): number {
+  if (completedBeforeThis < 2) return 1.0;
+  if (completedBeforeThis < 4) return 0.5;
+  return 0.25;
 }
 
 // session_score = accuracy × difficulty — means perfect score on easy content
@@ -64,6 +72,82 @@ export function bootstrapReadingScore(
   return Math.round(avg);
 }
 
+// JLPT cumulative vocab targets — cards needed to reach each level.
+export const JLPT_VOCAB_FLOOR: Record<string, number> = {
+  N5: 800,
+  N4: 1500,
+  N3: 3750,
+  N2: 6000,
+  N1: 10000,
+};
+
+// Incremental (level-specific) targets derived from the cumulative JLPT_VOCAB_FLOOR above —
+// e.g. N4's cumulative floor of 1500 already includes the ~800 N5 words, so the vocab that's
+// actually *new* to N4 is 1500-800=700. Used for per-level breakdowns where a level's own
+// tagged card count should be compared against its own target, not a cumulative one that
+// already includes easier levels.
+export const JLPT_VOCAB_INCREMENT: Record<string, number> = {
+  N5: JLPT_VOCAB_FLOOR.N5,
+  N4: JLPT_VOCAB_FLOOR.N4 - JLPT_VOCAB_FLOOR.N5,
+  N3: JLPT_VOCAB_FLOOR.N3 - JLPT_VOCAB_FLOOR.N4,
+  N2: JLPT_VOCAB_FLOOR.N2 - JLPT_VOCAB_FLOOR.N3,
+  N1: JLPT_VOCAB_FLOOR.N1 - JLPT_VOCAB_FLOOR.N2,
+};
+
+// Which JLPT tier a deck size falls into — determines the mastery floor.
+export function deckJlptTier(deckSize: number): string {
+  if (deckSize >= 6000) return "N1";
+  if (deckSize >= 3750) return "N2";
+  if (deckSize >= 1500) return "N3";
+  if (deckSize >= 800) return "N4";
+  return "N5";
+}
+
+// Floor = target card count for the next JLPT tier above your current deck size.
+export function vocabFloor(deckSize: number): number {
+  if (deckSize >= 6000) return 10000;
+  if (deckSize >= 3750) return 6000;
+  if (deckSize >= 1500) return 3750;
+  if (deckSize >= 800) return 1500;
+  return 800;
+}
+
+// Compute vocab mastery % from per-card combined accuracies (0-100 each).
+// A card is "known" when its combined accuracy >= 70%.
+// Score = known_cards / vocabFloor(deckSize) so unlearned/unmined cards don't inflate the score.
+export function vocabMastery(cardAccuracies: number[], deckSize: number): number {
+  const known = cardAccuracies.filter(a => a >= 70).length;
+  const denominator = vocabFloor(deckSize);
+  return Math.min(100, Math.round((known / denominator) * 100));
+}
+
+// Grammar score derived purely from pattern mastery — each JLPT level contributes 20 points
+// based on what % of that level's patterns are mastered (>= 3 attempts, >= 80% accuracy).
+// N5=0-20, N4=20-40, N3=40-60, N2=60-80, N1=80-100. No rolling average; always reflects
+// actual current mastery so resets naturally when patterns change.
+export function grammarPatternScore(
+  patterns: { id: string; jlpt_level: string }[],
+  scoreMap: Map<string, { total: number; percent: number }>
+): number {
+  const LEVELS = ["N5", "N4", "N3", "N2", "N1"];
+  const byLevel = new Map<string, string[]>();
+  for (const p of patterns) {
+    if (!byLevel.has(p.jlpt_level)) byLevel.set(p.jlpt_level, []);
+    byLevel.get(p.jlpt_level)!.push(p.id);
+  }
+  let score = 0;
+  for (const level of LEVELS) {
+    const ids = byLevel.get(level) ?? [];
+    if (ids.length === 0) continue;
+    const mastered = ids.filter(id => {
+      const s = scoreMap.get(id);
+      return s && s.total >= 3 && s.percent >= 80;
+    }).length;
+    score += (mastered / ids.length) * 20;
+  }
+  return Math.min(100, Math.round(score));
+}
+
 // Overall JLPT level estimate from a 0-100 skill score.
 export function jlptLevel(score: number): string {
   if (score >= 80) return "N1";
@@ -71,6 +155,18 @@ export function jlptLevel(score: number): string {
   if (score >= 40) return "N3";
   if (score >= 20) return "N4";
   return "N5";
+}
+
+// Max score achievable while answering questions at a given tier.
+// Prevents grinding a lower tier to skip into a higher one — you can
+// reach the entry of the next tier but not progress through it without
+// actually facing that tier's questions.
+export function tierScoreCap(currentScore: number): number {
+  if (currentScore < 20) return 20;
+  if (currentScore < 40) return 40;
+  if (currentScore < 60) return 60;
+  if (currentScore < 80) return 80;
+  return 100;
 }
 
 // Difficulty label for quiz API prompts.
