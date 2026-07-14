@@ -695,7 +695,7 @@ export default function StudyView() {
 
   // Level-up detection: fire a toast when N-level crosses a threshold on the same mode
   const prevMasteryRef = useRef<{ percent: number; lang: "jp" | "en" } | null>(null);
-  const [levelUpToast, setLevelUpToast] = useState<{ level: string; lang: "jp" | "en" } | null>(null);
+  const [levelUpToast, setLevelUpToast] = useState<{ level: string; lang: "jp" | "en"; direction: "up" | "down" } | null>(null);
   const NLEVEL_ORDER = ["N5", "N4", "N3", "N2", "N1"];
   useEffect(() => {
     const prev = prevMasteryRef.current;
@@ -705,8 +705,10 @@ export default function StudyView() {
     }
     const prevNLevel = jlptLevel(prev.percent);
     const newNLevel = jlptLevel(masteryPercent);
-    if (NLEVEL_ORDER.indexOf(newNLevel) > NLEVEL_ORDER.indexOf(prevNLevel)) {
-      setLevelUpToast({ level: newNLevel, lang: language });
+    const prevIdx = NLEVEL_ORDER.indexOf(prevNLevel);
+    const newIdx = NLEVEL_ORDER.indexOf(newNLevel);
+    if (newIdx !== prevIdx) {
+      setLevelUpToast({ level: newNLevel, lang: language, direction: newIdx > prevIdx ? "up" : "down" });
       setTimeout(() => setLevelUpToast(null), 4000);
     }
     prevMasteryRef.current = { percent: masteryPercent, lang: language };
@@ -783,29 +785,76 @@ export default function StudyView() {
           />
         )}
 
-        {/* Level-Up Toast */}
+        {/* Level Toast (Up / Down) */}
         <AnimatePresence>
           {levelUpToast && (
             <motion.div
               initial={{ opacity: 0, y: 80, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 80, scale: 0.9 }}
+              exit={{ opacity: 0, y: 60, scale: 0.92 }}
               transition={{ type: "spring", stiffness: 320, damping: 28 }}
               className="fixed bottom-24 md:bottom-12 left-0 right-0 z-[200] flex justify-center pointer-events-none px-6"
             >
-              <div className="bg-white rounded-3xl shadow-2xl shadow-indigo-100/60 border border-indigo-100 px-8 py-5 flex items-center gap-5 max-w-sm w-full">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-2xl shrink-0">
-                  🎖️
+              <motion.div
+                animate={levelUpToast.direction === "up" ? {
+                  boxShadow: [
+                    "0 0 0 0px rgba(99,102,241,0)",
+                    "0 0 0 10px rgba(99,102,241,0.12)",
+                    "0 0 0 0px rgba(99,102,241,0)",
+                  ],
+                } : {}}
+                transition={{ duration: 1.4, repeat: 2, ease: "easeInOut" }}
+                className={`relative overflow-hidden bg-white rounded-3xl shadow-2xl border px-8 py-5 flex items-center gap-5 max-w-sm w-full ${
+                  levelUpToast.direction === "up"
+                    ? "border-indigo-100 shadow-indigo-200/50"
+                    : "border-amber-100 shadow-amber-200/40"
+                }`}
+              >
+                {/* Shimmer sweep on level up */}
+                {levelUpToast.direction === "up" && (
+                  <motion.div
+                    initial={{ x: "-100%" }}
+                    animate={{ x: "250%" }}
+                    transition={{ duration: 0.75, delay: 0.2, ease: "easeOut" }}
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/70 to-transparent pointer-events-none z-10"
+                  />
+                )}
+
+                {/* Icon */}
+                <motion.div
+                  initial={{ scale: 0, rotate: levelUpToast.direction === "up" ? -30 : 15 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: "spring", stiffness: 450, damping: 14, delay: 0.08 }}
+                  className={`shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center text-2xl ${
+                    levelUpToast.direction === "up" ? "bg-indigo-50" : "bg-amber-50"
+                  }`}
+                >
+                  {levelUpToast.direction === "up" ? "🎖️" : "📉"}
+                </motion.div>
+
+                {/* Text */}
+                <div className="flex flex-col gap-1 z-10">
+                  <motion.p
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.18 }}
+                    className="text-slate-800 font-black text-sm uppercase tracking-widest leading-none"
+                  >
+                    {levelUpToast.direction === "up" ? "Level Up!" : "Level Down"}
+                  </motion.p>
+                  <motion.p
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.28 }}
+                    className={`font-bold text-[11px] uppercase tracking-wider leading-none mt-1 ${
+                      levelUpToast.direction === "up" ? "text-indigo-500" : "text-amber-500"
+                    }`}
+                  >
+                    {levelUpToast.lang === "jp" ? "🇯🇵 Recognition" : "🇺🇸 Recall"} is now{" "}
+                    <span className="font-black">{levelUpToast.level}</span>
+                  </motion.p>
                 </div>
-                <div className="flex flex-col gap-1">
-                  <p className="text-slate-800 font-black text-sm uppercase tracking-widest leading-none">
-                    Level Up!
-                  </p>
-                  <p className="text-indigo-600 font-bold text-[11px] uppercase tracking-wider leading-none mt-1">
-                    {levelUpToast.lang === "jp" ? "🇯🇵 Recognition" : "🇺🇸 Recall"} reached <span className="font-black">{levelUpToast.level}</span>
-                  </p>
-                </div>
-              </div>
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
