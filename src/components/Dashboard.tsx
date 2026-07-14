@@ -188,24 +188,20 @@ export default function Dashboard() {
         N2: { total: 0, mastered: 0 },
         N1: { total: 0, mastered: 0 },
       };
-      const jlptMasteredForScore: Partial<Record<JlptLevel, number>> = {};
       for (const card of jlptCards) {
         if (!card.jlpt_level || !(card.jlpt_level in jlptStats)) continue;
         const sc = scoreMap.get(card.id);
-        const totalAttempts = (sc?.jp_to_en?.total ?? 0) + (sc?.en_to_jp?.total ?? 0);
-        const avgAccuracy = ((sc?.jp_to_en?.percent ?? 0) + (sc?.en_to_jp?.percent ?? 0)) / 2;
         const maxAccuracy = Math.max(sc?.jp_to_en?.percent ?? 0, sc?.en_to_jp?.percent ?? 0);
         const lvl = card.jlpt_level as JlptLevel;
         jlptStats[lvl].total++;
-        if (totalAttempts > 0 && avgAccuracy >= 80) jlptStats[lvl].mastered++;
-        if (maxAccuracy >= 70) jlptMasteredForScore[lvl] = (jlptMasteredForScore[lvl] ?? 0) + 1;
+        if (maxAccuracy >= 70) jlptStats[lvl].mastered++;
       }
 
       // Grammar-style overall vocab score: each N-level contributes up to 20 pts
       // (mastered_at_level / JLPT_INCREMENT × 20), capped per level. True 0–100 JLPT progression.
       let rawVocabScore = 0;
       for (const lvl of ["N5", "N4", "N3", "N2", "N1"] as JlptLevel[]) {
-        rawVocabScore += Math.min((jlptMasteredForScore[lvl] ?? 0) / JLPT_VOCAB_INCREMENT[lvl], 1) * 20;
+        rawVocabScore += Math.min(jlptStats[lvl].mastered / JLPT_VOCAB_INCREMENT[lvl], 1) * 20;
       }
       const vocabScore = Math.round(rawVocabScore);
 
