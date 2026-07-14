@@ -3,7 +3,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { X, ChevronLeft, Loader2, List, Volume2 } from "lucide-react";
 import { speak } from "@/lib/tts";
-import { sessionScore, rollingAvg, tierScoreCap, dailySessionWeight } from "@/lib/scoring";
+import { grammarPatternScore, dailySessionWeight } from "@/lib/scoring";
 
 const GRAMMAR_DAILY_KEY = "flashkado-grammar-quiz-daily";
 function getGrammarDailyCount(): number {
@@ -449,18 +449,21 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
     setStarting(false);
   };
 
-  const finishQuiz = (finalScore: number, totalQ: number, finalWrong: typeof wrong) => {
+  const finishQuiz = async (finalScore: number, totalQ: number, finalWrong: typeof wrong) => {
     setPhase("done");
     if (finalWrong.length > 0) {
       supabase.from("grammar_corrections").insert(
         finalWrong.map(w => ({ user_id: userId, mistake: w.mistake, correct: w.correct, reason: w.reason }))
       );
     }
-    const targetDiff = Math.min(100, grammarScoreRef.current + 20);
-    const weight = dailySessionWeight(getGrammarDailyCount() - 1);
-    const sess = sessionScore(finalScore, totalQ, targetDiff) * weight;
-    const cap = tierScoreCap(grammarScoreRef.current);
-    const newGrammarScore = Math.min(cap, grammarScoreRef.current === 0 ? Math.round(sess) : rollingAvg(grammarScoreRef.current, sess));
+    // Recompute grammar_score from actual pattern mastery — no rolling average.
+    // Fetch fresh scores so this session's recordPatternResult writes are included.
+    const [{ data: allPatterns }, { data: allScores }] = await Promise.all([
+      supabase.from("grammar_patterns").select("id, jlpt_level"),
+      supabase.from("user_grammar_scores").select("pattern_id, total, percent").eq("user_id", userId),
+    ]);
+    const scoreMap = new Map((allScores ?? []).map(s => [s.pattern_id, { total: s.total, percent: s.percent }]));
+    const newGrammarScore = grammarPatternScore(allPatterns ?? [], scoreMap);
     grammarScoreRef.current = newGrammarScore;
     supabase.from("profiles").update({ grammar_score: newGrammarScore }).eq("id", userId)
       .then(({ error }) => { if (error) console.error("[grammar_score save]", error.code, error.message); });
