@@ -526,7 +526,8 @@ export default function StudyView() {
           c.id === currentCard.id ? { ...c, scores: newScores } : c
         );
         setCards(updatedCards);
-        const accuracies = updatedCards.map((c) => Math.max(c.scores?.jp_to_en?.percent ?? 0, c.scores?.en_to_jp?.percent ?? 0));
+        const modeKey = language === "jp" ? "jp_to_en" : "en_to_jp";
+        const accuracies = updatedCards.map((c) => c.scores?.[modeKey]?.percent ?? 0);
         const newVocabScore = vocabMastery(accuracies, updatedCards.length);
         vocabScoreRef.current = newVocabScore;
         if (vocabSaveTimerRef.current) clearTimeout(vocabSaveTimerRef.current);
