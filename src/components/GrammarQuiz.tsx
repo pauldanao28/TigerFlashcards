@@ -20,6 +20,29 @@ function incrementGrammarDailyCount(): void {
   localStorage.setItem(GRAMMAR_DAILY_KEY, JSON.stringify({ date: today, count: getGrammarDailyCount() + 1 }));
 }
 
+const JLPT_ORDER = ["N5", "N4", "N3", "N2", "N1"] as const;
+type JlptLevel = (typeof JLPT_ORDER)[number];
+const MASTERY_MIN_ATTEMPTS = 3;
+const MASTERY_MIN_PERCENT = 80;
+const PATTERNS_PER_ROUND = 20;
+
+interface GrammarPattern {
+  id: string;
+  pattern: string;
+  meaning: string;
+  jlpt_level: JlptLevel;
+  example_jp: string | null;
+}
+interface PatternScoreRow {
+  pattern_id: string;
+  pass: number;
+  fail: number;
+  total: number;
+  percent: number;
+}
+const isMastered = (row?: PatternScoreRow) =>
+  !!row && row.total >= MASTERY_MIN_ATTEMPTS && row.percent >= MASTERY_MIN_PERCENT;
+
 interface GrammarQuizProps {
   userId: string;
   onClose: () => void;
@@ -28,9 +51,9 @@ interface GrammarQuizProps {
 type Phase = "intro" | "loading" | "quiz" | "done";
 
 type QuizQuestion =
-  | { type: "grammar"; sentence: string; blank_hint: string; choices: string[]; answer: string; explanation: string }
-  | { type: "reading"; japanese: string; choices: string[]; answer: string; explanation: string }
-  | { type: "writing"; english: string; answer: string; hint?: string; explanation: string };
+  | { type: "grammar"; pattern_id: string; sentence: string; blank_hint: string; choices: string[]; answer: string; explanation: string }
+  | { type: "reading"; pattern_id: string; japanese: string; choices: string[]; answer: string; explanation: string }
+  | { type: "writing"; pattern_id: string; english: string; answer: string; hint?: string; explanation: string };
 
 interface WordTooltip {
   word: string;
@@ -108,6 +131,55 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
   const [score, setScore] = useState(0);
   const [wrong, setWrong] = useState<{ mistake: string; correct: string; reason: string }[]>([]);
   const grammarScoreRef = useRef<number>(0);
+  const [currentLevel, setCurrentLevel] = useState<JlptLevel>("N5");
+  const [levelProgress, setLevelProgress] = useState<{ mastered: number; total: number }>({ mastered: 0, total: 0 });
+
+  // Intro-screen snapshot of current unlocked level + mastery progress.
+  useEffect(() => {
+    (async () => {
+      const [{ data: patterns }, { data: scores }] = await Promise.all([
+        supabase.from("grammar_patterns").select("id, jlpt_level"),
+        supabase.from("user_grammar_scores").select("pattern_id, pass, fail, total, percent").eq("user_id", userId),
+      ]);
+      const scoreMap = new Map((scores ?? []).map(s => [s.pattern_id, s as PatternScoreRow]));
+      const byLevel = new Map<JlptLevel, { id: string }[]>();
+      (patterns ?? []).forEach((p) => {
+        const level = p.jlpt_level as JlptLevel;
+        if (!byLevel.has(level)) byLevel.set(level, []);
+        byLevel.get(level)!.push(p);
+      });
+
+      // Walk N5→N1: stop at the first level with unmastered patterns. Levels with no
+      // seeded content yet are skipped (vacuously "mastered") so progression doesn't
+      // stall waiting for content, but also doesn't unlock an empty level — if every
+      // seeded level clears, stay at the highest one that actually has patterns.
+      let finalLevel: JlptLevel = "N5";
+      for (const level of JLPT_ORDER) {
+        const atLevel = byLevel.get(level) ?? [];
+        if (atLevel.length === 0) continue;
+        finalLevel = level;
+        if (!atLevel.every((p) => isMastered(scoreMap.get(p.id)))) break;
+      }
+
+      setCurrentLevel(finalLevel);
+      const atFinal = byLevel.get(finalLevel) ?? [];
+      const masteredCount = atFinal.filter((p) => isMastered(scoreMap.get(p.id))).length;
+      setLevelProgress({ mastered: masteredCount, total: atFinal.length });
+    })();
+  }, [userId]);
+
+  const recordPatternResult = useCallback(async (patternId: string, correct: boolean) => {
+    const { data: existing } = await supabase.from("user_grammar_scores")
+      .select("pass, fail, total").eq("user_id", userId).eq("pattern_id", patternId).maybeSingle();
+    const pass = (existing?.pass ?? 0) + (correct ? 1 : 0);
+    const fail = (existing?.fail ?? 0) + (correct ? 0 : 1);
+    const total = (existing?.total ?? 0) + 1;
+    const percent = Math.round((pass / total) * 100);
+    await supabase.from("user_grammar_scores").upsert(
+      { user_id: userId, pattern_id: patternId, pass, fail, total, percent, updated_at: new Date().toISOString() },
+      { onConflict: "user_id,pattern_id" }
+    );
+  }, [userId]);
 
   // Warn on accidental refresh/tab-close mid-quiz — progress lives only in React state
   // and a lost quiz still burns one of today's limited slots.
@@ -297,44 +369,64 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
     setTooltip(null);
     incrementGrammarDailyCount();
     try {
-      const [profileRes, spRes, mistakesRes, deckRow] = await Promise.all([
+      const [{ data: profileData }, { data: allPatterns }, { data: allScores }] = await Promise.all([
         supabase.from("profiles").select("grammar_score").eq("id", userId).single(),
-        supabase.from("sensei_profile").select("*").eq("user_id", userId).maybeSingle(),
-        supabase.from("grammar_corrections").select("mistake, correct, reason").eq("user_id", userId).limit(20),
-        supabase.from("decks").select("id").eq("user_id", userId).eq("is_default", true).single(),
+        supabase.from("grammar_patterns").select("id, pattern, meaning, jlpt_level, example_jp"),
+        supabase.from("user_grammar_scores").select("pattern_id, pass, fail, total, percent").eq("user_id", userId),
       ]);
 
-      if (profileRes.data?.grammar_score != null) {
-        grammarScoreRef.current = profileRes.data.grammar_score;
+      if (profileData?.grammar_score != null) {
+        grammarScoreRef.current = profileData.grammar_score;
       }
 
-      // Fetch top 10 weak cards to seed grammar vocabulary
-      let weakWords: { japanese: string; english: string }[] = [];
-      if (deckRow.data?.id) {
-        const { data: dcRows } = await supabase.from("deck_cards").select("card_id").eq("deck_id", deckRow.data.id).limit(300);
-        const cardIds = (dcRows ?? []).map(r => r.card_id);
-        if (cardIds.length > 0) {
-          const [{ data: cards }, { data: scores }] = await Promise.all([
-            supabase.from("master_cards").select("id, japanese, english").in("id", cardIds),
-            supabase.from("user_scores").select("card_id, scores_json").eq("user_id", userId).in("card_id", cardIds),
-          ]);
-          const scoreMap = new Map((scores ?? []).map(s => [s.card_id, s.scores_json]));
-          weakWords = (cards ?? [])
-            .map(c => {
-              const sc = scoreMap.get(c.id);
-              const combined = ((sc?.jp_to_en?.percent ?? 0) + (sc?.en_to_jp?.percent ?? 0)) / 2;
-              return { japanese: c.japanese, english: c.english, combined };
-            })
-            .sort((a, b) => a.combined - b.combined)
-            .slice(0, 10)
-            .map(({ japanese, english }) => ({ japanese, english }));
-        }
+      const scoreMap = new Map((allScores ?? []).map(s => [s.pattern_id, s as PatternScoreRow]));
+      const byLevel = new Map<JlptLevel, GrammarPattern[]>();
+      (allPatterns ?? []).forEach((p) => {
+        const level = p.jlpt_level as JlptLevel;
+        if (!byLevel.has(level)) byLevel.set(level, []);
+        byLevel.get(level)!.push(p as GrammarPattern);
+      });
+
+      // Same walk as the intro-screen snapshot: find the current unlocked level.
+      let unlockedLevel: JlptLevel = "N5";
+      for (const level of JLPT_ORDER) {
+        const atLevel = byLevel.get(level) ?? [];
+        if (atLevel.length === 0) continue;
+        unlockedLevel = level;
+        if (!atLevel.every((p) => isMastered(scoreMap.get(p.id)))) break;
+      }
+      setCurrentLevel(unlockedLevel);
+
+      // Cumulative pool: every pattern from N5 through the unlocked level — unlocking N3
+      // doesn't stop N4/N5 weak points from resurfacing.
+      const unlockedIdx = JLPT_ORDER.indexOf(unlockedLevel);
+      const cumulativePool = JLPT_ORDER.slice(0, unlockedIdx + 1).flatMap((level) => byLevel.get(level) ?? []);
+
+      if (cumulativePool.length === 0) {
+        setError("No grammar patterns available yet. Please try again later.");
+        setPhase("intro");
+        setStarting(false);
+        return;
       }
 
-      const res = await fetch("/api/quiz", {
+      // Weakest-first: patterns under the minimum-attempt threshold need reps most and
+      // sort ahead of everything else; among attempted patterns, lowest accuracy first.
+      const weighted = cumulativePool
+        .map((p) => {
+          const s = scoreMap.get(p.id);
+          const weight = !s || s.total < MASTERY_MIN_ATTEMPTS ? -1 : s.percent;
+          return { pattern: p, weight };
+        })
+        .sort((a, b) => a.weight - b.weight);
+
+      const pool = weighted.slice(0, PATTERNS_PER_ROUND).map(({ pattern }) => ({
+        id: pattern.id, pattern: pattern.pattern, meaning: pattern.meaning, example_jp: pattern.example_jp,
+      }));
+
+      const res = await fetch("/api/quiz/grammar-patterns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile: spRes.data ?? null, grammarScore: grammarScoreRef.current, recentMistakes: mistakesRes.data ?? [], weakWords }),
+        body: JSON.stringify({ patterns: pool }),
       });
       const data = await res.json();
       if (Array.isArray(data.questions) && data.questions.length > 0) {
@@ -415,14 +507,19 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
         <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 max-w-lg mx-auto w-full text-center gap-5">
           <span className="text-5xl">📝</span>
           <div>
-            <h2 className="text-xl font-black text-slate-900 mb-2">How it works</h2>
+            <h2 className="text-xl font-black text-slate-900 mb-2">
+              {currentLevel} Grammar
+              {levelProgress.total > 0 && (
+                <span className="text-slate-300 font-bold text-base"> · {levelProgress.mastered}/{levelProgress.total} mastered</span>
+              )}
+            </h2>
             <p className="text-slate-500 font-medium text-sm leading-relaxed">
-              An AI-generated quiz matched to your current N level. You&apos;ll get fill-in-the-blank grammar, Japanese-to-English reading, and free-writing prompts.
+              Questions are drawn from real {currentLevel} grammar patterns — fill-in-the-blank, reading, and writing, all anchored to a specific structure.
             </p>
           </div>
           <div className="w-full bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-3 text-left">
             <p className="text-emerald-800 font-bold text-xs leading-relaxed">
-              🧠 Questions are based on your grammar score and past mistakes. Score well consistently to advance N levels. Tap any kanji to look it up.
+              🧠 Master {MASTERY_MIN_ATTEMPTS}+ tries at ≥{MASTERY_MIN_PERCENT}% on every {currentLevel} pattern to unlock the next level. Weak patterns from earlier levels keep resurfacing. Tap any kanji to look it up.
             </p>
           </div>
           {error && <p className="text-red-500 font-bold text-xs">{error}</p>}
@@ -537,7 +634,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
                       }
                       return (
                         <button key={choice}
-                          onClick={() => { if (!answered) { setSelected(choice); if (choice === q.answer) setScore(s => s + 1); } }}
+                          onClick={() => { if (!answered) { setSelected(choice); const ok = choice === q.answer; if (ok) setScore(s => s + 1); recordPatternResult(q.pattern_id, ok); } }}
                           className={`px-4 py-4 rounded-2xl border-2 text-sm font-black transition-all ${style}`}>
                           <TappableText text={choice} keyPrefix={`ch-${choice}`} onWordTap={handleWordClick} />
                         </button>
@@ -581,7 +678,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
                       }
                       return (
                         <button key={choice} disabled={answered}
-                          onClick={() => { setSelected(choice); if (choice === q.answer) setScore(s => s + 1); }}
+                          onClick={() => { setSelected(choice); const ok = choice === q.answer; if (ok) setScore(s => s + 1); recordPatternResult(q.pattern_id, ok); }}
                           className={`px-4 py-4 rounded-2xl border-2 text-sm font-bold transition-all ${style}`}>
                           {choice}
                         </button>
@@ -636,11 +733,11 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
                     </div>
                     <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest text-center">Did you get it right?</p>
                     <div className="flex gap-3">
-                      <button onClick={() => advance(undefined, 1)}
+                      <button onClick={() => { recordPatternResult(q.pattern_id, true); advance(undefined, 1); }}
                         className="flex-1 py-4 bg-emerald-50 text-emerald-600 rounded-2xl font-black border-b-4 border-emerald-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] tracking-widest">
                         ✓ Got it
                       </button>
-                      <button onClick={() => advance({ mistake: writingInput, correct: q.answer, reason: q.english })}
+                      <button onClick={() => { recordPatternResult(q.pattern_id, false); advance({ mistake: writingInput, correct: q.answer, reason: q.english }); }}
                         className="flex-1 py-4 bg-rose-50 text-rose-600 rounded-2xl font-black border-b-4 border-rose-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] tracking-widest">
                         ✗ Missed
                       </button>
