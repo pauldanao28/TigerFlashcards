@@ -177,9 +177,7 @@ export default function Dashboard() {
       const deckCardIds = deckCards.map((dc) => dc.card_id);
       const accuracies = deckCardIds.map((id) => {
         const sc = scoreMap.get(id);
-        const jp = sc?.jp_to_en?.percent ?? 0;
-        const en = sc?.en_to_jp?.percent ?? 0;
-        return (jp + en) / 2;
+        return Math.max(sc?.jp_to_en?.percent ?? 0, sc?.en_to_jp?.percent ?? 0);
       });
 
       const deckSize = deckCardIds.length;
