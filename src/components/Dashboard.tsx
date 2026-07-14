@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { Loader2, RotateCcw } from "lucide-react";
-import { getLevel, jlptLevel, bootstrapVocabScore, bootstrapReadingScore } from "@/lib/scoring";
+import { getLevel, jlptLevel, bootstrapVocabScore, bootstrapReadingScore, grammarPatternScore } from "@/lib/scoring";
 
 interface ProfileScores {
   name: string | null;
@@ -95,10 +95,12 @@ export default function Dashboard() {
     const p = profileRes.data;
     let vocabScore = p?.vocab_score ?? null;
     let readingScore = p?.reading_score ?? null;
+    let grammarScore = p?.grammar_score ?? null;
+
+    const updates: Record<string, number> = {};
 
     if (vocabScore == null || readingScore == null) {
       const rows = (scoresRes.data ?? []) as { scores_json: any }[];
-      const updates: Record<string, number> = {};
       if (vocabScore == null) {
         vocabScore = bootstrapVocabScore(rows);
         updates.vocab_score = vocabScore;
@@ -107,9 +109,24 @@ export default function Dashboard() {
         readingScore = bootstrapReadingScore(rows);
         updates.reading_score = readingScore;
       }
-      if (Object.keys(updates).length > 0) {
-        supabase.from("profiles").update(updates).eq("id", user.id);
+    }
+
+    // Recalculate grammar_score from pattern mastery whenever it's stale (0 or null)
+    // so the dashboard reflects existing quiz records without requiring another quiz.
+    if (!grammarScore) {
+      const [{ data: allPatterns }, { data: allScores }] = await Promise.all([
+        supabase.from("grammar_patterns").select("id, jlpt_level"),
+        supabase.from("user_grammar_scores").select("pattern_id, total, percent").eq("user_id", user.id),
+      ]);
+      if (allScores && allScores.length > 0) {
+        const scoreMap = new Map(allScores.map(s => [s.pattern_id, { total: s.total, percent: s.percent }]));
+        grammarScore = grammarPatternScore(allPatterns ?? [], scoreMap);
+        updates.grammar_score = grammarScore;
       }
+    }
+
+    if (Object.keys(updates).length > 0) {
+      supabase.from("profiles").update(updates).eq("id", user.id);
     }
 
     setData({
@@ -118,7 +135,7 @@ export default function Dashboard() {
       vocab_score: vocabScore,
       reading_score: readingScore,
       listening_score: p?.listening_score ?? null,
-      grammar_score: p?.grammar_score ?? null,
+      grammar_score: grammarScore,
     });
   };
 
