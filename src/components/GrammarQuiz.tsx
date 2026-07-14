@@ -168,17 +168,23 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
     })();
   }, [userId]);
 
-  const recordPatternResult = useCallback(async (patternId: string, correct: boolean) => {
-    const { data: existing } = await supabase.from("user_grammar_scores")
-      .select("pass, fail, total").eq("user_id", userId).eq("pattern_id", patternId).maybeSingle();
-    const pass = (existing?.pass ?? 0) + (correct ? 1 : 0);
-    const fail = (existing?.fail ?? 0) + (correct ? 0 : 1);
-    const total = (existing?.total ?? 0) + 1;
-    const percent = Math.round((pass / total) * 100);
-    await supabase.from("user_grammar_scores").upsert(
-      { user_id: userId, pattern_id: patternId, pass, fail, total, percent, updated_at: new Date().toISOString() },
-      { onConflict: "user_id,pattern_id" }
-    );
+  const pendingWritesRef = useRef<Set<Promise<void>>>(new Set());
+
+  const recordPatternResult = useCallback((patternId: string, correct: boolean) => {
+    const p = (async () => {
+      const { data: existing } = await supabase.from("user_grammar_scores")
+        .select("pass, fail, total").eq("user_id", userId).eq("pattern_id", patternId).maybeSingle();
+      const pass = (existing?.pass ?? 0) + (correct ? 1 : 0);
+      const fail = (existing?.fail ?? 0) + (correct ? 0 : 1);
+      const total = (existing?.total ?? 0) + 1;
+      const percent = Math.round((pass / total) * 100);
+      await supabase.from("user_grammar_scores").upsert(
+        { user_id: userId, pattern_id: patternId, pass, fail, total, percent, updated_at: new Date().toISOString() },
+        { onConflict: "user_id,pattern_id" }
+      );
+    })();
+    pendingWritesRef.current.add(p);
+    p.finally(() => pendingWritesRef.current.delete(p));
   }, [userId]);
 
   // Warn on accidental refresh/tab-close mid-quiz — progress lives only in React state
@@ -458,8 +464,8 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
         finalWrong.map(w => ({ user_id: userId, mistake: w.mistake, correct: w.correct, reason: w.reason }))
       );
     }
-    // Wait for the last recordPatternResult upsert to land before querying updated scores.
-    await new Promise(r => setTimeout(r, 500));
+    // Wait for all in-flight recordPatternResult upserts to land before querying updated scores.
+    await Promise.all([...pendingWritesRef.current]);
     // Recompute grammar_score from actual pattern mastery — no rolling average.
     // Fetch fresh scores so this session's recordPatternResult writes are included.
     const [{ data: allPatterns }, { data: allScores }] = await Promise.all([
