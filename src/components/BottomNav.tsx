@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Home, BookOpen, ScrollText, BarChart2 } from "lucide-react";
 import { useUploadGuard } from "@/context/UploadGuardContext";
 import { useAppAlert } from "@/context/AlertContext";
+import { useAuth } from "@/context/AuthContext";
 
 type Tab = {
   href: string;
@@ -27,7 +28,9 @@ export default function BottomNav() {
   const router = useRouter();
   const { isBusy } = useUploadGuard();
   const { showConfirm } = useAppAlert();
+  const { user, loading } = useAuth();
   if (!SHOW_ON.has(path)) return null;
+  if (loading || !user) return null;
 
   return (
     <nav

@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
-import { getLevel, jlptLevel, vocabMastery, JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
+import { getLevel, jlptLevel, vocabMastery, JLPT_VOCAB_INCREMENT, grammarPatternScore } from "@/lib/scoring";
 
 type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
 
@@ -92,6 +92,8 @@ function ScoreTile({
 export default function Dashboard() {
   const { user } = useAuth();
   const [data, setData] = useState<ProfileScores | null>(null);
+
+
 
   useEffect(() => {
     if (!user) return;
@@ -189,7 +191,22 @@ export default function Dashboard() {
         if (totalAttempts > 0 && avgAccuracy >= 80) jlptStats[card.jlpt_level].mastered++;
       }
 
-      supabase.from("profiles").update({ vocab_score: vocabScore }).eq("id", user.id);
+      const profileUpdates: Record<string, number> = { vocab_score: vocabScore };
+
+      let grammarScore = p?.grammar_score ?? null;
+      if (!grammarScore) {
+        const [{ data: allPatterns }, { data: allGrammarScores }] = await Promise.all([
+          supabase.from("grammar_patterns").select("id, jlpt_level"),
+          supabase.from("user_grammar_scores").select("pattern_id, total, percent").eq("user_id", user.id),
+        ]);
+        if (allGrammarScores && allGrammarScores.length > 0) {
+          const gScoreMap = new Map(allGrammarScores.map(s => [s.pattern_id, { total: s.total, percent: s.percent }]));
+          grammarScore = grammarPatternScore(allPatterns ?? [], gScoreMap);
+          profileUpdates.grammar_score = grammarScore;
+        }
+      }
+
+      supabase.from("profiles").update(profileUpdates).eq("id", user.id);
 
       setData({
         name: p?.full_name ?? null,
@@ -197,7 +214,7 @@ export default function Dashboard() {
         vocab_score: vocabScore,
         reading_score: p?.reading_score ?? null,
         listening_score: p?.listening_score ?? null,
-        grammar_score: p?.grammar_score ?? null,
+        grammar_score: grammarScore,
         deck_size: deckSize,
         jlpt_stats: jlptStats,
       });

@@ -419,7 +419,9 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
         })
         .sort((a, b) => a.weight - b.weight);
 
-      const pool = weighted.slice(0, PATTERNS_PER_ROUND).map(({ pattern }) => ({
+      // Send 5 extra patterns so the API has room to drop invalid ones — we cap
+      // the final question list at PATTERNS_PER_ROUND to keep the quiz at exactly 20.
+      const pool = weighted.slice(0, PATTERNS_PER_ROUND + 5).map(({ pattern }) => ({
         id: pattern.id, pattern: pattern.pattern, meaning: pattern.meaning, example_jp: pattern.example_jp,
       }));
 
@@ -430,7 +432,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
       });
       const data = await res.json();
       if (Array.isArray(data.questions) && data.questions.length > 0) {
-        setQuestions(data.questions);
+        setQuestions(data.questions.slice(0, PATTERNS_PER_ROUND));
         setIndex(0);
         setSelected(null);
         setScore(0);
@@ -456,6 +458,8 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
         finalWrong.map(w => ({ user_id: userId, mistake: w.mistake, correct: w.correct, reason: w.reason }))
       );
     }
+    // Wait for the last recordPatternResult upsert to land before querying updated scores.
+    await new Promise(r => setTimeout(r, 500));
     // Recompute grammar_score from actual pattern mastery — no rolling average.
     // Fetch fresh scores so this session's recordPatternResult writes are included.
     const [{ data: allPatterns }, { data: allScores }] = await Promise.all([
@@ -525,6 +529,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
               🧠 Master {MASTERY_MIN_ATTEMPTS}+ tries at ≥{MASTERY_MIN_PERCENT}% on every {currentLevel} pattern to unlock the next level. Weak patterns from earlier levels keep resurfacing. Tap any kanji to look it up.
             </p>
           </div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">20 questions · ~10 min</p>
           {error && <p className="text-red-500 font-bold text-xs">{error}</p>}
           <button onClick={load} disabled={starting}
             className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all shadow-sm disabled:opacity-40 flex items-center justify-center gap-2">
@@ -718,35 +723,52 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
                     <textarea value={writingInput} onChange={e => setWritingInput(e.target.value)}
                       placeholder="日本語で書いてください..." rows={3}
                       className="w-full rounded-2xl border-2 border-slate-200 px-4 py-3 text-base font-bold text-slate-800 outline-none focus:border-amber-400 resize-none bg-white" />
-                    <button disabled={!writingInput.trim()} onClick={() => setWritingSubmitted(true)}
+                    <button disabled={!writingInput.trim()} onClick={() => {
+                      const isExact = writingInput.trim() === stripFurigana(q.answer).trim();
+                      if (isExact) { recordPatternResult(q.pattern_id, true); }
+                      setWritingSubmitted(true);
+                    }}
                       className="w-full py-4 bg-amber-500 text-white font-black text-[11px] uppercase tracking-widest rounded-2xl active:scale-95 transition-all disabled:opacity-40">
                       Check Answer
                     </button>
                   </>
-                ) : (
-                  <>
-                    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3">Model answer</p>
-                      <p className="text-base font-bold text-slate-800">
-                        <TappableText text={q.answer} keyPrefix="wans" onWordTap={handleWordClick} />
-                      </p>
-                      <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-                        <TappableText text={q.explanation} keyPrefix="wexp" onWordTap={handleWordClick} />
-                      </p>
-                    </div>
-                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest text-center">Did you get it right?</p>
-                    <div className="flex gap-3">
-                      <button onClick={() => { recordPatternResult(q.pattern_id, true); advance(undefined, 1); }}
-                        className="flex-1 py-4 bg-emerald-50 text-emerald-600 rounded-2xl font-black border-b-4 border-emerald-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] tracking-widest">
-                        ✓ Got it
-                      </button>
-                      <button onClick={() => { recordPatternResult(q.pattern_id, false); advance({ mistake: writingInput, correct: q.answer, reason: q.english }); }}
-                        className="flex-1 py-4 bg-rose-50 text-rose-600 rounded-2xl font-black border-b-4 border-rose-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] tracking-widest">
-                        ✗ Missed
-                      </button>
-                    </div>
-                  </>
-                )}
+                ) : (() => {
+                  const isExact = writingInput.trim() === stripFurigana(q.answer).trim();
+                  return (
+                    <>
+                      <div className={`bg-white rounded-3xl border shadow-sm px-6 py-5 ${isExact ? "border-emerald-200" : "border-slate-100"}`}>
+                        {isExact && <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500 mb-2">✓ Exact match</p>}
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3">Model answer</p>
+                        <p className="text-base font-bold text-slate-800">
+                          <TappableText text={q.answer} keyPrefix="wans" onWordTap={handleWordClick} />
+                        </p>
+                        <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                          <TappableText text={q.explanation} keyPrefix="wexp" onWordTap={handleWordClick} />
+                        </p>
+                      </div>
+                      {isExact ? (
+                        <button onClick={() => advance(undefined, 1)}
+                          className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black border-b-4 border-emerald-600 active:border-b-0 active:translate-y-1 transition-all uppercase text-[11px] tracking-widest">
+                          Continue
+                        </button>
+                      ) : (
+                        <>
+                          <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest text-center">Did you get it right?</p>
+                          <div className="flex gap-3">
+                            <button onClick={() => { recordPatternResult(q.pattern_id, true); advance(undefined, 1); }}
+                              className="flex-1 py-4 bg-emerald-50 text-emerald-600 rounded-2xl font-black border-b-4 border-emerald-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] tracking-widest">
+                              ✓ Got it
+                            </button>
+                            <button onClick={() => { recordPatternResult(q.pattern_id, false); advance({ mistake: writingInput, correct: q.answer, reason: q.english }); }}
+                              className="flex-1 py-4 bg-rose-50 text-rose-600 rounded-2xl font-black border-b-4 border-rose-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] tracking-widest">
+                              ✗ Missed
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             )}
           </div>

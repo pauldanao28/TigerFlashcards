@@ -544,6 +544,7 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
               {focusWeak ? "🎯 Weak cards" : "🎲 Random"}
             </button>
           </div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">20 questions · ~10–15 min</p>
           {!isAdmin && (
             <p className="text-slate-300 font-black uppercase tracking-widest text-[10px]">
               {Math.max(0, QUIZ_DAILY_LIMIT - getDailyCount())}/{QUIZ_DAILY_LIMIT} quizzes left today
