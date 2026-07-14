@@ -1245,13 +1245,15 @@ export default function StudyView() {
           */}
             <div className="w-full max-w-md flex gap-4 px-6 mb-safe">
               <button
-                onClick={() => { navigator.vibrate?.([30, 60, 30]); handleScore(false); }}
+                onTouchStart={() => navigator.vibrate?.([30, 60, 30])}
+                onClick={() => handleScore(false)}
                 className="flex-1 py-4 md:py-5 bg-rose-50 text-rose-600 rounded-2xl font-black border-b-4 border-rose-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] tracking-widest"
               >
                 ✕ {t.fail}
               </button>
               <button
-                onClick={() => { navigator.vibrate?.([80]); handleScore(true); }}
+                onTouchStart={() => navigator.vibrate?.([80])}
+                onClick={() => handleScore(true)}
                 className="flex-1 py-4 md:py-5 bg-emerald-500 text-white rounded-2xl font-black border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] tracking-widest"
               >
                 ✓ {t.pass}

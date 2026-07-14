@@ -301,6 +301,7 @@ export default function Flashcard({
         dragConstraints={{ left: 0, right: 0 }}
         dragElastic={0.7}
         onDragEnd={handleDragEnd}
+        onPointerDown={() => { if (typeof window !== "undefined" && !/iPad|iPhone|iPod/.test(navigator.userAgent)) navigator.vibrate?.(10); }}
         className="relative w-full h-full cursor-grab active:cursor-grabbing mx-auto"
       >
         {/* --- REFINED: SUBTLE OVERLAYS --- */}
