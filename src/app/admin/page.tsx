@@ -224,6 +224,18 @@ export default function AdminDashboard() {
     if (!error) setReports((prev) => prev.filter((r) => r.id !== reportId));
   };
 
+  const handleDeleteCard = async (reportId: string, cardId: string, japanese: string) => {
+    if (!window.confirm(`Delete "${japanese}" from master_cards? This cannot be undone.`)) return;
+
+    const { error } = await supabase.from("master_cards").delete().eq("id", cardId);
+    if (error) {
+      showAlert("Delete failed: " + error.message);
+      return;
+    }
+    setReports((prev) => prev.filter((r) => r.id !== reportId));
+    setEditingId(null);
+  };
+
   if (loading) return <LoadingScreen />;
 
   return (
@@ -433,6 +445,12 @@ export default function AdminDashboard() {
                           Save & Resolve
                         </button>
                         <button
+                          onClick={() => handleDeleteCard(report.id, report.master_cards.id, report.master_cards.japanese)}
+                          className="px-5 py-4 bg-rose-50 text-rose-600 border border-rose-100 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-rose-100 active:scale-95 transition-all"
+                        >
+                          🗑 Delete
+                        </button>
+                        <button
                           onClick={() => setEditingId(null)}
                           className="px-8 bg-slate-200 text-slate-600 rounded-2xl font-black uppercase text-xs hover:bg-slate-300 transition-colors"
                         >
@@ -470,8 +488,14 @@ export default function AdminDashboard() {
                             Edit Manually
                           </button>
                           <button
+                            onClick={() => handleDeleteCard(report.id, report.master_cards.id, report.master_cards.japanese)}
+                            className="px-5 py-4 text-rose-400 font-bold text-[10px] uppercase tracking-widest hover:text-rose-600 hover:bg-rose-50 rounded-2xl transition-all"
+                          >
+                            🗑 Delete
+                          </button>
+                          <button
                             onClick={() => handleIgnore(report.id)}
-                            className="px-5 py-4 text-slate-400 font-bold text-[10px] uppercase tracking-widest hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all"
+                            className="px-5 py-4 text-slate-400 font-bold text-[10px] uppercase tracking-widest hover:text-slate-600 hover:bg-slate-50 rounded-2xl transition-all"
                           >
                             Ignore
                           </button>
