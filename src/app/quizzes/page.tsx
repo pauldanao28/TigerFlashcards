@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import LoadingScreen from "@/components/LoadingScreen";
 import SentenceQuiz from "@/components/SentenceQuiz";
@@ -86,6 +87,42 @@ function QuizzesInner() {
             <span className="text-slate-300 text-lg">›</span>
           </div>
         </button>
+      </div>
+
+      {/* Learn section */}
+      <div className="px-4 pt-6 pb-2">
+        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Learn</p>
+        <div className="flex flex-col gap-3">
+          <Link
+            href="/study/kana"
+            className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm active:scale-95 transition-all text-left w-full flex items-center gap-4"
+          >
+            <span className="text-3xl">あ</span>
+            <div className="flex-1">
+              <p className="font-black text-slate-900">Learn Kana</p>
+              <p className="text-xs text-slate-400 mt-0.5">Hiragana &amp; Katakana flashcards</p>
+            </div>
+            <span className="text-slate-300 text-lg">›</span>
+          </Link>
+          {(["N5", "N4", "N3", "N2", "N1"] as const).map((lvl) => {
+            const colors: Record<string, string> = { N5: "text-emerald-600", N4: "text-teal-600", N3: "text-amber-600", N2: "text-orange-600", N1: "text-rose-600" };
+            const descs: Record<string, string> = { N5: "Basic verb forms, particles, present/past tense", N4: "て-form chains, たい, polite/plain switching", N3: "Conditionals, て-verb compounds, plain embedding", N2: "Passive, causative, potential, keigo basics", N1: "Keigo, classical patterns, complex compound sentences" };
+            return (
+              <Link
+                key={lvl}
+                href={`/jlpt/${lvl.toLowerCase()}`}
+                className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm active:scale-95 transition-all text-left w-full flex items-center gap-4"
+              >
+                <span className={`text-xl font-black w-8 text-center ${colors[lvl]}`}>{lvl}</span>
+                <div className="flex-1">
+                  <p className="font-black text-slate-900">Grammar {lvl}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{descs[lvl]}</p>
+                </div>
+                <span className="text-slate-300 text-lg">›</span>
+              </Link>
+            );
+          })}
+        </div>
       </div>
 
       {/* Overlays */}

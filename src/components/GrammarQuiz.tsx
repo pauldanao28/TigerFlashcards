@@ -486,12 +486,10 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white shrink-0">
         <div className="flex items-center gap-3">
-          {phase === "quiz" ? (
-            <button onClick={() => setBackConfirm(true)} className="flex items-center gap-0.5 text-slate-400 hover:text-slate-700 active:scale-90 transition-all">
-              <ChevronLeft size={14} />
-              <span className="text-[9px] font-black uppercase tracking-widest">Back</span>
-            </button>
-          ) : null}
+          <button onClick={() => phase === "intro" || phase === "done" ? onClose() : setBackConfirm(true)} className="flex items-center gap-0.5 text-slate-400 hover:text-slate-700 active:scale-90 transition-all">
+            <ChevronLeft size={14} />
+            <span className="text-[9px] font-black uppercase tracking-widest">Back</span>
+          </button>
           <div className="flex items-center gap-2.5">
             <span className="text-base">📝</span>
             <span className="font-black text-[11px] uppercase tracking-widest text-slate-700">Grammar Quiz</span>
@@ -508,9 +506,6 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
             {wordList.length > 0 && (
               <span className="absolute -top-0.5 -right-0.5 bg-indigo-600 text-white text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">{wordList.length}</span>
             )}
-          </button>
-          <button onClick={phase === "loading" || phase === "quiz" ? () => setBackConfirm(true) : onClose} className="p-2 rounded-full hover:bg-slate-100 transition-colors active:scale-90">
-            <X size={16} className="text-slate-500" />
           </button>
         </div>
       </div>

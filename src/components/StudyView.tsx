@@ -66,7 +66,7 @@ function getNextPriorityCard(
   const sorted = [...allCards].sort((a, b) => getScore(a) - getScore(b));
   const hardCards = sorted.slice(0, 10);
   const easyCards = allCards.filter(
-    (c) => getScore(c) >= 80 && getTries(c) >= 15,
+    (c) => getScore(c) >= 80 && getTries(c) >= 5,
   );
   const mediumCards = allCards.filter(
     (c) =>
