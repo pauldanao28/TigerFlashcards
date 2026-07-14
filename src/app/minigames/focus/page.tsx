@@ -9,7 +9,7 @@ import {
 } from "framer-motion";
 import Link from "next/link";
 import { ChevronLeft, Loader2 } from "lucide-react";
-import { useLang } from "@/context/LanguageContext";
+import { translations } from "@/lib/languages";
 import { supabase } from "@/lib/supabase";
 
 const COLORS = [
@@ -41,13 +41,13 @@ const updateMinigameBest = async (
 };
 
 export default function StroopSwipeGame() {
-  const { t, lang } = useLang();
+  const t = translations.en;
 
   const [user, setUser] = useState<any>(null);
   const [dbScores, setDbScores] = useState({ best30s: 0, best60s: 0 });
   const [loading, setLoading] = useState(true);
 
-  const [language, setLanguage] = useState<"en" | "jp">("jp");
+  const [language] = useState<"en" | "jp">("jp");
   const [currentWord, setCurrentWord] = useState(COLORS[0]);
   const [inkColor, setInkColor] = useState(COLORS[1]);
   const [streak, setStreak] = useState(0);
@@ -238,16 +238,6 @@ export default function StroopSwipeGame() {
         </div>
       </div>
 
-      {/* MOVED LANGUAGE TOGGLE ABOVE THE GAME AREA */}
-      <div className="flex justify-center mb-4">
-        <button
-          onClick={() => setLanguage((l) => (l === "en" ? "jp" : "en"))}
-          className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-3 py-1 rounded-full uppercase tracking-widest border border-indigo-100 active:scale-95 transition-all"
-        >
-          {t.language}: {language.toUpperCase()}
-        </button>
-      </div>
-
       {/* Main Content Area - Flex-1 to push footer down */}
       <div className="flex-1 flex flex-col">
         {gameState === "playing" ? (
@@ -305,7 +295,7 @@ export default function StroopSwipeGame() {
             {gameState !== "over" && (
               <div className="mb-6 space-y-4 bg-slate-50 p-5 rounded-3xl border border-slate-100">
                 <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">
-                  {lang === "en" ? "How to Play" : "遊び方"}
+                  How to Play
                 </p>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -314,9 +304,7 @@ export default function StroopSwipeGame() {
                       →
                     </div>
                     <p className="text-[10px] font-bold text-slate-600 leading-tight">
-                      {lang === "en"
-                        ? "SWIPE RIGHT if Word matches Color"
-                        : "色の名前とインクの色が同じなら右へ"}
+                      SWIPE RIGHT if Word matches Color
                     </p>
                   </div>
 
@@ -325,17 +313,13 @@ export default function StroopSwipeGame() {
                       ←
                     </div>
                     <p className="text-[10px] font-bold text-slate-600 leading-tight">
-                      {lang === "en"
-                        ? "SWIPE LEFT if they are Different"
-                        : "違っていたら左へスワイプ"}
+                      SWIPE LEFT if they are Different
                     </p>
                   </div>
                 </div>
 
                 <p className="text-[9px] font-black text-slate-400 uppercase italic">
-                  {lang === "en"
-                    ? "Don't let the word trick you!"
-                    : "文字にだまされないで！"}
+                  Don&apos;t let the word trick you!
                 </p>
               </div>
             )}
@@ -387,7 +371,7 @@ export default function StroopSwipeGame() {
               </kbd>
             </div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              {t.start || "START"}
+              {"START"}
             </span>
           </div>
           <div className="w-[1px] h-3 bg-slate-200" />

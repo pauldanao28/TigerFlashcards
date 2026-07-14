@@ -5,7 +5,7 @@ import Link from "next/link";
 import { FlashcardData } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
-import { useLang } from "@/context/LanguageContext";
+import { translations } from "@/lib/languages";
 import { useUploadGuard } from "@/context/UploadGuardContext";
 import { useAppAlert } from "@/context/AlertContext";
 import { motion } from "framer-motion";
@@ -17,7 +17,7 @@ import { List, X, Plus, Loader2 } from "lucide-react";
 
 export default function StatsPage() {
   const router = useRouter();
-  const { t, setLang, lang } = useLang();
+  const t = translations.en;
   const { setIsBusy: setUploadBusy } = useUploadGuard();
   const { showAlert, showConfirm } = useAppAlert();
   const [cards, setCards] = useState<FlashcardData[]>([]);
@@ -1043,15 +1043,9 @@ export default function StatsPage() {
                 value={batchInput}
                 onChange={(e) => setBatchInput(e.target.value)}
                 className="w-full h-48 p-4 rounded-xl border-none outline-none mb-3 text-sm font-mono shadow-inner"
-                placeholder={
-                  lang === "jp"
-                    ? `入力形式の選択:
-1. リスト形式: 単語（1行につき1単語/漢字）
-2. 歌詞・長文: 歌詞や文章を貼り付けると、AIが新しい単語を抽出します！`
-                    : `FORMAT OPTIONS:
+                placeholder={`FORMAT OPTIONS:
 1. List: words (1 kanji/english word per line)
-2. Lyrics: Paste a whole song or text. I'll pick out the new words for you!`
-                }
+2. Lyrics: Paste a whole song or text. I'll pick out the new words for you!`}
               />
               <button
                 onClick={async () => {
@@ -1155,51 +1149,6 @@ export default function StatsPage() {
                       <div
                         className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${sfxEnabled ? "left-7" : "left-1"}`}
                       />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="h-px bg-slate-100 w-full mb-8" />
-
-              {/* Language Preference - NEW SECTION */}
-              {/* Language Preference - RESPONSIVE FIX */}
-              <div className="mb-8">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                  <span>🌐</span> {t.interface_language}
-                </h3>
-
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 gap-4">
-                  <div className="max-w-[200px]">
-                    <p className="text-sm font-bold text-slate-700 leading-tight">
-                      {t.app_language}
-                    </p>
-                    <p className="text-[9px] text-slate-400 font-medium mt-0.5 leading-relaxed">
-                      {t.app_language_desc}
-                    </p>
-                  </div>
-
-                  {/* Buttons: Forced to fit on one line or stacked based on width */}
-                  <div className="flex bg-white rounded-xl p-1 border border-slate-200 shadow-sm w-full sm:w-auto">
-                    <button
-                      onClick={() => setLang("en")}
-                      className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[10px] font-black transition-all ${
-                        lang === "en"
-                          ? "bg-indigo-600 text-white shadow-md"
-                          : "text-slate-400 hover:text-slate-600"
-                      }`}
-                    >
-                      ENGLISH
-                    </button>
-                    <button
-                      onClick={() => setLang("jp")}
-                      className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[10px] font-black transition-all ${
-                        lang === "jp"
-                          ? "bg-indigo-600 text-white shadow-md"
-                          : "text-slate-400 hover:text-slate-600"
-                      }`}
-                    >
-                      日本語
                     </button>
                   </div>
                 </div>
@@ -2122,7 +2071,7 @@ export default function StatsPage() {
                     </div>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">
                       {previewPack.card_data?.length} {t.cards} •{" "}
-                      {t.starter_collection}
+                      {t.starter_collections}
                     </p>
                   </div>
                   <button
@@ -2138,10 +2087,10 @@ export default function StatsPage() {
                   {/* Description Card */}
                   <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 mb-6 shadow-sm">
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
-                      {t.description}
+                      Description
                     </p>
                     <p className="text-slate-600 text-sm leading-relaxed font-medium">
-                      {previewPack.description || t.default_pack_desc}
+                      {previewPack.description || "A curated starter collection."}
                     </p>
                   </div>
 
@@ -2174,7 +2123,7 @@ export default function StatsPage() {
                 {/* Subtle Bottom Branding */}
                 <div className="pb-6 bg-white text-center">
                   <p className="text-[8px] font-black text-slate-300 uppercase tracking-[0.5em] opacity-60">
-                    {t.mastery_awaits}
+                    {"Mastery Awaits"}
                   </p>
                 </div>
               </div>

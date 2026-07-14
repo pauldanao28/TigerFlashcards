@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { LanguageProvider } from "@/context/LanguageContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { UploadGuardProvider } from "@/context/UploadGuardContext";
 import { AlertProvider } from "@/context/AlertContext";
@@ -101,14 +100,12 @@ export default function RootLayout({
       </head>
       <body className="antialiased bg-slate-50 text-slate-900">
         <AuthProvider>
-          <LanguageProvider>
-            <AlertProvider>
-              <UploadGuardProvider>
-                {children}
-                <BottomNav />
-              </UploadGuardProvider>
-            </AlertProvider>
-          </LanguageProvider>
+          <AlertProvider>
+            <UploadGuardProvider>
+              {children}
+              <BottomNav />
+            </UploadGuardProvider>
+          </AlertProvider>
         </AuthProvider>
       </body>
     </html>

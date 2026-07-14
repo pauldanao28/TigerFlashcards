@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
-import { useLang } from "@/context/LanguageContext";
+import { translations } from "@/lib/languages";
 import { calculateGlobalStats } from "@/lib/stats";
 import { processReferral } from "@/lib/social";
 import { rollingAvg, vocabMastery } from "@/lib/scoring";
@@ -12,7 +12,6 @@ import { rollingAvg, vocabMastery } from "@/lib/scoring";
 import Auth from "@/components/Auth";
 import Logo from "@/components/Logo";
 import Flashcard from "@/components/Flashcard";
-import LanguageToggle from "@/components/LanguageToggle";
 import OnboardingModal from "@/components/OnboardingModal";
 import LoadingScreen from "@/components/LoadingScreen";
 import CoachMarks from "@/components/CoachMarks";
@@ -51,7 +50,7 @@ export default function StudyView() {
   const [aiLoading, setAiLoading] = useState(false); // AI Syncing
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
-  const [language, setLanguage] = useState<"en" | "jp">("jp");
+  const [language] = useState<"en" | "jp">("jp");
   const [streak, setStreak] = useState(0);
   const [sessionStreak, setSessionStreak] = useState(0);
   const [dailyProgress, setDailyProgress] = useState(0);
@@ -77,7 +76,7 @@ export default function StudyView() {
     percent: number;
     isPass: boolean;
   } | null>(null);
-  const { t, setLang } = useLang();
+  const t = translations.en;
 
   useEffect(() => {
     const checkReferral = async () => {
@@ -154,9 +153,6 @@ export default function StudyView() {
           setShowHints(true);
         }
 
-        if (p.preferred_language) {
-          setLang(p.preferred_language);
-        }
       }
 
       if (deckRes.data) {
@@ -812,11 +808,6 @@ export default function StudyView() {
             </div>
             </div>
           </div>
-          <div className="absolute top-4 right-4 pointer-events-auto">
-            <div className="h-9 w-32">
-              <LanguageToggle language={language} setLanguage={setLanguage} />
-            </div>
-          </div>
         </div>
 
         {/* --- 2. DESKTOP NAVIGATION --- */}
@@ -873,11 +864,6 @@ export default function StudyView() {
                   </button>
                 )}
               </div>
-            </div>
-          </div>
-          <div className="flex items-center">
-            <div className="h-11 flex items-center min-w-[200px]">
-              <LanguageToggle language={language} setLanguage={setLanguage} />
             </div>
           </div>
         </div>
@@ -1103,7 +1089,7 @@ export default function StudyView() {
                 </kbd>
               </div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                {t.flip}
+                {t.flip_control}
               </span>
             </div>
             <div className="w-[1px] h-3 bg-slate-200" />

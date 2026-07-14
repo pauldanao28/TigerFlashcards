@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, useMotionValue, useTransform } from "framer-motion";
 import { FlashcardData } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
-import { useLang } from "@/context/LanguageContext";
+import { translations } from "@/lib/languages";
 import { speak } from "@/lib/tts";
 import { useAppAlert } from "@/context/AlertContext";
 
@@ -39,7 +39,7 @@ export default function Flashcard({
   onFlip, // Use prop setter
   audioPulse,
 }: FlashcardProps) {
-  const { t } = useLang();
+  const t = translations.en;
   const { showAlert } = useAppAlert();
   //const [flipped, setFlipped] = useState(false);
   const [hasVibrated, setHasVibrated] = useState(false);

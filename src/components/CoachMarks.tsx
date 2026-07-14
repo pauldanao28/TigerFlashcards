@@ -1,9 +1,9 @@
 "use client";
-import { useLang } from "@/context/LanguageContext";
+import { translations } from "@/lib/languages";
 
 export default function CoachMarks() {
   // Removed onDismiss prop if not used here
-  const { t } = useLang();
+  const t = translations.en;
 
   return (
     <div

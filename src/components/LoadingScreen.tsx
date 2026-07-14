@@ -1,8 +1,8 @@
 "use client";
-import { useLang } from "@/context/LanguageContext";
+import { translations } from "@/lib/languages";
 
 export default function LoadingScreen() {
-  const { t } = useLang();
+  const t = translations.en;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-6">

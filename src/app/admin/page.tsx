@@ -1,13 +1,13 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { useLang } from "@/context/LanguageContext";
+import { translations } from "@/lib/languages";
 import LoadingScreen from "@/components/LoadingScreen";
 import Link from "next/link";
 import { useAppAlert } from "@/context/AlertContext";
 
 export default function AdminDashboard() {
-  const { t, lang } = useLang();
+  const t = translations.en;
   const { showAlert } = useAppAlert();
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

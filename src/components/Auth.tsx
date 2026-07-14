@@ -3,14 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { useLang } from "@/context/LanguageContext";
-import LanguageToggle from "@/components/LanguageToggle";
+import { translations } from "@/lib/languages";
 import { processReferral } from "@/lib/social";
 import { useAppAlert } from "@/context/AlertContext";
 
 export default function Auth() {
   const router = useRouter();
-  const { t, lang, setLang } = useLang();
+  const t = translations.en;
   const { showAlert } = useAppAlert();
 
   // States
@@ -109,11 +108,6 @@ export default function Auth() {
   return (
     // Centering Wrapper: Uses h-[100dvh] and flex to center the card on any screen
     <div className="fixed inset-0 h-[100dvh] w-full bg-slate-50 flex flex-col items-center justify-center p-4 overflow-hidden overscroll-none">
-      {/* Language Toggle: Floating above the card */}
-      <div className="mb-6 w-48 h-10 flex-shrink-0 z-10">
-        <LanguageToggle language={lang} setLanguage={setLang} />
-      </div>
-
       {/* Main Auth Card: Max width keeps it from stretching on Desktop */}
       <div className="w-full max-w-md bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 overflow-y-auto max-h-[85dvh] flex flex-col no-scrollbar animate-in fade-in zoom-in-95 duration-300">
         <h1 className="text-2xl font-black text-slate-800 mb-6 text-center italic uppercase tracking-tighter">

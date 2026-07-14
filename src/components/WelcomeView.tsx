@@ -2,8 +2,6 @@
 
 import { useState, useRef } from "react";
 import Link from "next/link";
-import LanguageToggle from "./LanguageToggle";
-import { useLang } from "@/context/LanguageContext";
 
 // ── Mini phone screen mockups ─────────────────────────────────────────
 
@@ -195,12 +193,11 @@ const COPY = {
 // ── Component ─────────────────────────────────────────────────────────
 
 export default function WelcomeView() {
-  const { lang, setLang } = useLang();
   const [slide, setSlide] = useState(0);
   const [visible, setVisible] = useState(true);
   const touchStartX = useRef<number | null>(null);
 
-  const copies = COPY[lang === "ja" ? "ja" : "en"];
+  const copies = COPY.en;
   const isLast = slide === SCREENS.length - 1;
   const { title, desc } = copies[slide];
   const Screen = SCREENS[slide];
@@ -227,11 +224,6 @@ export default function WelcomeView() {
 
   return (
     <main className="h-[100dvh] max-h-[100dvh] w-full bg-white flex flex-col fixed inset-0 overflow-hidden">
-      {/* Language toggle */}
-      <div className="absolute top-10 right-5 z-20 w-36">
-        <LanguageToggle language={lang} setLanguage={setLang} />
-      </div>
-
       {/* Phone mockup — fills remaining space, centered */}
       <div
         className="flex-1 flex items-center justify-center pt-16"
@@ -302,14 +294,14 @@ export default function WelcomeView() {
             href="/login"
             className="w-full py-[1.1rem] bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-[0.97] transition-all text-center"
           >
-            {lang === "ja" ? "始める — 無料" : "Get Started — it's free"}
+            {"Get Started — it's free"}
           </Link>
         ) : (
           <button
             onClick={() => goTo(slide + 1)}
             className="w-full py-[1.1rem] bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-indigo-100 active:scale-[0.97] transition-all"
           >
-            {lang === "ja" ? "次へ" : "Next"}
+            {"Next"}
           </button>
         )}
 
@@ -317,7 +309,7 @@ export default function WelcomeView() {
           href="/login"
           className="mt-3.5 text-[10px] font-bold text-slate-400 hover:text-slate-600 active:opacity-60 transition-colors"
         >
-          {lang === "ja" ? "すでにアカウントをお持ちの方 →" : "Already a member? Sign in →"}
+          {"Already a member? Sign in →"}
         </Link>
       </div>
     </main>
