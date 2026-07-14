@@ -618,7 +618,8 @@ export default function StatsPage() {
     if (user) localStorage.setItem(`flashkado-word-list-${user.id}`, JSON.stringify(newList));
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     syncTimerRef.current = setTimeout(() => {
-      if (user) supabase.from("profiles").update({ pending_words: newList }).eq("id", user.id);
+      if (user) supabase.from("profiles").update({ pending_words: newList }).eq("id", user.id)
+        .then(({ error: e }) => { if (e) console.error("[DB word-list sync]", e.code, e.message); });
     }, 1000);
   }, [user]);
 
@@ -629,7 +630,8 @@ export default function StatsPage() {
     if (user) {
       localStorage.setItem(`flashkado-word-list-${user.id}`, JSON.stringify(newList));
       if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-      supabase.from("profiles").update({ pending_words: newList }).eq("id", user.id);
+      supabase.from("profiles").update({ pending_words: newList }).eq("id", user.id)
+        .then(({ error: e }) => { if (e) console.error("[DB word-list flush]", e.code, e.message); });
     }
   }, [user]);
 
