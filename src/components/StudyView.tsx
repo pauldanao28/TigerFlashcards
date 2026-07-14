@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { translations } from "@/lib/languages";
 import { calculateGlobalStats } from "@/lib/stats";
 import { processReferral } from "@/lib/social";
-import { rollingAvg, vocabMastery } from "@/lib/scoring";
+import { rollingAvg, vocabMastery, JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
 
 import Auth from "@/components/Auth";
 import Logo from "@/components/Logo";
@@ -680,21 +680,18 @@ export default function StudyView() {
   //       ? Math.round((currentMode.pass / currentMode.tries) * 100)
   //       : 0;
 
-  // 3. Diminishing Buffer Calculation
-  const accuracyPercent = useMemo(() => {
-    // If they haven't tried any cards, stay at 0%
-    if (currentMode.tries === 0) return 0;
-
-    // Buffer starts at 20 and shrinks as they play.
-    // It hits 0 once they have 20 tries.
-    const buffer = Math.max(0, 200 - currentMode.tries);
-
-    // Calculate percentage with the shrinking buffer
-    const raw = (currentMode.pass / (currentMode.tries + buffer)) * 100;
-
-    // Round it and cap at 100
-    return Math.min(100, Math.round(raw));
-  }, [currentMode.pass, currentMode.tries]);
+  // Grammar-style mastery per mode: each N-level contributes up to 20 pts
+  // (cards with ≥70% on the current side / JLPT increment × 20). Mirrors Dashboard.
+  const masteryPercent = useMemo(() => {
+    const mode = language === "jp" ? "jp_to_en" : "en_to_jp";
+    let raw = 0;
+    for (const lvl of ["N5", "N4", "N3", "N2", "N1"] as const) {
+      const lvlCards = cards.filter(c => c.jlpt_level === lvl);
+      const mastered = lvlCards.filter(c => (c.scores?.[mode]?.percent ?? 0) >= 70).length;
+      raw += Math.min(mastered / JLPT_VOCAB_INCREMENT[lvl], 1) * 20;
+    }
+    return Math.round(raw);
+  }, [cards, language]);
 
   // 4. Dynamic Colors based on mode
   const modeColorClass =
@@ -705,8 +702,8 @@ export default function StudyView() {
   // Get the first name from your profileName state, fallback to "Student" or "..."
   const displayName = profileName ? profileName.split(" ")[0] : "";
   const currentLevel = useMemo(
-    () => Math.floor(accuracyPercent / 10) + 1,
-    [accuracyPercent],
+    () => Math.floor(masteryPercent / 10) + 1,
+    [masteryPercent],
   );
 
   const jlptDistribution = useMemo(() => {
@@ -819,12 +816,12 @@ export default function StudyView() {
                 <div className="relative flex-1 h-1.5 bg-slate-200/50 rounded-full overflow-hidden">
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${accuracyPercent}%` }}
+                    animate={{ width: `${masteryPercent}%` }}
                     className={`h-full transition-all duration-1000 ${language === "jp" ? "bg-indigo-500" : "bg-orange-500"}`}
                   />
                 </div>
                 <span className="text-[9px] font-black text-slate-500 min-w-[28px] text-right">
-                  {accuracyPercent}%
+                  {masteryPercent}%
                 </span>
               </div>
               {jlptTotal > 0 && (
@@ -903,7 +900,7 @@ export default function StudyView() {
                   <div className="relative flex-1 h-3 bg-slate-100 rounded-full overflow-hidden shadow-inner">
                     <motion.div
                       initial={{ width: 0 }}
-                      animate={{ width: `${accuracyPercent}%` }}
+                      animate={{ width: `${masteryPercent}%` }}
                       className={`h-full shadow-[0_0_12px_rgba(0,0,0,0.1)] transition-all duration-1000 ${language === "jp" ? "bg-indigo-500" : "bg-orange-500"}`}
                     />
                   </div>
@@ -911,7 +908,7 @@ export default function StudyView() {
                     <span
                       className={`text-sm font-black leading-none ${language === "jp" ? "text-indigo-600" : "text-orange-600"}`}
                     >
-                      {accuracyPercent}%
+                      {masteryPercent}%
                     </span>
                   </div>
                 </div>
