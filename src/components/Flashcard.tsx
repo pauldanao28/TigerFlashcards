@@ -130,7 +130,7 @@ export default function Flashcard({
     const unsubscribe = x.on("change", (latestX) => {
       const threshold = 100;
       if (Math.abs(latestX) > threshold && !hasVibrated) {
-        triggerHaptic(15);
+        triggerHaptic(50);
         setHasVibrated(true);
       } else if (Math.abs(latestX) < threshold && hasVibrated) {
         setHasVibrated(false);
@@ -183,7 +183,7 @@ export default function Flashcard({
   const swipeHaptic = (type: "success" | "fail") => {
     if (typeof window === "undefined" || /iPad|iPhone|iPod/.test(navigator.userAgent)) return;
     if (!navigator.vibrate) return;
-    navigator.vibrate(type === "success" ? [40] : [10, 60, 10]);
+    navigator.vibrate(type === "success" ? [80] : [30, 60, 30]);
   };
 
   const handleDragEnd = (event: any, info: any) => {

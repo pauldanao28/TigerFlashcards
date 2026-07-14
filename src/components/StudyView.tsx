@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { translations } from "@/lib/languages";
 import { calculateGlobalStats } from "@/lib/stats";
 import { processReferral } from "@/lib/social";
-import { rollingAvg, vocabMastery, JLPT_VOCAB_INCREMENT, jlptLevel } from "@/lib/scoring";
+import { rollingAvg, vocabMastery, JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
 
 import Auth from "@/components/Auth";
 import Logo from "@/components/Logo";
@@ -693,22 +693,20 @@ export default function StudyView() {
     return Math.round(raw);
   }, [cards, language]);
 
-  // Level-up detection: fire a toast when N-level crosses a threshold on the same mode
+  // Level-up detection: fire a toast on any masteryPercent change (up or down) for the same mode
   const prevMasteryRef = useRef<{ percent: number; lang: "jp" | "en" } | null>(null);
   const [levelUpToast, setLevelUpToast] = useState<{ level: string; lang: "jp" | "en"; direction: "up" | "down" } | null>(null);
-  const NLEVEL_ORDER = ["N5", "N4", "N3", "N2", "N1"];
   useEffect(() => {
     const prev = prevMasteryRef.current;
     if (prev === null || prev.lang !== language) {
       prevMasteryRef.current = { percent: masteryPercent, lang: language };
       return;
     }
-    const prevNLevel = jlptLevel(prev.percent);
-    const newNLevel = jlptLevel(masteryPercent);
-    const prevIdx = NLEVEL_ORDER.indexOf(prevNLevel);
-    const newIdx = NLEVEL_ORDER.indexOf(newNLevel);
-    if (newIdx !== prevIdx) {
-      setLevelUpToast({ level: newNLevel, lang: language, direction: newIdx > prevIdx ? "up" : "down" });
+    if (masteryPercent > prev.percent) {
+      setLevelUpToast({ level: `${masteryPercent}%`, lang: language, direction: "up" });
+      setTimeout(() => setLevelUpToast(null), 4000);
+    } else if (masteryPercent < prev.percent) {
+      setLevelUpToast({ level: `${masteryPercent}%`, lang: language, direction: "down" });
       setTimeout(() => setLevelUpToast(null), 4000);
     }
     prevMasteryRef.current = { percent: masteryPercent, lang: language };
@@ -1221,13 +1219,13 @@ export default function StudyView() {
           */}
             <div className="w-full max-w-md flex gap-4 px-6 mb-safe">
               <button
-                onClick={() => handleScore(false)}
+                onClick={() => { navigator.vibrate?.([30, 60, 30]); handleScore(false); }}
                 className="flex-1 py-4 md:py-5 bg-rose-50 text-rose-600 rounded-2xl font-black border-b-4 border-rose-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] tracking-widest"
               >
                 ✕ {t.fail}
               </button>
               <button
-                onClick={() => handleScore(true)}
+                onClick={() => { navigator.vibrate?.([80]); handleScore(true); }}
                 className="flex-1 py-4 md:py-5 bg-emerald-500 text-white rounded-2xl font-black border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] tracking-widest"
               >
                 ✓ {t.pass}
