@@ -367,25 +367,23 @@ export default function AdminDashboard() {
                   {editingId === report.id ? (
                     /* MANUAL EDIT FORM */
                     <div className="bg-slate-50 p-6 rounded-[2rem] grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-4">
-                      {/* Kanji field — full width with regenerate button */}
-                      <div className="md:col-span-2 space-y-1">
+                      {/* Kanji field — full width with regenerate button below */}
+                      <div className="md:col-span-2 space-y-2">
                         <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
                           Kanji / Japanese
                         </label>
-                        <div className="flex gap-2">
-                          <input
-                            value={editForm.japanese}
-                            onChange={(e) => setEditForm({ ...editForm, japanese: e.target.value })}
-                            className="flex-1 p-3 bg-white border border-slate-200 rounded-xl font-bold text-xl outline-none focus:ring-2 focus:ring-indigo-500"
-                          />
-                          <button
-                            onClick={handleRegenerate}
-                            disabled={regenerating || !editForm.japanese.trim()}
-                            className="px-5 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all disabled:opacity-50 whitespace-nowrap"
-                          >
-                            {regenerating ? "..." : "↺ Regenerate"}
-                          </button>
-                        </div>
+                        <input
+                          value={editForm.japanese}
+                          onChange={(e) => setEditForm({ ...editForm, japanese: e.target.value })}
+                          className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <button
+                          onClick={handleRegenerate}
+                          disabled={regenerating || !editForm.japanese.trim()}
+                          className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all disabled:opacity-50"
+                        >
+                          {regenerating ? "..." : "↺ Regenerate"}
+                        </button>
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
