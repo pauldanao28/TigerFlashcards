@@ -693,28 +693,6 @@ export default function StudyView() {
     return Math.round(raw);
   }, [cards, language]);
 
-  // Level-up detection: track whichever % is visible — per-N-level when filtered, overall when "All"
-  const trackedPercent = jlptFilter !== "All" ? (jlptLevelMastery ?? masteryPercent) : masteryPercent;
-  const prevMasteryRef = useRef<{ percent: number; lang: "jp" | "en"; filter: string } | null>(null);
-  const [levelUpToast, setLevelUpToast] = useState<{ level: string; lang: "jp" | "en"; direction: "up" | "down"; filter?: string } | null>(null);
-  useEffect(() => {
-    const prev = prevMasteryRef.current;
-    if (prev === null || prev.lang !== language || prev.filter !== jlptFilter) {
-      prevMasteryRef.current = { percent: trackedPercent, lang: language, filter: jlptFilter };
-      return;
-    }
-    if (trackedPercent > prev.percent) {
-      setLevelUpToast({ level: `${trackedPercent}%`, lang: language, direction: "up", filter: jlptFilter !== "All" ? jlptFilter : undefined });
-      navigator.vibrate?.([60, 40, 100]);
-      setTimeout(() => setLevelUpToast(null), 4000);
-    } else if (trackedPercent < prev.percent) {
-      setLevelUpToast({ level: `${trackedPercent}%`, lang: language, direction: "down", filter: jlptFilter !== "All" ? jlptFilter : undefined });
-      navigator.vibrate?.([30, 60, 30]);
-      setTimeout(() => setLevelUpToast(null), 4000);
-    }
-    prevMasteryRef.current = { percent: trackedPercent, lang: language, filter: jlptFilter };
-  }, [trackedPercent, language, jlptFilter]);
-
   // 4. Dynamic Colors based on mode
   const modeColorClass =
     language === "jp"
@@ -748,6 +726,8 @@ export default function StudyView() {
       jlptDistribution[level] > jlptDistribution[best] ? level : best, levels[0]);
   }, [jlptDistribution]);
   const [showJlptBreakdown, setShowJlptBreakdown] = useState(false);
+  const prevMasteryRef = useRef<{ percent: number; lang: "jp" | "en"; filter: string } | null>(null);
+  const [levelUpToast, setLevelUpToast] = useState<{ level: string; lang: "jp" | "en"; direction: "up" | "down"; filter?: string } | null>(null);
 
   const filteredCards = useMemo(
     () => jlptFilter === "All" ? cards : cards.filter(c => c.jlpt_level === jlptFilter),
@@ -761,6 +741,26 @@ export default function StudyView() {
     const known = filteredCards.filter(c => (c.scores?.[mode]?.percent ?? 0) >= 70).length;
     return Math.round((known / filteredCards.length) * 100);
   }, [filteredCards, jlptFilter, language]);
+
+  // Level-up detection: track whichever % is visible — per-N-level when filtered, overall when "All"
+  const trackedPercent = jlptFilter !== "All" ? (jlptLevelMastery ?? masteryPercent) : masteryPercent;
+  useEffect(() => {
+    const prev = prevMasteryRef.current;
+    if (prev === null || prev.lang !== language || prev.filter !== jlptFilter) {
+      prevMasteryRef.current = { percent: trackedPercent, lang: language, filter: jlptFilter };
+      return;
+    }
+    if (trackedPercent > prev.percent) {
+      setLevelUpToast({ level: `${trackedPercent}%`, lang: language, direction: "up", filter: jlptFilter !== "All" ? jlptFilter : undefined });
+      navigator.vibrate?.([60, 40, 100]);
+      setTimeout(() => setLevelUpToast(null), 4000);
+    } else if (trackedPercent < prev.percent) {
+      setLevelUpToast({ level: `${trackedPercent}%`, lang: language, direction: "down", filter: jlptFilter !== "All" ? jlptFilter : undefined });
+      navigator.vibrate?.([30, 60, 30]);
+      setTimeout(() => setLevelUpToast(null), 4000);
+    }
+    prevMasteryRef.current = { percent: trackedPercent, lang: language, filter: jlptFilter };
+  }, [trackedPercent, language, jlptFilter]);
 
   // Reset to a card from the new pool whenever the filter changes
   useEffect(() => {
