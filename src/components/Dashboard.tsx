@@ -192,8 +192,6 @@ export default function Dashboard() {
         N2: { total: 0, mastered: 0 },
         N1: { total: 0, mastered: 0 },
       };
-      // jp_to_en mastered per level — feeds reading_score (reading direction only).
-      const jpMasteredByLevel: Record<JlptLevel, number> = { N5: 0, N4: 0, N3: 0, N2: 0, N1: 0 };
       for (const card of jlptCards) {
         if (!card.jlpt_level || !(card.jlpt_level in jlptStats)) continue;
         const sc = scoreMap.get(card.id);
@@ -202,7 +200,6 @@ export default function Dashboard() {
         const jpM = (sc?.jp_to_en?.total ?? 0) >= 5 && (sc?.jp_to_en?.percent ?? 0) >= 70;
         const enM = (sc?.en_to_jp?.total ?? 0) >= 5 && (sc?.en_to_jp?.percent ?? 0) >= 70;
         if (jpM || enM) jlptStats[lvl].mastered++;
-        if (jpM) jpMasteredByLevel[lvl]++;
       }
 
       // Vocab score: either jp or en mastered per N level (both directions count).
@@ -211,14 +208,6 @@ export default function Dashboard() {
         rawVocabScore += Math.min(jlptStats[lvl].mastered / JLPT_VOCAB_INCREMENT[lvl], 1) * 20;
       }
       const vocabScore = Math.round(rawVocabScore);
-
-      // Reading score: jp_to_en mastery per N level — how many N-level words you can read.
-      // Same denominator as vocab (JLPT_VOCAB_INCREMENT) but reading-direction only.
-      let rawReadingScore = 0;
-      for (const lvl of ["N5", "N4", "N3", "N2", "N1"] as JlptLevel[]) {
-        rawReadingScore += Math.min(jpMasteredByLevel[lvl] / JLPT_VOCAB_INCREMENT[lvl], 1) * 20;
-      }
-      const readingScore = Math.round(rawReadingScore);
 
       // Determine vocab N-level: highest N-level (N1 > N2 > … > N5) where mastery % is greatest.
       // A level qualifies only when you have ≥50% of its JLPT vocab target in your deck
@@ -236,7 +225,7 @@ export default function Dashboard() {
         }
       }
 
-      const profileUpdates: Record<string, number> = { vocab_score: vocabScore, reading_score: readingScore };
+      const profileUpdates: Record<string, number> = { vocab_score: vocabScore };
 
       let grammarScore = p?.grammar_score ?? null;
       if (!grammarScore) {
@@ -258,7 +247,7 @@ export default function Dashboard() {
         streak: p?.streak_count ?? 0,
         daily_count: reviewRes.data?.count ?? 0,
         vocab_score: vocabScore,
-        reading_score: readingScore,
+        reading_score: p?.reading_score ?? null,
         listening_score: p?.listening_score ?? null,
         grammar_score: grammarScore,
         deck_size: deckSize,

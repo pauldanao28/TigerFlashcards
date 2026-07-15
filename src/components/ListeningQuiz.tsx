@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, List, Volume2, ChevronLeft, Ear } from "lucide-react";
 import { speak, playTTS, stopTTS } from "@/lib/tts";
-import { listeningScore, jlptLevel } from "@/lib/scoring";
+import { levelQuizScore, jlptLevel } from "@/lib/scoring";
 
 interface ListeningQuestion {
   word: string;
@@ -447,7 +447,7 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
         [level]: { correct: prev.correct + gotCount, total: prev.total + newResults.length },
       };
       listeningStatsRef.current = updatedStats;
-      const newListeningScore = listeningScore(updatedStats);
+      const newListeningScore = levelQuizScore(updatedStats);
       listeningScoreRef.current = newListeningScore;
       supabase.from("profiles").update({ listening_score: newListeningScore, listening_stats: updatedStats }).eq("id", userId)
         .then(({ error }) => { if (error) console.error("[listening_score save]", error.code, error.message); });

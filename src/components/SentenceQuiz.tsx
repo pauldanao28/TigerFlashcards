@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, List, Volume2, ChevronLeft } from "lucide-react";
 import { speak } from "@/lib/tts";
+import { levelQuizScore, jlptLevel } from "@/lib/scoring";
 
 interface QuizCard {
   id: string;
@@ -194,6 +195,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
   const scoringRef = useRef(false);
   const loadingRef = useRef(false);
   const readingScoreRef = useRef<number>(0);
+  const readingStatsRef = useRef<Record<string, { correct: number; total: number }>>({});
 
   useEffect(() => {
     supabase.from("decks").select("id").eq("user_id", userId).eq("is_default", true).single()
@@ -201,8 +203,11 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
   }, [userId]);
 
   useEffect(() => {
-    supabase.from("profiles").select("reading_score").eq("id", userId).maybeSingle()
-      .then(({ data }) => { if (data?.reading_score != null) readingScoreRef.current = data.reading_score; });
+    supabase.from("profiles").select("reading_score, reading_stats").eq("id", userId).maybeSingle()
+      .then(({ data }) => {
+        if (data?.reading_score != null) readingScoreRef.current = data.reading_score;
+        if (data?.reading_stats) readingStatsRef.current = data.reading_stats;
+      });
   }, [userId]);
 
   useEffect(() => {
@@ -486,7 +491,18 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
 
     if (currentIdx + 1 >= quizCards.length) {
       setPhase("done");
-      // reading_score is now computed by Dashboard from per-card jp_to_en mastery per N level.
+      const passedTotal = newResults.filter(r => r.passed).length;
+      const level = jlptLevel(readingScoreRef.current);
+      const prev = readingStatsRef.current[level] ?? { correct: 0, total: 0 };
+      const updatedStats = {
+        ...readingStatsRef.current,
+        [level]: { correct: prev.correct + passedTotal, total: prev.total + newResults.length },
+      };
+      readingStatsRef.current = updatedStats;
+      const newReadingScore = levelQuizScore(updatedStats);
+      readingScoreRef.current = newReadingScore;
+      supabase.from("profiles").update({ reading_score: newReadingScore, reading_stats: updatedStats }).eq("id", userId)
+        .then(({ error }) => { if (error) console.error("[reading_score save]", error.code, error.message); });
     } else {
       setCurrentIdx(i => i + 1);
       setRevealed(false);

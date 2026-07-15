@@ -62,14 +62,14 @@ export function bootstrapVocabScore(
   return totalWeight === 0 ? 0 : Math.round(weightedSum / totalWeight);
 }
 
-// Correct answers needed per N level for listening to reach full credit (20 pts) at that level.
+// Correct answers needed per N level to reach full credit (20 pts) for reading and listening.
 // 40 = two full sessions of 20 questions at perfect accuracy.
-export const LISTEN_READ_REQUIRED = 40;
+export const QUIZ_LEVEL_REQUIRED = 40;
 
-// Listening score from accumulated correct/total per N level.
-// Mirrors grammarPatternScore but for AI-generated quizzes with no fixed chunk bank —
-// you accumulate correct answers over time; LISTEN_READ_REQUIRED correct at a level = 20 pts.
-export function listeningScore(
+// Score from accumulated correct/total per N level — shared by reading and listening.
+// Mirrors grammarPatternScore but for AI-generated quizzes with no fixed question bank:
+// correct answers accumulate across sessions; QUIZ_LEVEL_REQUIRED correct = 20 pts per level.
+export function levelQuizScore(
   stats: Partial<Record<string, { correct: number; total: number }>>
 ): number {
   const LEVELS = ["N5", "N4", "N3", "N2", "N1"];
@@ -77,7 +77,7 @@ export function listeningScore(
   for (const level of LEVELS) {
     const s = stats[level];
     if (!s || s.correct === 0) continue;
-    score += Math.min(s.correct / LISTEN_READ_REQUIRED, 1) * 20;
+    score += Math.min(s.correct / QUIZ_LEVEL_REQUIRED, 1) * 20;
   }
   return Math.min(100, Math.round(score));
 }
