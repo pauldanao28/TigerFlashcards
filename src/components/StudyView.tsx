@@ -139,13 +139,16 @@ export default function StudyView() {
   const [milestoneToast, setMilestoneToast] = useState<{ label: string; count: number } | null>(null);
   const [cardMasteryToast, setCardMasteryToast] = useState<{ word: string; level: string; levelMastered: number } | null>(null);
   const [toastAnimCount, setToastAnimCount] = useState(0);
+  const [toastPhase, setToastPhase] = useState<"plus" | "count">("plus");
 
   useEffect(() => {
     if (!cardMasteryToast) return;
     const target = cardMasteryToast.levelMastered;
-    setToastAnimCount(Math.max(0, target - 1)); // show old count first
-    const t = setTimeout(() => setToastAnimCount(target), 220); // then pop to new
-    return () => clearTimeout(t);
+    setToastPhase("plus");
+    setToastAnimCount(Math.max(0, target - 1));
+    const t1 = setTimeout(() => setToastPhase("count"), 500);
+    const t2 = setTimeout(() => setToastAnimCount(target), 620);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [cardMasteryToast]);
 
   const goalFired = useRef(false);
@@ -1030,22 +1033,53 @@ export default function StudyView() {
                   <p className="text-emerald-600 font-black text-[10px] uppercase tracking-widest leading-none">Mastered</p>
                   <p className="text-slate-800 font-black text-base leading-tight truncate mt-0.5">{cardMasteryToast.word}</p>
                 </div>
-                <div className="shrink-0 text-right">
-                  <span className="inline-block bg-emerald-50 border border-emerald-200 text-emerald-700 font-black text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full leading-none">
+                <div className="shrink-0 text-right flex flex-col items-end gap-1.5">
+                  <span className={`inline-block font-black text-xs uppercase tracking-wider px-3 py-1 rounded-full leading-none border ${JLPT_BADGE_COLOR[cardMasteryToast.level as "N5" | "N4" | "N3" | "N2" | "N1"] ?? "bg-slate-100 text-slate-700 border-slate-200"}`}>
                     {cardMasteryToast.level}
                   </span>
-                  <p className="text-slate-400 text-[10px] font-bold mt-1 leading-none">
-                    <motion.span
-                      key={toastAnimCount}
-                      initial={{ scale: 1.7, color: "#10b981" }}
-                      animate={{ scale: 1, color: "#94a3b8" }}
-                      transition={{ type: "spring", stiffness: 380, damping: 14 }}
-                      className="inline-block tabular-nums"
-                    >
-                      {toastAnimCount}
-                    </motion.span>
-                    {" "}mastered
-                  </p>
+                  <div className="flex items-baseline gap-1 justify-end min-h-[28px]">
+                    <AnimatePresence mode="wait">
+                      {toastPhase === "plus" ? (
+                        <motion.span
+                          key="plus"
+                          initial={{ scale: 0.5, opacity: 0, y: 4 }}
+                          animate={{ scale: 1, opacity: 1, y: 0 }}
+                          exit={{ scale: 0.7, opacity: 0, y: -4 }}
+                          transition={{ type: "spring", stiffness: 500, damping: 14 }}
+                          className="text-emerald-500 font-black text-2xl tabular-nums leading-none"
+                        >
+                          +1
+                        </motion.span>
+                      ) : (
+                        <motion.span
+                          key="count"
+                          initial={{ scale: 0.6, opacity: 0, y: 4 }}
+                          animate={{ scale: 1, opacity: 1, y: 0 }}
+                          transition={{ type: "spring", stiffness: 420, damping: 16 }}
+                          className="text-slate-700 font-black text-2xl tabular-nums leading-none"
+                        >
+                          <motion.span
+                            key={toastAnimCount}
+                            initial={{ scale: 1.5, color: "#10b981" }}
+                            animate={{ scale: 1, color: "#334155" }}
+                            transition={{ type: "spring", stiffness: 380, damping: 14 }}
+                            className="inline-block"
+                          >
+                            {toastAnimCount}
+                          </motion.span>
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                    {toastPhase === "count" && (
+                      <motion.span
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="text-slate-400 text-[10px] font-bold"
+                      >
+                        mastered
+                      </motion.span>
+                    )}
+                  </div>
                 </div>
               </div>
             </motion.div>
