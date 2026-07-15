@@ -294,6 +294,13 @@ export default function StudyView() {
     fetchInitialData();
   }, [fetchInitialData]);
 
+  // Keep _studyCache.currentCard in sync so return visits restore the same card.
+  useEffect(() => {
+    if (_studyCache && _studyCache.userId === user?.id && currentCard) {
+      _studyCache.currentCard = currentCard;
+    }
+  }, [currentCard, user?.id]);
+
   const fetchFriends = async () => {
     const {
       data: { user },
