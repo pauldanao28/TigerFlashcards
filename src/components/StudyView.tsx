@@ -120,6 +120,9 @@ export default function StudyView() {
   const [sessionPass, setSessionPass] = useState(0);
   const [sessionNewMastered, setSessionNewMastered] = useState(0);
   const [showRecap, setShowRecap] = useState(false);
+  const [recapAnimCards, setRecapAnimCards] = useState(0);
+  const [recapAnimAccuracy, setRecapAnimAccuracy] = useState(0);
+  const [recapAnimMastered, setRecapAnimMastered] = useState(0);
   const [comboToast, setComboToast] = useState<string | null>(null);
   const [milestoneToast, setMilestoneToast] = useState<{ label: string; count: number } | null>(null);
   const [cardMasteryToast, setCardMasteryToast] = useState<{ word: string; level: string; levelMastered: number } | null>(null);
@@ -130,6 +133,30 @@ export default function StudyView() {
   const vocabSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentCardRef = useRef<FlashcardData | null>(null);
   const jlptFilterInitialized = useRef(false);
+
+  // Animate recap stats from 0 when the modal opens
+  useEffect(() => {
+    if (!showRecap) return;
+    const accuracy = sessionCards > 0 ? Math.round((sessionPass / sessionCards) * 100) : 0;
+    const targets = [
+      { target: sessionCards, set: setRecapAnimCards },
+      { target: accuracy,     set: setRecapAnimAccuracy },
+      { target: sessionNewMastered, set: setRecapAnimMastered },
+    ];
+    const timers = targets.map(({ target, set }, i) => {
+      set(0);
+      let current = 0;
+      const step = Math.max(1, Math.ceil(target / 40));
+      return setTimeout(() => {
+        const id = setInterval(() => {
+          current = Math.min(current + step, target);
+          set(current);
+          if (current >= target) clearInterval(id);
+        }, 30);
+      }, i * 120); // stagger each stat by 120ms
+    });
+    return () => timers.forEach(clearTimeout);
+  }, [showRecap]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [showQuiz, setShowQuiz] = useState(false);
   const [showListeningQuiz, setShowListeningQuiz] = useState(false);
@@ -1074,9 +1101,15 @@ export default function StudyView() {
                     className={`h-full transition-all duration-1000 ${language === "jp" ? "bg-indigo-500" : "bg-orange-500"}`}
                   />
                 </div>
-                <span className="text-[9px] font-black text-slate-500 min-w-[28px] text-right">
+                <motion.span
+                  key={masteryPercent}
+                  initial={{ scale: 1.3 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 18 }}
+                  className="text-[9px] font-black text-slate-500 min-w-[28px] text-right tabular-nums"
+                >
                   {masteryPercent}%
-                </span>
+                </motion.span>
               </div>
               {jlptTotal > 0 && (
                 <div className="flex items-center gap-1 mt-0.5">
@@ -1280,7 +1313,17 @@ export default function StudyView() {
                     />
                   </div>
                   <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">
-                    {t.goal}: {dailyProgress}/{DAILY_GOAL}
+                    {t.goal}:{" "}
+                    <motion.span
+                      key={dailyProgress}
+                      initial={{ scale: 1.4, color: "#10b981" }}
+                      animate={{ scale: 1, color: "#94a3b8" }}
+                      transition={{ duration: 0.3 }}
+                      className="inline-block tabular-nums"
+                    >
+                      {dailyProgress}
+                    </motion.span>
+                    /{DAILY_GOAL}
                   </p>
                 </div>
               ) : (
@@ -1545,17 +1588,15 @@ export default function StudyView() {
 
               <div className="w-full grid grid-cols-3 gap-3">
                 <div className="bg-slate-50 rounded-2xl p-3 text-center">
-                  <p className="text-2xl font-black text-indigo-600">{sessionCards}</p>
+                  <p className="text-2xl font-black text-indigo-600 tabular-nums">{recapAnimCards}</p>
                   <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Cards</p>
                 </div>
                 <div className="bg-slate-50 rounded-2xl p-3 text-center">
-                  <p className="text-2xl font-black text-emerald-600">
-                    {sessionCards > 0 ? Math.round((sessionPass / sessionCards) * 100) : 0}%
-                  </p>
+                  <p className="text-2xl font-black text-emerald-600 tabular-nums">{recapAnimAccuracy}%</p>
                   <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Accuracy</p>
                 </div>
                 <div className="bg-slate-50 rounded-2xl p-3 text-center">
-                  <p className="text-2xl font-black text-amber-500">{sessionNewMastered}</p>
+                  <p className="text-2xl font-black text-amber-500 tabular-nums">{recapAnimMastered}</p>
                   <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Mastered</p>
                 </div>
               </div>

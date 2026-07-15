@@ -53,6 +53,22 @@ const JLPT_TEXT_COLOR: Record<JlptLevel, string> = {
   N1: "text-rose-700",
 };
 
+function useCountUp(target: number): number {
+  const [display, setDisplay] = useState(0);
+  useEffect(() => {
+    if (target === 0) { setDisplay(0); return; }
+    let current = 0;
+    const step = Math.max(1, Math.ceil(target / 40));
+    const timer = setInterval(() => {
+      current = Math.min(current + step, target);
+      setDisplay(current);
+      if (current >= target) clearInterval(timer);
+    }, 30);
+    return () => clearInterval(timer);
+  }, [target]);
+  return display;
+}
+
 function ScoreTile({
   href,
   emoji,
@@ -69,6 +85,7 @@ function ScoreTile({
   nlevelOverride?: JlptLevel;
 }) {
   const s = score ?? 0;
+  const displayScore = useCountUp(s);
   const level = getLevel(s);
   const nlevel = nlevelOverride ?? jlptLevel(s);
   const barColor = s >= 80 ? "bg-red-400" : s >= 60 ? "bg-orange-400" : s >= 40 ? "bg-amber-400" : s >= 20 ? "bg-emerald-400" : "bg-indigo-400";
@@ -88,7 +105,7 @@ function ScoreTile({
       <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p>
       <div>
         <div className="flex items-end justify-between mb-1">
-          <span className={`text-2xl font-black ${JLPT_TEXT_COLOR[nlevel as JlptLevel]}`}>{Math.round(s)}%</span>
+          <span className={`text-2xl font-black tabular-nums ${JLPT_TEXT_COLOR[nlevel as JlptLevel]}`}>{displayScore}%</span>
         </div>
         <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
           <div
@@ -104,6 +121,22 @@ function ScoreTile({
 
 // Module-level cache — survives Next.js client-side navigation, clears on full reload
 const _dashboardCache = new Map<string, ProfileScores>();
+
+function OverallBanner({ level, score }: { level: string; score: number }) {
+  const displayScore = useCountUp(score);
+  return (
+    <div className="mt-4 bg-indigo-600 rounded-2xl px-5 py-4 flex items-center justify-between">
+      <div>
+        <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Overall Level</p>
+        <p className="text-4xl font-black text-white mt-0.5">{level}</p>
+      </div>
+      <div className="text-right">
+        <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Avg Score</p>
+        <p className="text-3xl font-black text-white mt-0.5 tabular-nums">{displayScore}%</p>
+      </div>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -333,16 +366,7 @@ export default function Dashboard() {
         </div>
 
         {/* Overall level banner */}
-        <div className="mt-4 bg-indigo-600 rounded-2xl px-5 py-4 flex items-center justify-between">
-          <div>
-            <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Overall Level</p>
-            <p className="text-4xl font-black text-white mt-0.5">{overallLevel}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Avg Score</p>
-            <p className="text-3xl font-black text-white mt-0.5">{Math.round(overallScore)}%</p>
-          </div>
-        </div>
+        <OverallBanner level={overallLevel} score={Math.round(overallScore)} />
       </div>
 
       {/* Section label */}
