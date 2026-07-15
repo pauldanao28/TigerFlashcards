@@ -3,7 +3,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { X, ChevronLeft, Loader2, List, Volume2 } from "lucide-react";
 import { speak } from "@/lib/tts";
-import { grammarPatternScore, dailySessionWeight } from "@/lib/scoring";
+import { grammarPatternScore, dailySessionWeight, jlptLevel } from "@/lib/scoring";
 
 const GRAMMAR_DAILY_KEY = "flashkado-grammar-quiz-daily";
 function getGrammarDailyCount(): number {
@@ -459,6 +459,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
 
   const finishQuiz = async (finalScore: number, totalQ: number, finalWrong: typeof wrong) => {
     setPhase("done");
+    const levelAtStart = jlptLevel(grammarScoreRef.current);
     if (finalWrong.length > 0) {
       supabase.from("grammar_corrections").insert(
         finalWrong.map(w => ({ user_id: userId, mistake: w.mistake, correct: w.correct, reason: w.reason }))
@@ -477,6 +478,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
     grammarScoreRef.current = newGrammarScore;
     supabase.from("profiles").update({ grammar_score: newGrammarScore }).eq("id", userId)
       .then(({ error }) => { if (error) console.error("[grammar_score save]", error.code, error.message); });
+    supabase.rpc("log_quiz_daily", { p_type: "grammar", p_n_level: levelAtStart, p_correct: finalScore, p_total: totalQ });
   };
 
   const pct = phase === "done" && questions.length > 0 ? score / questions.length : 0;
