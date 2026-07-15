@@ -271,7 +271,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
       for (let from = 0; ; from += PAGE) {
         const { data: page, error: pageErr } = await supabase
           .from("user_scores")
-          .select("scores_json, master_cards!card_id(id, japanese, reading, english)")
+          .select("scores_json, master_cards!card_id(id, japanese, reading, english, jlpt_level)")
           .eq("user_id", userId)
           .range(from, from + PAGE - 1);
         if (pageErr) throw new Error("Could not load your cards");
@@ -294,8 +294,11 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
 
       if (allCards.length === 0) throw new Error("Add some cards to your deck first");
 
+      const currentLevel = jlptLevel(readingScoreRef.current);
+      const levelCards = allCards.filter((c: any) => c.jlpt_level === currentLevel);
+      const poolSource = focusWeak && levelCards.length >= 10 ? levelCards : allCards;
       const pool = focusWeak
-        ? [...allCards].sort((a: any, b: any) => a.combined - b.combined).slice(0, 100)
+        ? [...poolSource].sort((a: any, b: any) => a.combined - b.combined).slice(0, 100)
         : allCards;
 
       const pick = [...pool].sort(() => Math.random() - 0.5).slice(0, Math.min(20, pool.length));

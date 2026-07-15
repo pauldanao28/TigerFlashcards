@@ -264,16 +264,18 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
           const cardIds = (dcRows ?? []).map(r => r.card_id);
           if (cardIds.length > 0) {
             const [{ data: cards }, { data: scores }] = await Promise.all([
-              supabase.from("master_cards").select("id, japanese, english").in("id", cardIds),
+              supabase.from("master_cards").select("id, japanese, english, jlpt_level").in("id", cardIds),
               supabase.from("user_scores").select("card_id, scores_json").eq("user_id", userId).in("card_id", cardIds),
             ]);
             const scoreMap = new Map((scores ?? []).map(s => [s.card_id, s.scores_json]));
-            weakWords = (cards ?? [])
-              .map(c => {
-                const sc = scoreMap.get(c.id);
-                const combined = ((sc?.jp_to_en?.percent ?? 0) + (sc?.en_to_jp?.percent ?? 0)) / 2;
-                return { japanese: c.japanese, english: c.english, combined };
-              })
+            const currentLevel = jlptLevel(listeningScoreRef.current);
+            const scored = (cards ?? []).map(c => {
+              const sc = scoreMap.get(c.id);
+              const combined = ((sc?.jp_to_en?.percent ?? 0) + (sc?.en_to_jp?.percent ?? 0)) / 2;
+              return { japanese: c.japanese, english: c.english, jlpt_level: c.jlpt_level, combined };
+            });
+            const levelPool = scored.filter(c => c.jlpt_level === currentLevel);
+            weakWords = (levelPool.length >= 5 ? levelPool : scored)
               .sort((a, b) => a.combined - b.combined)
               .slice(0, 10)
               .map(({ japanese, english }) => ({ japanese, english }));
