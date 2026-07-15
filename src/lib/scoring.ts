@@ -62,13 +62,14 @@ export function bootstrapVocabScore(
   return totalWeight === 0 ? 0 : Math.round(weightedSum / totalWeight);
 }
 
-// Correct answers needed per N level to reach full credit (20 pts) for reading and listening.
-// 40 = two full sessions of 20 questions at perfect accuracy.
-export const QUIZ_LEVEL_REQUIRED = 40;
+// Dual gate for reading and listening per N level:
+// — volume gate: at least 5 quizzes (100 questions) at that level
+// — accuracy gate: at least 70% correct (70 out of 100)
+// Both must be met for full credit (20 pts per level).
+// Partial credit = min(volume%, accuracy%) so neither gate can be bypassed.
+export const QUIZ_LEVEL_REQUIRED_TOTAL = 100;   // 5 quizzes × 20 questions
+export const QUIZ_LEVEL_REQUIRED_CORRECT = 70;  // 70% of 100
 
-// Score from accumulated correct/total per N level — shared by reading and listening.
-// Mirrors grammarPatternScore but for AI-generated quizzes with no fixed question bank:
-// correct answers accumulate across sessions; QUIZ_LEVEL_REQUIRED correct = 20 pts per level.
 export function levelQuizScore(
   stats: Partial<Record<string, { correct: number; total: number }>>
 ): number {
@@ -76,8 +77,10 @@ export function levelQuizScore(
   let score = 0;
   for (const level of LEVELS) {
     const s = stats[level];
-    if (!s || s.correct === 0) continue;
-    score += Math.min(s.correct / QUIZ_LEVEL_REQUIRED, 1) * 20;
+    if (!s || s.total === 0) continue;
+    const volumePct = Math.min(s.total / QUIZ_LEVEL_REQUIRED_TOTAL, 1);
+    const correctPct = Math.min(s.correct / QUIZ_LEVEL_REQUIRED_CORRECT, 1);
+    score += Math.min(volumePct, correctPct) * 20;
   }
   return Math.min(100, Math.round(score));
 }
