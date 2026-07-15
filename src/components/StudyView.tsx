@@ -129,6 +129,7 @@ export default function StudyView() {
   const vocabScoreRef = useRef<number>(0);
   const vocabSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentCardRef = useRef<FlashcardData | null>(null);
+  const jlptFilterInitialized = useRef(false);
 
   const [showQuiz, setShowQuiz] = useState(false);
   const [showListeningQuiz, setShowListeningQuiz] = useState(false);
@@ -844,8 +845,12 @@ export default function StudyView() {
     prevMasteryRef.current = { percent: trackedPercent, lang: language, filter: jlptFilter };
   }, [trackedPercent, language, jlptFilter]);
 
-  // Reset to a card from the new pool whenever the filter changes
+  // Reset to a card from the new pool whenever the filter changes (skip initial mount).
   useEffect(() => {
+    if (!jlptFilterInitialized.current) {
+      jlptFilterInitialized.current = true;
+      return;
+    }
     if (filteredCards.length === 0) return;
     setCurrentCard(getNextPriorityCard(filteredCards, language));
     setIsFlipped(false);
