@@ -122,6 +122,7 @@ export default function StudyView() {
   const [comboToast, setComboToast] = useState<string | null>(null);
   const [milestoneToast, setMilestoneToast] = useState<{ label: string; count: number } | null>(null);
   const goalFired = useRef(false);
+  const maxComboRef = useRef(0); // all-time best consecutive-correct streak, from DB
   const hasInteracted = useRef(false); // suppresses autoplay on first mount (tab switch)
   const vocabScoreRef = useRef<number>(0);
   const vocabSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -207,6 +208,7 @@ export default function StudyView() {
         // We simply show whatever is in the DB.
         // We don't call .update() here anymore.
         setStreak(p.streak_count || 0);
+        maxComboRef.current = p.max_streak || 0;
 
         // Hint Logic
         if (
@@ -525,9 +527,9 @@ export default function StudyView() {
         setTimeout(() => setComboToast(null), 3000);
       }
 
-      // 4. Update Profile Max Streak (Only if current session breaks record)
-      if (isPass && newSessionStreak > streak) {
-        setStreak(newSessionStreak);
+      // 4. Update Profile Max Streak (only when current combo beats all-time best)
+      if (isPass && newSessionStreak > maxComboRef.current) {
+        maxComboRef.current = newSessionStreak;
         await supabase
           .from("profiles")
           .update({ max_streak: newSessionStreak })
