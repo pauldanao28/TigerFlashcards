@@ -65,25 +65,37 @@ function getNextPriorityCard(
   const getTries = (c: FlashcardData) => c.scores?.[mode]?.total || 0;
 
   const sorted = [...allCards].sort((a, b) => getScore(a) - getScore(b));
-  const hardCards = sorted.slice(0, 10);
+  const weakestCards = sorted.slice(0, 10);
+  const weakestIds = new Set(weakestCards.map((c) => c.id));
+
   const easyCards = allCards.filter(
     (c) => getScore(c) >= 80 && getTries(c) >= 5,
   );
-  const mediumCards = allCards.filter(
-    (c) =>
-      !hardCards.some((h) => h.id === c.id) &&
-      !easyCards.some((e) => e.id === c.id),
+  const easyIds = new Set(easyCards.map((c) => c.id));
+
+  const almostMasteredCards = allCards.filter(
+    (c) => !weakestIds.has(c.id) && !easyIds.has(c.id) && getScore(c) >= 60 && getTries(c) >= 3,
+  );
+  const almostIds = new Set(almostMasteredCards.map((c) => c.id));
+
+  const regularCards = allCards.filter(
+    (c) => !weakestIds.has(c.id) && !easyIds.has(c.id) && !almostIds.has(c.id),
   );
 
+  // weights: 50% weakest, 20% almost mastered, 25% regular, 5% easy
+  // if almost mastered is empty, shift its 20% to weakest → 70/25/5
+  const almostThreshold = almostMasteredCards.length ? 0.70 : 0.50;
   const roll = Math.random();
   let pool =
-    roll < 0.65 && hardCards.length
-      ? hardCards
-      : roll < 0.95 && mediumCards.length
-        ? mediumCards
-        : easyCards.length
-          ? easyCards
-          : allCards;
+    roll < 0.50 && weakestCards.length
+      ? weakestCards
+      : roll < almostThreshold && almostMasteredCards.length
+        ? almostMasteredCards
+        : roll < 0.95 && regularCards.length
+          ? regularCards
+          : easyCards.length
+            ? easyCards
+            : allCards;
 
   const filtered = pool.filter((c) => c.id !== lastCardId);
   return filtered.length
