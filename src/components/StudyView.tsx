@@ -139,16 +139,18 @@ export default function StudyView() {
   const [milestoneToast, setMilestoneToast] = useState<{ label: string; count: number } | null>(null);
   const [cardMasteryToast, setCardMasteryToast] = useState<{ word: string; level: string; levelMastered: number } | null>(null);
   const [toastAnimCount, setToastAnimCount] = useState(0);
-  const [toastPhase, setToastPhase] = useState<"plus" | "count">("plus");
+  const [toastPhase, setToastPhase] = useState<"split" | "merged">("split");
 
   useEffect(() => {
     if (!cardMasteryToast) return;
     const target = cardMasteryToast.levelMastered;
-    setToastPhase("plus");
+    setToastPhase("split");
     setToastAnimCount(Math.max(0, target - 1));
-    const t1 = setTimeout(() => setToastPhase("count"), 500);
-    const t2 = setTimeout(() => setToastAnimCount(target), 620);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+    const t = setTimeout(() => {
+      setToastPhase("merged");
+      setToastAnimCount(target);
+    }, 650);
+    return () => clearTimeout(t);
   }, [cardMasteryToast]);
 
   const goalFired = useRef(false);
@@ -679,7 +681,7 @@ export default function StudyView() {
         const levelMastered = updatedCards.filter(c => c.jlpt_level === level && cardMasteredCheck(c.scores)).length;
         setCardMasteryToast({ word: currentCard.japanese, level, levelMastered });
         navigator.vibrate?.([60, 40, 100]);
-        setTimeout(() => setCardMasteryToast(null), 2500);
+        setTimeout(() => setCardMasteryToast(null), 2000);
       }
       for (const m of [10, 25, 50, 100, 250, 500]) {
         if (newMastered >= m && prevMastered < m) {
@@ -1037,49 +1039,32 @@ export default function StudyView() {
                   <span className={`inline-block font-black text-xs uppercase tracking-wider px-3 py-1 rounded-full leading-none border ${JLPT_BADGE_COLOR[cardMasteryToast.level as "N5" | "N4" | "N3" | "N2" | "N1"] ?? "bg-slate-100 text-slate-700 border-slate-200"}`}>
                     {cardMasteryToast.level}
                   </span>
-                  <div className="flex items-baseline gap-1 justify-end min-h-[28px]">
-                    <AnimatePresence mode="wait">
-                      {toastPhase === "plus" ? (
+                  <div className="flex items-baseline gap-1 justify-end">
+                    <motion.span
+                      key={toastAnimCount}
+                      initial={{ scale: 1.45, color: "#10b981" }}
+                      animate={{ scale: 1, color: "#334155" }}
+                      transition={{ type: "spring", stiffness: 380, damping: 14 }}
+                      className="font-black text-2xl tabular-nums leading-none inline-block"
+                    >
+                      {toastAnimCount}
+                    </motion.span>
+                    <AnimatePresence>
+                      {toastPhase === "split" && (
                         <motion.span
-                          key="plus"
-                          initial={{ scale: 0.5, opacity: 0, y: 4 }}
-                          animate={{ scale: 1, opacity: 1, y: 0 }}
-                          exit={{ scale: 0.7, opacity: 0, y: -4 }}
-                          transition={{ type: "spring", stiffness: 500, damping: 14 }}
-                          className="text-emerald-500 font-black text-2xl tabular-nums leading-none"
+                          key="plusone"
+                          initial={{ x: 8, opacity: 0 }}
+                          animate={{ x: 0, opacity: 1 }}
+                          exit={{ x: -10, opacity: 0, scale: 0.5 }}
+                          transition={{ type: "spring", stiffness: 420, damping: 18 }}
+                          className="text-emerald-500 font-black text-xl tabular-nums leading-none"
                         >
                           +1
                         </motion.span>
-                      ) : (
-                        <motion.span
-                          key="count"
-                          initial={{ scale: 0.6, opacity: 0, y: 4 }}
-                          animate={{ scale: 1, opacity: 1, y: 0 }}
-                          transition={{ type: "spring", stiffness: 420, damping: 16 }}
-                          className="text-slate-700 font-black text-2xl tabular-nums leading-none"
-                        >
-                          <motion.span
-                            key={toastAnimCount}
-                            initial={{ scale: 1.5, color: "#10b981" }}
-                            animate={{ scale: 1, color: "#334155" }}
-                            transition={{ type: "spring", stiffness: 380, damping: 14 }}
-                            className="inline-block"
-                          >
-                            {toastAnimCount}
-                          </motion.span>
-                        </motion.span>
                       )}
                     </AnimatePresence>
-                    {toastPhase === "count" && (
-                      <motion.span
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="text-slate-400 text-[10px] font-bold"
-                      >
-                        mastered
-                      </motion.span>
-                    )}
                   </div>
+                  <span className="text-slate-400 text-[10px] font-bold leading-none">mastered</span>
                 </div>
               </div>
             </motion.div>
