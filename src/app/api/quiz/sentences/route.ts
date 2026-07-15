@@ -61,22 +61,30 @@ function repairBracket(word: string, sentenceJp: string): string {
   return `【${word}】`;
 }
 
-function isRealSentence(s: any): boolean {
-  const jp: string = s.sentence_jp ?? "";
-  // Strip brackets to bare text — must have content beyond just the target word
+function isRealSentence(jp: string, word: string): boolean {
   const stripped = jp.replace(/【.*?】/g, (m: string) => m.slice(1, -1)).trim();
-  return stripped.length > (s.word?.length ?? 0) + 3;
+  return stripped.length > word.length + 3;
 }
 
-function validateSentences(sentences: any[]): any[] {
-  return sentences
-    .map((s: any) => {
-      const match = s.sentence_jp?.match(/【(.*?)】/);
-      if (!match) return s; // no brackets — pass through as-is
-      if (bracketedIsValid(s.word, match[1])) return s;
-      return { ...s, sentence_jp: repairBracket(s.word, s.sentence_jp) };
-    })
-    .filter(isRealSentence); // drop entries where the AI returned just the word
+// Returns a sparse array indexed by the id the AI echoed — safe to look up by position.
+function validateSentences(
+  sentences: any[],
+  cards: { japanese: string }[]
+): { id: number; sentence_jp: string; sentence_en: string }[] {
+  const out: { id: number; sentence_jp: string; sentence_en: string }[] = [];
+  for (const s of sentences) {
+    const id = typeof s.id === "number" ? s.id : parseInt(s.id, 10);
+    if (!Number.isFinite(id) || id < 0 || id >= cards.length) continue;
+    const word = cards[id].japanese;
+    const jp: string = s.sentence_jp ?? "";
+    if (!isRealSentence(jp, word)) continue;
+    const match = jp.match(/【(.*?)】/);
+    const fixed = !match
+      ? jp
+      : bracketedIsValid(word, match[1]) ? jp : repairBracket(word, jp);
+    out.push({ id, sentence_jp: fixed, sentence_en: s.sentence_en ?? "" });
+  }
+  return out;
 }
 
 export async function POST(req: Request) {
@@ -87,8 +95,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "cards must be a non-empty array" }, { status: 400 });
     }
 
-    const wordList = (cards as { japanese: string; reading: string; english: string }[])
-      .map((c, i) => `${i + 1}. ${c.japanese}（${c.reading}）= ${c.english}`)
+    const typedCards = cards as { japanese: string; reading: string; english: string }[];
+    const wordList = typedCards
+      .map((c, i) => `${i}. ${c.japanese}（${c.reading}）= ${c.english}`)
       .join("\n");
 
     const grammarTarget = difficultyLabel(difficulty);
@@ -96,7 +105,7 @@ export async function POST(req: Request) {
 
     const prompt = `You are a Japanese sentence generator for language learners.
 
-For each word below, write one short, natural Japanese sentence that uses that word.
+For each numbered word below, write one short, natural Japanese sentence that uses that word.
 
 Rules:
 - Grammar difficulty: ${grammarTarget}
@@ -104,15 +113,15 @@ Rules:
 - Freely use any natural verb/adjective form — dictionary form, て-form, た-form, ている, てから, ないで, たい, polite/casual — whatever fits the sentence best
 - Vary sentence structures across words (don't repeat the same pattern)
 - Wrap ONLY the conjugated form of the target word as it appears in the sentence with【】
-- The "word" field must always be the dictionary form (as given in the list)
+- The "id" field must be the number from the list (0, 1, 2, …) — copy it exactly
 - Provide a natural English translation
-- Exposure rule: naturally include 1 vocabulary word from the next level up (${nextTarget}) somewhere in the sentence — not as the target word, just as supporting context to expose the learner to new words worth mining
+- Exposure rule: naturally include 1 vocabulary word from the next level up (${nextTarget}) somewhere in the sentence — not as the target word, just as supporting context
 
 Words:
 ${wordList}
 
 Return ONLY a valid JSON array, no markdown, no explanation:
-[{"word":"食べる","sentence_jp":"野菜を【食べてから】、デザートを食べよう。","sentence_en":"Let's eat dessert after eating vegetables."}]`;
+[{"id":0,"sentence_jp":"野菜を【食べてから】、デザートを食べよう。","sentence_en":"Let's eat dessert after eating vegetables."}]`;
 
     const timeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("Sentence generation timed out")), 40000)
@@ -138,14 +147,14 @@ Return ONLY a valid JSON array, no markdown, no explanation:
 
     try {
       const parsed = JSON.parse(cleaned);
-      if (Array.isArray(parsed)) return NextResponse.json({ sentences: validateSentences(parsed) });
+      if (Array.isArray(parsed)) return NextResponse.json({ sentences: validateSentences(parsed, typedCards) });
     } catch {}
 
     const arrMatch = cleaned.match(/\[[\s\S]*\]/);
     if (arrMatch) {
       try {
         const parsed = JSON.parse(arrMatch[0]);
-        if (Array.isArray(parsed)) return NextResponse.json({ sentences: validateSentences(parsed) });
+        if (Array.isArray(parsed)) return NextResponse.json({ sentences: validateSentences(parsed, typedCards) });
       } catch {}
     }
 

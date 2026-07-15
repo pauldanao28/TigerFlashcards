@@ -315,25 +315,14 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
       if (!res.ok) throw new Error("Failed to generate sentences");
       const { sentences } = await res.json();
 
-      // Primary: word-based lookup. Fallback: position-based in case the AI returns a
-      // slightly different word form (conjugated, reading-only, etc.) that misses the map.
-      const sentenceList: { sentence_jp: string; sentence_en: string }[] = sentences ?? [];
-      const sentenceMap = new Map<string, { sentence_jp: string; sentence_en: string }>(
-        sentenceList.map((s: any) => [s.word, s])
+      // Index by the numeric id the API echoes back — immune to word-form mismatches.
+      const sentenceByIdx = new Map<number, { sentence_jp: string; sentence_en: string }>(
+        (sentences ?? []).map((s: any) => [s.id as number, s])
       );
-
-      const isRealSentence = (jp: string) => {
-        if (!jp) return false;
-        const stripped = jp.replace(/【.*?】/g, "").trim();
-        return stripped.length > 3;
-      };
 
       const merged: QuizCard[] = pick
         .map((card: any, idx: number) => {
-          const byWord = sentenceMap.get(card.japanese);
-          const byIdx = sentenceList[idx];
-          // Prefer word-match; fall back to position-match if it has a real sentence
-          const s = byWord ?? (byIdx && isRealSentence(byIdx.sentence_jp) ? byIdx : undefined);
+          const s = sentenceByIdx.get(idx);
           return {
             id: card.id,
             japanese: card.japanese,
@@ -344,7 +333,11 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
             sentence_en: s?.sentence_en ?? card.english,
           };
         })
-        .filter((card) => isRealSentence(card.sentence_jp));
+        .filter((card) => {
+          if (!card.sentence_jp) return false;
+          const stripped = card.sentence_jp.replace(/【.*?】/g, "").trim();
+          return stripped.length > 3;
+        });
 
       if (merged.length === 0) {
         setError("Couldn't generate sentences for your cards. Please try again.");
