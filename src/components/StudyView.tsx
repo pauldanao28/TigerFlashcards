@@ -128,6 +128,7 @@ export default function StudyView() {
   const hasInteracted = useRef(false); // suppresses autoplay on first mount (tab switch)
   const vocabScoreRef = useRef<number>(0);
   const vocabSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentCardRef = useRef<FlashcardData | null>(null);
 
   const [showQuiz, setShowQuiz] = useState(false);
   const [showListeningQuiz, setShowListeningQuiz] = useState(false);
@@ -283,7 +284,7 @@ export default function StudyView() {
           if (prev) return prev; // Keep the card that was already there
           return getNextPriorityCard(flattened, "jp");
         });
-        _studyCache = { userId: user.id, cards: flattened, deckId: defaultDeckId, currentCard: null };
+        _studyCache = { userId: user.id, cards: flattened, deckId: defaultDeckId, currentCard: currentCardRef.current };
       }
     }
     setDataLoading(false);
@@ -294,8 +295,21 @@ export default function StudyView() {
     fetchInitialData();
   }, [fetchInitialData]);
 
-  // Keep _studyCache.currentCard in sync so return visits restore the same card.
+  // When auth resolves, restore cached currentCard before fetchInitialData can pick a new one.
   useEffect(() => {
+    if (!user) return;
+    const c = _studyCache?.userId === user.id ? _studyCache : null;
+    if (c?.currentCard && !currentCardRef.current) {
+      setCurrentCard(c.currentCard);
+      currentCardRef.current = c.currentCard;
+    }
+  }, [user]);
+
+  // Keep _studyCache.currentCard and currentCardRef in sync on every change.
+  useEffect(() => {
+    if (currentCard) {
+      currentCardRef.current = currentCard;
+    }
     if (_studyCache && _studyCache.userId === user?.id && currentCard) {
       _studyCache.currentCard = currentCard;
     }
