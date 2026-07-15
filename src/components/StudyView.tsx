@@ -115,6 +115,12 @@ export default function StudyView() {
   const [friends, setFriends] = useState<any[]>([]);
   const [showStreakBanner, setShowStreakBanner] = useState(false);
   const [goalStreak, setGoalStreak] = useState(0);
+  const [sessionCards, setSessionCards] = useState(0);
+  const [sessionPass, setSessionPass] = useState(0);
+  const [sessionNewMastered, setSessionNewMastered] = useState(0);
+  const [showRecap, setShowRecap] = useState(false);
+  const [comboToast, setComboToast] = useState<string | null>(null);
+  const [milestoneToast, setMilestoneToast] = useState<{ label: string; count: number } | null>(null);
   const goalFired = useRef(false);
   const hasInteracted = useRef(false); // suppresses autoplay on first mount (tab switch)
   const vocabScoreRef = useRef<number>(0);
@@ -508,6 +514,17 @@ export default function StudyView() {
       setSessionStreak(newSessionStreak);
       incrementStudyCount();
 
+      // Session stats
+      setSessionCards((prev) => prev + 1);
+      if (isPass) setSessionPass((prev) => prev + 1);
+
+      // Combo milestone toast
+      if (isPass && [5, 10, 20].includes(newSessionStreak)) {
+        setComboToast(`🔥 ${newSessionStreak} in a row!`);
+        navigator.vibrate?.([60, 30, 80, 30, 100]);
+        setTimeout(() => setComboToast(null), 3000);
+      }
+
       // 4. Update Profile Max Streak (Only if current session breaks record)
       if (isPass && newSessionStreak > streak) {
         setStreak(newSessionStreak);
@@ -552,8 +569,8 @@ export default function StudyView() {
           goalFired.current = true;
           const newStreak = await updateStreak();
           setGoalStreak(newStreak ?? streak);
-          setShowStreakBanner(true);
-          setTimeout(() => setShowStreakBanner(false), 4000);
+          setShowRecap(true);
+          navigator.vibrate?.([100, 50, 100, 50, 200]);
         }
       }
 
@@ -567,6 +584,27 @@ export default function StudyView() {
       );
 
       setCards(updatedCards);
+
+      // Card mastery milestone toast
+      const prevMastered = cards.filter(
+        (c) => Math.max(c.scores?.jp_to_en?.percent ?? 0, c.scores?.en_to_jp?.percent ?? 0) >= 70
+      ).length;
+      const newMastered = updatedCards.filter(
+        (c) => Math.max(c.scores?.jp_to_en?.percent ?? 0, c.scores?.en_to_jp?.percent ?? 0) >= 70
+      ).length;
+      const wasAlreadyMastered = Math.max(currentCard.scores?.jp_to_en?.percent ?? 0, currentCard.scores?.en_to_jp?.percent ?? 0) >= 70;
+      if (!wasAlreadyMastered && Math.max(newScores.jp_to_en?.percent ?? 0, newScores.en_to_jp?.percent ?? 0) >= 70) {
+        setSessionNewMastered((prev) => prev + 1);
+      }
+      for (const m of [10, 25, 50, 100, 250, 500]) {
+        if (newMastered >= m && prevMastered < m) {
+          setMilestoneToast({ label: `${m} cards mastered!`, count: m });
+          navigator.vibrate?.([80, 40, 120]);
+          setTimeout(() => setMilestoneToast(null), 4000);
+          break;
+        }
+      }
+
       const pool = jlptFilter === "All" ? updatedCards : updatedCards.filter(c => c.jlpt_level === jlptFilter);
       setCurrentCard(getNextPriorityCard(pool.length > 0 ? pool : updatedCards, language, currentCard.id));
       setIsFlipped(false);
@@ -868,31 +906,57 @@ export default function StudyView() {
           )}
         </AnimatePresence>
 
-        {/* Streak Banner */}
+        {/* Combo Milestone Toast */}
         <AnimatePresence>
-          {showStreakBanner && (
+          {comboToast && (
             <motion.div
               initial={{ opacity: 0, y: 80, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 80, scale: 0.9 }}
+              exit={{ opacity: 0, y: 60, scale: 0.92 }}
               transition={{ type: "spring", stiffness: 320, damping: 28 }}
               className="fixed bottom-24 md:bottom-12 left-0 right-0 z-[200] flex justify-center pointer-events-none px-6"
             >
-              <div className="bg-white rounded-3xl shadow-2xl shadow-emerald-100/60 border border-emerald-100 px-8 py-5 flex items-center gap-5 max-w-sm w-full">
-                <div className="relative shrink-0">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">
-                    🎉
-                  </div>
-                  <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white">
-                    <div className="w-full h-full rounded-full bg-emerald-500 animate-ping opacity-75" />
-                  </div>
-                </div>
-                <div className="flex flex-col gap-0.5">
+              <div className="bg-white rounded-3xl shadow-2xl shadow-orange-100/60 border border-orange-100 px-8 py-5 flex items-center gap-4 max-w-sm w-full">
+                <motion.div
+                  animate={{ rotate: [0, -15, 15, -10, 10, 0] }}
+                  transition={{ duration: 0.6, delay: 0.1 }}
+                  className="text-3xl shrink-0"
+                >
+                  🔥
+                </motion.div>
+                <p className="text-slate-800 font-black text-sm uppercase tracking-widest leading-none">
+                  {comboToast}
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Card Milestone Toast */}
+        <AnimatePresence>
+          {milestoneToast && (
+            <motion.div
+              initial={{ opacity: 0, y: 80, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 60, scale: 0.92 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-24 md:bottom-12 left-0 right-0 z-[200] flex justify-center pointer-events-none px-6"
+            >
+              <div className="bg-white rounded-3xl shadow-2xl shadow-amber-100/60 border border-amber-100 px-8 py-5 flex items-center gap-4 max-w-sm w-full">
+                <motion.div
+                  initial={{ scale: 0, rotate: -20 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: "spring", stiffness: 450, damping: 14, delay: 0.08 }}
+                  className="text-3xl shrink-0"
+                >
+                  🏅
+                </motion.div>
+                <div>
                   <p className="text-slate-800 font-black text-sm uppercase tracking-widest leading-none">
-                    {t.daily_goal_met}
+                    {milestoneToast.label}
                   </p>
-                  <p className="text-emerald-600 font-bold text-[11px] uppercase tracking-wider leading-none mt-1">
-                    🔥 {goalStreak} {t.days} {t.streak}
+                  <p className="text-amber-500 font-bold text-[11px] uppercase tracking-wider mt-1">
+                    Keep it up!
                   </p>
                 </div>
               </div>
@@ -1340,6 +1404,66 @@ export default function StudyView() {
       <AnimatePresence>
         {showListeningQuiz && user?.id && (
           <ListeningQuiz userId={user.id} isAdmin={isAdmin} onClose={() => setShowListeningQuiz(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* Session Recap Modal */}
+      <AnimatePresence>
+        {showRecap && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] bg-slate-900/95 backdrop-blur-md flex flex-col items-center justify-center p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0, y: 40 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 26 }}
+              className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 flex flex-col items-center gap-6 shadow-2xl"
+            >
+              <motion.div
+                initial={{ scale: 0, rotate: -30 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: "spring", stiffness: 400, damping: 14, delay: 0.15 }}
+                className="text-6xl"
+              >
+                🎯
+              </motion.div>
+
+              <div className="text-center">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Daily Goal Complete!</p>
+                <p className="text-3xl font-black text-slate-900 mt-1 italic">
+                  {goalStreak > 0 ? `${goalStreak} Day Streak 🔥` : "Great Work!"}
+                </p>
+              </div>
+
+              <div className="w-full grid grid-cols-3 gap-3">
+                <div className="bg-slate-50 rounded-2xl p-3 text-center">
+                  <p className="text-2xl font-black text-indigo-600">{sessionCards}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Cards</p>
+                </div>
+                <div className="bg-slate-50 rounded-2xl p-3 text-center">
+                  <p className="text-2xl font-black text-emerald-600">
+                    {sessionCards > 0 ? Math.round((sessionPass / sessionCards) * 100) : 0}%
+                  </p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Accuracy</p>
+                </div>
+                <div className="bg-slate-50 rounded-2xl p-3 text-center">
+                  <p className="text-2xl font-black text-amber-500">{sessionNewMastered}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Mastered</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowRecap(false)}
+                className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
+              >
+                Keep Going →
+              </button>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
       <AnimatePresence>

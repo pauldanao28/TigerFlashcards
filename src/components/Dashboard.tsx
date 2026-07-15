@@ -8,9 +8,12 @@ import { getLevel, jlptLevel, JLPT_VOCAB_INCREMENT, grammarPatternScore } from "
 
 type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
 
+const DAILY_GOAL = 10;
+
 interface ProfileScores {
   name: string | null;
   streak: number;
+  daily_count: number;
   vocab_score: number | null;
   reading_score: number | null;
   listening_score: number | null;
@@ -113,14 +116,16 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      // Round 1: profile + default deck in parallel
-      const [profileRes, deckRes] = await Promise.all([
+      // Round 1: profile + default deck + today's review count in parallel
+      const today = new Date().toLocaleDateString("en-CA");
+      const [profileRes, deckRes, reviewRes] = await Promise.all([
         supabase
           .from("profiles")
           .select("full_name, streak_count, reading_score, listening_score, grammar_score")
           .eq("id", user.id)
           .single(),
         supabase.from("decks").select("id").eq("user_id", user.id).eq("is_default", true).single(),
+        supabase.from("user_review_counts").select("count").eq("user_id", user.id).eq("study_date", today).maybeSingle(),
       ]);
 
       const p = profileRes.data;
@@ -241,6 +246,7 @@ export default function Dashboard() {
       const fresh: ProfileScores = {
         name: p?.full_name ?? null,
         streak: p?.streak_count ?? 0,
+        daily_count: reviewRes.data?.count ?? 0,
         vocab_score: vocabScore,
         reading_score: p?.reading_score ?? null,
         listening_score: p?.listening_score ?? null,
@@ -268,7 +274,7 @@ export default function Dashboard() {
     );
   }
 
-  const { name, streak } = data;
+  const { name, streak, daily_count } = data;
   const h = new Date().getHours();
   const greeting = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 
@@ -292,12 +298,41 @@ export default function Dashboard() {
         <h1 className="text-2xl font-black text-slate-900 italic mt-0.5 leading-tight">
           {name || "Learner"} 👋
         </h1>
-        {streak > 0 && (
-          <span className="mt-2 inline-flex items-center gap-1.5 bg-orange-50 border border-orange-100 px-3 py-1 rounded-full">
-            <span>🔥</span>
-            <span className="text-[10px] font-black text-orange-600">{streak} day streak</span>
-          </span>
-        )}
+        <div className="flex items-center gap-3 mt-2">
+          {streak > 0 && (
+            <span className="inline-flex items-center gap-1.5 bg-orange-50 border border-orange-100 px-3 py-1 rounded-full">
+              <span>🔥</span>
+              <span className="text-[10px] font-black text-orange-600">{streak} day streak</span>
+            </span>
+          )}
+          {/* Daily goal ring */}
+          <div className="flex items-center gap-2">
+            {(() => {
+              const radius = 14;
+              const circ = 2 * Math.PI * radius;
+              const pct = Math.min(daily_count / DAILY_GOAL, 1);
+              const done = pct >= 1;
+              return (
+                <div className="flex items-center gap-1.5">
+                  <svg width="36" height="36" viewBox="0 0 36 36" className="-rotate-90">
+                    <circle cx="18" cy="18" r={radius} fill="none" strokeWidth="3" className="stroke-slate-100" />
+                    <circle
+                      cx="18" cy="18" r={radius} fill="none" strokeWidth="3"
+                      strokeDasharray={circ}
+                      strokeDashoffset={circ - pct * circ}
+                      strokeLinecap="round"
+                      className={done ? "stroke-emerald-500" : "stroke-indigo-500"}
+                      style={{ transition: "stroke-dashoffset 0.6s ease" }}
+                    />
+                  </svg>
+                  <span className={`text-[10px] font-black ${done ? "text-emerald-600" : "text-slate-500"}`}>
+                    {done ? "Done!" : `${daily_count}/${DAILY_GOAL}`}
+                  </span>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
 
         {/* Overall level banner */}
         <div className="mt-4 bg-indigo-600 rounded-2xl px-5 py-4 flex items-center justify-between">
