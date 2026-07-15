@@ -135,7 +135,7 @@ export function vocabMastery(cardAccuracies: number[], deckSize: number): number
 }
 
 // Grammar score derived purely from pattern performance — each JLPT level contributes 20 points
-// based on what % of that level's patterns are mastered (≥ 5 attempts, ≥ 70% accuracy).
+// based on what % of that level's patterns are mastered (≥ 3 attempts, ≥ 67% accuracy = 2/3 correct).
 // N5=0-20, N4=20-40, N3=40-60, N2=60-80, N1=80-100.
 export function grammarPatternScore(
   patterns: { id: string; jlpt_level: string }[],
@@ -153,7 +153,7 @@ export function grammarPatternScore(
     if (ids.length === 0) continue;
     const mastered = ids.filter(id => {
       const s = scoreMap.get(id);
-      return s && s.total >= 5 && s.percent >= 70;
+      return s && s.total >= 3 && s.percent >= 67;
     }).length;
     score += (mastered / ids.length) * 20;
   }
