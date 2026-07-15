@@ -21,6 +21,7 @@ import ListeningQuiz from "@/components/ListeningQuiz";
 import { FlashcardData } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
 const DAILY_GOAL = 10;
+const MASTERY_MIN_TRIES = 5;
 
 const JLPT_BAR_COLOR: Record<"N5" | "N4" | "N3" | "N2" | "N1", string> = {
   N5: "bg-emerald-500",
@@ -121,6 +122,7 @@ export default function StudyView() {
   const [showRecap, setShowRecap] = useState(false);
   const [comboToast, setComboToast] = useState<string | null>(null);
   const [milestoneToast, setMilestoneToast] = useState<{ label: string; count: number } | null>(null);
+  const [cardMasteryToast, setCardMasteryToast] = useState<{ word: string } | null>(null);
   const goalFired = useRef(false);
   const maxComboRef = useRef(0); // all-time best consecutive-correct streak, from DB
   const hasInteracted = useRef(false); // suppresses autoplay on first mount (tab switch)
@@ -588,15 +590,20 @@ export default function StudyView() {
       setCards(updatedCards);
 
       // Card mastery milestone toast
-      const prevMastered = cards.filter(
-        (c) => Math.max(c.scores?.jp_to_en?.percent ?? 0, c.scores?.en_to_jp?.percent ?? 0) >= 70
-      ).length;
-      const newMastered = updatedCards.filter(
-        (c) => Math.max(c.scores?.jp_to_en?.percent ?? 0, c.scores?.en_to_jp?.percent ?? 0) >= 70
-      ).length;
-      const wasAlreadyMastered = Math.max(currentCard.scores?.jp_to_en?.percent ?? 0, currentCard.scores?.en_to_jp?.percent ?? 0) >= 70;
-      if (!wasAlreadyMastered && Math.max(newScores.jp_to_en?.percent ?? 0, newScores.en_to_jp?.percent ?? 0) >= 70) {
+      const cardMasteredCheck = (sc: { jp_to_en?: { total?: number; percent?: number }; en_to_jp?: { total?: number; percent?: number } } | undefined) => {
+        const jp = sc?.jp_to_en; const en = sc?.en_to_jp;
+        return ((jp?.total ?? 0) >= MASTERY_MIN_TRIES && (jp?.percent ?? 0) >= 70) ||
+               ((en?.total ?? 0) >= MASTERY_MIN_TRIES && (en?.percent ?? 0) >= 70);
+      };
+      const prevMastered = cards.filter(c => cardMasteredCheck(c.scores)).length;
+      const newMastered = updatedCards.filter(c => cardMasteredCheck(c.scores)).length;
+      const wasAlreadyMastered = cardMasteredCheck(currentCard.scores);
+      const isNowMastered = cardMasteredCheck(newScores);
+      if (!wasAlreadyMastered && isNowMastered) {
         setSessionNewMastered((prev) => prev + 1);
+        setCardMasteryToast({ word: currentCard.japanese });
+        navigator.vibrate?.([60, 40, 100]);
+        setTimeout(() => setCardMasteryToast(null), 2500);
       }
       for (const m of [10, 25, 50, 100, 250, 500]) {
         if (newMastered >= m && prevMastered < m) {
@@ -734,7 +741,7 @@ export default function StudyView() {
     let raw = 0;
     for (const lvl of ["N5", "N4", "N3", "N2", "N1"] as const) {
       const lvlCards = cards.filter(c => c.jlpt_level === lvl);
-      const mastered = lvlCards.filter(c => (c.scores?.[mode]?.percent ?? 0) >= 70).length;
+      const mastered = lvlCards.filter(c => (c.scores?.[mode]?.total ?? 0) >= MASTERY_MIN_TRIES && (c.scores?.[mode]?.percent ?? 0) >= 70).length;
       raw += Math.min(mastered / JLPT_VOCAB_INCREMENT[lvl], 1) * 20;
     }
     return Math.round(raw);
@@ -785,7 +792,7 @@ export default function StudyView() {
   const jlptLevelMastery = useMemo(() => {
     if (jlptFilter === "All" || filteredCards.length === 0) return null;
     const mode = language === "jp" ? "jp_to_en" : "en_to_jp";
-    const known = filteredCards.filter(c => (c.scores?.[mode]?.percent ?? 0) >= 70).length;
+    const known = filteredCards.filter(c => (c.scores?.[mode]?.total ?? 0) >= MASTERY_MIN_TRIES && (c.scores?.[mode]?.percent ?? 0) >= 70).length;
     return Math.round((known / filteredCards.length) * 100);
   }, [filteredCards, jlptFilter, language]);
 
@@ -916,6 +923,34 @@ export default function StudyView() {
                   </motion.p>
                 </div>
               </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Per-Card Mastery Toast */}
+        <AnimatePresence>
+          {cardMasteryToast && (
+            <motion.div
+              initial={{ opacity: 0, y: -40, scale: 0.92 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -30, scale: 0.94 }}
+              transition={{ type: "spring", stiffness: 340, damping: 26 }}
+              className="fixed top-24 md:top-12 left-0 right-0 z-[200] flex justify-center pointer-events-none px-6"
+            >
+              <div className="bg-white rounded-3xl shadow-2xl shadow-emerald-100/60 border border-emerald-100 px-6 py-4 flex items-center gap-3 max-w-xs w-full">
+                <motion.div
+                  initial={{ scale: 0, rotate: -30 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 14, delay: 0.05 }}
+                  className="text-2xl shrink-0"
+                >
+                  ⭐
+                </motion.div>
+                <div className="min-w-0">
+                  <p className="text-emerald-600 font-black text-[10px] uppercase tracking-widest leading-none">Mastered</p>
+                  <p className="text-slate-800 font-black text-base leading-tight truncate mt-0.5">{cardMasteryToast.word}</p>
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

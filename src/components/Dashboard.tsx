@@ -196,10 +196,11 @@ export default function Dashboard() {
       for (const card of jlptCards) {
         if (!card.jlpt_level || !(card.jlpt_level in jlptStats)) continue;
         const sc = scoreMap.get(card.id);
-        const maxAccuracy = Math.max(sc?.jp_to_en?.percent ?? 0, sc?.en_to_jp?.percent ?? 0);
         const lvl = card.jlpt_level as JlptLevel;
         jlptStats[lvl].total++;
-        if (maxAccuracy >= 70) jlptStats[lvl].mastered++;
+        const jpMastered = (sc?.jp_to_en?.total ?? 0) >= 5 && (sc?.jp_to_en?.percent ?? 0) >= 70;
+        const enMastered = (sc?.en_to_jp?.total ?? 0) >= 5 && (sc?.en_to_jp?.percent ?? 0) >= 70;
+        if (jpMastered || enMastered) jlptStats[lvl].mastered++;
       }
 
       // Grammar-style overall vocab score: each N-level contributes up to 20 pts
