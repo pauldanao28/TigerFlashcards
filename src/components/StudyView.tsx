@@ -798,6 +798,9 @@ export default function StudyView() {
     return counts;
   }, [cards]);
   const jlptTotal = cards.length;
+  const jlptTaggedTotal = (["N5", "N4", "N3", "N2", "N1"] as const).reduce(
+    (sum, l) => sum + jlptDistribution[l], 0
+  );
   const dominantJlptLevel = useMemo(() => {
     const levels = (["N5", "N4", "N3", "N2", "N1"] as const);
     return levels.reduce((best, level) =>
@@ -1088,7 +1091,7 @@ export default function StudyView() {
                           <div className={`h-full ${JLPT_BAR_LIGHT_COLOR[jlptFilter]}`} style={{ width: `${100 - (jlptLevelMastery ?? 0)}%` }} />
                         </>
                       ) : (["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
-                        const pct = (jlptDistribution[level] / jlptTotal) * 100;
+                        const pct = jlptTaggedTotal > 0 ? (jlptDistribution[level] / jlptTaggedTotal) * 100 : 0;
                         if (pct === 0) return null;
                         return <div key={level} className={JLPT_BAR_COLOR[level]} style={{ width: `${pct}%` }} />;
                       })}
@@ -1096,7 +1099,7 @@ export default function StudyView() {
                     <span className={`text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${jlptFilter !== "All" ? JLPT_BADGE_COLOR[jlptFilter].split(" ")[1] : "text-slate-500"}`}>
                       {jlptFilter !== "All"
                         ? `${jlptFilter} ${jlptLevelMastery ?? 0}%`
-                        : `${dominantJlptLevel} ${Math.round((jlptDistribution[dominantJlptLevel] / jlptTotal) * 100)}%`}
+                        : `${dominantJlptLevel} ${jlptTaggedTotal > 0 ? Math.round((jlptDistribution[dominantJlptLevel] / jlptTaggedTotal) * 100) : 0}%`}
                       <span className="opacity-40 font-normal"> ›</span>
                     </span>
                   </button>
@@ -1190,7 +1193,7 @@ export default function StudyView() {
                             <div className={`h-full ${JLPT_BAR_LIGHT_COLOR[jlptFilter]}`} style={{ width: `${100 - (jlptLevelMastery ?? 0)}%` }} />
                           </>
                         ) : (["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
-                          const pct = (jlptDistribution[level] / jlptTotal) * 100;
+                          const pct = jlptTaggedTotal > 0 ? (jlptDistribution[level] / jlptTaggedTotal) * 100 : 0;
                           if (pct === 0) return null;
                           return <div key={level} className={JLPT_BAR_COLOR[level]} style={{ width: `${pct}%` }} />;
                         })}
@@ -1198,7 +1201,7 @@ export default function StudyView() {
                       <span className={`text-[10px] font-black uppercase tracking-widest whitespace-nowrap ${jlptFilter !== "All" ? JLPT_BADGE_COLOR[jlptFilter].split(" ")[1] : "text-slate-500"}`}>
                         {jlptFilter !== "All"
                           ? `${jlptFilter} ${jlptLevelMastery ?? 0}%`
-                          : `${dominantJlptLevel} ${Math.round((jlptDistribution[dominantJlptLevel] / jlptTotal) * 100)}%`}
+                          : `${dominantJlptLevel} ${jlptTaggedTotal > 0 ? Math.round((jlptDistribution[dominantJlptLevel] / jlptTaggedTotal) * 100) : 0}%`}
                         <span className="opacity-40 font-normal"> ›</span>
                       </span>
                     </button>

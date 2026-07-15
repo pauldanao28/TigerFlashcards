@@ -320,15 +320,30 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
         (sentences ?? []).map((s: any) => [s.word, s])
       );
 
-      const merged: QuizCard[] = pick.map((card: any) => ({
-        id: card.id,
-        japanese: card.japanese,
-        reading: card.reading,
-        english: card.english,
-        scores: card.scores,
-        sentence_jp: sentenceMap.get(card.japanese)?.sentence_jp ?? `【${card.japanese}】`,
-        sentence_en: sentenceMap.get(card.japanese)?.sentence_en ?? card.english,
-      }));
+      const merged: QuizCard[] = pick
+        .map((card: any) => {
+          const s = sentenceMap.get(card.japanese);
+          return {
+            id: card.id,
+            japanese: card.japanese,
+            reading: card.reading,
+            english: card.english,
+            scores: card.scores,
+            sentence_jp: s?.sentence_jp ?? "",
+            sentence_en: s?.sentence_en ?? card.english,
+          };
+        })
+        // Drop cards where the AI returned just the word with no real sentence
+        .filter((card) => {
+          if (!card.sentence_jp) return false;
+          const stripped = card.sentence_jp.replace(/【.*?】/g, "").trim();
+          return stripped.length > 3;
+        });
+
+      if (merged.length === 0) {
+        setError("Couldn't generate sentences for your cards. Please try again.");
+        return;
+      }
 
       setQuizCards(merged);
       setPhase("quiz");
