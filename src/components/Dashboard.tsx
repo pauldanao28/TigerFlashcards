@@ -306,32 +306,35 @@ export default function Dashboard() {
             </span>
           )}
           {/* Daily goal ring */}
-          <div className="flex items-center gap-2">
-            {(() => {
-              const radius = 14;
-              const circ = 2 * Math.PI * radius;
-              const pct = Math.min(daily_count / DAILY_GOAL, 1);
-              const done = pct >= 1;
-              return (
-                <div className="flex items-center gap-1.5">
-                  <svg width="36" height="36" viewBox="0 0 36 36" className="-rotate-90">
-                    <circle cx="18" cy="18" r={radius} fill="none" strokeWidth="3" className="stroke-slate-100" />
-                    <circle
-                      cx="18" cy="18" r={radius} fill="none" strokeWidth="3"
-                      strokeDasharray={circ}
-                      strokeDashoffset={circ - pct * circ}
-                      strokeLinecap="round"
-                      className={done ? "stroke-emerald-500" : "stroke-indigo-500"}
-                      style={{ transition: "stroke-dashoffset 0.6s ease" }}
-                    />
-                  </svg>
-                  <span className={`text-[10px] font-black ${done ? "text-emerald-600" : "text-slate-500"}`}>
-                    {done ? "Done!" : `${daily_count}/${DAILY_GOAL}`}
+          {(() => {
+            const radius = 14;
+            const circ = 2 * Math.PI * radius;
+            const pct = Math.min(daily_count / DAILY_GOAL, 1);
+            const done = pct >= 1;
+            return (
+              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${done ? "bg-emerald-50 border-emerald-100" : "bg-slate-50 border-slate-100"}`}>
+                <svg width="28" height="28" viewBox="0 0 36 36" className="-rotate-90">
+                  <circle cx="18" cy="18" r={radius} fill="none" strokeWidth="3.5" className="stroke-slate-100" />
+                  <circle
+                    cx="18" cy="18" r={radius} fill="none" strokeWidth="3.5"
+                    strokeDasharray={circ}
+                    strokeDashoffset={circ - pct * circ}
+                    strokeLinecap="round"
+                    className={done ? "stroke-emerald-500" : "stroke-indigo-400"}
+                    style={{ transition: "stroke-dashoffset 0.6s ease" }}
+                  />
+                </svg>
+                <div className="flex flex-col leading-none">
+                  <span className={`text-[9px] font-black uppercase tracking-widest ${done ? "text-emerald-600" : "text-slate-400"}`}>
+                    Daily goal
+                  </span>
+                  <span className={`text-[11px] font-black ${done ? "text-emerald-600" : "text-slate-600"}`}>
+                    {done ? `${DAILY_GOAL}/${DAILY_GOAL} ✓` : `${daily_count}/${DAILY_GOAL}`}
                   </span>
                 </div>
-              );
-            })()}
-          </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Overall level banner */}

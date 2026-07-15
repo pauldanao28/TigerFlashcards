@@ -793,7 +793,14 @@ export default function StudyView() {
   const trackedPercent = jlptFilter !== "All" ? (jlptLevelMastery ?? masteryPercent) : masteryPercent;
   useEffect(() => {
     const prev = prevMasteryRef.current;
+    // Always update ref silently on first run or context switch
     if (prev === null || prev.lang !== language || prev.filter !== jlptFilter) {
+      prevMasteryRef.current = { percent: trackedPercent, lang: language, filter: jlptFilter };
+      return;
+    }
+    // Suppress toast if user hasn't actually scored a card yet this session
+    // (prevents false positives from background data refresh on tab switch)
+    if (!hasInteracted.current) {
       prevMasteryRef.current = { percent: trackedPercent, lang: language, filter: jlptFilter };
       return;
     }
@@ -1269,11 +1276,29 @@ export default function StudyView() {
                 {/* Flashcard Logic */}
                 {(dataLoading && !hasLoadedOnce && cards.length === 0) ||
                 aiLoading ? (
-                  <div className="w-full h-full aspect-[3/4] bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse">
-                    <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3" />
-                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">
-                      {t.syncing_deck}
-                    </p>
+                  <div className="relative w-full h-full">
+                    {/* Card stack depth */}
+                    <div className="absolute inset-0 rounded-[2.5rem] bg-indigo-100/50 translate-y-3 scale-[0.96]" />
+                    <div className="absolute inset-0 rounded-[2.5rem] bg-indigo-50/80 translate-y-1.5 scale-[0.98]" />
+                    {/* Main card */}
+                    <div className="relative w-full h-full bg-white rounded-[2.5rem] overflow-hidden flex flex-col items-center justify-center gap-5 shadow-sm">
+                      {/* Shimmer sweep */}
+                      <motion.div
+                        className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-50/80 to-transparent pointer-events-none"
+                        animate={{ x: ["-100%", "200%"] }}
+                        transition={{ duration: 1.6, repeat: Infinity, ease: "linear", repeatDelay: 0.4 }}
+                      />
+                      {/* Skeleton character block */}
+                      <div className="w-24 h-24 rounded-3xl bg-slate-100" />
+                      {/* Skeleton label lines */}
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-20 h-3 rounded-full bg-slate-100" />
+                        <div className="w-14 h-2 rounded-full bg-slate-100/70" />
+                      </div>
+                      <p className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-300 mt-2 z-10">
+                        {aiLoading ? "Syncing card" : "Loading deck"}
+                      </p>
+                    </div>
                   </div>
                 ) : cards.length > 0 && currentCard ? (
                   <Flashcard
