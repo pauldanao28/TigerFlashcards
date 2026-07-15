@@ -825,7 +825,7 @@ export default function StudyView() {
   }, [jlptFilter]);
 
   // Show full-screen loading until the first deck fetch completes
-  if (dataLoading && !hasLoadedOnce && cards.length === 0) {
+  if (!hasLoadedOnce) {
     return <LoadingScreen />;
   }
 

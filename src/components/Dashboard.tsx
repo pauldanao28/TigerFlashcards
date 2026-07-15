@@ -3,8 +3,8 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
 import { getLevel, jlptLevel, JLPT_VOCAB_INCREMENT, grammarPatternScore } from "@/lib/scoring";
+import LoadingScreen from "@/components/LoadingScreen";
 
 type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
 
@@ -267,11 +267,7 @@ export default function Dashboard() {
   }, [user?.id]);
 
   if (!data) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-50">
-        <Loader2 size={24} className="animate-spin text-indigo-400" />
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   const { name, streak, daily_count } = data;
