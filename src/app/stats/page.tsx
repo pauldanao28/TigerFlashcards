@@ -13,7 +13,10 @@ import Logo from "@/components/Logo";
 import { calculateGlobalStats } from "@/lib/stats";
 import { JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
 import LoadingScreen from "@/components/LoadingScreen";
-import { List, X, Plus, Loader2 } from "lucide-react";
+import { List, X, Plus, Loader2, RotateCcw } from "lucide-react";
+
+interface StatsCardsCache { userId: string; cards: FlashcardData[]; deckId: string; }
+let _statsCardsCache: StatsCardsCache | null = null;
 
 export default function StatsPage() {
   const router = useRouter();
@@ -67,6 +70,10 @@ export default function StatsPage() {
   const [showWordList, setShowWordList] = useState(false);
   const [wordListAdding, setWordListAdding] = useState(false);
   const [wordListText, setWordListText] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [cardFetchKey, setCardFetchKey] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const skipNextCardFetch = useRef(false);
   useEffect(() => { if (showWordList) setWordListText(pendingWords.join("\n")); }, [showWordList]);
   // Safety net: don't let the nav-guard get stuck "busy" forever if this page unmounts
   // some other way (browser back/forward) while a batch upload was mid-flight.
@@ -178,38 +185,45 @@ export default function StatsPage() {
     const initData = async () => {
       if (user) {
         try {
-          // Promise.all waits for all functions to finish
-          // Note: Make sure your fetch functions are "async" and return the supabase promise!
+          // Cache hit: populate cards instantly so the page renders without waiting for the big fetch
+          const cached = _statsCardsCache?.userId === user.id ? _statsCardsCache : null;
+          if (cached) {
+            setCards(cached.cards);
+            setDefaultDeckId(cached.deckId);
+            skipNextCardFetch.current = true;
+            setInitLoading(false);
+          }
+
           const [, , , pendingData] = await Promise.all([
             fetchProfile(),
             fetchDefaultDeck(),
             fetchStarterPacks(),
             supabase.from("profiles").select("pending_words").eq("id", user.id).single(),
           ]);
-          // The DB is always the source of truth — an empty list here means the user
-          // cleared it (or never had one), not that a save failed. localStorage is only
-          // ever written FROM the DB (a display cache), never read back INTO it — reading
-          // it back used to resurrect stale/cleared words from a previous session.
           const dbWords: string[] = pendingData.data?.pending_words ?? [];
           setPendingWords(dbWords);
           localStorage.setItem(`flashkado-word-list-${user.id}`, JSON.stringify(dbWords));
         } catch (error) {
           console.error("Error loading stats:", error);
         } finally {
-          setInitLoading(false); // Only turn off once everything is done
+          setInitLoading(false);
+          setIsRefreshing(false);
         }
       }
     };
 
     initData();
-  }, [user]);
+  }, [user, refreshKey]);
 
   // 2. ONLY fetch cards once we have a valid Deck ID
   useEffect(() => {
-    if (user && defaultDeckId) {
-      fetchCards();
+    if (!user || !defaultDeckId) return;
+    if (skipNextCardFetch.current) {
+      skipNextCardFetch.current = false;
+      return;
     }
-  }, [user, defaultDeckId]); // <--- Adding defaultDeckId to the dependency array is key
+    fetchCards();
+  }, [user, defaultDeckId, cardFetchKey]);
 
   const fetchProfile = async () => {
     const { data } = await supabase
@@ -262,6 +276,13 @@ export default function StatsPage() {
       setDeckTitle(tempTitle.trim());
       setIsEditingTitle(false);
     }
+  };
+
+  const handleRefresh = () => {
+    _statsCardsCache = null;
+    setIsRefreshing(true);
+    setRefreshKey((k) => k + 1);
+    setCardFetchKey((k) => k + 1);
   };
 
   const handleLogout = async () => {
@@ -346,6 +367,9 @@ export default function StatsPage() {
         });
 
         setCards(flattened);
+        if (user && defaultDeckId) {
+          _statsCardsCache = { userId: user.id, cards: flattened, deckId: defaultDeckId };
+        }
       }
     } catch (err) {
       console.error("Unexpected Fetch Error:", err);
@@ -983,8 +1007,16 @@ export default function StatsPage() {
             </div>
           </div>
 
-          {/* RIGHT: Settings */}
-          <div className="flex-shrink-0">
+          {/* RIGHT: Refresh + Settings */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              title="Refresh"
+              className="flex items-center justify-center w-10 h-10 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-400 hover:text-slate-600 transition-all active:scale-90 disabled:opacity-40"
+            >
+              <RotateCcw size={14} className={isRefreshing ? "animate-spin" : ""} />
+            </button>
             <button
               onClick={() => setShowSettings(true)}
               className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 font-black text-slate-600 transition-all active:scale-95 h-10 uppercase tracking-widest text-[10px]"
