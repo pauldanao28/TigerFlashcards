@@ -61,13 +61,22 @@ function repairBracket(word: string, sentenceJp: string): string {
   return `【${word}】`;
 }
 
+function isRealSentence(s: any): boolean {
+  const jp: string = s.sentence_jp ?? "";
+  // Strip brackets to bare text — must have content beyond just the target word
+  const stripped = jp.replace(/【.*?】/g, (m: string) => m.slice(1, -1)).trim();
+  return stripped.length > (s.word?.length ?? 0) + 3;
+}
+
 function validateSentences(sentences: any[]): any[] {
-  return sentences.map((s: any) => {
-    const match = s.sentence_jp?.match(/【(.*?)】/);
-    if (!match) return s; // no brackets — pass through as-is
-    if (bracketedIsValid(s.word, match[1])) return s;
-    return { ...s, sentence_jp: repairBracket(s.word, s.sentence_jp) };
-  });
+  return sentences
+    .map((s: any) => {
+      const match = s.sentence_jp?.match(/【(.*?)】/);
+      if (!match) return s; // no brackets — pass through as-is
+      if (bracketedIsValid(s.word, match[1])) return s;
+      return { ...s, sentence_jp: repairBracket(s.word, s.sentence_jp) };
+    })
+    .filter(isRealSentence); // drop entries where the AI returned just the word
 }
 
 export async function POST(req: Request) {

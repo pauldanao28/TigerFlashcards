@@ -315,14 +315,25 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
       if (!res.ok) throw new Error("Failed to generate sentences");
       const { sentences } = await res.json();
 
-      // Look up by word field so AI reordering or skipped items don't misalign sentences
+      // Primary: word-based lookup. Fallback: position-based in case the AI returns a
+      // slightly different word form (conjugated, reading-only, etc.) that misses the map.
+      const sentenceList: { sentence_jp: string; sentence_en: string }[] = sentences ?? [];
       const sentenceMap = new Map<string, { sentence_jp: string; sentence_en: string }>(
-        (sentences ?? []).map((s: any) => [s.word, s])
+        sentenceList.map((s: any) => [s.word, s])
       );
 
+      const isRealSentence = (jp: string) => {
+        if (!jp) return false;
+        const stripped = jp.replace(/【.*?】/g, "").trim();
+        return stripped.length > 3;
+      };
+
       const merged: QuizCard[] = pick
-        .map((card: any) => {
-          const s = sentenceMap.get(card.japanese);
+        .map((card: any, idx: number) => {
+          const byWord = sentenceMap.get(card.japanese);
+          const byIdx = sentenceList[idx];
+          // Prefer word-match; fall back to position-match if it has a real sentence
+          const s = byWord ?? (byIdx && isRealSentence(byIdx.sentence_jp) ? byIdx : undefined);
           return {
             id: card.id,
             japanese: card.japanese,
@@ -333,12 +344,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
             sentence_en: s?.sentence_en ?? card.english,
           };
         })
-        // Drop cards where the AI returned just the word with no real sentence
-        .filter((card) => {
-          if (!card.sentence_jp) return false;
-          const stripped = card.sentence_jp.replace(/【.*?】/g, "").trim();
-          return stripped.length > 3;
-        });
+        .filter((card) => isRealSentence(card.sentence_jp));
 
       if (merged.length === 0) {
         setError("Couldn't generate sentences for your cards. Please try again.");
