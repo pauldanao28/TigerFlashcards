@@ -824,6 +824,11 @@ export default function StudyView() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jlptFilter]);
 
+  // Show full-screen loading until the first deck fetch completes
+  if (dataLoading && !hasLoadedOnce && cards.length === 0) {
+    return <LoadingScreen />;
+  }
+
   return (
     <>
       {/* 1. Add the opening fragment here */}
