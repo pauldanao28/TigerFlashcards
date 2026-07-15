@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, List, Volume2, ChevronLeft, Ear } from "lucide-react";
 import { speak, playTTS, stopTTS } from "@/lib/tts";
-import { sessionScore, rollingAvg, tierScoreCap } from "@/lib/scoring";
+import { listeningScore, jlptLevel } from "@/lib/scoring";
 
 interface ListeningQuestion {
   word: string;
@@ -179,6 +179,7 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
 
   const loadingRef = useRef(false);
   const listeningScoreRef = useRef<number>(0);
+  const listeningStatsRef = useRef<Record<string, { correct: number; total: number }>>({});
 
   useEffect(() => {
     supabase.from("decks").select("id").eq("user_id", userId).eq("is_default", true).single()
@@ -186,8 +187,11 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
   }, [userId]);
 
   useEffect(() => {
-    supabase.from("profiles").select("listening_score").eq("id", userId).maybeSingle()
-      .then(({ data }) => { if (data?.listening_score != null) listeningScoreRef.current = data.listening_score; });
+    supabase.from("profiles").select("listening_score, listening_stats").eq("id", userId).maybeSingle()
+      .then(({ data }) => {
+        if (data?.listening_score != null) listeningScoreRef.current = data.listening_score;
+        if (data?.listening_stats) listeningStatsRef.current = data.listening_stats;
+      });
   }, [userId]);
 
   const recentMistakesRef = useRef<{ mistake: string; correct: string; reason: string }[]>([]);
@@ -436,12 +440,16 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
     if (currentIdx + 1 >= questions.length) {
       setPhase("done");
       const gotCount = newResults.filter(r => r.gotIt).length;
-      const targetDiff = Math.min(100, listeningScoreRef.current + 20);
-      const sess = sessionScore(gotCount, newResults.length, targetDiff);
-      const cap = tierScoreCap(listeningScoreRef.current);
-      const newListeningScore = Math.min(cap, listeningScoreRef.current === 0 ? Math.round(sess) : rollingAvg(listeningScoreRef.current, sess));
+      const level = jlptLevel(listeningScoreRef.current);
+      const prev = listeningStatsRef.current[level] ?? { correct: 0, total: 0 };
+      const updatedStats = {
+        ...listeningStatsRef.current,
+        [level]: { correct: prev.correct + gotCount, total: prev.total + newResults.length },
+      };
+      listeningStatsRef.current = updatedStats;
+      const newListeningScore = listeningScore(updatedStats);
       listeningScoreRef.current = newListeningScore;
-      supabase.from("profiles").update({ listening_score: newListeningScore }).eq("id", userId)
+      supabase.from("profiles").update({ listening_score: newListeningScore, listening_stats: updatedStats }).eq("id", userId)
         .then(({ error }) => { if (error) console.error("[listening_score save]", error.code, error.message); });
       const missed = newResults.filter(r => !r.gotIt).map(r => ({
         user_id: userId,

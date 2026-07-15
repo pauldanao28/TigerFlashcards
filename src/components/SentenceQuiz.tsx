@@ -4,7 +4,6 @@ import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, List, Volume2, ChevronLeft } from "lucide-react";
 import { speak } from "@/lib/tts";
-import { sessionScore, rollingAvg, tierScoreCap, dailySessionWeight } from "@/lib/scoring";
 
 interface QuizCard {
   id: string;
@@ -487,15 +486,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
 
     if (currentIdx + 1 >= quizCards.length) {
       setPhase("done");
-      const passedTotal = newResults.filter(r => r.passed).length;
-      const targetDiff = Math.min(100, readingScoreRef.current + 20);
-      const weight = dailySessionWeight(getDailyCount() - 1);
-      const sess = sessionScore(passedTotal, newResults.length, targetDiff) * weight;
-      const cap = tierScoreCap(readingScoreRef.current);
-      const newReadingScore = Math.min(cap, readingScoreRef.current === 0 ? Math.round(sess) : rollingAvg(readingScoreRef.current, sess));
-      readingScoreRef.current = newReadingScore;
-      supabase.from("profiles").update({ reading_score: newReadingScore }).eq("id", userId)
-        .then(({ error }) => { if (error) console.error("[reading_score save]", error.code, error.message); });
+      // reading_score is now computed by Dashboard from per-card jp_to_en mastery per N level.
     } else {
       setCurrentIdx(i => i + 1);
       setRevealed(false);

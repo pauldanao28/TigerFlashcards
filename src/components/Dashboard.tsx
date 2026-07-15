@@ -184,8 +184,7 @@ export default function Dashboard() {
       const scoreMap = new Map(scoreRows.map((s) => [s.card_id, s.scores_json]));
       const deckSize = deckCards.length;
 
-      // Per-level stats: total cards and mastered (≥80% combined avg, ≥1 attempt) for breakdown UI.
-      // Also tracks mastered-for-score (max(jp,en) ≥70%) for the weighted progress score.
+      // Per-level stats: total cards and mastered (≥5 tries, ≥70%) for breakdown UI and scores.
       const jlptStats: Record<JlptLevel, { total: number; mastered: number }> = {
         N5: { total: 0, mastered: 0 },
         N4: { total: 0, mastered: 0 },
@@ -193,23 +192,33 @@ export default function Dashboard() {
         N2: { total: 0, mastered: 0 },
         N1: { total: 0, mastered: 0 },
       };
+      // jp_to_en mastered per level — feeds reading_score (reading direction only).
+      const jpMasteredByLevel: Record<JlptLevel, number> = { N5: 0, N4: 0, N3: 0, N2: 0, N1: 0 };
       for (const card of jlptCards) {
         if (!card.jlpt_level || !(card.jlpt_level in jlptStats)) continue;
         const sc = scoreMap.get(card.id);
         const lvl = card.jlpt_level as JlptLevel;
         jlptStats[lvl].total++;
-        const jpMastered = (sc?.jp_to_en?.total ?? 0) >= 5 && (sc?.jp_to_en?.percent ?? 0) >= 70;
-        const enMastered = (sc?.en_to_jp?.total ?? 0) >= 5 && (sc?.en_to_jp?.percent ?? 0) >= 70;
-        if (jpMastered || enMastered) jlptStats[lvl].mastered++;
+        const jpM = (sc?.jp_to_en?.total ?? 0) >= 5 && (sc?.jp_to_en?.percent ?? 0) >= 70;
+        const enM = (sc?.en_to_jp?.total ?? 0) >= 5 && (sc?.en_to_jp?.percent ?? 0) >= 70;
+        if (jpM || enM) jlptStats[lvl].mastered++;
+        if (jpM) jpMasteredByLevel[lvl]++;
       }
 
-      // Grammar-style overall vocab score: each N-level contributes up to 20 pts
-      // (mastered_at_level / JLPT_INCREMENT × 20), capped per level. True 0–100 JLPT progression.
+      // Vocab score: either jp or en mastered per N level (both directions count).
       let rawVocabScore = 0;
       for (const lvl of ["N5", "N4", "N3", "N2", "N1"] as JlptLevel[]) {
         rawVocabScore += Math.min(jlptStats[lvl].mastered / JLPT_VOCAB_INCREMENT[lvl], 1) * 20;
       }
       const vocabScore = Math.round(rawVocabScore);
+
+      // Reading score: jp_to_en mastery per N level — how many N-level words you can read.
+      // Same denominator as vocab (JLPT_VOCAB_INCREMENT) but reading-direction only.
+      let rawReadingScore = 0;
+      for (const lvl of ["N5", "N4", "N3", "N2", "N1"] as JlptLevel[]) {
+        rawReadingScore += Math.min(jpMasteredByLevel[lvl] / JLPT_VOCAB_INCREMENT[lvl], 1) * 20;
+      }
+      const readingScore = Math.round(rawReadingScore);
 
       // Determine vocab N-level: highest N-level (N1 > N2 > … > N5) where mastery % is greatest.
       // A level qualifies only when you have ≥50% of its JLPT vocab target in your deck
@@ -227,7 +236,7 @@ export default function Dashboard() {
         }
       }
 
-      const profileUpdates: Record<string, number> = { vocab_score: vocabScore };
+      const profileUpdates: Record<string, number> = { vocab_score: vocabScore, reading_score: readingScore };
 
       let grammarScore = p?.grammar_score ?? null;
       if (!grammarScore) {
@@ -249,7 +258,7 @@ export default function Dashboard() {
         streak: p?.streak_count ?? 0,
         daily_count: reviewRes.data?.count ?? 0,
         vocab_score: vocabScore,
-        reading_score: p?.reading_score ?? null,
+        reading_score: readingScore,
         listening_score: p?.listening_score ?? null,
         grammar_score: grammarScore,
         deck_size: deckSize,

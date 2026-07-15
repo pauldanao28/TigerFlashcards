@@ -62,14 +62,24 @@ export function bootstrapVocabScore(
   return totalWeight === 0 ? 0 : Math.round(weightedSum / totalWeight);
 }
 
-// Bootstrap reading_score from jp_to_en accuracy across all attempted cards.
-export function bootstrapReadingScore(
-  rows: { scores_json: { jp_to_en?: { percent?: number; total?: number } } }[]
+// Correct answers needed per N level for listening to reach full credit (20 pts) at that level.
+// 40 = two full sessions of 20 questions at perfect accuracy.
+export const LISTEN_READ_REQUIRED = 40;
+
+// Listening score from accumulated correct/total per N level.
+// Mirrors grammarPatternScore but for AI-generated quizzes with no fixed chunk bank —
+// you accumulate correct answers over time; LISTEN_READ_REQUIRED correct at a level = 20 pts.
+export function listeningScore(
+  stats: Partial<Record<string, { correct: number; total: number }>>
 ): number {
-  const attempted = rows.filter(r => (r.scores_json?.jp_to_en?.total ?? 0) > 0);
-  if (attempted.length === 0) return 0;
-  const avg = attempted.reduce((sum, r) => sum + (r.scores_json.jp_to_en?.percent ?? 0), 0) / attempted.length;
-  return Math.round(avg);
+  const LEVELS = ["N5", "N4", "N3", "N2", "N1"];
+  let score = 0;
+  for (const level of LEVELS) {
+    const s = stats[level];
+    if (!s || s.correct === 0) continue;
+    score += Math.min(s.correct / LISTEN_READ_REQUIRED, 1) * 20;
+  }
+  return Math.min(100, Math.round(score));
 }
 
 // JLPT cumulative vocab targets — cards needed to reach each level.
