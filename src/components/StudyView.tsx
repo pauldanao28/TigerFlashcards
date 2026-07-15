@@ -122,7 +122,7 @@ export default function StudyView() {
   const [showRecap, setShowRecap] = useState(false);
   const [comboToast, setComboToast] = useState<string | null>(null);
   const [milestoneToast, setMilestoneToast] = useState<{ label: string; count: number } | null>(null);
-  const [cardMasteryToast, setCardMasteryToast] = useState<{ word: string } | null>(null);
+  const [cardMasteryToast, setCardMasteryToast] = useState<{ word: string; level: string; levelMastered: number } | null>(null);
   const goalFired = useRef(false);
   const maxComboRef = useRef(0); // all-time best consecutive-correct streak, from DB
   const hasInteracted = useRef(false); // suppresses autoplay on first mount (tab switch)
@@ -623,7 +623,9 @@ export default function StudyView() {
       const isNowMastered = cardMasteredCheck(newScores);
       if (!wasAlreadyMastered && isNowMastered) {
         setSessionNewMastered((prev) => prev + 1);
-        setCardMasteryToast({ word: currentCard.japanese });
+        const level = currentCard.jlpt_level ?? "N5";
+        const levelMastered = updatedCards.filter(c => c.jlpt_level === level && cardMasteredCheck(c.scores)).length;
+        setCardMasteryToast({ word: currentCard.japanese, level, levelMastered });
         navigator.vibrate?.([60, 40, 100]);
         setTimeout(() => setCardMasteryToast(null), 2500);
       }
@@ -963,7 +965,7 @@ export default function StudyView() {
               transition={{ type: "spring", stiffness: 340, damping: 26 }}
               className="fixed top-24 md:top-12 left-0 right-0 z-[200] flex justify-center pointer-events-none px-6"
             >
-              <div className="bg-white rounded-3xl shadow-2xl shadow-emerald-100/60 border border-emerald-100 px-6 py-4 flex items-center gap-3 max-w-xs w-full">
+              <div className="bg-white rounded-3xl shadow-2xl shadow-emerald-100/60 border border-emerald-100 px-5 py-3.5 flex items-center gap-3 max-w-xs w-full">
                 <motion.div
                   initial={{ scale: 0, rotate: -30 }}
                   animate={{ scale: 1, rotate: 0 }}
@@ -972,9 +974,15 @@ export default function StudyView() {
                 >
                   ⭐
                 </motion.div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-emerald-600 font-black text-[10px] uppercase tracking-widest leading-none">Mastered</p>
                   <p className="text-slate-800 font-black text-base leading-tight truncate mt-0.5">{cardMasteryToast.word}</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <span className="inline-block bg-emerald-50 border border-emerald-200 text-emerald-700 font-black text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full leading-none">
+                    {cardMasteryToast.level}
+                  </span>
+                  <p className="text-slate-400 text-[10px] font-bold mt-1 leading-none">{cardMasteryToast.levelMastered} mastered</p>
                 </div>
               </div>
             </motion.div>
