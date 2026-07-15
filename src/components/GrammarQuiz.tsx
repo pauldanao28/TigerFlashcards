@@ -133,6 +133,22 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
   const grammarScoreRef = useRef<number>(0);
   const [currentLevel, setCurrentLevel] = useState<JlptLevel>("N5");
   const [levelProgress, setLevelProgress] = useState<{ mastered: number; total: number }>({ mastered: 0, total: 0 });
+  const [skillScore, setSkillScore] = useState<{ from: number; to: number } | null>(null);
+  const [animatedScore, setAnimatedScore] = useState(0);
+
+  useEffect(() => {
+    if (!skillScore) return;
+    setAnimatedScore(skillScore.from);
+    let current = skillScore.from;
+    const target = skillScore.to;
+    const step = Math.max(1, Math.ceil((target - current) / 40));
+    const timer = setInterval(() => {
+      current = Math.min(current + step, target);
+      setAnimatedScore(current);
+      if (current >= target) clearInterval(timer);
+    }, 30);
+    return () => clearInterval(timer);
+  }, [skillScore]);
 
   // Intro-screen snapshot of current unlocked level + mastery progress.
   useEffect(() => {
@@ -475,7 +491,9 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
     ]);
     const scoreMap = new Map((allScores ?? []).map(s => [s.pattern_id, { total: s.total, percent: s.percent }]));
     const newGrammarScore = grammarPatternScore(allPatterns ?? [], scoreMap);
+    const oldGrammarScore = grammarScoreRef.current;
     grammarScoreRef.current = newGrammarScore;
+    setSkillScore({ from: oldGrammarScore, to: newGrammarScore });
     supabase.from("profiles").update({ grammar_score: newGrammarScore }).eq("id", userId)
       .then(({ error }) => { if (error) console.error("[grammar_score save]", error.code, error.message); });
     supabase.rpc("log_quiz_daily", { p_type: "grammar", p_n_level: levelAtStart, p_correct: finalScore, p_total: totalQ });
@@ -562,6 +580,11 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
             <p className="text-slate-400 font-black uppercase tracking-widest text-[10px] mt-1">
               {Math.round(pct * 100)}% correct · {pct >= 0.8 ? "Excellent!" : pct >= 0.5 ? "Good work!" : "Keep practicing!"}
             </p>
+            {skillScore !== null && (
+              <p className="text-amber-600 font-black text-2xl mt-3 tabular-nums">
+                Grammar Score <span className="text-4xl">{animatedScore}</span>%
+              </p>
+            )}
           </div>
           <div className="flex gap-3 w-full">
             <button onClick={onClose}

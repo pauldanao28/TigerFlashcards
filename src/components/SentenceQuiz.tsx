@@ -173,6 +173,22 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<WordTooltip | null>(null);
   const [backConfirm, setBackConfirm] = useState(false);
+  const [skillScore, setSkillScore] = useState<{ from: number; to: number } | null>(null);
+  const [animatedScore, setAnimatedScore] = useState(0);
+
+  useEffect(() => {
+    if (!skillScore) return;
+    setAnimatedScore(skillScore.from);
+    let current = skillScore.from;
+    const target = skillScore.to;
+    const step = Math.max(1, Math.ceil((target - current) / 40));
+    const timer = setInterval(() => {
+      current = Math.min(current + step, target);
+      setAnimatedScore(current);
+      if (current >= target) clearInterval(timer);
+    }, 30);
+    return () => clearInterval(timer);
+  }, [skillScore]);
 
   // Warn on accidental refresh/tab-close mid-quiz — progress lives only in React state
   // and a lost quiz still burns one of today's limited slots.
@@ -517,7 +533,9 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
       };
       readingStatsRef.current = updatedStats;
       const newReadingScore = levelQuizScore(updatedStats);
+      const oldReadingScore = readingScoreRef.current;
       readingScoreRef.current = newReadingScore;
+      setSkillScore({ from: oldReadingScore, to: newReadingScore });
       supabase.from("profiles").update({ reading_score: newReadingScore, reading_stats: updatedStats }).eq("id", userId)
         .then(({ error }) => { if (error) console.error("[reading_score save]", error.code, error.message); });
       supabase.rpc("log_quiz_daily", { p_type: "reading", p_n_level: level, p_correct: passedTotal, p_total: newResults.length });
@@ -755,6 +773,11 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
             <p className="text-slate-400 font-black uppercase tracking-widest text-[10px] mt-1">
               {results.length > 0 ? Math.round((passedCount / results.length) * 100) : 0}% correct · scores updated
             </p>
+            {skillScore !== null && (
+              <p className="text-emerald-600 font-black text-2xl mt-3 tabular-nums">
+                Reading Score <span className="text-4xl">{animatedScore}</span>%
+              </p>
+            )}
           </motion.div>
 
           {results.filter(r => !r.passed).length > 0 && (
