@@ -451,6 +451,7 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
       listeningScoreRef.current = newListeningScore;
       supabase.from("profiles").update({ listening_score: newListeningScore, listening_stats: updatedStats }).eq("id", userId)
         .then(({ error }) => { if (error) console.error("[listening_score save]", error.code, error.message); });
+      supabase.from("quiz_sessions").insert({ user_id: userId, quiz_type: "listening", n_level: level, correct: gotCount, total: newResults.length });
       const missed = newResults.filter(r => !r.gotIt).map(r => ({
         user_id: userId,
         mistake: r.q.word,

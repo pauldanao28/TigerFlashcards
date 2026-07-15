@@ -503,6 +503,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
       readingScoreRef.current = newReadingScore;
       supabase.from("profiles").update({ reading_score: newReadingScore, reading_stats: updatedStats }).eq("id", userId)
         .then(({ error }) => { if (error) console.error("[reading_score save]", error.code, error.message); });
+      supabase.from("quiz_sessions").insert({ user_id: userId, quiz_type: "reading", n_level: level, correct: passedTotal, total: newResults.length });
     } else {
       setCurrentIdx(i => i + 1);
       setRevealed(false);
