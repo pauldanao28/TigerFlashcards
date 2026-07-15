@@ -542,12 +542,15 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
               )}
             </h2>
             <p className="text-slate-500 font-medium text-sm leading-relaxed">
-              Questions are drawn from real {currentLevel} grammar patterns — fill-in-the-blank, reading, and writing, all anchored to a specific structure.
+              Fill-in-the-blank, reading, and writing questions — each one anchored to a real {currentLevel} grammar pattern. Patterns from earlier levels keep resurfacing so nothing goes cold.
             </p>
           </div>
-          <div className="w-full bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-3 text-left">
+          <div className="w-full bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-3 text-left space-y-1.5">
             <p className="text-emerald-800 font-bold text-xs leading-relaxed">
-              🧠 Master {MASTERY_MIN_ATTEMPTS}+ tries at ≥{MASTERY_MIN_PERCENT}% on every {currentLevel} pattern to unlock the next level. Weak patterns from earlier levels keep resurfacing. Tap any kanji to look it up.
+              🔓 Master every <span className="font-black">{currentLevel}</span> pattern ({MASTERY_MIN_ATTEMPTS}+ attempts, ≥{MASTERY_MIN_PERCENT}% accuracy each) to unlock the next level.
+            </p>
+            <p className="text-emerald-700 font-medium text-xs leading-relaxed">
+              Unseen and weak patterns are always prioritised. Tap any kanji to look it up.
             </p>
           </div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">20 questions · ~10 min</p>

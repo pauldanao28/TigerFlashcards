@@ -524,15 +524,17 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
         <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 max-w-lg mx-auto w-full text-center gap-5">
           <span className="text-5xl">🎧</span>
           <div>
-            <h2 className="text-xl font-black text-slate-900 mb-2">How it works</h2>
+            <h2 className="text-xl font-black text-slate-900 mb-2">Listening Quiz</h2>
             <p className="text-slate-500 font-medium text-sm leading-relaxed">
-              You&apos;ll hear a sentence built around a common verb or noun+verb chunk (電話をかける, 気をつける…).
-              Listen first — no text — then reveal to check what you heard and see the chunk broken down.
+              You&apos;ll hear a Japanese sentence. Listen first — no text shown — then reveal to check if you caught it and read the translation. 20 sentences per round.
             </p>
           </div>
-          <div className="w-full bg-indigo-50 border border-indigo-100 rounded-2xl px-4 py-3 text-left">
-            <p className="text-indigo-800 font-bold text-xs leading-relaxed">
-              🎯 {QUESTIONS_PER_ROUND} sentences per round at your current N level. Chunks you miss get re-drilled in the next round. Score well to advance levels.
+          <div className="w-full bg-sky-50 border border-sky-100 rounded-2xl px-4 py-3 text-left space-y-1.5">
+            <p className="text-sky-800 font-bold text-xs leading-relaxed">
+              📈 Sentences use your <span className="font-black">weakest vocab cards</span> at your current N level. Complete 5 rounds (100 questions) at 70% accuracy to advance your listening score to the next level.
+            </p>
+            <p className="text-sky-700 font-medium text-xs leading-relaxed">
+              Tap any word in the revealed sentence to look it up.
             </p>
           </div>
           <div className="w-full flex items-center justify-between">

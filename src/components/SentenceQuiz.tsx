@@ -587,16 +587,19 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
       {/* Intro */}
       {phase === "intro" && !error && (
         <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 max-w-lg mx-auto w-full text-center gap-5">
-          <span className="text-5xl">📝</span>
+          <span className="text-5xl">📖</span>
           <div>
-            <h2 className="text-xl font-black text-slate-900 mb-2">How it works</h2>
+            <h2 className="text-xl font-black text-slate-900 mb-2">Reading Quiz</h2>
             <p className="text-slate-500 font-medium text-sm leading-relaxed">
-              AI generates a sentence for each of your weakest cards at your current N level. Read it, guess the highlighted word from context, then reveal to check yourself.
+              AI writes a sentence using one of your vocabulary cards. Read it, figure out the highlighted word from context, then reveal to check yourself. 20 sentences per round.
             </p>
           </div>
-          <div className="w-full bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 text-left">
+          <div className="w-full bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 text-left space-y-1.5">
             <p className="text-amber-800 font-bold text-xs leading-relaxed">
-              ⚠️ Pass/Fail updates that card&apos;s score. Your overall reading score also updates at the end of the session.
+              📈 Cards are drawn from your <span className="font-black">current N level</span>. Complete 5 rounds (100 questions) at 70% accuracy to advance your reading score to the next level.
+            </p>
+            <p className="text-amber-700 font-medium text-xs leading-relaxed">
+              Tap any kanji in a sentence to look it up.
             </p>
           </div>
           <div className="w-full flex items-center justify-between">
