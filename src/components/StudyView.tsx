@@ -126,6 +126,16 @@ export default function StudyView() {
   const [comboToast, setComboToast] = useState<string | null>(null);
   const [milestoneToast, setMilestoneToast] = useState<{ label: string; count: number } | null>(null);
   const [cardMasteryToast, setCardMasteryToast] = useState<{ word: string; level: string; levelMastered: number } | null>(null);
+  const [toastAnimCount, setToastAnimCount] = useState(0);
+
+  useEffect(() => {
+    if (!cardMasteryToast) return;
+    const target = cardMasteryToast.levelMastered;
+    setToastAnimCount(Math.max(0, target - 1)); // show old count first
+    const t = setTimeout(() => setToastAnimCount(target), 220); // then pop to new
+    return () => clearTimeout(t);
+  }, [cardMasteryToast]);
+
   const goalFired = useRef(false);
   const maxComboRef = useRef(0); // all-time best consecutive-correct streak, from DB
   const hasInteracted = useRef(false); // suppresses autoplay on first mount (tab switch)
@@ -1012,7 +1022,18 @@ export default function StudyView() {
                   <span className="inline-block bg-emerald-50 border border-emerald-200 text-emerald-700 font-black text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full leading-none">
                     {cardMasteryToast.level}
                   </span>
-                  <p className="text-slate-400 text-[10px] font-bold mt-1 leading-none">{cardMasteryToast.levelMastered} mastered</p>
+                  <p className="text-slate-400 text-[10px] font-bold mt-1 leading-none">
+                    <motion.span
+                      key={toastAnimCount}
+                      initial={{ scale: 1.7, color: "#10b981" }}
+                      animate={{ scale: 1, color: "#94a3b8" }}
+                      transition={{ type: "spring", stiffness: 380, damping: 14 }}
+                      className="inline-block tabular-nums"
+                    >
+                      {toastAnimCount}
+                    </motion.span>
+                    {" "}mastered
+                  </p>
                 </div>
               </div>
             </motion.div>
