@@ -34,8 +34,9 @@ Rules for the "partOfSpeech" field:
 
 Rules for the "english" field:
 - Plain, concise translation only. No parentheses, no brackets, no qualifiers, no "to " prefix for verbs.
-- Good: "eat", "challenge", "mistake", "beautiful"
-- Bad: "(to) eat", "eat (food)", "challenge (suru verb)", "mistake (error)"
+- If the word has multiple common meanings, give AT MOST 3, each a single word or short 2-3 word phrase, separated by " / " — never a comma-separated list, never connector words like "or"/"and".
+- Good: "eat", "challenge", "mistake", "beautiful", "panic / scare", "companion / escort"
+- Bad: "(to) eat", "eat (food)", "challenge (suru verb)", "mistake (error)", "panic, scare, consternation, or economic crisis", "companion; attendant; escort; accompaniment; offering"
 
 Output ONLY raw JSON as an ARRAY of objects:
 [
@@ -51,6 +52,20 @@ Output ONLY raw JSON as an ARRAY of objects:
 ]`;
 
 const stripParens = (s: string) => s.replace(/\s*[\(\[（【][^)\]）】]*[\)\]）】]/g, "").trim();
+
+// Safety net for the "english" field — the model doesn't always follow the
+// prompt's synonym-formatting rule (comma/semicolon lists with "or"/"and"
+// slip through), so normalize on the way out: split on any separator, drop
+// a stray "to " prefix per part, cap at 3, rejoin with a single consistent " / ".
+const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+const normalizeEnglish = (s: string): string => {
+  const parts = s
+    .split(/\s*(?:,|;|\/|\bor\b|\band\b)\s*/i)
+    .map((p) => lowerFirst(p.trim().replace(/^to\s+/i, "")))
+    .filter(Boolean)
+    .slice(0, 3);
+  return parts.length > 0 ? parts.join(" / ") : lowerFirst(s.trim());
+};
 
 async function tryGenerate(modelName: string, words: string[]): Promise<string> {
   const model = genAI.getGenerativeModel({ model: modelName });
@@ -106,7 +121,7 @@ export async function POST(req: Request) {
     const parsedData = JSON.parse(cleanJson);
     const cleaned = parsedData.map((item: Record<string, unknown>) => ({
       ...item,
-      english: typeof item.english === "string" ? stripParens(item.english) : item.english,
+      english: typeof item.english === "string" ? normalizeEnglish(stripParens(item.english)) : item.english,
       reading: typeof item.reading === "string" ? stripParens(item.reading) : item.reading,
     }));
     return NextResponse.json(cleaned);
