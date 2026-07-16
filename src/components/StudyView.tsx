@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { translations } from "@/lib/languages";
 import { calculateGlobalStats } from "@/lib/stats";
 import { processReferral } from "@/lib/social";
-import { rollingAvg, vocabMastery, JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
+import { rollingAvg, vocabMastery, JLPT_VOCAB_INCREMENT, jlptLevel } from "@/lib/scoring";
 import { authedFetch } from "@/lib/authedFetch";
 import { useAppAlert } from "@/context/AlertContext";
 
@@ -428,6 +428,17 @@ export default function StudyView() {
 
           if (!friendProfile) return null;
 
+          // Same "weakest pillar" rule Dashboard.tsx uses for your own
+          // overall level — mirrors real JLPT rules (a level requires all
+          // skills, not just your best one).
+          const friendScores = [
+            friendProfile.vocab_score,
+            friendProfile.grammar_score,
+            friendProfile.reading_score,
+            friendProfile.listening_score,
+          ].filter((s): s is number => s != null);
+          const nLevel = friendScores.length > 0 ? jlptLevel(Math.min(...friendScores)) : null;
+
           return {
             friendshipId: row.id,
             id: friendProfile.id,
@@ -442,6 +453,7 @@ export default function StudyView() {
             goal: friendProfile.daily_goal || 10,
             streak: friendProfile.streak_count || 0,
             isOnline: friendProfile.is_online,
+            nLevel,
           };
         })
         .filter((f): f is any => f !== null)

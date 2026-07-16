@@ -8,12 +8,11 @@ export const addFriendByUsername = async (targetUsername: string) => {
   const cleanUsername = targetUsername.trim();
   if (!cleanUsername) return { error: "Please enter a name" };
 
-  // 2. Find the target user (Case-insensitive, exact match, force 1 result)
+  // 2. Find the target user via the narrow RPC — profiles is no longer
+  // publicly readable, so a stranger's row can only be found this way,
+  // and only id/full_name are ever returned (no scores/streak).
   const { data: profiles, error: profileError } = await supabase
-    .from('profiles')
-    .select('id, full_name')
-    .ilike('full_name', cleanUsername)
-    .limit(1);
+    .rpc('find_user_by_name', { p_name: cleanUsername });
 
   // Check if query failed or no user was found
   if (profileError || !profiles || profiles.length === 0) {
@@ -95,13 +94,13 @@ export const handleIgnoreRequest = async (senderId: string) => {
 
 export const processReferral = async (newUserId: string, referralCode: string) => {
   try {
-    // 1. Find the Referrer — matched by referral_code (stable, unique, opaque),
-    // not full_name (user-editable, starts blank, not guaranteed unique).
-    const { data: referrer, error: findError } = await supabase
-      .from("profiles")
-      .select("id, full_name")
-      .eq("referral_code", referralCode.toUpperCase())
-      .maybeSingle();
+    // 1. Find the Referrer via the narrow RPC — matched by referral_code
+    // (stable, unique, opaque), not full_name. profiles is no longer
+    // publicly readable, and this must work for a user who was just
+    // created moments ago and isn't "connected" to the referrer yet.
+    const { data: referrerRows, error: findError } = await supabase
+      .rpc("find_user_by_referral_code", { p_code: referralCode });
+    const referrer = referrerRows?.[0];
 
     if (findError || !referrer) {
       console.error("Referrer not found");

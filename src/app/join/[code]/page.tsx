@@ -23,12 +23,11 @@ export default function JoinPage({ params }: JoinProps) {
     // StudyView) to process once the new user actually signs up.
     localStorage.setItem("tg_referrer", code);
 
+    // profiles isn't publicly readable, and this page is visited by an
+    // anonymous, not-yet-signed-up visitor — go through the narrow RPC.
     supabase
-      .from("profiles")
-      .select("full_name")
-      .eq("referral_code", code)
-      .maybeSingle()
-      .then(({ data }) => setReferrerName(data?.full_name || "a friend"));
+      .rpc("find_user_by_referral_code", { p_code: code })
+      .then(({ data }) => setReferrerName(data?.[0]?.full_name || "a friend"));
 
     const timer = setTimeout(() => {
       router.push("/login");

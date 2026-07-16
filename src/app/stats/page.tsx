@@ -87,6 +87,7 @@ export default function StatsPage() {
   const [isPremium, setIsPremium] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [statsVisible, setStatsVisible] = useState(true);
   const [feedbackForm, setFeedbackForm] = useState({
     type: "feedback",
     subject: "",
@@ -309,7 +310,7 @@ export default function StatsPage() {
     const { data } = await supabase
       .from("profiles")
       .select(
-        "full_name, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, sfx_enabled, swipe_only, imported_packs, is_admin, is_premium, referral_code",
+        "full_name, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, sfx_enabled, swipe_only, imported_packs, is_admin, is_premium, referral_code, stats_visible_to_friends",
       )
       .eq("id", user?.id)
       .single();
@@ -326,6 +327,7 @@ export default function StatsPage() {
       setIsPremium(data.is_premium ?? false);
       setProfileName(data.full_name);
       setReferralCode(data.referral_code ?? null);
+      setStatsVisible(data.stats_visible_to_friends ?? true);
     }
   };
 
@@ -925,6 +927,7 @@ export default function StatsPage() {
       // Add this line:
       if (column === "sfx_enabled") setSfxEnabled(value);
       if (column === "swipe_only") setSwipeOnly(value);
+      if (column === "stats_visible_to_friends") setStatsVisible(value);
     } else {
       console.error("Error updating setting:", error.message);
     }
@@ -1189,6 +1192,28 @@ export default function StatsPage() {
                     >
                       <div
                         className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${swipeOnly ? "left-7" : "left-1"}`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Stats Visible to Friends Toggle */}
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
+                    <div>
+                      <p className="text-sm font-bold text-slate-700">
+                        Show my stats to friends
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-medium leading-tight">
+                        Friends can always see your name and streak. Turn this off to hide your detailed level and scores from them.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        updateAudioSetting("stats_visible_to_friends", !statsVisible)
+                      }
+                      className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${statsVisible ? "bg-indigo-600" : "bg-slate-300"}`}
+                    >
+                      <div
+                        className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${statsVisible ? "left-7" : "left-1"}`}
                       />
                     </button>
                   </div>

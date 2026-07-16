@@ -9,6 +9,7 @@ import {
   handleIgnoreRequest,
 } from "@/lib/social";
 import { useAppAlert } from "@/context/AlertContext";
+import { FriendProfileModal } from "@/components/FriendProfileModal";
 
 export const SocialDock = ({
   userId, // Added your unique ID
@@ -28,6 +29,7 @@ export const SocialDock = ({
   const { showAlert } = useAppAlert();
   const [newFriend, setNewFriend] = useState("");
   const [activeTab, setActiveTab] = useState<"friends" | "pending">("friends");
+  const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
 
   useEffect(() => {
@@ -226,7 +228,8 @@ export const SocialDock = ({
             displayFriends.map((friend) => (
               <div
                 key={`${friend.id}-${friend.status}`}
-                className="flex items-center gap-4 animate-in fade-in slide-in-from-bottom-2"
+                onClick={() => { if (activeTab === "friends") setSelectedFriendId(friend.id); }}
+                className={`flex items-center gap-4 animate-in fade-in slide-in-from-bottom-2 ${activeTab === "friends" ? "cursor-pointer active:opacity-70" : ""}`}
               >
                 <div className="relative">
                   <div className="w-12 h-12 rounded-full border-2 border-slate-100 overflow-hidden bg-slate-50">
@@ -252,6 +255,11 @@ export const SocialDock = ({
                       <p className="text-[12px] font-black uppercase text-black italic leading-none">
                         {friend.name}
                       </p>
+                      {friend.nLevel && activeTab === "friends" && (
+                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-600">
+                          {friend.nLevel}
+                        </span>
+                      )}
                       {friend.streak > 0 && activeTab === "friends" && (
                         <span className="text-[10px] flex items-center gap-0.5 font-bold text-orange-500">
                           🔥{friend.streak}
@@ -361,6 +369,10 @@ export const SocialDock = ({
           + Refer a Friend
         </button>
       </motion.div>
+
+      {selectedFriendId && (
+        <FriendProfileModal friendId={selectedFriendId} onClose={() => setSelectedFriendId(null)} />
+      )}
     </>
   );
 };
