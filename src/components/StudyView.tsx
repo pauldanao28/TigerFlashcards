@@ -192,6 +192,7 @@ export default function StudyView() {
   const [autoPlayJp, setAutoPlayJp] = useState(true);
   const [autoPlayEn, setAutoPlayEn] = useState(false);
   const [sfxEnabled, setSfxEnabled] = useState(true);
+  const [swipeOnly, setSwipeOnly] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const [swipeFeedback, setSwipeFeedback] = useState<{
     percent: number;
@@ -253,6 +254,7 @@ export default function StudyView() {
         setAutoPlayJp(p.auto_play_jp ?? true);
         setAutoPlayEn(p.auto_play_en ?? false);
         setSfxEnabled(p.sfx_enabled ?? true);
+        setSwipeOnly(p.swipe_only ?? false);
         setHasOnboarded(p.has_onboarded);
         setProfileName(p.full_name);
         setIsAdmin(p.is_admin ?? false);
@@ -559,6 +561,13 @@ export default function StudyView() {
       if (!currentCard || !user) return;
       hasInteracted.current = true;
 
+      // Dismiss the swipe-tutorial overlay on the first graded card, regardless of
+      // whether it was graded by swipe, button, or keyboard shortcut.
+      if (showHints) {
+        setShowHints(false);
+        localStorage.removeItem("show_first_timer_hint");
+      }
+
       // 1. Calculate Score Updates
       const mode = language === "jp" ? "jp_to_en" : "en_to_jp";
       const s = currentCard.scores || {
@@ -706,9 +715,45 @@ export default function StudyView() {
       sessionStreak,
       t,
       jlptFilter,
+      showHints,
     ],
   );
   // Add the dependencies used inside the function
+
+  // Fast-track for cards never reviewed before — skips the flip/grade ritual
+  // and immediately seeds a high-confidence score in both directions so it
+  // doesn't clutter the priority queue for words the user already knows.
+  const handleAlreadyKnow = useCallback(async () => {
+    if (!currentCard || !user) return;
+    hasInteracted.current = true;
+
+    if (showHints) {
+      setShowHints(false);
+      localStorage.removeItem("show_first_timer_hint");
+    }
+
+    const knownStats = { pass: 3, fail: 0, total: 3, percent: 100 };
+    const newScores = { jp_to_en: knownStats, en_to_jp: knownStats };
+
+    await supabase.from("user_scores").upsert(
+      {
+        user_id: user.id,
+        card_id: currentCard.id,
+        scores_json: newScores,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,card_id" },
+    );
+
+    const updatedCards = cards.map((c) =>
+      c.id === currentCard.id ? { ...c, scores: newScores } : c,
+    );
+    setCards(updatedCards);
+
+    const pool = jlptFilter === "All" ? updatedCards : updatedCards.filter(c => c.jlpt_level === jlptFilter);
+    setCurrentCard(getNextPriorityCard(pool.length > 0 ? pool : updatedCards, language, currentCard.id));
+    setIsFlipped(false);
+  }, [currentCard, user, cards, language, jlptFilter, showHints]);
 
   // --- 7. AI Sync Logic ---
   useEffect(() => {
@@ -743,11 +788,6 @@ export default function StudyView() {
   }, [currentCard?.id]);
 
   const onSwipe = (direction: "left" | "right") => {
-    if (showHints) {
-      setShowHints(false);
-      localStorage.removeItem("show_first_timer_hint");
-    }
-
     // 🔥 IMPORTANT: Reset the flip state so the NEXT card
     // starts on the front side, whether swiped by mouse or thumb.
     setIsFlipped(false);
@@ -1513,13 +1553,26 @@ export default function StudyView() {
         </div>
 
         {/* --- 4. BOTTOM BUTTONS (LOWERED) --- */}
-        {!dataLoading && cards.length > 0 && currentCard && (
+        {!dataLoading && cards.length > 0 && currentCard && (() => {
+          const isNewCard = (currentCard.scores?.jp_to_en?.total ?? 0) === 0 && (currentCard.scores?.en_to_jp?.total ?? 0) === 0;
+          if (swipeOnly && !isNewCard) return null;
+          return (
           <div className="w-full flex justify-center pt-4 pb-28 md:pb-16 lg:pb-24">
             {/* pb-28: Clears fixed BottomNav (h-14) + home bar on mobile.
               md:pb-16: Standard desktop height (BottomNav is hidden on md+).
               lg:pb-24: Extra breathing room for larger MacBook screens.
           */}
-            <div className="w-full max-w-md flex gap-4 px-6 mb-safe">
+            <div className="w-full max-w-md flex flex-col gap-3 px-6 mb-safe">
+            {isNewCard && (
+              <button
+                onClick={handleAlreadyKnow}
+                className="w-full py-2.5 bg-transparent text-slate-400 rounded-xl font-bold uppercase text-[9px] tracking-widest border border-dashed border-slate-200 active:scale-95 transition-all"
+              >
+                {t.already_know}
+              </button>
+            )}
+            {!swipeOnly && (
+            <div className="flex gap-4">
               <button
                 onTouchStart={() => navigator.vibrate?.([30, 60, 30])}
                 onClick={() => handleScore(false)}
@@ -1535,8 +1588,11 @@ export default function StudyView() {
                 ✓ {t.pass}
               </button>
             </div>
+            )}
+            </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* Keyboard Legend */}
         <div className="hidden md:flex fixed bottom-8 w-full justify-center pointer-events-none z-0">

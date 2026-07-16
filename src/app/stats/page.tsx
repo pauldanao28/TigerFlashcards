@@ -11,8 +11,8 @@ import { useAppAlert } from "@/context/AlertContext";
 import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
 import { calculateGlobalStats } from "@/lib/stats";
-import { JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
 import LoadingScreen from "@/components/LoadingScreen";
+import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
 import { List, X, Plus, Loader2, RotateCcw } from "lucide-react";
 
 interface StatsCardsCache { userId: string; cards: FlashcardData[]; deckId: string; }
@@ -35,7 +35,6 @@ export default function StatsPage() {
   const [newBlockWord, setNewBlockWord] = useState("");
   const [autoPlayJp, setAutoPlayJp] = useState(true);
   const [autoPlayEn, setAutoPlayEn] = useState(false);
-  const [streak, setStreak] = useState(0);
   const [maxStreak, setMaxStreak] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [displayLimit, setDisplayLimit] = useState(50);
@@ -45,6 +44,8 @@ export default function StatsPage() {
   const [tempTitle, setTempTitle] = useState("");
   const [starterPacks, setStarterPacks] = useState<any[]>([]);
   const [ownedPacks, setOwnedPacks] = useState<string[]>([]);
+  const [triage, setTriage] = useState<{ packName: string; cards: TriageCard[] } | null>(null);
+  const [swipeOnly, setSwipeOnly] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [feedbackForm, setFeedbackForm] = useState({
@@ -229,18 +230,18 @@ export default function StatsPage() {
     const { data } = await supabase
       .from("profiles")
       .select(
-        "full_name, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, sfx_enabled, imported_packs, is_admin",
+        "full_name, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, sfx_enabled, swipe_only, imported_packs, is_admin",
       )
       .eq("id", user?.id)
       .single();
 
     if (data) {
-      setStreak(data.streak_count);
       setMaxStreak(data.max_streak || 0);
       setUserBlocklist(data.blocked_words || []);
       setAutoPlayJp(data.auto_play_jp);
       setAutoPlayEn(data.auto_play_en);
       setSfxEnabled(data.sfx_enabled);
+      setSwipeOnly(data.swipe_only ?? false);
       setOwnedPacks(data.imported_packs);
       setIsAdmin(data.is_admin);
       setProfileName(data.full_name);
@@ -715,24 +716,6 @@ export default function StatsPage() {
   // 1. Global Totals (Tries, Pass, Fail)
   const globalStats = useMemo(() => calculateGlobalStats(cards), [cards]);
 
-  const jlptStats = useMemo(() => {
-    const stats: Record<"N5" | "N4" | "N3" | "N2" | "N1", { total: number; mastered: number }> = {
-      N5: { total: 0, mastered: 0 },
-      N4: { total: 0, mastered: 0 },
-      N3: { total: 0, mastered: 0 },
-      N2: { total: 0, mastered: 0 },
-      N1: { total: 0, mastered: 0 },
-    };
-    for (const c of cards) {
-      if (!c.jlpt_level || !(c.jlpt_level in stats)) continue;
-      const s = c.scores;
-      stats[c.jlpt_level].total++;
-      const jpMastered = (s?.jp_to_en?.total || 0) >= 5 && (s?.jp_to_en?.percent || 0) >= 70;
-      const enMastered = (s?.en_to_jp?.total || 0) >= 5 && (s?.en_to_jp?.percent || 0) >= 70;
-      if (jpMastered || enMastered) stats[c.jlpt_level as keyof typeof stats].mastered++;
-    }
-    return stats;
-  }, [cards]);
   // 1. Global Totals (Tries, Pass, Fail)
   // Separate Global Totals for both directions
   // const globalStats = useMemo(() => {
@@ -826,28 +809,6 @@ export default function StatsPage() {
     }
   };
 
-  const getJlptBarColor = (level: string) => {
-    switch (level) {
-      case "N5": return "bg-emerald-500";
-      case "N4": return "bg-teal-500";
-      case "N3": return "bg-amber-500";
-      case "N2": return "bg-orange-500";
-      case "N1": return "bg-rose-500";
-      default: return "bg-slate-300";
-    }
-  };
-
-  const getJlptBarLightColor = (level: string) => {
-    switch (level) {
-      case "N5": return "bg-emerald-200";
-      case "N4": return "bg-teal-200";
-      case "N3": return "bg-amber-200";
-      case "N2": return "bg-orange-200";
-      case "N1": return "bg-rose-200";
-      default: return "bg-slate-200";
-    }
-  };
-
   const updateBlocklist = async (newList: string[]) => {
     const { error } = await supabase
       .from("profiles")
@@ -872,6 +833,7 @@ export default function StatsPage() {
       if (column === "auto_play_en") setAutoPlayEn(value);
       // Add this line:
       if (column === "sfx_enabled") setSfxEnabled(value);
+      if (column === "swipe_only") setSwipeOnly(value);
     } else {
       console.error("Error updating setting:", error.message);
     }
@@ -902,7 +864,7 @@ export default function StatsPage() {
           nWords.map((w) => ({ ...w, creator_id: user.id })),
           { onConflict: "japanese" },
         )
-        .select("id");
+        .select("id, japanese, english");
 
       if (mErr || !uploadedCards) throw mErr;
       const cardIds = uploadedCards.map((c) => c.id);
@@ -939,6 +901,7 @@ export default function StatsPage() {
       // 5. Update local state
       setOwnedPacks(updatedPacks);
       fetchCards();
+      setTriage({ packName: pack.name, cards: uploadedCards.map((c) => ({ id: c.id, japanese: c.japanese, english: c.english })) });
     } catch (error: any) {
       console.error(error);
       showAlert("Error: " + error.message);
@@ -1023,75 +986,6 @@ export default function StatsPage() {
       </header>
       <main className="min-h-screen bg-slate-50 p-8">
         <div className="max-w-5xl mx-auto">
-          {/* Management Toolbar */}
-          <div className="flex flex-col md:flex-row gap-4 mb-8">
-            <div className="flex-1 bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex gap-2">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={t.add_new_word}
-                className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold"
-              />
-              <button
-                onClick={() => {
-                  if (!input.trim()) return;
-                  const lines = input.split("\n").filter((l) => l.trim());
-                  processWords(lines);
-                }}
-                disabled={loading}
-                className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-700 transition-all active:scale-95"
-              >
-                {loading ? "..." : t.ai_add}
-              </button>
-            </div>
-
-            <button
-              onClick={() => setShowBatch(!showBatch)}
-              className="px-6 py-2 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 transition-colors"
-            >
-              {showBatch ? t.close : t.batch_upload}
-            </button>
-
-            <button
-              onClick={() => setShowWordList(true)}
-              className="relative flex items-center gap-1.5 px-4 py-2 bg-slate-800 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-700 transition-all"
-            >
-              <List size={13} />
-              <span>To Add</span>
-              {pendingWords.length > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-indigo-600 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center">{pendingWords.length}</span>
-              )}
-            </button>
-          </div>
-
-          {/* Batch Area */}
-          {showBatch && (
-            <div className="mb-8 p-6 bg-indigo-50 rounded-3xl border-2 border-dashed border-indigo-200">
-              <textarea
-                value={batchInput}
-                onChange={(e) => setBatchInput(e.target.value)}
-                className="w-full h-48 p-4 rounded-xl border-none outline-none mb-3 text-sm font-mono shadow-inner"
-                placeholder={`FORMAT OPTIONS:
-1. List: words (1 kanji/english word per line)
-2. Lyrics: Paste a whole song or text. I'll pick out the new words for you!`}
-              />
-              <button
-                onClick={async () => {
-                  setUploadBusy(true);
-                  try {
-                    await processWords([batchInput]);
-                  } finally {
-                    setUploadBusy(false);
-                  }
-                }}
-                disabled={loading}
-                className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-transform"
-              >
-                {loading ? t.ai_processing : `${t.batch_upload} (BETA)`}
-              </button>
-            </div>
-          )}
 
           {/* Settings — full-screen overlay, same pattern as the quiz components */}
           {showSettings && (
@@ -1177,6 +1071,28 @@ export default function StatsPage() {
                     >
                       <div
                         className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${sfxEnabled ? "left-7" : "left-1"}`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Swipe Only Toggle */}
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
+                    <div>
+                      <p className="text-sm font-bold text-slate-700">
+                        {t.swipe_only_title}
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-medium leading-tight">
+                        {t.swipe_only_desc}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        updateAudioSetting("swipe_only", !swipeOnly)
+                      }
+                      className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${swipeOnly ? "bg-indigo-600" : "bg-slate-300"}`}
+                    >
+                      <div
+                        className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${swipeOnly ? "left-7" : "left-1"}`}
                       />
                     </button>
                   </div>
@@ -1525,28 +1441,10 @@ export default function StatsPage() {
             />
 
             {/* --- THE STREAK CARD --- */}
+            {/* Daily login streak lives on the home Dashboard already; this card shows only
+                the best-session-combo streak, which is unique to this page. */}
             <div className="col-span-2 md:col-span-1 bg-gradient-to-br from-orange-500 to-red-600 p-5 rounded-[2rem] shadow-lg flex items-center text-white overflow-hidden">
-              {/* The Container: justify-around spreads them out on mobile, gap-6 pulls them together on desktop */}
-              <div className="flex flex-1 items-center justify-around sm:justify-start sm:gap-8">
-                {/* DAILY LOGIN STREAK */}
-                <div className="flex flex-col items-center sm:items-start">
-                  <p className="text-white/70 text-[9px] sm:text-[10px] font-black uppercase tracking-widest mb-1 whitespace-nowrap">
-                    {t.daily_streak}
-                  </p>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-2xl sm:text-xl font-black leading-none">
-                      {streak}
-                    </span>
-                    <span className="text-[10px] uppercase opacity-80 font-bold">
-                      {t.days}
-                    </span>
-                  </div>
-                </div>
-
-                {/* --- THE DIVIDER: Visible on BOTH Mobile and Desktop --- */}
-                {/* On mobile, it's taller (h-10) to fill the row height. On desktop, it's shorter (h-8). */}
-                <div className="w-px h-10 sm:h-8 bg-white/30 rounded-full shadow-[0_0_8px_rgba(255,255,255,0.2)]" />
-
+              <div className="flex flex-1 items-center justify-around sm:justify-start">
                 {/* BEST SESSION STREAK */}
                 <div className="flex flex-col items-center sm:items-start">
                   <p className="text-white/70 text-[9px] sm:text-[10px] font-black uppercase tracking-widest mb-1 whitespace-nowrap">
@@ -1670,51 +1568,169 @@ export default function StatsPage() {
               </div>
             </div>
 
-            {/* JLPT Level Distribution */}
-            <div className="col-span-2 md:col-span-3 bg-white rounded-[2rem] border border-slate-200 shadow-sm p-6">
-              <div className="flex items-center justify-between mb-5">
-                <p className="text-slate-800 font-black text-sm uppercase tracking-tight">
-                  {t.by_level}
-                </p>
-                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
-                  {totalCards} {t.vocabulary}
-                </p>
-              </div>
-              <div className="space-y-4">
-                {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
-                  const { total, mastered } = jlptStats[level];
-                  const floor = JLPT_VOCAB_INCREMENT[level];
-                  const floorPct = Math.round((total / floor) * 100);
-                  const masteredOfFloorPct = Math.min(100, Math.round((mastered / floor) * 100));
-                  const addedNotMasteredOfFloorPct = Math.min(100 - masteredOfFloorPct, Math.round(((total - mastered) / floor) * 100));
-                  const masteryPct = total > 0 ? Math.round((mastered / total) * 100) : 0;
-                  return (
-                    <div key={level} className="flex flex-col gap-1">
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`shrink-0 w-9 text-[10px] px-1.5 py-0.5 rounded-md border font-black text-center uppercase tracking-tighter ${getJlptColor(level)}`}
+          </div>
+
+
+          {/* Management Toolbar */}
+          <div className="flex flex-col md:flex-row gap-4 mb-8">
+            <div className="flex-1 bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex gap-2">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={t.add_new_word}
+                className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold"
+              />
+              <button
+                onClick={() => {
+                  if (!input.trim()) return;
+                  const lines = input.split("\n").filter((l) => l.trim());
+                  processWords(lines);
+                }}
+                disabled={loading}
+                className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-700 transition-all active:scale-95"
+              >
+                {loading ? "..." : t.ai_add}
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowBatch(!showBatch)}
+              className="px-6 py-2 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 transition-colors"
+            >
+              {showBatch ? t.close : t.batch_upload}
+            </button>
+
+            <button
+              onClick={() => setShowWordList(true)}
+              className="relative flex items-center gap-1.5 px-4 py-2 bg-slate-800 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-700 transition-all"
+            >
+              <List size={13} />
+              <span>To Add</span>
+              {pendingWords.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-indigo-600 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center">{pendingWords.length}</span>
+              )}
+            </button>
+          </div>
+
+          {/* Batch Area */}
+          {showBatch && (
+            <div className="mb-8 p-6 bg-indigo-50 rounded-3xl border-2 border-dashed border-indigo-200">
+              <textarea
+                value={batchInput}
+                onChange={(e) => setBatchInput(e.target.value)}
+                className="w-full h-48 p-4 rounded-xl border-none outline-none mb-3 text-sm font-mono shadow-inner"
+                placeholder={`FORMAT OPTIONS:
+1. List: words (1 kanji/english word per line)
+2. Lyrics: Paste a whole song or text. I'll pick out the new words for you!`}
+              />
+              <button
+                onClick={async () => {
+                  setUploadBusy(true);
+                  try {
+                    await processWords([batchInput]);
+                  } finally {
+                    setUploadBusy(false);
+                  }
+                }}
+                disabled={loading}
+                className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-transform"
+              >
+                {loading ? t.ai_processing : `${t.batch_upload} (BETA)`}
+              </button>
+            </div>
+          )}
+
+          {/* Starter Packs Section */}
+          <div className="mb-10">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                {t.starter_collections}
+              </h3>
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-tighter">
+                {starterPacks.length} {t.available}
+              </span>
+            </div>
+
+            <div className="flex gap-4 overflow-x-auto pb-6 no-scrollbar -mx-2 px-2">
+              {starterPacks.map((pack) => {
+                // Pure ID comparison
+                const isOwned = ownedPacks?.includes(pack.id);
+
+                return (
+                  <div
+                    key={pack.id}
+                    className={`flex-none w-64 p-6 rounded-[2rem] border-2 flex flex-col justify-between transition-all ${
+                      isOwned
+                        ? "bg-slate-100 border-slate-200"
+                        : "bg-white border-indigo-50 shadow-sm"
+                    }`}
+                  >
+                    {/* Top Section: Icon and Status */}
+                    <div
+                      className="cursor-pointer group/card"
+                      onClick={() => setPreviewPack(pack)}
+                    >
+                      <div className="flex justify-between items-start mb-4">
+                        <div
+                          className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-inner ${
+                            isOwned ? "bg-slate-200" : "bg-indigo-50"
+                          }`}
                         >
-                          {level}
-                        </span>
-                        <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
-                          <div
-                            className={`h-full transition-all duration-500 ${getJlptBarColor(level)}`}
-                            style={{ width: `${masteredOfFloorPct}%` }}
-                          />
-                          <div
-                            className={`h-full transition-all duration-500 ${getJlptBarLightColor(level)}`}
-                            style={{ width: `${addedNotMasteredOfFloorPct}%` }}
-                          />
+                          {pack.icon || "📦"}
                         </div>
+                        {isOwned ? (
+                          <span className="text-[10px] font-black text-emerald-600 bg-emerald-100/50 px-2.5 py-1 rounded-full uppercase tracking-widest border border-emerald-200">
+                            {t.added}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full uppercase tracking-widest border border-indigo-100">
+                            {t.free}
+                          </span>
+                        )}
                       </div>
-                      <div className="flex items-center justify-between pl-12 text-[10px] font-bold text-slate-400">
-                        <span>{total}/{floor} = {floorPct}%</span>
-                        <span>{mastered}/{total} Mastered ({masteryPct}%)</span>
-                      </div>
+
+                      {/* Middle Section: Content */}
+                      <h4 className="font-black text-slate-800 text-lg mb-1">
+                        {pack.name}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 leading-relaxed mb-6 line-clamp-2 min-h-[32px]">
+                        {pack.description ||
+                          `${pack.card_data?.length || 0} essential words to kickstart your journey.`}
+                      </p>
                     </div>
-                  );
-                })}
-              </div>
+
+                    {/* Bottom Section: Action */}
+                    <button
+                      onClick={async () => {
+                        const count = pack.card_data?.length || 0;
+                        const ok = await showConfirm(
+                          `Add "${pack.name}" (${count} words) to your deck? This can't be undone.`,
+                          { title: "Add to Deck", confirmLabel: "Add" }
+                        );
+                        if (ok) importPack(pack);
+                      }}
+                      disabled={loading || isOwned}
+                      className={`w-full py-3 rounded-xl text-xs font-bold transition-all ${
+                        isOwned
+                          ? "bg-slate-200 text-slate-400"
+                          : "bg-indigo-600 text-white hover:bg-indigo-700"
+                      }`}
+                    >
+                      {isOwned ? t.already_in_deck : t.add_to_deck}
+                    </button>
+                  </div>
+                );
+              })}
+
+              {/* Empty State */}
+              {starterPacks.length === 0 && (
+                <div className="flex-none w-full p-8 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center">
+                  <p className="text-sm text-slate-400 font-bold italic">
+                    {t.looking_collections}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1991,91 +2007,6 @@ export default function StatsPage() {
             </div>
           )}
 
-          {/* Starter Packs Section */}
-          <div className="mb-10">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">
-                {t.starter_collections}
-              </h3>
-              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-tighter">
-                {starterPacks.length} {t.available}
-              </span>
-            </div>
-
-            <div className="flex gap-4 overflow-x-auto pb-6 no-scrollbar -mx-2 px-2">
-              {starterPacks.map((pack) => {
-                // Pure ID comparison
-                const isOwned = ownedPacks?.includes(pack.id);
-
-                return (
-                  <div
-                    key={pack.id}
-                    className={`flex-none w-64 p-6 rounded-[2rem] border-2 flex flex-col justify-between transition-all ${
-                      isOwned
-                        ? "bg-slate-100 border-slate-200"
-                        : "bg-white border-indigo-50 shadow-sm"
-                    }`}
-                  >
-                    {/* Top Section: Icon and Status */}
-                    <div
-                      className="cursor-pointer group/card"
-                      onClick={() => setPreviewPack(pack)}
-                    >
-                      <div className="flex justify-between items-start mb-4">
-                        <div
-                          className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-inner ${
-                            isOwned ? "bg-slate-200" : "bg-indigo-50"
-                          }`}
-                        >
-                          {pack.icon || "📦"}
-                        </div>
-                        {isOwned ? (
-                          <span className="text-[10px] font-black text-emerald-600 bg-emerald-100/50 px-2.5 py-1 rounded-full uppercase tracking-widest border border-emerald-200">
-                            {t.added}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full uppercase tracking-widest border border-indigo-100">
-                            {t.free}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Middle Section: Content */}
-                      <h4 className="font-black text-slate-800 text-lg mb-1">
-                        {pack.name}
-                      </h4>
-                      <p className="text-[11px] text-slate-500 leading-relaxed mb-6 line-clamp-2 min-h-[32px]">
-                        {pack.description ||
-                          `${pack.card_data?.length || 0} essential words to kickstart your journey.`}
-                      </p>
-                    </div>
-
-                    {/* Bottom Section: Action */}
-                    <button
-                      onClick={() => importPack(pack)}
-                      disabled={loading || isOwned}
-                      className={`w-full py-3 rounded-xl text-xs font-bold transition-all ${
-                        isOwned
-                          ? "bg-slate-200 text-slate-400"
-                          : "bg-indigo-600 text-white hover:bg-indigo-700"
-                      }`}
-                    >
-                      {isOwned ? t.already_in_deck : t.add_to_deck}
-                    </button>
-                  </div>
-                );
-              })}
-
-              {/* Empty State */}
-              {starterPacks.length === 0 && (
-                <div className="flex-none w-full p-8 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center">
-                  <p className="text-sm text-slate-400 font-bold italic">
-                    {t.looking_collections}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
 
           {/* --- Starter Pack Preview Overlay --- */}
           {previewPack && (
@@ -2157,6 +2088,15 @@ export default function StatsPage() {
                 </div>
               </div>
             </div>
+          )}
+
+          {triage && user && (
+            <KnownWordsTriage
+              userId={user.id}
+              packName={triage.packName}
+              cards={triage.cards}
+              onDone={() => setTriage(null)}
+            />
           )}
 
           {/* Search */}
