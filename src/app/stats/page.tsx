@@ -11,6 +11,7 @@ import { useAppAlert } from "@/context/AlertContext";
 import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
 import { calculateGlobalStats } from "@/lib/stats";
+import { authedFetch } from "@/lib/authedFetch";
 import LoadingScreen from "@/components/LoadingScreen";
 import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
 import { List, X, Plus, Loader2, RotateCcw } from "lucide-react";
@@ -626,7 +627,7 @@ export default function StatsPage() {
       // --- 3. Step 2: Handle New Words (AI) ---
       if (wordsForAI.length > 0) {
         try {
-          const res = await fetch("/api/generate", {
+          const res = await authedFetch("/api/generate", {
             method: "POST",
             body: JSON.stringify({ words: wordsForAI }),
           });

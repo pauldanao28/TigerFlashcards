@@ -2,6 +2,8 @@
 //   speak()   → SpeechSynthesis (used by Flashcard for lightweight, no-quota word pronunciation)
 //   playTTS() → Gemini TTS API route (used by AdminChat sensei messages)
 
+import { authedFetch } from "@/lib/authedFetch";
+
 export const VOICE_OPTIONS = [
   { id: "Aoede",  label: "Aoede",  gender: "Female", desc: "Natural & warm" },
   { id: "Leda",   label: "Leda",   gender: "Female", desc: "Mature & warm" },
@@ -61,9 +63,8 @@ async function fetchAudio(text: string, voice?: string): Promise<string> {
 
   let promise = pending.get(key);
   if (!promise) {
-    promise = fetch("/api/tts", {
+    promise = authedFetch("/api/tts", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, voice: resolvedVoice }),
     })
       .then(async (r) => {

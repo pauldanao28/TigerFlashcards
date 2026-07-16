@@ -1,11 +1,21 @@
 import { NextResponse } from "next/server";
+import { getAuthedUser } from "@/lib/apiAuth";
+import { checkAndRecordUsage } from "@/lib/rateLimit";
 
 const DEFAULT_VOICE = "Aoede";
 const TTS_MODEL = "gemini-2.5-flash-preview-tts";
 
 export async function POST(req: Request) {
+  const user = await getAuthedUser(req);
+  if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+
   const { text, voice } = await req.json();
   if (!text) return NextResponse.json({ error: "No text" }, { status: 400 });
+
+  const usage = await checkAndRecordUsage(user.id, "tts");
+  if (!usage.allowed) {
+    return NextResponse.json({ error: "Daily audio limit reached" }, { status: 429 });
+  }
 
   const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "TTS not configured" }, { status: 503 });

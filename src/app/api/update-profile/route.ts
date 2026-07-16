@@ -1,9 +1,21 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+import { getAuthedUser } from "@/lib/apiAuth";
+import { checkAndRecordUsage } from "@/lib/rateLimit";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
 export async function POST(req: Request) {
+  const user = await getAuthedUser(req);
+  if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+
+  // Shares the "chat" daily budget — this is an automatic side effect of chatting
+  // (updating the AI's memory of the student), not a separate user-facing action.
+  const usage = await checkAndRecordUsage(user.id, "chat");
+  if (!usage.allowed) {
+    return NextResponse.json({}, { status: 200 }); // silent no-op, not a user-facing action
+  }
+
   let currentProfile: Record<string, unknown> = {};
   try {
     const body = await req.json();

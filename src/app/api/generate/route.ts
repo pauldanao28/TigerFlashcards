@@ -1,5 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+import { getAuthedUser } from "@/lib/apiAuth";
+import { checkAndRecordUsage } from "@/lib/rateLimit";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
@@ -62,7 +64,21 @@ async function tryGenerate(modelName: string, words: string[]): Promise<string> 
 }
 
 export async function POST(req: Request) {
+  const user = await getAuthedUser(req);
+  if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+
   const { words } = await req.json();
+  if (!Array.isArray(words) || words.length === 0) {
+    return NextResponse.json({ error: "words must be a non-empty array" }, { status: 400 });
+  }
+
+  const usage = await checkAndRecordUsage(user.id, "generate", words.length);
+  if (!usage.allowed) {
+    return NextResponse.json(
+      { error: `Daily limit reached — ${usage.limit} words per day. Come back tomorrow!` },
+      { status: 429 }
+    );
+  }
 
   let text: string;
   try {

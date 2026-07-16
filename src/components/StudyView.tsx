@@ -8,6 +8,7 @@ import { translations } from "@/lib/languages";
 import { calculateGlobalStats } from "@/lib/stats";
 import { processReferral } from "@/lib/social";
 import { rollingAvg, vocabMastery, JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
+import { authedFetch } from "@/lib/authedFetch";
 
 import Auth from "@/components/Auth";
 import Logo from "@/components/Logo";
@@ -772,7 +773,7 @@ export default function StudyView() {
       if (currentCard?.english === "Pending AI Sync") {
         setAiLoading(true);
         try {
-          const res = await fetch("/api/generate", {
+          const res = await authedFetch("/api/generate", {
             method: "POST",
             body: JSON.stringify({ words: [currentCard.japanese] }),
           });

@@ -1,5 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+import { getAuthedUser } from "@/lib/apiAuth";
+import { checkAndRecordUsage } from "@/lib/rateLimit";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
@@ -135,6 +137,17 @@ ${lines.join("\n")}
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 export async function POST(req: Request) {
+  const user = await getAuthedUser(req);
+  if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+
+  const usage = await checkAndRecordUsage(user.id, "chat");
+  if (!usage.allowed) {
+    return NextResponse.json(
+      { error: `Daily limit reached — ${usage.limit} messages per day. Come back tomorrow!` },
+      { status: 429 }
+    );
+  }
+
   try {
     const { messages, profile, persona = "senpai", pendingWords = [], weakCards = [], greeting = false, scenario } = await req.json();
 

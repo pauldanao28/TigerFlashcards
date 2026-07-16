@@ -5,6 +5,7 @@ import { translations } from "@/lib/languages";
 import LoadingScreen from "@/components/LoadingScreen";
 import Link from "next/link";
 import { useAppAlert } from "@/context/AlertContext";
+import { authedFetch } from "@/lib/authedFetch";
 
 export default function AdminDashboard() {
   const t = translations.en;
@@ -159,9 +160,8 @@ export default function AdminDashboard() {
     if (!editForm.japanese.trim()) return;
     setRegenerating(true);
     try {
-      const res = await fetch("/api/generate", {
+      const res = await authedFetch("/api/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ words: [editForm.japanese.trim()] }),
       });
       if (!res.ok) throw new Error("API error");

@@ -1,10 +1,23 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 import { difficultyLabel, jlptLevel } from "@/lib/scoring";
+import { getAuthedUser } from "@/lib/apiAuth";
+import { checkAndRecordUsage } from "@/lib/rateLimit";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
 export async function POST(req: Request) {
+  const user = await getAuthedUser(req);
+  if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+
+  const usage = await checkAndRecordUsage(user.id, "quiz_listening");
+  if (!usage.allowed) {
+    return NextResponse.json(
+      { error: `Daily limit reached — ${usage.limit} listening quiz rounds per day. Come back tomorrow!` },
+      { status: 429 }
+    );
+  }
+
   try {
     const { count = 20, difficulty = 30, recentMistakes = [], weakWords = [] } = await req.json().catch(() => ({}));
     const n = Math.min(30, Math.max(1, Number(count) || 20));

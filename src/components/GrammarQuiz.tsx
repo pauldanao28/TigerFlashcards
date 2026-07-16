@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { X, ChevronLeft, Loader2, List, Volume2 } from "lucide-react";
 import { speak } from "@/lib/tts";
 import { grammarPatternScore, dailySessionWeight, jlptLevel } from "@/lib/scoring";
+import { authedFetch } from "@/lib/authedFetch";
 
 const GRAMMAR_DAILY_KEY = "flashkado-grammar-quiz-daily";
 function getGrammarDailyCount(): number {
@@ -355,7 +356,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
 
       if (wordsForAI.length > 0) {
         try {
-          const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ words: wordsForAI }) });
+          const res = await authedFetch("/api/generate", { method: "POST", body: JSON.stringify({ words: wordsForAI }) });
           if (!res.ok) throw new Error("AI error");
           const items = await res.json();
           const itemsArray = Array.isArray(items) ? items : [items];
@@ -447,9 +448,8 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
         id: pattern.id, pattern: pattern.pattern, meaning: pattern.meaning, example_jp: pattern.example_jp,
       }));
 
-      const res = await fetch("/api/quiz/grammar-patterns", {
+      const res = await authedFetch("/api/quiz/grammar-patterns", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ patterns: pool }),
       });
       const data = await res.json();

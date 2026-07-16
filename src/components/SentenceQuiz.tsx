@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, List, Volume2, ChevronLeft } from "lucide-react";
 import { speak } from "@/lib/tts";
 import { levelQuizScore, jlptLevel } from "@/lib/scoring";
+import { authedFetch } from "@/lib/authedFetch";
 
 interface QuizCard {
   id: string;
@@ -319,9 +320,8 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
 
       const pick = [...pool].sort(() => Math.random() - 0.5).slice(0, Math.min(20, pool.length));
 
-      const res = await fetch("/api/quiz/sentences", {
+      const res = await authedFetch("/api/quiz/sentences", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           cards: pick.map((c: any) => ({ japanese: c.japanese, reading: c.reading, english: c.english })),
           difficulty: readingScoreRef.current,
@@ -464,7 +464,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
 
       if (wordsForAI.length > 0) {
         try {
-          const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ words: wordsForAI }) });
+          const res = await authedFetch("/api/generate", { method: "POST", body: JSON.stringify({ words: wordsForAI }) });
           if (!res.ok) throw new Error("AI error");
           const items = await res.json();
           const itemsArray = Array.isArray(items) ? items : [items];

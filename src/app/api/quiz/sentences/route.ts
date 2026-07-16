@@ -1,6 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 import { difficultyLabel } from "@/lib/scoring";
+import { getAuthedUser } from "@/lib/apiAuth";
+import { checkAndRecordUsage } from "@/lib/rateLimit";
 
 function nextLevelLabel(score: number): string {
   return difficultyLabel(Math.min(100, score + 20));
@@ -88,6 +90,17 @@ function validateSentences(
 }
 
 export async function POST(req: Request) {
+  const user = await getAuthedUser(req);
+  if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+
+  const usage = await checkAndRecordUsage(user.id, "quiz_sentences");
+  if (!usage.allowed) {
+    return NextResponse.json(
+      { error: `Daily limit reached — ${usage.limit} reading quiz rounds per day. Come back tomorrow!` },
+      { status: 429 }
+    );
+  }
+
   try {
     const { cards, difficulty = 30 } = await req.json();
 

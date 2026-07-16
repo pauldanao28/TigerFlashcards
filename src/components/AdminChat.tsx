@@ -7,6 +7,7 @@ import { Send, Trash2, X, Loader2, List, Plus, Volume2, VolumeX, BookOpen, Slide
 import { speak, playTTS, stopTTS, getVoice, setVoice, VOICE_OPTIONS, VoiceId } from "@/lib/tts";
 import { rollingAvg } from "@/lib/scoring";
 import { useAppAlert } from "@/context/AlertContext";
+import { authedFetch } from "@/lib/authedFetch";
 
 function uuid(): string {
   try { return self.crypto.randomUUID(); } catch { /* fall through */ }
@@ -298,9 +299,8 @@ export default function AdminChat({ userId }: { userId: string }) {
     const sendGreeting = async () => {
       setLoading(true);
       try {
-        const res = await fetch("/api/chat", {
+        const res = await authedFetch("/api/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ messages: [], profile, persona: activePersona, pendingWords: [], weakCards, greeting: true, scenario: getActiveScenario() }),
         });
         if (!res.ok) return;
@@ -426,9 +426,8 @@ export default function AdminChat({ userId }: { userId: string }) {
     if (newMessages.length < 2) return;
     lastAnalyzedIndexRef.current = allMessages.length;
     try {
-      const res = await fetch("/api/update-profile", {
+      const res = await authedFetch("/api/update-profile", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: newMessages, currentProfile: profile ?? {} }),
       });
       const data = await res.json();
@@ -483,9 +482,8 @@ export default function AdminChat({ userId }: { userId: string }) {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/chat", {
+      const res = await authedFetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: updated.slice(-20), profile, persona: activePersona, pendingWords: activeScenario === "drill" ? wordList : [], weakCards, scenario: getActiveScenario() }),
       });
       if (!res.ok) {
@@ -608,7 +606,7 @@ export default function AdminChat({ userId }: { userId: string }) {
         // Isolated from the rest — a failure here (network blip, bad AI response) shouldn't
         // discard the words that already succeeded above; those still get flushed below.
         try {
-          const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ words: wordsForAI }) });
+          const res = await authedFetch("/api/generate", { method: "POST", body: JSON.stringify({ words: wordsForAI }) });
           if (!res.ok) throw new Error("AI error");
           const items = await res.json();
           const itemsArray = Array.isArray(items) ? items : [items];

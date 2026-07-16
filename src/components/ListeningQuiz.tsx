@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, List, Volume2, ChevronLeft, Ear } from "lucide-react";
 import { speak, playTTS, stopTTS } from "@/lib/tts";
 import { levelQuizScore, jlptLevel } from "@/lib/scoring";
+import { authedFetch } from "@/lib/authedFetch";
 
 interface ListeningQuestion {
   word: string;
@@ -299,9 +300,8 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
         }
       }
 
-      const res = await fetch("/api/quiz/listening", {
+      const res = await authedFetch("/api/quiz/listening", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ count: QUESTIONS_PER_ROUND, difficulty: listeningScoreRef.current, recentMistakes: recentMistakesRef.current, weakWords }),
       });
       if (!res.ok) throw new Error("Failed to generate listening quiz");
@@ -410,7 +410,7 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
 
       if (wordsForAI.length > 0) {
         try {
-          const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ words: wordsForAI }) });
+          const res = await authedFetch("/api/generate", { method: "POST", body: JSON.stringify({ words: wordsForAI }) });
           if (!res.ok) throw new Error("AI error");
           const items = await res.json();
           const itemsArray = Array.isArray(items) ? items : [items];
