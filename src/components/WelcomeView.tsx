@@ -73,7 +73,8 @@ export default function WelcomeView() {
   const heroCTARef  = useRef<HTMLDivElement>(null);
   const finalCTARef = useRef<HTMLDivElement>(null);
 
-  const { ref: dashRef, inView: dashInView } = useInView(0.2);
+  const { ref: dashRef,  inView: dashInView  } = useInView(0.2);
+  const { ref: jlptRef,  inView: jlptInView  } = useInView(0.2);
 
   const word = DEMO_WORDS[cardIndex % DEMO_WORDS.length];
 
@@ -471,6 +472,65 @@ export default function WelcomeView() {
               <span key={s} className="text-[10px] font-black text-slate-500 bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-full">{s}</span>
             ))}
           </div>
+        </section>
+
+        {/* ── Section: JLPT Level Filter ───────────────────────────────── */}
+        <section className="py-12 border-t border-slate-100">
+          <div className="text-center mb-7">
+            <p className="text-[9px] font-black uppercase tracking-widest text-indigo-500 mb-2">Study by JLPT Level</p>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tighter italic leading-tight mb-2">
+              Focus on what<br />you&apos;re testing for.
+            </h2>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              Filter your deck to any JLPT level. Drilling for N3? See exactly how many cards you&apos;ve added — and how many you&apos;ve mastered.
+            </p>
+          </div>
+
+          {/* Card showing the level picker + bars */}
+          <div ref={jlptRef} className="bg-white rounded-3xl border border-slate-100 shadow-lg overflow-hidden">
+
+            {/* Chip row */}
+            <div className="flex gap-2 px-4 pt-4 pb-3 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+              <span className="shrink-0 px-4 py-2 bg-slate-900 text-white rounded-full text-[10px] font-black uppercase tracking-widest">ALL</span>
+              {[
+                { level: "N5", cls: "bg-emerald-100 text-emerald-700 border border-emerald-200" },
+                { level: "N4", cls: "bg-teal-100 text-teal-700 border border-teal-200" },
+                { level: "N3", cls: "bg-amber-100 text-amber-700 border border-amber-200" },
+                { level: "N2", cls: "bg-orange-100 text-orange-700 border border-orange-200" },
+                { level: "N1", cls: "bg-rose-100 text-rose-700 border border-rose-200" },
+              ].map(({ level, cls }) => (
+                <span key={level} className={`shrink-0 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${cls}`}>{level}</span>
+              ))}
+            </div>
+
+            {/* Progress bars */}
+            <div className="px-4 pb-5 space-y-3.5">
+              {[
+                { level: "N5", cards: 200, pct: 15, badge: "bg-emerald-100 text-emerald-700 border-emerald-200", fill: "bg-emerald-500", delay: 0.05 },
+                { level: "N4", cards: 270, pct: 20, badge: "bg-teal-100 text-teal-700 border-teal-200",          fill: "bg-teal-500",   delay: 0.12 },
+                { level: "N3", cards: 408, pct: 30, badge: "bg-amber-100 text-amber-700 border-amber-200",       fill: "bg-amber-500",  delay: 0.19 },
+                { level: "N2", cards: 289, pct: 21, badge: "bg-orange-100 text-orange-700 border-orange-200",    fill: "bg-orange-500", delay: 0.26 },
+                { level: "N1", cards: 178, pct: 13, badge: "bg-rose-100 text-rose-700 border-rose-200",          fill: "bg-rose-500",   delay: 0.33 },
+              ].map(({ level, cards, pct, badge, fill, delay }) => (
+                <div key={level} className="flex items-center gap-3">
+                  <span className={`shrink-0 w-9 text-[10px] px-1.5 py-0.5 rounded-md border font-black text-center ${badge}`}>{level}</span>
+                  <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                    <motion.div
+                      className={`h-full ${fill} rounded-full`}
+                      initial={{ width: 0 }}
+                      animate={{ width: jlptInView ? `${pct}%` : "0%" }}
+                      transition={{ duration: 1.2, ease: [0.4, 0, 0.2, 1], delay }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-black text-slate-400 tabular-nums whitespace-nowrap">{cards} · {pct}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <p className="text-center text-[10px] text-slate-400 font-medium mt-3.5">
+            1,345 cards across all 5 JLPT levels — already built in.
+          </p>
         </section>
 
         {/* ── Section 4: Mini games ──────────────────────────────────────── */}
