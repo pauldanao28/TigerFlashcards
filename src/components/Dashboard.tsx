@@ -139,13 +139,20 @@ function OverallBanner({ level, score }: { level: string; score: number }) {
   );
 }
 
+function getTodayDone() {
+  const today = new Date().toLocaleDateString("en-CA");
+  const check = (key: string) => { try { return localStorage.getItem(key) === today; } catch { return false; } };
+  return { reading: check("flashkado-done-reading"), listening: check("flashkado-done-listening"), grammar: check("flashkado-done-grammar") };
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const [data, setData] = useState<ProfileScores | null>(
     () => _dashboardCache.get(user?.id ?? "") ?? null
   );
+  const [doneTodayQuizzes, setDoneTodayQuizzes] = useState({ reading: false, listening: false, grammar: false });
 
-
+  useEffect(() => { setDoneTodayQuizzes(getTodayDone()); }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -378,10 +385,33 @@ export default function Dashboard() {
       </div>
 
       <div className="max-w-2xl mx-auto">
-      {/* Section label */}
-      <p className="px-5 pt-5 pb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
-        Your Skills
-      </p>
+      {/* Section label + today's activity pills */}
+      <div className="px-5 pt-5 pb-2 flex items-center justify-between">
+        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Your Skills</p>
+        <div className="flex items-center gap-1.5">
+          {/* Vocab: shows daily progress */}
+          {(() => {
+            const done = daily_count >= DAILY_GOAL;
+            return (
+              <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border ${done ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+                🃏 {done ? "✓" : `${daily_count}/${DAILY_GOAL}`}
+              </span>
+            );
+          })()}
+          {/* Reading done today */}
+          <span className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-black border ${doneTodayQuizzes.reading ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+            📖 {doneTodayQuizzes.reading ? "✓" : "·"}
+          </span>
+          {/* Listening done today */}
+          <span className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-black border ${doneTodayQuizzes.listening ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+            🎧 {doneTodayQuizzes.listening ? "✓" : "·"}
+          </span>
+          {/* Grammar done today */}
+          <span className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-black border ${doneTodayQuizzes.grammar ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+            📝 {doneTodayQuizzes.grammar ? "✓" : "·"}
+          </span>
+        </div>
+      </div>
 
       {/* 2×2 skill tiles */}
       <div className="px-4 grid grid-cols-2 gap-3">

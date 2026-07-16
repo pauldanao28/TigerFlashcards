@@ -472,6 +472,7 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
       supabase.from("profiles").update({ listening_score: newListeningScore, listening_stats: updatedStats }).eq("id", userId)
         .then(({ error }) => { if (error) console.error("[listening_score save]", error.code, error.message); });
       supabase.rpc("log_quiz_daily", { p_type: "listening", p_n_level: level, p_correct: gotCount, p_total: newResults.length });
+      try { localStorage.setItem("flashkado-done-listening", new Date().toLocaleDateString("en-CA")); } catch {}
       const missed = newResults.filter(r => !r.gotIt).map(r => ({
         user_id: userId,
         mistake: r.q.word,

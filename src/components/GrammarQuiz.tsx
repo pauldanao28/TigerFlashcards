@@ -497,6 +497,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
     supabase.from("profiles").update({ grammar_score: newGrammarScore }).eq("id", userId)
       .then(({ error }) => { if (error) console.error("[grammar_score save]", error.code, error.message); });
     supabase.rpc("log_quiz_daily", { p_type: "grammar", p_n_level: levelAtStart, p_correct: finalScore, p_total: totalQ });
+    try { localStorage.setItem("flashkado-done-grammar", new Date().toLocaleDateString("en-CA")); } catch {}
   };
 
   const pct = phase === "done" && questions.length > 0 ? score / questions.length : 0;

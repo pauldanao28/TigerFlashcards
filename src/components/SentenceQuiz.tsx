@@ -539,6 +539,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
       supabase.from("profiles").update({ reading_score: newReadingScore, reading_stats: updatedStats }).eq("id", userId)
         .then(({ error }) => { if (error) console.error("[reading_score save]", error.code, error.message); });
       supabase.rpc("log_quiz_daily", { p_type: "reading", p_n_level: level, p_correct: passedTotal, p_total: newResults.length });
+      try { localStorage.setItem("flashkado-done-reading", new Date().toLocaleDateString("en-CA")); } catch {}
     } else {
       setCurrentIdx(i => i + 1);
       setRevealed(false);
