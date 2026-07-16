@@ -414,6 +414,9 @@ export default function StatsPage() {
       return succeededWords;
     }
 
+    // Snapshot deck before any changes so we can flag cards already owned
+    const preExistingDeckIds = new Set(cards.map((c) => c.id));
+
     const rawInput = inputList.join("\n").normalize("NFKC").trim();
     if (!rawInput) return succeededWords;
 
@@ -621,7 +624,7 @@ export default function StatsPage() {
       if (allProcessedCards.length > 0) {
         const finalSummary = Array.from(
           new Map(allProcessedCards.map((c) => [c.japanese, c])).values(),
-        );
+        ).map((c) => ({ ...c, alreadyInDeck: preExistingDeckIds.has(c.id) }));
         setAddedWordsSummary(finalSummary);
         setShowSummaryOverlay(true);
         fetchCards();
@@ -2455,7 +2458,10 @@ export default function StatsPage() {
                     {t.words_added}
                   </h2>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                    {addedWordsSummary.length} {t.new_entries}
+                    {addedWordsSummary.filter(w => !w.alreadyInDeck).length} new
+                    {addedWordsSummary.some(w => w.alreadyInDeck) && (
+                      <span className="ml-1 text-teal-500">· {addedWordsSummary.filter(w => w.alreadyInDeck).length} already in deck</span>
+                    )}
                   </p>
 
                   {/* NEW: Conditional Limit Badge */}
@@ -2478,18 +2484,18 @@ export default function StatsPage() {
                 {addedWordsSummary.map((word, i) => (
                   <div
                     key={i}
-                    className="group bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-start gap-4 hover:border-indigo-100 transition-all"
+                    className={`group p-4 rounded-2xl border shadow-sm flex items-start gap-4 transition-all ${word.alreadyInDeck ? "bg-slate-50 border-slate-200 opacity-70" : "bg-white border-slate-100 hover:border-indigo-100"}`}
                   >
-                    {/* 1. LEFT: THE COLORFUL KANJI AVATAR (Restored Colors) */}
-                    <div className="flex-shrink-0 w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100 shadow-sm">
-                      <span className="text-indigo-600 font-black text-xl">
+                    {/* 1. LEFT: KANJI AVATAR */}
+                    <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center border shadow-sm ${word.alreadyInDeck ? "bg-slate-100 border-slate-200" : "bg-indigo-50 border-indigo-100"}`}>
+                      <span className={`font-black text-xl ${word.alreadyInDeck ? "text-slate-400" : "text-indigo-600"}`}>
                         {word.japanese[0]}
                       </span>
                     </div>
 
                     {/* 2. CENTER: Content Info */}
                     <div className="flex-1 flex flex-col text-left">
-                      <div className="flex items-baseline gap-2">
+                      <div className="flex items-baseline gap-2 flex-wrap">
                         <span className="text-lg font-black text-slate-800">
                           {word.japanese}
                         </span>
@@ -2503,10 +2509,15 @@ export default function StatsPage() {
                       </p>
 
                       {/* Meta Tags */}
-                      <div className="mt-2 flex gap-2">
+                      <div className="mt-2 flex gap-2 flex-wrap">
                         <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
                           {word.partOfSpeech}
                         </span>
+                        {word.alreadyInDeck && (
+                          <span className="text-[9px] font-black uppercase tracking-widest text-teal-600 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md">
+                            Already in deck
+                          </span>
+                        )}
                       </div>
                     </div>
 
