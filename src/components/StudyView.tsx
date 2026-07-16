@@ -1472,7 +1472,7 @@ export default function StudyView() {
         2. 'overflow-hidden' + 'rounded-[2.5rem]' is the "Cookie Cutter" that 
            clips the CoachMarks so they can't be longer than the card.
     */}
-              <div className="relative isolate bg-transparent w-full max-w-[80vw] sm:max-w-[360px] aspect-[3/4] max-h-[calc(100dvh-320px)] rounded-[2.5rem]">
+              <div className="relative isolate bg-transparent w-full max-w-[80vw] sm:max-w-[360px] aspect-[3/4] max-h-[min(380px,calc(100dvh-360px))] rounded-[2.5rem]">
                 {/* --- COACHMARKS OVERLAY --- */}
                 <AnimatePresence>
                   {showHints && !dataLoading && <CoachMarks />}
@@ -1571,7 +1571,7 @@ export default function StudyView() {
           const isNewCard = (currentCard.scores?.jp_to_en?.total ?? 0) === 0 && (currentCard.scores?.en_to_jp?.total ?? 0) === 0;
           const showButtons = !swipeOnly || isNewCard;
           return (
-          <div className="w-full flex justify-center pt-4 pb-28 md:pb-16 lg:pb-24">
+          <div className="w-full flex justify-center pt-4 pb-24 md:pb-16 lg:pb-24">
             {/* pb-28: Clears fixed BottomNav (h-14) + home bar on mobile.
               md:pb-16: Standard desktop height (BottomNav is hidden on md+).
               lg:pb-24: Extra breathing room for larger MacBook screens.

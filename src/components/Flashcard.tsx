@@ -259,13 +259,13 @@ export default function Flashcard({
       if (len > 10) return "text-2xl";
       if (len > 8) return "text-3xl";
       if (len > 5) return "text-4xl";
-      return "text-6xl"; // Single Kanji/Short words
+      return "text-5xl sm:text-6xl"; // Single Kanji/Short words
     } else {
       if (len > 50) return "text-lg"; // Very long definitions
       if (len > 35) return "text-xl";
       if (len > 25) return "text-2xl";
       if (len > 15) return "text-3xl";
-      return "text-4xl";
+      return "text-3xl sm:text-4xl";
     }
   };
 
@@ -294,7 +294,7 @@ export default function Flashcard({
   const isBackJapanese = card ? backText === card.japanese : false;
 
   return (
-    <div className="w-full max-w-[320px] h-96 [perspective:1000px] touch-none mx-auto">
+    <div className="w-full max-w-[320px] h-full [perspective:1000px] touch-none mx-auto">
       <motion.div
         style={{ x, rotate, opacity }}
         drag="x"
