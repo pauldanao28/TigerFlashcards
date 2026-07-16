@@ -6,6 +6,7 @@ import LoadingScreen from "@/components/LoadingScreen";
 import Link from "next/link";
 import { useAppAlert } from "@/context/AlertContext";
 import { authedFetch } from "@/lib/authedFetch";
+import AdminAnalytics from "@/components/AdminAnalytics";
 
 export default function AdminDashboard() {
   const t = translations.en;
@@ -13,7 +14,7 @@ export default function AdminDashboard() {
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [activeTab, setActiveTab] = useState<"cards" | "system">("cards");
+  const [activeTab, setActiveTab] = useState<"cards" | "system" | "analytics">("cards");
   const [view, setView] = useState<"pending" | "resolved" | "ignored">(
     "pending",
   );
@@ -29,6 +30,7 @@ export default function AdminDashboard() {
   });
 
   const fetchData = useCallback(async () => {
+    if (activeTab === "analytics") return;
     setLoading(true);
 
     if (activeTab === "cards") {
@@ -260,41 +262,52 @@ export default function AdminDashboard() {
           >
             💬 System Feedback
           </button>
+          <button
+            onClick={() => setActiveTab("analytics")}
+            className={`px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${activeTab === "analytics" ? "bg-slate-900 text-white shadow-lg" : "text-slate-500 hover:text-slate-700"}`}
+          >
+            📊 Analytics
+          </button>
         </div>
 
         {/* HEADER SECTION */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
           <div>
             <h1 className="text-3xl font-black text-slate-800 flex items-center gap-3">
-              🚩 {activeTab === "cards" ? t.admin_title : "General Feedback"}
-              <span className="text-sm bg-indigo-100 text-indigo-600 px-3 py-1 rounded-full font-bold">
-                {activeTab === "cards"
-                  ? reports.length
-                  : systemFeedbacks.length}
-              </span>
+              {activeTab === "analytics" ? "📊" : "🚩"}{" "}
+              {activeTab === "cards" ? t.admin_title : activeTab === "system" ? "General Feedback" : "Analytics"}
+              {activeTab !== "analytics" && (
+                <span className="text-sm bg-indigo-100 text-indigo-600 px-3 py-1 rounded-full font-bold">
+                  {activeTab === "cards"
+                    ? reports.length
+                    : systemFeedbacks.length}
+                </span>
+              )}
             </h1>
 
             {/* STATUS TOGGLE TABS */}
-            <div className="flex gap-1 bg-slate-200/50 p-1 rounded-xl mt-4 w-fit border border-slate-200">
-              <button
-                onClick={() => setView("pending")}
-                className={`px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${view === "pending" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-              >
-                Pending
-              </button>
-              <button
-                onClick={() => setView("resolved")}
-                className={`px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${view === "resolved" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-              >
-                Resolved
-              </button>
-              <button
-                onClick={() => setView("ignored")}
-                className={`px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${view === "ignored" ? "bg-white text-rose-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-              >
-                Ignored
-              </button>
-            </div>
+            {activeTab !== "analytics" && (
+              <div className="flex gap-1 bg-slate-200/50 p-1 rounded-xl mt-4 w-fit border border-slate-200">
+                <button
+                  onClick={() => setView("pending")}
+                  className={`px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${view === "pending" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  Pending
+                </button>
+                <button
+                  onClick={() => setView("resolved")}
+                  className={`px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${view === "resolved" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  Resolved
+                </button>
+                <button
+                  onClick={() => setView("ignored")}
+                  className={`px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${view === "ignored" ? "bg-white text-rose-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  Ignored
+                </button>
+              </div>
+            )}
           </div>
 
           <Link
@@ -305,7 +318,10 @@ export default function AdminDashboard() {
           </Link>
         </div>
 
+        {activeTab === "analytics" && <AdminAnalytics />}
+
         {/* REPORTS LIST */}
+        {activeTab !== "analytics" && (
         <div className="grid gap-6">
           {activeTab === "cards" ? (
             /* EXISTING CARD REPORTS MAPPING */
@@ -615,6 +631,7 @@ export default function AdminDashboard() {
             ))
           )}
         </div>
+        )}
       </div>
     </main>
   );
