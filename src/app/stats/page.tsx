@@ -71,11 +71,14 @@ export default function StatsPage() {
   const [showWordList, setShowWordList] = useState(false);
   const [wordListAdding, setWordListAdding] = useState(false);
   const [wordListText, setWordListText] = useState("");
+  const [showAddSheet, setShowAddSheet] = useState(false);
+  const [addSheetTab, setAddSheetTab] = useState<"word" | "paste" | "queue">("word");
   const [refreshKey, setRefreshKey] = useState(0);
   const [cardFetchKey, setCardFetchKey] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const skipNextCardFetch = useRef(false);
   useEffect(() => { if (showWordList) setWordListText(pendingWords.join("\n")); }, [showWordList]);
+  useEffect(() => { if (showAddSheet && addSheetTab === "queue") setWordListText(pendingWords.join("\n")); }, [showAddSheet, addSheetTab]);
   // Safety net: don't let the nav-guard get stuck "busy" forever if this page unmounts
   // some other way (browser back/forward) while a batch upload was mid-flight.
   useEffect(() => () => setUploadBusy(false), [setUploadBusy]);
@@ -1538,76 +1541,6 @@ export default function StatsPage() {
           </div>
 
 
-          {/* Management Toolbar */}
-          <div className="flex flex-col md:flex-row gap-4 mb-8">
-            <div className="flex-1 bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex gap-2">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={t.add_new_word}
-                className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold"
-              />
-              <button
-                onClick={() => {
-                  if (!input.trim()) return;
-                  const lines = input.split("\n").filter((l) => l.trim());
-                  processWords(lines);
-                }}
-                disabled={loading}
-                className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-700 transition-all active:scale-95"
-              >
-                {loading ? "..." : t.ai_add}
-              </button>
-            </div>
-
-            <button
-              onClick={() => setShowBatch(!showBatch)}
-              className="px-6 py-2 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 transition-colors"
-            >
-              {showBatch ? t.close : t.batch_upload}
-            </button>
-
-            <button
-              onClick={() => setShowWordList(true)}
-              className="relative flex items-center gap-1.5 px-4 py-2 bg-slate-800 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-700 transition-all"
-            >
-              <List size={13} />
-              <span>To Add</span>
-              {pendingWords.length > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-indigo-600 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center">{pendingWords.length}</span>
-              )}
-            </button>
-          </div>
-
-          {/* Batch Area */}
-          {showBatch && (
-            <div className="mb-8 p-6 bg-indigo-50 rounded-3xl border-2 border-dashed border-indigo-200">
-              <textarea
-                value={batchInput}
-                onChange={(e) => setBatchInput(e.target.value)}
-                className="w-full h-48 p-4 rounded-xl border-none outline-none mb-3 text-sm font-mono shadow-inner"
-                placeholder={`FORMAT OPTIONS:
-1. List: words (1 kanji/english word per line)
-2. Lyrics: Paste a whole song or text. I'll pick out the new words for you!`}
-              />
-              <button
-                onClick={async () => {
-                  setUploadBusy(true);
-                  try {
-                    await processWords([batchInput]);
-                  } finally {
-                    setUploadBusy(false);
-                  }
-                }}
-                disabled={loading}
-                className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-transform"
-              >
-                {loading ? t.ai_processing : `${t.batch_upload} (BETA)`}
-              </button>
-            </div>
-          )}
-
           {/* Starter Packs Section */}
           <div className="mb-10">
             <div className="flex items-center justify-between mb-4">
@@ -2341,40 +2274,174 @@ export default function StatsPage() {
           )}
         </div>
 
-        {/* ── To Add Modal ── */}
-        {showWordList && (
-          <div className="fixed inset-0 z-[220] flex items-end sm:items-center justify-center px-4 pt-4 pb-28 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
-            <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
-              <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-                <div>
-                  <h2 className="text-base font-black text-slate-800 uppercase italic tracking-tighter">To Add</h2>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{pendingWords.length} word{pendingWords.length !== 1 ? "s" : ""} · one per line</p>
-                </div>
-                <button
-                  onClick={() => { flushWordList(wordListText.split("\n").map(w => w.trim()).filter(Boolean)); setShowWordList(false); }}
-                  className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400"><X size={14} /></button>
+        {/* ── Add Cards FAB ── */}
+        <motion.button
+          onClick={() => { setShowAddSheet(true); setAddSheetTab("word"); }}
+          whileTap={{ scale: 0.88 }}
+          className="fixed bottom-24 right-5 z-[150] w-14 h-14 bg-indigo-600 text-white rounded-full shadow-xl shadow-indigo-300/50 flex items-center justify-center"
+        >
+          <Plus size={26} strokeWidth={2.5} />
+          {pendingWords.length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center">
+              {pendingWords.length}
+            </span>
+          )}
+        </motion.button>
+
+        {/* ── Add Cards Bottom Sheet ── */}
+        {showAddSheet && (
+          <div className="fixed inset-0 z-[200] flex flex-col justify-end">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+              onClick={() => { flushWordList(wordListText.split("\n").map(w => w.trim()).filter(Boolean)); setShowAddSheet(false); }}
+            />
+            {/* Sheet */}
+            <motion.div
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+              transition={{ type: "spring", stiffness: 380, damping: 36 }}
+              className="relative bg-white rounded-t-[2rem] shadow-2xl flex flex-col max-h-[85dvh]"
+            >
+              {/* Drag handle */}
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 bg-slate-200 rounded-full" />
               </div>
-              <div className="p-4">
-                <textarea
-                  value={wordListText}
-                  onChange={(e) => setWordListText(e.target.value)}
-                  onBlur={(e) => syncWordList(e.target.value.split("\n").map(w => w.trim()).filter(Boolean))}
-                  rows={8}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none font-mono"
-                  placeholder={"食べる\n勉強\n彼女\n…"}
-                />
-              </div>
-              <div className="p-4 pt-0 flex gap-2">
-                <button onClick={() => { flushWordList([]); setWordListText(""); }} className="px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all">Clear</button>
+
+              {/* Tab bar */}
+              <div className="flex items-center gap-1 px-5 pt-2 pb-3 border-b border-slate-100">
+                {(["word", "paste", "queue"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setAddSheetTab(tab)}
+                    className={`relative flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${addSheetTab === tab ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+                  >
+                    {tab === "word" && "Word"}
+                    {tab === "paste" && "Paste"}
+                    {tab === "queue" && "Queue"}
+                    {tab === "queue" && pendingWords.length > 0 && (
+                      <span className={`absolute -top-1.5 -right-1 text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center ${addSheetTab === "queue" ? "bg-white text-indigo-600" : "bg-indigo-600 text-white"}`}>
+                        {pendingWords.length}
+                      </span>
+                    )}
+                  </button>
+                ))}
                 <button
-                  onClick={() => addWordListToDeck(wordListText.split("\n").map(w => w.trim()).filter(Boolean))}
-                  disabled={wordListAdding || !wordListText.trim()}
-                  className="flex-1 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+                  onClick={() => { flushWordList(wordListText.split("\n").map(w => w.trim()).filter(Boolean)); setShowAddSheet(false); }}
+                  className="ml-2 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:bg-slate-200 shrink-0"
                 >
-                  {wordListAdding ? <><Loader2 size={13} className="animate-spin" /> Adding…</> : <><Plus size={13} /> Add All to Deck</>}
+                  <X size={14} />
                 </button>
               </div>
-            </div>
+
+              {/* Tab content */}
+              <div className="flex-1 overflow-y-auto p-5">
+
+                {/* WORD TAB */}
+                {addSheetTab === "word" && (
+                  <div className="flex flex-col gap-4">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Japanese or English word</p>
+                      <div className="flex gap-2">
+                        <input
+                          autoFocus
+                          type="text"
+                          value={input}
+                          onChange={(e) => setInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && input.trim()) {
+                              processWords(input.split("\n").filter(l => l.trim()));
+                            }
+                          }}
+                          placeholder="食べる / taberu / to eat…"
+                          className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-base font-bold outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => { if (!input.trim()) return; processWords(input.split("\n").filter(l => l.trim())); }}
+                      disabled={loading || !input.trim()}
+                      className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
+                    >
+                      {loading ? <><Loader2 size={16} className="animate-spin" /> Generating…</> : <><Plus size={16} /> Add to Deck</>}
+                    </button>
+                    <p className="text-center text-[10px] text-slate-400 font-bold">AI generates the card — reading, meaning, JLPT level</p>
+                  </div>
+                )}
+
+                {/* PASTE TAB */}
+                {addSheetTab === "paste" && (() => {
+                  const lines = batchInput.trim().split("\n").filter(Boolean);
+                  const hasJp = /[぀-ヿ一-龯]/.test(batchInput);
+                  const avgLen = batchInput.length / Math.max(lines.length, 1);
+                  let hint: { label: string; emoji: string } | null = null;
+                  if (batchInput.trim()) {
+                    if (lines.length === 1) hint = { emoji: "🔤", label: "Single word" };
+                    else if (hasJp && avgLen > 15) hint = { emoji: "🎵", label: "Japanese text — AI extracts vocabulary" };
+                    else if (hasJp) hint = { emoji: "📋", label: "Japanese word list" };
+                    else if (avgLen > 20) hint = { emoji: "📖", label: "English text (Japanese input works best)" };
+                    else hint = { emoji: "📋", label: "English word list — one per line" };
+                  }
+                  return (
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Paste lyrics, a story, or a word list</p>
+                        {hint && (
+                          <span className="text-[10px] font-black bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded-full">
+                            {hint.emoji} {hint.label}
+                          </span>
+                        )}
+                      </div>
+                      <textarea
+                        autoFocus
+                        value={batchInput}
+                        onChange={(e) => setBatchInput(e.target.value)}
+                        rows={9}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none font-mono leading-relaxed"
+                        placeholder={"食べる\n勉強する\n\nor paste a full song / article in Japanese…"}
+                      />
+                      <button
+                        onClick={async () => {
+                          setUploadBusy(true);
+                          try { await processWords([batchInput]); }
+                          finally { setUploadBusy(false); }
+                        }}
+                        disabled={loading || !batchInput.trim()}
+                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
+                      >
+                        {loading ? <><Loader2 size={16} className="animate-spin" /> Processing…</> : <><Plus size={16} /> Extract &amp; Add</>}
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                {/* QUEUE TAB */}
+                {addSheetTab === "queue" && (
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{pendingWords.length} word{pendingWords.length !== 1 ? "s" : ""} queued · one per line</p>
+                      <button onClick={() => { flushWordList([]); setWordListText(""); }} className="text-[10px] font-black text-rose-400 hover:text-rose-500 uppercase tracking-widest">Clear all</button>
+                    </div>
+                    <textarea
+                      value={wordListText}
+                      onChange={(e) => setWordListText(e.target.value)}
+                      onBlur={(e) => syncWordList(e.target.value.split("\n").map(w => w.trim()).filter(Boolean))}
+                      rows={10}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none font-mono leading-relaxed"
+                      placeholder={"食べる\n勉強\n彼女\n…"}
+                    />
+                    <button
+                      onClick={() => addWordListToDeck(wordListText.split("\n").map(w => w.trim()).filter(Boolean))}
+                      disabled={wordListAdding || !wordListText.trim()}
+                      className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
+                    >
+                      {wordListAdding ? <><Loader2 size={16} className="animate-spin" /> Adding…</> : <><Plus size={16} /> Add All to Deck</>}
+                    </button>
+                  </div>
+                )}
+
+              </div>
+            </motion.div>
           </div>
         )}
 
