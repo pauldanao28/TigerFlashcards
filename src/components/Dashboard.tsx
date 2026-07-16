@@ -139,12 +139,6 @@ function OverallBanner({ level, score }: { level: string; score: number }) {
   );
 }
 
-function getTodayDone() {
-  const today = new Date().toLocaleDateString("en-CA");
-  const check = (key: string) => { try { return localStorage.getItem(key) === today; } catch { return false; } };
-  return { reading: check("flashkado-done-reading"), listening: check("flashkado-done-listening"), grammar: check("flashkado-done-grammar") };
-}
-
 export default function Dashboard() {
   const { user } = useAuth();
   const [data, setData] = useState<ProfileScores | null>(
@@ -152,14 +146,12 @@ export default function Dashboard() {
   );
   const [doneTodayQuizzes, setDoneTodayQuizzes] = useState({ reading: false, listening: false, grammar: false });
 
-  useEffect(() => { setDoneTodayQuizzes(getTodayDone()); }, []);
-
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      // Round 1: profile + default deck + today's review count in parallel
+      // Round 1: profile + default deck + today's review count + quiz completions in parallel
       const today = new Date().toLocaleDateString("en-CA");
-      const [profileRes, deckRes, reviewRes] = await Promise.all([
+      const [profileRes, deckRes, reviewRes, quizRes] = await Promise.all([
         supabase
           .from("profiles")
           .select("full_name, streak_count, max_streak, reading_score, listening_score, grammar_score")
@@ -167,7 +159,11 @@ export default function Dashboard() {
           .single(),
         supabase.from("decks").select("id").eq("user_id", user.id).eq("is_default", true).single(),
         supabase.from("user_review_counts").select("count").eq("user_id", user.id).eq("study_date", today).maybeSingle(),
+        supabase.from("quiz_daily_stats").select("quiz_type").eq("user_id", user.id).eq("study_date", today),
       ]);
+
+      const doneTypes = new Set((quizRes.data ?? []).map((r: { quiz_type: string }) => r.quiz_type));
+      setDoneTodayQuizzes({ reading: doneTypes.has("reading"), listening: doneTypes.has("listening"), grammar: doneTypes.has("grammar") });
 
       const p = profileRes.data;
       const deckId = deckRes.data?.id;
