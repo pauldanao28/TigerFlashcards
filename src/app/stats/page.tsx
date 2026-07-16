@@ -61,6 +61,9 @@ export default function StatsPage() {
   const [dailyHistory, setDailyHistory] = useState<
     { study_date: string; count: number }[]
   >([]);
+  const [quizHistory, setQuizHistory] = useState<
+    { study_date: string; reading: number | null; listening: number | null; grammar: number | null }[]
+  >([]);
   const [showHistory, setShowHistory] = useState(false);
   const [reviewsToday, setReviewsToday] = useState(0);
   const [previewPack, setPreviewPack] = useState<any | null>(null);
@@ -116,14 +119,45 @@ export default function StatsPage() {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { data } = await supabase
-      .from("user_review_counts")
-      .select("study_date, count")
-      .eq("user_id", user.id)
-      .order("study_date", { ascending: false })
-      .limit(14);
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 13);
+    const since = fourteenDaysAgo.toLocaleDateString("en-CA");
 
-    setDailyHistory(data || []);
+    const [{ data: reviewData }, { data: quizData }] = await Promise.all([
+      supabase
+        .from("user_review_counts")
+        .select("study_date, count")
+        .eq("user_id", user.id)
+        .order("study_date", { ascending: false })
+        .limit(14),
+      supabase
+        .from("quiz_daily_stats")
+        .select("study_date, quiz_type, correct, total")
+        .eq("user_id", user.id)
+        .gte("study_date", since)
+        .order("study_date", { ascending: false }),
+    ]);
+
+    setDailyHistory(reviewData || []);
+
+    // Build a 14-day grid; aggregate multiple sessions per day per type
+    const days: string[] = [];
+    for (let i = 0; i < 14; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      days.push(d.toLocaleDateString("en-CA"));
+    }
+    const acc: Record<string, Record<string, { correct: number; total: number }>> = {};
+    for (const row of quizData ?? []) {
+      if (!acc[row.study_date]) acc[row.study_date] = {};
+      const prev = acc[row.study_date][row.quiz_type] ?? { correct: 0, total: 0 };
+      acc[row.study_date][row.quiz_type] = { correct: prev.correct + row.correct, total: prev.total + row.total };
+    }
+    setQuizHistory(days.map(date => {
+      const d = acc[date] ?? {};
+      const pct = (type: string) => d[type]?.total ? Math.round((d[type].correct / d[type].total) * 100) : null;
+      return { study_date: date, reading: pct("reading"), listening: pct("listening"), grammar: pct("grammar") };
+    }));
   };
 
   const fetchStarterPacks = async () => {
@@ -1900,6 +1934,42 @@ export default function StatsPage() {
                     </div>
                   </div>
                 </div>
+
+                  {/* Quiz accuracy by day */}
+                  <div className="mt-6">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">Quiz Accuracy · Last 14 Days</p>
+                    <div className="rounded-2xl border border-slate-100 overflow-hidden bg-white">
+                      {/* Header */}
+                      <div className="grid grid-cols-4 border-b border-slate-100 bg-slate-50">
+                        <div className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-slate-400">Date</div>
+                        <div className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-indigo-400 text-center">📖 Read</div>
+                        <div className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-violet-400 text-center">🎧 Listen</div>
+                        <div className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-amber-400 text-center">📝 Grammar</div>
+                      </div>
+                      {quizHistory.map((row, i) => {
+                        const isToday = i === 0;
+                        const hasAny = row.reading !== null || row.listening !== null || row.grammar !== null;
+                        const pill = (pct: number | null) => {
+                          if (pct === null) return <span className="text-slate-200 text-[10px] font-black">—</span>;
+                          const color = pct >= 80 ? "bg-emerald-50 text-emerald-600" : pct >= 60 ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-500";
+                          return <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-black ${color}`}>{pct}%</span>;
+                        };
+                        return (
+                          <div key={row.study_date} className={`grid grid-cols-4 border-b border-slate-50 last:border-0 ${isToday ? "bg-indigo-50/40" : hasAny ? "" : "opacity-40"}`}>
+                            <div className="px-3 py-2.5 flex items-center gap-1.5">
+                              <span className="text-[10px] font-black text-slate-600">
+                                {new Date(row.study_date + "T00:00:00").toLocaleDateString("en-SG", { month: "short", day: "numeric" })}
+                              </span>
+                              {isToday && <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">today</span>}
+                            </div>
+                            <div className="px-3 py-2.5 flex items-center justify-center">{pill(row.reading)}</div>
+                            <div className="px-3 py-2.5 flex items-center justify-center">{pill(row.listening)}</div>
+                            <div className="px-3 py-2.5 flex items-center justify-center">{pill(row.grammar)}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
 
                 <div className="p-6 bg-slate-50/50 text-center mt-auto border-t border-slate-50">
                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] opacity-60">
