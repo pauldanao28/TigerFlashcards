@@ -1553,15 +1553,19 @@ export default function StudyView() {
         </div>
 
         {/* --- 4. BOTTOM BUTTONS (LOWERED) --- */}
+        {/* Wrapper always renders when there's a card so the card anchor above never shifts. */}
         {!dataLoading && cards.length > 0 && currentCard && (() => {
           const isNewCard = (currentCard.scores?.jp_to_en?.total ?? 0) === 0 && (currentCard.scores?.en_to_jp?.total ?? 0) === 0;
-          if (swipeOnly && !isNewCard) return null;
+          const showButtons = !swipeOnly || isNewCard;
           return (
           <div className="w-full flex justify-center pt-4 pb-28 md:pb-16 lg:pb-24">
             {/* pb-28: Clears fixed BottomNav (h-14) + home bar on mobile.
               md:pb-16: Standard desktop height (BottomNav is hidden on md+).
               lg:pb-24: Extra breathing room for larger MacBook screens.
+              The outer div always reserves this space so the card stays centered
+              regardless of whether buttons are visible.
           */}
+            {showButtons && (
             <div className="w-full max-w-md flex flex-col gap-3 px-6 mb-safe">
             {isNewCard && (
               <button
@@ -1590,6 +1594,7 @@ export default function StudyView() {
             </div>
             )}
             </div>
+            )}
           </div>
           );
         })()}
