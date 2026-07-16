@@ -21,8 +21,16 @@ Step 2 — For every word (whether given directly or extracted from text):
    - Nouns don't conjugate — return as-is.
    - Deduplicate: if the same dictionary form appears multiple times, output it only once.
 2. If English: provide the most common Kanji (dictionary form), reading, and example.
-3. Identify the Part of Speech (e.g., noun, verb, adjective, adverb).
+3. Identify the Part of Speech.
 4. Classify JLPT level: N5 (easiest) → N1 (hardest). If unsure, pick the closest level.
+
+Rules for the "partOfSpeech" field:
+- Must be EXACTLY ONE of these lowercase tags, nothing else: noun, verb, adjective, adverb, particle, pronoun, conjunction, number, phrase.
+- "phrase" is only for multi-word idioms, set expressions, or greetings that don't fit a single grammatical category.
+- If a word can act as both a noun and a suru-verb, tag it "noun". If a word can act as both a noun and a na-adjective, tag it "adjective".
+- No qualifiers, no romaji/Japanese characters, no explanations.
+- Good: "noun", "verb", "adjective"
+- Bad: "godan verb, transitive", "名詞", "noun (suru-verb)", "na-adjective (adjectival noun)"
 
 Rules for the "english" field:
 - Plain, concise translation only. No parentheses, no brackets, no qualifiers, no "to " prefix for verbs.
@@ -35,7 +43,7 @@ Output ONLY raw JSON as an ARRAY of objects:
     "japanese": "...",
     "reading": "...",
     "english": "...",
-    "partOfSpeech": "...",
+    "partOfSpeech": "noun",
     "jlpt_level": "N5",
     "alternatives": [],
     "contextNote": "...",

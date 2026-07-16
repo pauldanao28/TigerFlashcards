@@ -1370,7 +1370,7 @@ export default function StatsPage() {
               <div className="mt-8 pt-6 border-t border-slate-100">
                 <button
                   onClick={handleLogout}
-                  className="w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100 transition-all active:scale-95"
+                  className="w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-slate-800 text-white hover:bg-slate-700 transition-all active:scale-95 shadow-sm"
                 >
                   {t.signout}
                 </button>
