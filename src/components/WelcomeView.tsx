@@ -267,6 +267,58 @@ export default function WelcomeView() {
           </div>
         </section>
 
+        {/* ── Section: Beginner-friendly ────────────────────────────────── */}
+        <section className="py-12 border-t border-slate-100">
+          <div className="text-center mb-7">
+            <p className="text-[9px] font-black uppercase tracking-widest text-indigo-500 mb-2">Zero experience needed</p>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tighter italic leading-tight mb-2">
+              Start from absolute<br />zero if you need to.
+            </h2>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              Never studied Japanese? The app walks you through kana and grammar before you ever touch a flashcard.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            {[
+              {
+                emoji: "🈳",
+                title: "Learn Hiragana & Katakana",
+                desc: "Interactive kana drills with audio. Master the alphabet before you start.",
+                badge: "Absolute beginner",
+                badgeCls: "bg-emerald-100 text-emerald-700",
+              },
+              {
+                emoji: "📖",
+                title: "Grammar N5 → N1",
+                desc: "Pattern-by-pattern grammar study with example sentences, from basics to advanced.",
+                badge: "All levels",
+                badgeCls: "bg-indigo-100 text-indigo-700",
+              },
+              {
+                emoji: "🃏",
+                title: "Vocabulary by JLPT level",
+                desc: "Add any word — AI tags it to the right JLPT level automatically. Start with N5 and build up.",
+                badge: "AI-powered",
+                badgeCls: "bg-violet-100 text-violet-700",
+              },
+            ].map((item) => (
+              <div key={item.title} className="flex gap-4 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                <div className="shrink-0 w-11 h-11 bg-slate-50 rounded-xl flex items-center justify-center text-2xl border border-slate-100">
+                  {item.emoji}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                    <p className="text-sm font-black text-slate-900 leading-tight">{item.title}</p>
+                    <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${item.badgeCls}`}>{item.badge}</span>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* ── Section 2: Dashboard preview ──────────────────────────────── */}
         <section className="py-12 border-t border-slate-100">
           <div className="text-center mb-7">
