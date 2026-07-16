@@ -841,7 +841,7 @@ export default function AdminChat({ userId }: { userId: string }) {
   };
 
   return (
-    <div ref={containerRef} className="fixed left-0 right-0 top-0 flex flex-col bg-slate-50 pb-14 md:pb-0" style={{ height: "100dvh" }}>
+    <div ref={containerRef} className="fixed left-0 md:left-56 right-0 top-0 flex flex-col bg-slate-50 pb-14 md:pb-0" style={{ height: "100dvh" }}>
 
       {/* ── Persona selector ── */}
       <div className="sticky top-0 z-10 bg-white border-b border-slate-100 px-4 pt-4 pb-3">
@@ -991,7 +991,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       {tooltip && (
         <>
           <div className="fixed inset-0 z-[350] bg-black/20" onClick={() => setTooltip(null)} />
-          <div className="fixed bottom-14 md:bottom-0 left-0 right-0 z-[360] bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
+          <div className="fixed bottom-14 md:bottom-0 left-0 md:left-56 right-0 z-[360] bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
             style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3 mb-3">
@@ -1083,7 +1083,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       {confirmAction && (
         <>
           <div className="fixed inset-0 z-[240] bg-black/20" onClick={() => setConfirmAction(null)} />
-          <div className="fixed bottom-14 md:bottom-0 left-0 right-0 z-[241] bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
+          <div className="fixed bottom-14 md:bottom-0 left-0 md:left-56 right-0 z-[241] bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
             style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
             onClick={(e) => e.stopPropagation()}>
             <p className="text-base font-black text-slate-800 mb-1">{CONFIRM_COPY[confirmAction].title}</p>
@@ -1112,7 +1112,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       {errorMsg && (
         <>
           <div className="fixed inset-0 z-[240] bg-black/20" onClick={() => setErrorMsg(null)} />
-          <div className="fixed bottom-14 md:bottom-0 left-0 right-0 z-[241] bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
+          <div className="fixed bottom-14 md:bottom-0 left-0 md:left-56 right-0 z-[241] bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
             style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3 mb-3">

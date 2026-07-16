@@ -4,6 +4,8 @@ import { AuthProvider } from "@/context/AuthContext";
 import { UploadGuardProvider } from "@/context/UploadGuardContext";
 import { AlertProvider } from "@/context/AlertContext";
 import BottomNav from "@/components/BottomNav";
+import Sidebar from "@/components/Sidebar";
+import SidebarOffsetWrapper from "@/components/SidebarOffsetWrapper";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://flashkado.com";
 
@@ -102,7 +104,10 @@ export default function RootLayout({
         <AuthProvider>
           <AlertProvider>
             <UploadGuardProvider>
-              {children}
+              <Sidebar />
+              <SidebarOffsetWrapper>
+                {children}
+              </SidebarOffsetWrapper>
               <BottomNav />
             </UploadGuardProvider>
           </AlertProvider>

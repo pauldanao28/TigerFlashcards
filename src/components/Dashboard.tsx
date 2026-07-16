@@ -321,9 +321,9 @@ export default function Dashboard() {
   const overallLevel = jlptLevel(weakestScore);
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-28">
+    <div className="min-h-screen bg-slate-50 pb-28 md:pb-8">
       {/* Header */}
-      <div className="bg-white border-b border-slate-100 px-5 pt-14 pb-6">
+      <div className="bg-white border-b border-slate-100 px-5 pt-14 md:pt-8 pb-6">
         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{greeting}</p>
         <h1 className="text-2xl font-black text-slate-900 italic mt-0.5 leading-tight">
           {name || "Learner"} 👋
@@ -377,6 +377,7 @@ export default function Dashboard() {
         <OverallBanner level={overallLevel} score={Math.round(overallScore)} />
       </div>
 
+      <div className="max-w-2xl mx-auto">
       {/* Section label */}
       <p className="px-5 pt-5 pb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
         Your Skills
@@ -426,6 +427,7 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

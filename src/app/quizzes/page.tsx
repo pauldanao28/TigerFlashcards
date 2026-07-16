@@ -34,13 +34,14 @@ function QuizzesInner() {
   if (!userId) return <LoadingScreen />;
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-28">
+    <div className="min-h-screen bg-slate-50 pb-28 md:pb-8">
       {/* Header */}
-      <div className="bg-white border-b border-slate-100 px-5 pt-14 pb-5">
+      <div className="bg-white border-b border-slate-100 px-5 pt-14 md:pt-8 pb-5">
         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Practice</p>
         <h1 className="text-2xl font-black text-slate-900 italic mt-0.5">Quizzes</h1>
       </div>
 
+      <div className="max-w-2xl mx-auto">
       {/* Quiz cards */}
       <div className="px-4 pt-2 flex flex-col gap-3">
         {/* Reading / Sentence Quiz */}
@@ -123,6 +124,8 @@ function QuizzesInner() {
             );
           })}
         </div>
+      </div>
+
       </div>
 
       {/* Overlays */}

@@ -971,7 +971,7 @@ export default function StudyView() {
   return (
     <>
       {/* 1. Add the opening fragment here */}
-      <main className="fixed inset-0 h-[100dvh] w-full bg-slate-50 flex flex-col items-center overflow-hidden touch-none font-sans select-none pb-safe">
+      <main className="fixed inset-0 md:left-56 h-[100dvh] w-full md:w-auto bg-slate-50 flex flex-col items-center overflow-hidden touch-none font-sans select-none pb-safe">
         {hasOnboarded === false && (
           <OnboardingModal
             defaultName={
@@ -992,7 +992,7 @@ export default function StudyView() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 60, scale: 0.92 }}
               transition={{ type: "spring", stiffness: 320, damping: 28 }}
-              className="fixed bottom-24 md:bottom-12 left-0 right-0 z-[200] flex justify-center pointer-events-none px-6"
+              className="fixed bottom-24 md:bottom-12 left-0 md:left-56 right-0 z-[200] flex justify-center pointer-events-none px-6"
             >
               <motion.div
                 animate={levelUpToast.direction === "up" ? {
@@ -1067,7 +1067,7 @@ export default function StudyView() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -30, scale: 0.94 }}
               transition={{ type: "spring", stiffness: 340, damping: 26 }}
-              className="fixed top-[8.5rem] md:top-12 left-0 right-0 z-[200] flex justify-center pointer-events-none px-6"
+              className="fixed top-[8.5rem] md:top-12 left-0 md:left-56 right-0 z-[200] flex justify-center pointer-events-none px-6"
             >
               <div className={`bg-white rounded-3xl shadow-2xl px-5 py-3.5 flex items-center gap-3 max-w-xs w-full border ${
                 cardMasteryToast.direction === "up"
@@ -1136,7 +1136,7 @@ export default function StudyView() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 60, scale: 0.92 }}
               transition={{ type: "spring", stiffness: 320, damping: 28 }}
-              className="fixed bottom-24 md:bottom-12 left-0 right-0 z-[200] flex justify-center pointer-events-none px-6"
+              className="fixed bottom-24 md:bottom-12 left-0 md:left-56 right-0 z-[200] flex justify-center pointer-events-none px-6"
             >
               <div className="bg-white rounded-3xl shadow-2xl shadow-orange-100/60 border border-orange-100 px-8 py-5 flex items-center gap-4 max-w-sm w-full">
                 <motion.div
@@ -1162,7 +1162,7 @@ export default function StudyView() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 60, scale: 0.92 }}
               transition={{ type: "spring", stiffness: 320, damping: 28 }}
-              className="fixed bottom-24 md:bottom-12 left-0 right-0 z-[200] flex justify-center pointer-events-none px-6"
+              className="fixed bottom-24 md:bottom-12 left-0 md:left-56 right-0 z-[200] flex justify-center pointer-events-none px-6"
             >
               <div className="bg-white rounded-3xl shadow-2xl shadow-amber-100/60 border border-amber-100 px-8 py-5 flex items-center gap-4 max-w-sm w-full">
                 <motion.div
