@@ -2300,13 +2300,14 @@ export default function StatsPage() {
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.28, ease: "easeOut" }}
               className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
               onClick={() => { flushWordList(wordListText.split("\n").map(w => w.trim()).filter(Boolean)); setShowAddSheet(false); }}
             />
             {/* Sheet */}
             <motion.div
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-              transition={{ type: "spring", stiffness: 380, damping: 36 }}
+              transition={{ duration: 0.38, ease: [0.32, 0.72, 0, 1] }}
               className="relative bg-white rounded-t-[2rem] shadow-2xl flex flex-col max-h-[85dvh]"
             >
               {/* Drag handle */}
