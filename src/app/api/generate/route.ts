@@ -4,15 +4,23 @@ import { NextResponse } from "next/server";
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-const prompt = (words: string[]) => `Task: Analyze or translate this list of terms: [${words.join(", ")}].
-1. If the input is Japanese (Kanji/Kana): the "japanese" field must be the plain DICTIONARY FORM (辞書形), never the form as typed.
-   - Verb/i-adjective conjugations (て-form, た-form, ます-form, negative, passive, potential, causative, etc.) → normalize to dictionary form, e.g. "食べた"→"食べる", "飲みます"→"飲む", "美味しかった"→"美味しい".
-   - Na-adjectives with an attached copula (だった, でした, じゃない, じゃなかった, etc.) → strip the copula and return the bare stem, e.g. "静かだった"→"静か", "綺麗じゃない"→"綺麗", "元気でした"→"元気".
-   - Nouns don't conjugate — return them as-is.
-   Provide the reading, English translation, and example for that dictionary/stem form.
-2. If the input is English: Provide the most common Kanji (dictionary form), reading, and example.
+const prompt = (words: string[]) => `Task: Process the following input and produce flashcard data.
+
+Input: [${words.join(", ")}]
+
+Step 1 — Detect input type for each item:
+- If the item is a SINGLE WORD or SHORT PHRASE (a term to look up): process it directly.
+- If the item is a SENTENCE, LYRICS, STORY, or PARAGRAPH (contains multiple words forming natural text): first extract all meaningful vocabulary from it — nouns, verbs, i-adjectives, na-adjectives, adverbs. Skip particles (は、が、を、に、で、と、の、も、へ、から、まで、より), conjunctions, and filler words. Then process each extracted word individually.
+
+Step 2 — For every word (whether given directly or extracted from text):
+1. If Japanese (Kanji/Kana): the "japanese" field must be the plain DICTIONARY FORM (辞書形), never the form as it appeared in the text.
+   - Verb/i-adjective conjugations (て-form, た-form, ます-form, negative, passive, potential, causative, etc.) → normalize to dictionary form, e.g. "食べた"→"食べる", "飲みます"→"飲む", "美味しかった"→"美しい".
+   - Na-adjectives with copula (だった, でした, じゃない, etc.) → strip copula and return bare stem, e.g. "静かだった"→"静か".
+   - Nouns don't conjugate — return as-is.
+   - Deduplicate: if the same dictionary form appears multiple times, output it only once.
+2. If English: provide the most common Kanji (dictionary form), reading, and example.
 3. Identify the Part of Speech (e.g., noun, verb, adjective, adverb).
-4. Classify the JLPT level of each word: N5 (easiest), N4, N3, N2, N1 (hardest). If unsure, pick the closest level.
+4. Classify JLPT level: N5 (easiest) → N1 (hardest). If unsure, pick the closest level.
 
 Rules for the "english" field:
 - Plain, concise translation only. No parentheses, no brackets, no qualifiers, no "to " prefix for verbs.
