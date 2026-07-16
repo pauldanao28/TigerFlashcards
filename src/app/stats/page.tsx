@@ -566,52 +566,55 @@ export default function StatsPage() {
           const items = await res.json();
           const itemsArray = Array.isArray(items) ? items : [items];
 
-          // --- CRITICAL FIX: DE-DUPLICATE BY KANJI BEFORE UPSERT ---
-          const seen = new Set();
+          // Deduplicate Gemini output by dictionary form
+          const seen = new Set<string>();
           const deduplicatedItems = itemsArray
             .map((item) => ({
               japanese: String(item.japanese).trim(),
               reading: String(item.reading || "").replace(/[a-zA-Z\s]/g, ""),
               english: String(item.english || "").trim(),
-              partOfSpeech: String(item.partOfSpeech || "noun")
-                .trim()
-                .toLowerCase(),
+              partOfSpeech: String(item.partOfSpeech || "noun").trim().toLowerCase(),
               jlpt_level: item.jlpt_level ?? null,
               exampleSentence: item.exampleSentence || { jp: "", en: "" },
               creator_id: user.id,
             }))
             .filter((item) => {
-              if (seen.has(item.japanese)) return false;
+              if (!item.japanese || seen.has(item.japanese)) return false;
               seen.add(item.japanese);
               return true;
             });
 
-          // const { data: newCards, error: mErr } = await supabase
-          //   .from("master_cards")
-          //   .upsert(
-          //     itemsArray.map((item) => ({
-          //       japanese: String(item.japanese).trim(),
-          //       reading: String(item.reading || "").replace(/[a-zA-Z\s]/g, ""),
-          //       english: String(item.english || "").trim(),
-          //       partOfSpeech: String(item.partOfSpeech || "noun")
-          //         .trim()
-          //         .toLowerCase(),
-          //       exampleSentence: item.exampleSentence || { jp: "", en: "" },
-          //       creator_id: user.id,
-          //     })),
-          //     { onConflict: "japanese" },
-          //   )
-          //   .select("*");
-
-          const { data: newCards, error: mErr } = await supabase
+          // Second existing-card check against Gemini's normalized dictionary-form words.
+          // Catches cards that were missed by the first check (e.g. whole-text paste input).
+          const geminiWords = deduplicatedItems.map((i) => i.japanese);
+          const { data: alreadyInMaster } = await supabase
             .from("master_cards")
-            .upsert(deduplicatedItems, { onConflict: "japanese" }) // Japanese is the unique constraint
-            .select("*");
+            .select("*")
+            .in("japanese", geminiWords);
 
-          if (mErr) throw mErr;
-          if (newCards) {
-            allProcessedCards = [...allProcessedCards, ...newCards];
-            await performLinking(newCards.map((c) => c.id));
+          const alreadyInMasterMap = new Map((alreadyInMaster ?? []).map((c) => [c.japanese, c]));
+
+          // Link already-existing cards without overwriting their data
+          if (alreadyInMaster && alreadyInMaster.length > 0) {
+            allProcessedCards = [...allProcessedCards, ...alreadyInMaster];
+            await performLinking(alreadyInMaster.map((c) => c.id));
+            alreadyInMaster.forEach((c) => succeededWords.add(c.japanese));
+          }
+
+          // Only upsert words that are truly new to master_cards
+          const trulyNewItems = deduplicatedItems.filter((i) => !alreadyInMasterMap.has(i.japanese));
+          if (trulyNewItems.length > 0) {
+            const { data: newCards, error: mErr } = await supabase
+              .from("master_cards")
+              .upsert(trulyNewItems, { onConflict: "japanese" })
+              .select("*");
+
+            if (mErr) throw mErr;
+            if (newCards) {
+              allProcessedCards = [...allProcessedCards, ...newCards];
+              await performLinking(newCards.map((c) => c.id));
+              newCards.forEach((c) => succeededWords.add(c.japanese));
+            }
           }
           wordsForAI.forEach((w) => succeededWords.add(w));
         } catch (aiErr: any) {
