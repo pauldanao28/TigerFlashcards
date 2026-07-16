@@ -57,8 +57,6 @@ export default function Auth() {
       });
       error = signUpError;
       if (!error && data.user) {
-        localStorage.setItem("show_first_timer_hint", "true");
-
         // --- REFERRAL LOGIC START ---
         const refName = localStorage.getItem("tg_referrer");
         if (refName) {

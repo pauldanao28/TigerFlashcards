@@ -89,7 +89,7 @@ export default function OnboardingModal({
       const { data, error: fetchError } = await supabase
         .from("profiles")
         .select("id")
-        .eq("full_name", trimmedName)
+        .ilike("full_name", trimmedName)
         .maybeSingle();
 
       if (fetchError) throw fetchError;
@@ -154,7 +154,10 @@ export default function OnboardingModal({
           cardIds.map((id) => ({
             user_id: userId,
             card_id: id,
-            scores_json: { jp_to_en: { percent: 0 }, en_to_jp: { percent: 0 } },
+            scores_json: {
+              jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
+              en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
+            },
           })),
         ),
       ]);
@@ -196,7 +199,7 @@ export default function OnboardingModal({
         })
         .eq("id", userId);
 
-      onComplete(false);
+      localStorage.setItem("show_first_timer_hint", "true");
       router.push("/stats");
     } catch (err) {
       showAlert("Initialization failed.");

@@ -587,7 +587,7 @@ export default function StudyView() {
       const updatedStats = {
         ...stats,
         pass: nextPass,
-        fail: !isPass ? stats.fail + 1 : stats.fail,
+        fail: !isPass ? (stats.fail || 0) + 1 : (stats.fail || 0),
         total: nextTotal,
         percent: nextPercent,
       };
