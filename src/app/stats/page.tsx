@@ -1440,39 +1440,6 @@ export default function StatsPage() {
               }}
             />
 
-            {/* --- THE STREAK CARD --- */}
-            {/* Daily login streak lives on the home Dashboard already; this card shows only
-                the best-session-combo streak, which is unique to this page. */}
-            <div className="col-span-2 md:col-span-1 bg-gradient-to-br from-orange-500 to-red-600 p-5 rounded-[2rem] shadow-lg flex items-center text-white overflow-hidden">
-              <div className="flex flex-1 items-center justify-around sm:justify-start">
-                {/* BEST SESSION STREAK */}
-                <div className="flex flex-col items-center sm:items-start">
-                  <p className="text-white/70 text-[9px] sm:text-[10px] font-black uppercase tracking-widest mb-1 whitespace-nowrap">
-                    {t.best_streak}
-                  </p>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-2xl sm:text-xl font-black italic leading-none">
-                      {maxStreak}
-                    </span>
-                    <span className="text-[10px] not-italic uppercase opacity-80 font-bold">
-                      {t.passes}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Section: Icon */}
-              <motion.div
-                className="ml-2 sm:ml-4 flex-shrink-0 cursor-pointer select-none"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.8, rotate: -10 }}
-              >
-                <span className="inline-block text-4xl sm:text-3xl animate-fire">
-                  🔥
-                </span>
-              </motion.div>
-            </div>
-
             {/* Directional Comparison Dashboard */}
             <div className="col-span-2 md:col-span-3 bg-slate-800 rounded-[2.5rem] p-6 text-white shadow-xl border border-slate-700 relative overflow-hidden">
               {/* Subtle Background Decoration */}

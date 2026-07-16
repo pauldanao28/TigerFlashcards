@@ -13,6 +13,7 @@ const DAILY_GOAL = 10;
 interface ProfileScores {
   name: string | null;
   streak: number;
+  max_streak: number;
   daily_count: number;
   vocab_score: number | null;
   reading_score: number | null;
@@ -154,7 +155,7 @@ export default function Dashboard() {
       const [profileRes, deckRes, reviewRes] = await Promise.all([
         supabase
           .from("profiles")
-          .select("full_name, streak_count, reading_score, listening_score, grammar_score")
+          .select("full_name, streak_count, max_streak, reading_score, listening_score, grammar_score")
           .eq("id", user.id)
           .single(),
         supabase.from("decks").select("id").eq("user_id", user.id).eq("is_default", true).single(),
@@ -278,6 +279,7 @@ export default function Dashboard() {
       const fresh: ProfileScores = {
         name: p?.full_name ?? null,
         streak: p?.streak_count ?? 0,
+        max_streak: p?.max_streak ?? 0,
         daily_count: reviewRes.data?.count ?? 0,
         vocab_score: vocabScore,
         reading_score: p?.reading_score ?? null,
@@ -302,7 +304,7 @@ export default function Dashboard() {
     return <LoadingScreen />;
   }
 
-  const { name, streak, daily_count } = data;
+  const { name, streak, max_streak, daily_count } = data;
   const h = new Date().getHours();
   const greeting = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 
@@ -331,6 +333,12 @@ export default function Dashboard() {
             <span className="inline-flex items-center gap-1.5 bg-orange-50 border border-orange-100 px-3 py-1 rounded-full">
               <span>🔥</span>
               <span className="text-[10px] font-black text-orange-600">{streak} day streak</span>
+            </span>
+          )}
+          {max_streak > 0 && (
+            <span className="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-100 px-3 py-1 rounded-full">
+              <span>⚡</span>
+              <span className="text-[10px] font-black text-amber-600">{max_streak} best passes</span>
             </span>
           )}
           {/* Daily goal ring */}
