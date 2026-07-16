@@ -123,7 +123,7 @@ export default function StatsPage() {
   };
 
   const fetchStarterPacks = async () => {
-    const { data, error } = await supabase.from("starter_packs").select("*"); // Fetches id, name, description, card_data, etc.
+    const { data, error } = await supabase.from("starter_packs").select("*").order("created_at"); // Fetches id, name, description, card_data, etc.
     if (data) setStarterPacks(data);
   };
 
