@@ -715,7 +715,11 @@ export default function StatsPage() {
       setShowBatch(false);
     } catch (e: any) {
       console.error("ProcessWords Error:", e);
-      showAlert(`Major Error: ${e.message}`);
+      showAlert(
+        e.message === "AI Limit Reached"
+          ? "Daily word-generation limit reached — come back tomorrow to add more!"
+          : `Something went wrong: ${e.message}`
+      );
     } finally {
       setLoading(false);
     }

@@ -619,7 +619,7 @@ export default function AdminChat({ userId }: { userId: string }) {
         // discard the words that already succeeded above; those still get flushed below.
         try {
           const res = await authedFetch("/api/generate", { method: "POST", body: JSON.stringify({ words: wordsForAI }) });
-          if (!res.ok) throw new Error("AI error");
+          if (!res.ok) throw new Error(res.status === 429 ? "LIMIT_REACHED" : "AI error");
           const items = await res.json();
           const itemsArray = Array.isArray(items) ? items : [items];
           const seen = new Set<string>();
@@ -632,6 +632,9 @@ export default function AdminChat({ userId }: { userId: string }) {
           wordsForAI.forEach(w => succeededWords.add(w));
         } catch (aiErr) {
           console.error("AI step failed:", aiErr);
+          if (aiErr instanceof Error && aiErr.message === "LIMIT_REACHED") {
+            setErrorMsg("Daily word-generation limit reached — words already in the library were still added. New ones will sync tomorrow.");
+          }
         }
       }
     } catch (err) {

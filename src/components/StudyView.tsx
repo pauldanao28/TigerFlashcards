@@ -9,6 +9,7 @@ import { calculateGlobalStats } from "@/lib/stats";
 import { processReferral } from "@/lib/social";
 import { rollingAvg, vocabMastery, JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
 import { authedFetch } from "@/lib/authedFetch";
+import { useAppAlert } from "@/context/AlertContext";
 
 import Auth from "@/components/Auth";
 import Logo from "@/components/Logo";
@@ -106,6 +107,8 @@ function getNextPriorityCard(
 
 export default function StudyView() {
   const { user, loading } = useAuth();
+  const { showAlert } = useAppAlert();
+  const shownGenerateLimitAlertRef = useRef(false);
   // --- 1. State Management ---
   const [hasOnboarded, setHasOnboarded] = useState<boolean | null>(null);
 
@@ -777,6 +780,13 @@ export default function StudyView() {
             method: "POST",
             body: JSON.stringify({ words: [currentCard.japanese] }),
           });
+          if (!res.ok) {
+            if (res.status === 429 && !shownGenerateLimitAlertRef.current) {
+              shownGenerateLimitAlertRef.current = true;
+              showAlert("Daily word-generation limit reached — this card (and any others) will sync automatically tomorrow.");
+            }
+            return;
+          }
           const data = await res.json();
           const fetched = Array.isArray(data) ? data[0] : data;
 

@@ -7,6 +7,7 @@ import { speak } from "@/lib/tts";
 import { levelQuizScore, jlptLevel } from "@/lib/scoring";
 import { authedFetch } from "@/lib/authedFetch";
 import { getTodayUsage, AiUsageInfo } from "@/lib/aiUsage";
+import { useAppAlert } from "@/context/AlertContext";
 
 interface QuizCard {
   id: string;
@@ -146,6 +147,7 @@ function HighlightedSentence({ sentence, word, reading, onWordTap }: { sentence:
 }
 
 export default function SentenceQuiz({ userId, isAdmin = false, onClose }: SentenceQuizProps) {
+  const { showAlert } = useAppAlert();
   const [phase, setPhase] = useState<"intro" | "loading" | "quiz" | "done">("intro");
   const [focusWeak, setFocusWeak] = useState(true);
   const [starting, setStarting] = useState(false);
@@ -458,7 +460,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
       if (wordsForAI.length > 0) {
         try {
           const res = await authedFetch("/api/generate", { method: "POST", body: JSON.stringify({ words: wordsForAI }) });
-          if (!res.ok) throw new Error("AI error");
+          if (!res.ok) throw new Error(res.status === 429 ? "LIMIT_REACHED" : "AI error");
           const items = await res.json();
           const itemsArray = Array.isArray(items) ? items : [items];
           const seen = new Set<string>();
@@ -471,6 +473,9 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
           wordsForAI.forEach(w => succeededWords.add(w));
         } catch (aiErr) {
           console.error("AI step failed:", aiErr);
+          if (aiErr instanceof Error && aiErr.message === "LIMIT_REACHED") {
+            showAlert("Daily word-generation limit reached — words already in the library were still added. New ones will sync tomorrow.");
+          }
         }
       }
     } catch (err) {

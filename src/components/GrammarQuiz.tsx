@@ -6,6 +6,7 @@ import { speak } from "@/lib/tts";
 import { grammarPatternScore, dailySessionWeight, jlptLevel } from "@/lib/scoring";
 import { authedFetch } from "@/lib/authedFetch";
 import { getTodayUsage, AiUsageInfo } from "@/lib/aiUsage";
+import { useAppAlert } from "@/context/AlertContext";
 
 const GRAMMAR_DAILY_KEY = "flashkado-grammar-quiz-daily";
 function getGrammarDailyCount(): number {
@@ -122,6 +123,7 @@ function TappableText({ text, keyPrefix, onWordTap }: { text: string; keyPrefix:
 }
 
 export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
+  const { showAlert } = useAppAlert();
   const [phase, setPhase] = useState<Phase>("intro");
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -363,7 +365,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
       if (wordsForAI.length > 0) {
         try {
           const res = await authedFetch("/api/generate", { method: "POST", body: JSON.stringify({ words: wordsForAI }) });
-          if (!res.ok) throw new Error("AI error");
+          if (!res.ok) throw new Error(res.status === 429 ? "LIMIT_REACHED" : "AI error");
           const items = await res.json();
           const itemsArray = Array.isArray(items) ? items : [items];
           const seen = new Set<string>();
@@ -376,6 +378,9 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
           wordsForAI.forEach(w => succeededWords.add(w));
         } catch (aiErr) {
           console.error("AI step failed:", aiErr);
+          if (aiErr instanceof Error && aiErr.message === "LIMIT_REACHED") {
+            showAlert("Daily word-generation limit reached — words already in the library were still added. New ones will sync tomorrow.");
+          }
         }
       }
     } catch (err) {
