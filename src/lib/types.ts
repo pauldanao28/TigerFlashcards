@@ -13,7 +13,6 @@ export interface MasterCard {
     en: string;
   };
   alternatives?: string[];
-  contextNote?: string;
   is_public: boolean;
   created_at: string;
 }

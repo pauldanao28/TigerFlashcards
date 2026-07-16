@@ -46,7 +46,6 @@ Output ONLY raw JSON as an ARRAY of objects:
     "partOfSpeech": "noun",
     "jlpt_level": "N5",
     "alternatives": [],
-    "contextNote": "...",
     "exampleSentence": { "jp": "...", "en": "..." }
   }
 ]`;
