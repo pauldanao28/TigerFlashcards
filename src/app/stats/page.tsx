@@ -2455,15 +2455,15 @@ export default function StatsPage() {
           <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 flex flex-col max-h-[80vh] overflow-hidden">
               {/* Header */}
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                <div>
+              <div className="p-6 border-b border-slate-100 flex justify-between items-start gap-3 bg-slate-50/50">
+                <div className="min-w-0">
                   <h2 className="text-xl font-black text-slate-800 uppercase italic tracking-tighter">
                     {t.words_added}
                   </h2>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                    {addedWordsSummary.filter(w => !w.alreadyInDeck).length} new
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1 flex flex-wrap gap-x-1">
+                    <span>{addedWordsSummary.filter(w => !w.alreadyInDeck).length} new</span>
                     {addedWordsSummary.some(w => w.alreadyInDeck) && (
-                      <span className="ml-1 text-teal-500">· {addedWordsSummary.filter(w => w.alreadyInDeck).length} already in deck</span>
+                      <span className="text-teal-500 whitespace-nowrap">· {addedWordsSummary.filter(w => w.alreadyInDeck).length} already in deck</span>
                     )}
                   </p>
 
@@ -2497,27 +2497,27 @@ export default function StatsPage() {
                     </div>
 
                     {/* 2. CENTER: Content Info */}
-                    <div className="flex-1 flex flex-col text-left">
+                    <div className="flex-1 min-w-0 flex flex-col text-left">
                       <div className="flex items-baseline gap-2 flex-wrap">
-                        <span className="text-lg font-black text-slate-800">
+                        <span className="text-lg font-black text-slate-800 truncate">
                           {word.japanese}
                         </span>
-                        <span className="text-xs font-bold text-rose-500 uppercase tracking-tighter">
+                        <span className="text-xs font-bold text-rose-500 uppercase tracking-tighter shrink-0 whitespace-nowrap">
                           {word.reading}
                         </span>
                       </div>
 
-                      <p className="text-sm text-slate-600 font-medium mt-0.5 leading-tight pr-10">
+                      <p className="text-sm text-slate-600 font-medium mt-0.5 leading-tight pr-8 truncate">
                         {word.english}
                       </p>
 
                       {/* Meta Tags */}
-                      <div className="mt-2 flex gap-2 flex-wrap">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
+                      <div className="mt-2 flex gap-1.5 flex-wrap">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md whitespace-nowrap">
                           {word.partOfSpeech}
                         </span>
                         {word.alreadyInDeck && (
-                          <span className="text-[9px] font-black uppercase tracking-widest text-teal-600 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-teal-600 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md whitespace-nowrap">
                             Already in deck
                           </span>
                         )}
