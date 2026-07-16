@@ -1309,6 +1309,14 @@ export default function StatsPage() {
                   </button>
                 </div>
               </div>
+              <div className="mt-8 pt-6 border-t border-slate-100">
+                <button
+                  onClick={handleLogout}
+                  className="w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all active:scale-95"
+                >
+                  {t.signout}
+                </button>
+              </div>
               </div>
             </div>
           )}
@@ -1377,25 +1385,12 @@ export default function StatsPage() {
               {/* UTILITY ROW: Study & Logout */}
               <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
                 <Link
-                  href="/study/kana"
-                  className="flex-1 md:flex-none md:px-5 bg-emerald-50 py-3 rounded-2xl shadow-sm font-bold text-emerald-700 border border-emerald-100 hover:bg-emerald-100 transition-all text-sm whitespace-nowrap flex items-center justify-center gap-2"
-                >
-                  <span className="text-lg">あ</span> {t.study_kana}
-                </Link>
-
-                <Link
                   href="/minigames/focus"
                   className="flex-1 md:flex-none md:px-5 bg-indigo-50 py-3 rounded-2xl shadow-sm font-bold text-indigo-700 border border-indigo-100 hover:bg-indigo-100 transition-all text-sm whitespace-nowrap flex items-center justify-center gap-2"
                 >
                   <span className="text-lg">🎮</span> {t.mini_games}
                 </Link>
 
-                <button
-                  onClick={handleLogout}
-                  className="flex-1 md:flex-none md:px-5 bg-rose-50 py-3 rounded-2xl shadow-sm font-bold text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all text-sm whitespace-nowrap flex items-center justify-center"
-                >
-                  {t.signout}
-                </button>
               </div>
 
               {/* ADMIN ROW */}
