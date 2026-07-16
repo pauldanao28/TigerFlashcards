@@ -6,6 +6,7 @@ import { X, Loader2, List, Volume2, ChevronLeft } from "lucide-react";
 import { speak } from "@/lib/tts";
 import { levelQuizScore, jlptLevel } from "@/lib/scoring";
 import { authedFetch } from "@/lib/authedFetch";
+import { getTodayUsage, AiUsageInfo } from "@/lib/aiUsage";
 
 interface QuizCard {
   id: string;
@@ -48,24 +49,6 @@ interface SentenceQuizProps {
   userId: string;
   isAdmin?: boolean;
   onClose: () => void;
-}
-
-const QUIZ_DAILY_LIMIT = 5;
-const QUIZ_DAILY_KEY = "flashkado-quiz-daily";
-
-function getDailyCount(): number {
-  const today = new Date().toLocaleDateString("en-CA");
-  try {
-    const s = localStorage.getItem(QUIZ_DAILY_KEY);
-    if (!s) return 0;
-    const { date, count } = JSON.parse(s);
-    return date === today ? (count as number) : 0;
-  } catch { return 0; }
-}
-
-function incrementDailyCount(): void {
-  const today = new Date().toLocaleDateString("en-CA");
-  localStorage.setItem(QUIZ_DAILY_KEY, JSON.stringify({ date: today, count: getDailyCount() + 1 }));
 }
 
 type WordTapHandler = (word: string, reading: string, e: React.MouseEvent | React.TouchEvent) => void;
@@ -176,6 +159,13 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
   const [backConfirm, setBackConfirm] = useState(false);
   const [skillScore, setSkillScore] = useState<{ from: number; to: number } | null>(null);
   const [animatedScore, setAnimatedScore] = useState(0);
+  const [usage, setUsage] = useState<AiUsageInfo | null>(null);
+
+  const refreshUsage = useCallback(() => {
+    getTodayUsage(userId, "quiz_sentences").then(setUsage);
+  }, [userId]);
+
+  useEffect(() => { refreshUsage(); }, [refreshUsage]);
 
   useEffect(() => {
     if (!skillScore) return;
@@ -266,15 +256,14 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
 
   const load = useCallback(async () => {
     if (loadingRef.current) return;
-    if (!isAdmin && getDailyCount() >= QUIZ_DAILY_LIMIT) {
-      setError(`Daily limit reached — ${QUIZ_DAILY_LIMIT} quizzes per day. Come back tomorrow!`);
+    if (!isAdmin && usage != null && usage.remaining <= 0) {
+      setError(`Daily limit reached — ${usage.limit} quizzes per day. Come back tomorrow!`);
       setPhase("loading"); // show error state (error takes priority in render)
       return;
     }
     setTooltip(null);
     loadingRef.current = true;
     scoringRef.current = false;
-    if (!isAdmin) incrementDailyCount();
     setPhase("loading");
     setCurrentIdx(0);
     setResults([]);
@@ -328,7 +317,11 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to generate sentences");
+      refreshUsage();
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Failed to generate sentences");
+      }
       const { sentences } = await res.json();
 
       // Index by the numeric id the API echoes back — immune to word-form mismatches.
@@ -367,7 +360,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
     } finally {
       loadingRef.current = false;
     }
-  }, [userId, focusWeak]);
+  }, [userId, focusWeak, isAdmin, usage, refreshUsage]);
 
   // ── Tap a kanji word → tooltip with Jisho lookup, same as the Sensei chat ────
   const handleWordClick = useCallback((word: string, reading: string, e: React.MouseEvent | React.TouchEvent) => {
@@ -572,7 +565,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
             <span className="font-black text-[11px] uppercase tracking-widest text-slate-700">Sentence Quiz</span>
             {!isAdmin && (
               <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 ml-1">
-                {Math.max(0, QUIZ_DAILY_LIMIT - getDailyCount())}/{QUIZ_DAILY_LIMIT} left today
+                {usage?.remaining ?? '…'}/{usage?.limit ?? 15} left today
               </span>
             )}
           </div>
@@ -621,12 +614,12 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">20 questions · ~5–10 min</p>
           {!isAdmin && (
             <p className="text-slate-300 font-black uppercase tracking-widest text-[10px]">
-              {Math.max(0, QUIZ_DAILY_LIMIT - getDailyCount())}/{QUIZ_DAILY_LIMIT} quizzes left today
+              {usage?.remaining ?? '…'}/{usage?.limit ?? 15} quizzes left today
             </p>
           )}
           <button
             onClick={() => { setStarting(true); load(); }}
-            disabled={starting || (!isAdmin && getDailyCount() >= QUIZ_DAILY_LIMIT)}
+            disabled={starting || (!isAdmin && usage != null && usage.remaining <= 0)}
             className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all shadow-sm disabled:opacity-40 flex items-center justify-center gap-2"
           >
             {starting ? <Loader2 size={14} className="animate-spin" /> : null}
@@ -643,7 +636,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
           <p className="text-slate-300 font-bold text-[10px]">Please wait, this can take a few seconds</p>
           {!isAdmin && (
             <p className="text-slate-300 font-black uppercase tracking-widest text-[10px] mt-1">
-              {Math.max(0, QUIZ_DAILY_LIMIT - getDailyCount())}/{QUIZ_DAILY_LIMIT} quizzes left today
+              {usage?.remaining ?? '…'}/{usage?.limit ?? 15} quizzes left today
             </p>
           )}
         </div>
@@ -823,7 +816,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
 
           {!isAdmin && (
             <p className="text-slate-300 font-black uppercase tracking-widest text-[10px] mb-4">
-              {Math.max(0, QUIZ_DAILY_LIMIT - getDailyCount())}/{QUIZ_DAILY_LIMIT} quizzes left today
+              {usage?.remaining ?? '…'}/{usage?.limit ?? 15} quizzes left today
             </p>
           )}
 
@@ -834,7 +827,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
             >
               Done
             </button>
-            {(!isAdmin && getDailyCount() >= QUIZ_DAILY_LIMIT) ? (
+            {(!isAdmin && usage != null && usage.remaining <= 0) ? (
               <div className="flex-1 py-4 bg-slate-100 text-slate-400 rounded-2xl font-black uppercase tracking-widest text-[10px] text-center">
                 Limit reached
               </div>

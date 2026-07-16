@@ -5,6 +5,7 @@ import { X, ChevronLeft, Loader2, List, Volume2 } from "lucide-react";
 import { speak } from "@/lib/tts";
 import { grammarPatternScore, dailySessionWeight, jlptLevel } from "@/lib/scoring";
 import { authedFetch } from "@/lib/authedFetch";
+import { getTodayUsage, AiUsageInfo } from "@/lib/aiUsage";
 
 const GRAMMAR_DAILY_KEY = "flashkado-grammar-quiz-daily";
 function getGrammarDailyCount(): number {
@@ -135,6 +136,11 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
   const [currentLevel, setCurrentLevel] = useState<JlptLevel>("N5");
   const [levelProgress, setLevelProgress] = useState<{ mastered: number; total: number }>({ mastered: 0, total: 0 });
   const [skillScore, setSkillScore] = useState<{ from: number; to: number } | null>(null);
+  const [usage, setUsage] = useState<AiUsageInfo | null>(null);
+  const refreshUsage = useCallback(() => {
+    getTodayUsage(userId, "quiz_grammar").then(setUsage);
+  }, [userId]);
+  useEffect(() => { refreshUsage(); }, [refreshUsage]);
   const [animatedScore, setAnimatedScore] = useState(0);
 
   useEffect(() => {
@@ -452,6 +458,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
         method: "POST",
         body: JSON.stringify({ patterns: pool }),
       });
+      refreshUsage();
       const data = await res.json();
       if (Array.isArray(data.questions) && data.questions.length > 0) {
         setQuestions(data.questions.slice(0, PATTERNS_PER_ROUND));
@@ -463,7 +470,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
         setWritingSubmitted(false);
         setPhase("quiz");
       } else {
-        setError("Failed to generate quiz. Please try again.");
+        setError(data.error || "Failed to generate quiz. Please try again.");
         setPhase("intro");
       }
     } catch {
@@ -556,9 +563,11 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
               Unseen and weak patterns are always prioritised. Tap any kanji to look it up.
             </p>
           </div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">20 questions · ~10 min</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+            20 questions · ~10 min · {usage?.remaining ?? '…'}/{usage?.limit ?? 15} rounds left today
+          </p>
           {error && <p className="text-red-500 font-bold text-xs">{error}</p>}
-          <button onClick={load} disabled={starting}
+          <button onClick={load} disabled={starting || (usage != null && usage.remaining <= 0)}
             className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all shadow-sm disabled:opacity-40 flex items-center justify-center gap-2">
             {starting ? <Loader2 size={14} className="animate-spin" /> : null}
             {starting ? "Please wait…" : "Start Quiz"}

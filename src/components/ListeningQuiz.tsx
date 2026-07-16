@@ -6,6 +6,7 @@ import { X, Loader2, List, Volume2, ChevronLeft, Ear } from "lucide-react";
 import { speak, playTTS, stopTTS } from "@/lib/tts";
 import { levelQuizScore, jlptLevel } from "@/lib/scoring";
 import { authedFetch } from "@/lib/authedFetch";
+import { getTodayUsage, AiUsageInfo } from "@/lib/aiUsage";
 
 interface ListeningQuestion {
   word: string;
@@ -161,6 +162,11 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
   const [backConfirm, setBackConfirm] = useState(false);
   const [skillScore, setSkillScore] = useState<{ from: number; to: number } | null>(null);
   const [animatedScore, setAnimatedScore] = useState(0);
+  const [usage, setUsage] = useState<AiUsageInfo | null>(null);
+  const refreshUsage = useCallback(() => {
+    getTodayUsage(userId, "quiz_listening").then(setUsage);
+  }, [userId]);
+  useEffect(() => { refreshUsage(); }, [refreshUsage]);
 
   useEffect(() => {
     if (!skillScore) return;
@@ -304,7 +310,11 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
         method: "POST",
         body: JSON.stringify({ count: QUESTIONS_PER_ROUND, difficulty: listeningScoreRef.current, recentMistakes: recentMistakesRef.current, weakWords }),
       });
-      if (!res.ok) throw new Error("Failed to generate listening quiz");
+      refreshUsage();
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Failed to generate listening quiz");
+      }
       const { questions: qs } = await res.json();
       if (!Array.isArray(qs) || qs.length === 0) throw new Error("No questions generated");
 
@@ -315,7 +325,7 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
     } finally {
       loadingRef.current = false;
     }
-  }, [isAdmin, focusWeak]);
+  }, [isAdmin, focusWeak, refreshUsage]);
 
   // ── Tap a kanji word → tooltip with Jisho lookup, same as the Sensei chat ────
   const handleWordClick = useCallback((word: string, reading: string, e: React.MouseEvent | React.TouchEvent) => {
@@ -553,10 +563,12 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
               {focusWeak ? "🎯 Weak cards" : "🎲 Random"}
             </button>
           </div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">20 questions · ~10–15 min</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+            20 questions · ~10–15 min · {usage?.remaining ?? '…'}/{usage?.limit ?? 15} rounds left today
+          </p>
           <button
             onClick={() => { setStarting(true); load(); }}
-            disabled={starting}
+            disabled={starting || (!isAdmin && usage != null && usage.remaining <= 0)}
             className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all shadow-sm disabled:opacity-40 flex items-center justify-center gap-2"
           >
             {starting ? <Loader2 size={14} className="animate-spin" /> : null}

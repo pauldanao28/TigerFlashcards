@@ -8,6 +8,7 @@ import { speak, playTTS, stopTTS, getVoice, setVoice, VOICE_OPTIONS, VoiceId } f
 import { rollingAvg } from "@/lib/scoring";
 import { useAppAlert } from "@/context/AlertContext";
 import { authedFetch } from "@/lib/authedFetch";
+import { getTodayUsage, AiUsageInfo } from "@/lib/aiUsage";
 
 function uuid(): string {
   try { return self.crypto.randomUUID(); } catch { /* fall through */ }
@@ -154,6 +155,11 @@ export default function AdminChat({ userId }: { userId: string }) {
   const [profile, setProfile] = useState<SenseiProfile | null>(null);
   const [wordList, setWordList] = useState<string[]>([]);
   const wordListLoadedRef = useRef(false);
+  const [chatUsage, setChatUsage] = useState<AiUsageInfo | null>(null);
+  const refreshChatUsage = useCallback(() => {
+    getTodayUsage(userId, "chat").then(setChatUsage);
+  }, [userId]);
+  useEffect(() => { refreshChatUsage(); }, [refreshChatUsage]);
   const [showList, setShowList] = useState(false);
   const [batchAdding, setBatchAdding] = useState(false);
   const [addedSummary, setAddedSummary] = useState<any[]>([]);
@@ -486,9 +492,10 @@ export default function AdminChat({ userId }: { userId: string }) {
         method: "POST",
         body: JSON.stringify({ messages: updated.slice(-20), profile, persona: activePersona, pendingWords: activeScenario === "drill" ? wordList : [], weakCards, scenario: getActiveScenario() }),
       });
+      refreshChatUsage();
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || `HTTP ${res.status}`);
+        throw new Error(err.error || err.detail || `HTTP ${res.status}`);
       }
       const data = await res.json();
       if (!data.content) throw new Error("Empty response");
@@ -1255,13 +1262,15 @@ export default function AdminChat({ userId }: { userId: string }) {
             spellCheck={false}
             className="flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-colors overflow-y-auto"
             style={{ maxHeight: "10rem" }} />
-          <button onClick={sendMessage} disabled={!input.trim() || loading || messagesLoading}
+          <button onClick={sendMessage} disabled={!input.trim() || loading || messagesLoading || (chatUsage != null && chatUsage.remaining <= 0)}
             className="bg-indigo-600 text-white w-12 h-12 rounded-2xl flex items-center justify-center hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
             <Send size={16} />
           </button>
         </div>
         <p className="text-center text-[10px] text-slate-300 mt-2 font-medium uppercase tracking-widest">
-          Tap underlined kanji · Add to deck
+          {chatUsage != null && chatUsage.remaining <= 0
+            ? "Daily message limit reached — come back tomorrow!"
+            : <>Tap underlined kanji · Add to deck · {chatUsage?.remaining ?? '…'}/{chatUsage?.limit ?? 80} messages left today</>}
         </p>
       </div>
     </div>

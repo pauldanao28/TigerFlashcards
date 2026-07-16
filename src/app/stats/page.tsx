@@ -84,6 +84,7 @@ export default function StatsPage() {
   const [triage, setTriage] = useState<{ packName: string; cards: TriageCard[] } | null>(null);
   const [swipeOnly, setSwipeOnly] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [feedbackForm, setFeedbackForm] = useState({
     type: "feedback",
@@ -307,7 +308,7 @@ export default function StatsPage() {
     const { data } = await supabase
       .from("profiles")
       .select(
-        "full_name, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, sfx_enabled, swipe_only, imported_packs, is_admin",
+        "full_name, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, sfx_enabled, swipe_only, imported_packs, is_admin, is_premium",
       )
       .eq("id", user?.id)
       .single();
@@ -321,6 +322,7 @@ export default function StatsPage() {
       setSwipeOnly(data.swipe_only ?? false);
       setOwnedPacks(data.imported_packs);
       setIsAdmin(data.is_admin);
+      setIsPremium(data.is_premium ?? false);
       setProfileName(data.full_name);
     }
   };
@@ -1039,11 +1041,16 @@ export default function StatsPage() {
                 {profileName || user?.user_metadata?.full_name || ""}
               </h1>
 
-              <div className="flex items-center mt-1.5">
+              <div className="flex items-center gap-1.5 mt-1.5">
                 <span className="px-2.5 py-0.5 bg-slate-800 text-white rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-sm">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                   {t.status_online}
                 </span>
+                {isPremium && (
+                  <span className="px-2.5 py-0.5 bg-gradient-to-r from-amber-400 to-yellow-500 text-white rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm">
+                    ✨ Premium
+                  </span>
+                )}
               </div>
             </div>
           </div>

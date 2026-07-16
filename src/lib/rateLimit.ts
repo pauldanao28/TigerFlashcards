@@ -1,4 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
+import { AI_DAILY_LIMITS, AI_DAILY_LIMITS_PREMIUM, AiEndpoint } from "@/lib/aiLimits";
+
+export { AI_DAILY_LIMITS, AI_DAILY_LIMITS_PREMIUM };
+export type { AiEndpoint };
 
 // Server-side (service role) client — rate limit writes never go through the
 // user's own RLS-scoped client, since we need to read/write regardless of the
@@ -8,20 +12,6 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Daily caps per AI-cost endpoint. Tune here — nothing else needs to change.
-// generate/tts are counted by volume (words generated / characters spoken);
-// the rest are counted per round/message, matching how they're actually billed.
-export const AI_DAILY_LIMITS = {
-  generate: 200,        // words card-generated per day
-  chat: 80,              // sensei messages per day
-  tts: 400,               // audio clips played per day (fires on every card flip)
-  quiz_grammar: 15,       // grammar quiz rounds per day
-  quiz_sentences: 15,     // reading quiz rounds per day
-  quiz_listening: 15,     // listening quiz rounds per day
-} as const;
-
-export type AiEndpoint = keyof typeof AI_DAILY_LIMITS;
-
 interface RateLimitResult {
   allowed: boolean;
   limit: number;
@@ -29,23 +19,26 @@ interface RateLimitResult {
 }
 
 // Atomically records usage and reports whether this request should be allowed.
-// Admins are exempt (matches the existing !isAdmin checks already used for the
-// old client-side quiz limits).
+// Admins are fully exempt (internal/dev accounts). Premium gets a higher
+// ceiling (AI_DAILY_LIMITS_PREMIUM), not a bypass — still tracked and capped,
+// just generously, since even a paying user could otherwise be scripted for
+// more cost than their subscription covers.
 export async function checkAndRecordUsage(
   userId: string,
   endpoint: AiEndpoint,
   amount: number = 1
 ): Promise<RateLimitResult> {
-  const limit = AI_DAILY_LIMITS[endpoint];
-
   const { data: profile } = await supabaseAdmin
     .from("profiles")
-    .select("is_admin")
+    .select("is_admin, is_premium")
     .eq("id", userId)
     .maybeSingle();
+
   if (profile?.is_admin) {
-    return { allowed: true, limit, used: 0 };
+    return { allowed: true, limit: AI_DAILY_LIMITS[endpoint], used: 0 };
   }
+
+  const limit = profile?.is_premium ? AI_DAILY_LIMITS_PREMIUM[endpoint] : AI_DAILY_LIMITS[endpoint];
 
   const { data, error } = await supabaseAdmin.rpc("increment_ai_usage", {
     p_user_id: userId,
