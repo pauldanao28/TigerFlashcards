@@ -1358,7 +1358,7 @@ export default function StudyView() {
           </div>
         </div>
         {/* --- 3. MAIN STUDY AREA (PULLED UP FOR MOBILE) --- */}
-        <div className="flex-1 w-full flex flex-col items-center justify-start md:justify-center min-h-0 px-4 pt-10 md:pt-0 gap-2 md:gap-12">
+        <div className="flex-1 w-full flex flex-col items-center justify-start md:justify-center min-h-0 px-4 pt-3 md:pt-0 gap-2 md:gap-12">
           {/* pt-20: This provides a safe "buffer" for the absolute streak 
             on mobile so it doesn't hide under the header. 
         */}
@@ -1472,7 +1472,7 @@ export default function StudyView() {
         2. 'overflow-hidden' + 'rounded-[2.5rem]' is the "Cookie Cutter" that 
            clips the CoachMarks so they can't be longer than the card.
     */}
-              <div className="relative isolate bg-transparent w-full max-w-[80vw] sm:max-w-[360px] aspect-[3/4] rounded-[2.5rem]">
+              <div className="relative isolate bg-transparent w-full max-w-[80vw] sm:max-w-[360px] aspect-[3/4] max-h-[calc(100dvh-320px)] rounded-[2.5rem]">
                 {/* --- COACHMARKS OVERLAY --- */}
                 <AnimatePresence>
                   {showHints && !dataLoading && <CoachMarks />}
