@@ -215,17 +215,21 @@ export default function StroopSwipeGame() {
 
   return (
     // 1. Changed p-6 to p-4 and min-h-[600px] to h-screen to lock the viewport
-    <div className="max-w-md mx-auto p-4 font-sans select-none overflow-hidden h-screen max-h-screen touch-none overscroll-none flex flex-col">
-      {/* Header / Back - Reduced mb-8 to mb-2 */}
-      <Link
-        href="/stats"
-        className="flex items-center gap-1 text-slate-400 hover:text-slate-600 mb-2 transition-colors w-fit"
-      >
-        <ChevronLeft size={20} strokeWidth={3} />
-        <span className="text-xs font-black uppercase tracking-widest">
-          {t.back}
-        </span>
-      </Link>
+    <div className="max-w-md mx-auto font-sans select-none overflow-hidden h-screen max-h-screen touch-none overscroll-none flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 shrink-0">
+        <Link
+          href="/minigames"
+          className="flex items-center gap-0.5 text-slate-400 hover:text-slate-600 transition-colors"
+        >
+          <ChevronLeft size={18} strokeWidth={3} />
+          <span className="text-[10px] font-black uppercase tracking-widest">{t.back}</span>
+        </Link>
+        <span className="font-black text-[11px] uppercase tracking-widest text-slate-400">🎯 Color Focus</span>
+        <div className="w-16" />
+      </div>
+
+      <div className="flex-1 flex flex-col p-4 overflow-hidden">
 
       {/* Score Row - Reduced mb-10 to mb-4 */}
       <div className="flex justify-between mb-4 px-2">
@@ -389,6 +393,7 @@ export default function StroopSwipeGame() {
             </span>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
