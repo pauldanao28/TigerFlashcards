@@ -194,6 +194,7 @@ export default function StudyView() {
   const [autoPlayEn, setAutoPlayEn] = useState(false);
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [swipeOnly, setSwipeOnly] = useState(false);
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const [swipeFeedback, setSwipeFeedback] = useState<{
     percent: number;
@@ -256,6 +257,7 @@ export default function StudyView() {
         setAutoPlayEn(p.auto_play_en ?? false);
         setSfxEnabled(p.sfx_enabled ?? true);
         setSwipeOnly(p.swipe_only ?? false);
+        setPrefsLoaded(true);
         setHasOnboarded(p.has_onboarded);
         setProfileName(p.full_name);
         setIsAdmin(p.is_admin ?? false);
@@ -280,6 +282,8 @@ export default function StudyView() {
         }
 
       }
+
+      if (!profileRes.data) setPrefsLoaded(true); // no profile row → defaults are fine
 
       if (deckRes.data) {
         setDefaultDeckId(deckRes.data.id);
@@ -1567,7 +1571,7 @@ export default function StudyView() {
 
         {/* --- 4. BOTTOM BUTTONS (LOWERED) --- */}
         {/* Wrapper always renders when there's a card so the card anchor above never shifts. */}
-        {!dataLoading && cards.length > 0 && currentCard && (() => {
+        {!dataLoading && prefsLoaded && cards.length > 0 && currentCard && (() => {
           const isNewCard = (currentCard.scores?.jp_to_en?.total ?? 0) === 0 && (currentCard.scores?.en_to_jp?.total ?? 0) === 0;
           const showButtons = !swipeOnly || isNewCard;
           return (
