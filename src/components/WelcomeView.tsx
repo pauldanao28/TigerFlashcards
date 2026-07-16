@@ -77,11 +77,13 @@ export default function WelcomeView() {
 
   const word = DEMO_WORDS[cardIndex % DEMO_WORDS.length];
 
-  // Dashboard count-ups
-  const n5Count       = useCountUp(47,  1500, dashInView);
-  const n4Count       = useCountUp(12,  1200, dashInView);
-  const streakCount   = useCountUp(7,    800, dashInView);
-  const masteredCount = useCountUp(47,  1500, dashInView);
+  // Dashboard count-ups (mock values matching a realistic N5 learner)
+  const streakCount = useCountUp(7,   800,  dashInView);
+  const overallPct  = useCountUp(63, 1400,  dashInView);
+  const vocabPct    = useCountUp(68, 1300,  dashInView);
+  const grammarPct  = useCountUp(52, 1100,  dashInView);
+  const readingPct  = useCountUp(71, 1350,  dashInView);
+  const listenPct   = useCountUp(58, 1200,  dashInView);
 
   // Show sticky bar only after scrolling past the hero CTA
   useEffect(() => {
@@ -276,84 +278,131 @@ export default function WelcomeView() {
             </p>
           </div>
 
-          {/* Mock dashboard */}
-          <div ref={dashRef} className="bg-white rounded-3xl border border-slate-100 shadow-lg overflow-hidden">
+          {/* Mock dashboard — mirrors the real stats page layout */}
+          <div ref={dashRef} className="rounded-3xl border border-slate-100 shadow-lg overflow-hidden">
 
-            {/* Header strip */}
-            <div className="bg-slate-900 px-5 py-4 flex items-center justify-between">
-              <div>
-                <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest">Vocabulary Level</p>
-                <p className="text-white font-black text-xl tracking-tighter">JLPT N5</p>
-              </div>
-              <div className="flex gap-4 text-right">
-                <div>
-                  <p className="text-white font-black text-2xl tabular-nums leading-none">{streakCount}</p>
-                  <p className="text-slate-500 text-[9px] font-black uppercase tracking-widest">Streak 🔥</p>
+            {/* ── Header (white, same as real Dashboard) ── */}
+            <div className="bg-white px-5 pt-5 pb-5">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Good morning</p>
+              <h3 className="text-xl font-black text-slate-900 italic mt-0.5">Satoshi 👋</h3>
+
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 bg-orange-50 border border-orange-100 px-3 py-1 rounded-full">
+                  <span>🔥</span>
+                  <span className="text-[10px] font-black text-orange-600">{streakCount} day streak</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-100 px-3 py-1 rounded-full">
+                  <span>⚡</span>
+                  <span className="text-[10px] font-black text-amber-600">14 best passes</span>
+                </span>
+                {/* Daily goal ring */}
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-slate-50 border-slate-100">
+                  <svg width="28" height="28" viewBox="0 0 36 36" className="-rotate-90">
+                    <circle cx="18" cy="18" r="14" fill="none" strokeWidth="3.5" stroke="#e2e8f0" />
+                    <motion.circle
+                      cx="18" cy="18" r="14" fill="none" strokeWidth="3.5"
+                      stroke="#818cf8" strokeLinecap="round"
+                      strokeDasharray="88 88"
+                      initial={{ strokeDashoffset: 88 }}
+                      animate={{ strokeDashoffset: dashInView ? 26.4 : 88 }}
+                      transition={{ duration: 1.2, ease: "easeOut", delay: 0.3 }}
+                    />
+                  </svg>
+                  <div className="flex flex-col leading-none">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Daily goal</span>
+                    <span className="text-[11px] font-black text-slate-600">7/10</span>
+                  </div>
                 </div>
+              </div>
+
+              {/* Overall level banner — indigo, same as real OverallBanner */}
+              <div className="mt-4 bg-indigo-600 rounded-2xl px-5 py-4 flex items-center justify-between">
                 <div>
-                  <p className="text-white font-black text-2xl tabular-nums leading-none">{masteredCount}</p>
-                  <p className="text-slate-500 text-[9px] font-black uppercase tracking-widest">Mastered ⭐</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Overall Level</p>
+                  <p className="text-4xl font-black text-white mt-0.5">N5</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Avg Score</p>
+                  <p className="text-3xl font-black text-white mt-0.5 tabular-nums">{overallPct}%</p>
                 </div>
               </div>
             </div>
 
-            {/* JLPT bars */}
-            <div className="px-5 py-5 space-y-4">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">JLPT Progress</p>
+            {/* ── Skills + JLPT bars (slate-50 bg, same as real Dashboard body) ── */}
+            <div className="bg-slate-50">
+              <p className="px-5 pt-4 pb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">Your Skills</p>
 
-              {/* N5 */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-black text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">N5</span>
-                  <span className="text-[10px] font-black text-slate-400 tabular-nums">{n5Count} / 800 mastered</span>
-                </div>
-                <div className="h-2.5 bg-emerald-100 rounded-full overflow-hidden">
-                  <motion.div
-                    className="h-full bg-emerald-500 rounded-full"
-                    initial={{ width: 0 }}
-                    animate={{ width: dashInView ? `${(47 / 800) * 100}%` : "0%" }}
-                    transition={{ duration: 1.5, ease: [0.4, 0, 0.2, 1], delay: 0.1 }}
-                  />
-                </div>
-              </div>
-
-              {/* N4 */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-black text-teal-700 bg-teal-100 border border-teal-200 px-2 py-0.5 rounded-full">N4</span>
-                  <span className="text-[10px] font-black text-slate-400 tabular-nums">{n4Count} / 600 mastered</span>
-                </div>
-                <div className="h-2.5 bg-teal-100 rounded-full overflow-hidden">
-                  <motion.div
-                    className="h-full bg-teal-500 rounded-full"
-                    initial={{ width: 0 }}
-                    animate={{ width: dashInView ? `${(12 / 600) * 100}%` : "0%" }}
-                    transition={{ duration: 1.2, ease: [0.4, 0, 0.2, 1], delay: 0.2 }}
-                  />
-                </div>
-              </div>
-
-              {/* N3 locked */}
-              <div className="opacity-25">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-black text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full">N3</span>
-                  <span className="text-[10px] font-black text-slate-400">🔒 Not started</span>
-                </div>
-                <div className="h-2.5 bg-amber-100 rounded-full" />
-              </div>
-
-              {/* Score tiles row */}
-              <div className="grid grid-cols-3 gap-2 pt-1">
+              {/* 2×2 skill tiles */}
+              <div className="px-4 pb-4 grid grid-cols-2 gap-3">
                 {[
-                  { label: "Vocab",     val: "N5", color: "text-emerald-600" },
-                  { label: "Reading",   val: "N5", color: "text-teal-600"    },
-                  { label: "Listening", val: "N5", color: "text-indigo-600"  },
+                  { emoji: "🃏", label: "Vocabulary", displayPct: vocabPct,   targetPct: 68, bar: "bg-orange-400", delay: 0.10 },
+                  { emoji: "📝", label: "Grammar",    displayPct: grammarPct,  targetPct: 52, bar: "bg-amber-400",  delay: 0.18 },
+                  { emoji: "📖", label: "Reading",    displayPct: readingPct,  targetPct: 71, bar: "bg-orange-400", delay: 0.26 },
+                  { emoji: "🎧", label: "Listening",  displayPct: listenPct,   targetPct: 58, bar: "bg-amber-400",  delay: 0.34 },
                 ].map(s => (
-                  <div key={s.label} className="bg-slate-50 rounded-2xl p-2.5 text-center">
-                    <p className={`font-black text-base ${s.color}`}>{s.val}</p>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{s.label}</p>
+                  <div key={s.label} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-2xl">{s.emoji}</span>
+                      <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border bg-emerald-100 border-emerald-200 text-emerald-700">N5</span>
+                    </div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{s.label}</p>
+                    <div>
+                      <span className="text-2xl font-black tabular-nums text-emerald-700">{s.displayPct}%</span>
+                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden mt-1">
+                        <motion.div
+                          className={`h-full rounded-full ${s.bar}`}
+                          initial={{ width: 0 }}
+                          animate={{ width: dashInView ? `${s.targetPct}%` : "0%" }}
+                          transition={{ duration: 1.3, ease: [0.4, 0, 0.2, 1], delay: s.delay }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 ))}
+              </div>
+
+              {/* Vocabulary by JLPT level — double-shade bars */}
+              <div className="mx-4 mb-4 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vocabulary by Level</p>
+                  <p className="text-[10px] font-black text-slate-400">520 cards</p>
+                </div>
+                <div className="space-y-3.5">
+                  {([
+                    { level: "N5", mastered: 270, total: 460, floor: 800, badge: "bg-emerald-100 text-emerald-700 border-emerald-200", fill: "bg-emerald-500", light: "bg-emerald-200", delay: 0.10 },
+                    { level: "N4", mastered: 8,   total: 60,  floor: 600, badge: "bg-teal-100 text-teal-700 border-teal-200",           fill: "bg-teal-500",   light: "bg-teal-200",   delay: 0.20 },
+                    { level: "N3", mastered: 0,   total: 0,   floor: 700, badge: "bg-amber-100 text-amber-700 border-amber-200",         fill: "bg-amber-500",  light: "bg-amber-200",  delay: 0.30 },
+                  ] as const).map(({ level, mastered, total, floor, badge, fill, light, delay }) => {
+                    const masteredPct = Math.round((mastered / floor) * 100);
+                    const addedPct   = Math.min(100 - masteredPct, Math.round(((total - mastered) / floor) * 100));
+                    const masteryOfTotal = total > 0 ? Math.round((mastered / total) * 100) : 0;
+                    return (
+                      <div key={level}>
+                        <div className="flex items-center gap-3">
+                          <span className={`shrink-0 w-9 text-[10px] px-1.5 py-0.5 rounded-md border font-black text-center uppercase tracking-tighter ${badge}`}>{level}</span>
+                          <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
+                            <motion.div
+                              className={`h-full ${fill} shrink-0`}
+                              initial={{ width: 0 }}
+                              animate={{ width: dashInView ? `${masteredPct}%` : "0%" }}
+                              transition={{ duration: 1.3, ease: [0.4, 0, 0.2, 1], delay }}
+                            />
+                            <motion.div
+                              className={`h-full ${light} shrink-0`}
+                              initial={{ width: 0 }}
+                              animate={{ width: dashInView ? `${addedPct}%` : "0%" }}
+                              transition={{ duration: 1.3, ease: [0.4, 0, 0.2, 1], delay: delay + 0.05 }}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between pl-12 mt-1 text-[10px] font-bold text-slate-400">
+                          <span>{total}/{floor}</span>
+                          <span>{mastered} Mastered ({masteryOfTotal}%)</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
