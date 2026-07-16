@@ -18,6 +18,28 @@ import { List, X, Plus, Loader2, RotateCcw } from "lucide-react";
 interface StatsCardsCache { userId: string; cards: FlashcardData[]; deckId: string; }
 let _statsCardsCache: StatsCardsCache | null = null;
 
+function SparkLine({ values, color }: { values: (number | null)[]; color: string }) {
+  const W = 64, H = 28;
+  const pts = values
+    .map((v, i) => ({ v, i }))
+    .filter((p): p is { v: number; i: number } => p.v !== null);
+  if (pts.length < 2) return <div style={{ width: W, height: H }} />;
+  const min = Math.min(...pts.map((p) => p.v));
+  const max = Math.max(...pts.map((p) => p.v), min + 1);
+  const x = (i: number) => (i / (values.length - 1)) * W;
+  const y = (v: number) => H - 2 - ((v - min) / (max - min)) * (H - 6);
+  const line = pts.map((p) => `${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ");
+  const area = `${x(pts[0].i).toFixed(1)},${H} ${pts.map((p) => `${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ")} ${x(pts[pts.length - 1].i).toFixed(1)},${H}`;
+  const last = pts[pts.length - 1];
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
+      <polygon points={area} fill={color} fillOpacity="0.15" />
+      <polyline points={line} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={x(last.i).toFixed(1)} cy={y(last.v).toFixed(1)} r="2.5" fill={color} />
+    </svg>
+  );
+}
+
 export default function StatsPage() {
   const router = useRouter();
   const t = translations.en;
@@ -1888,15 +1910,18 @@ export default function StatsPage() {
                       {/* Stats Summary Cards */}
                       <div className="grid grid-cols-2 gap-4">
                         <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-indigo-100 transition-colors">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-500">
-                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-                              </svg>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-500">
+                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                                </svg>
+                              </div>
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                {t.total}
+                              </p>
                             </div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                              {t.total}
-                            </p>
+                            <SparkLine values={[...dailyHistory].reverse().map((d) => d.count)} color="#6366f1" />
                           </div>
                           <p className="text-3xl font-black text-slate-800 tracking-tight">
                             {dailyHistory.reduce((acc, curr) => acc + curr.count, 0)}
@@ -1907,15 +1932,18 @@ export default function StatsPage() {
                         </div>
 
                         <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-emerald-100 transition-colors">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-500">
-                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                              </svg>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-500">
+                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                {t.average}
+                              </p>
                             </div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                              {t.average}
-                            </p>
+                            <SparkLine values={[...dailyHistory].reverse().map((d) => d.count)} color="#10b981" />
                           </div>
                           <p className="text-3xl font-black text-slate-800 tracking-tight">
                             {Math.round(dailyHistory.reduce((acc, curr) => acc + curr.count, 0) / (dailyHistory.length || 1))}
@@ -1930,6 +1958,35 @@ export default function StatsPage() {
 
                   {historyTab === "quizzes" && (
                     <div>
+                      {/* Sparkline summary tiles */}
+                      {(() => {
+                        const vocabVals = [...dailyHistory].reverse().map((d) => d.count);
+                        const readVals = [...quizHistory].reverse().map((d) => d.reading);
+                        const listenVals = [...quizHistory].reverse().map((d) => d.listening);
+                        const grammarVals = [...quizHistory].reverse().map((d) => d.grammar);
+                        const tiles = [
+                          { key: "vocab",   label: "🃏 Vocab",   color: "#6366f1", values: vocabVals,   today: dailyHistory[0]?.count ?? 0,      unit: "" },
+                          { key: "read",    label: "📖 Read",    color: "#4f46e5", values: readVals,    today: quizHistory[0]?.reading,           unit: "%" },
+                          { key: "listen",  label: "🎧 Listen",  color: "#7c3aed", values: listenVals,  today: quizHistory[0]?.listening,         unit: "%" },
+                          { key: "grammar", label: "📝 Grammar", color: "#d97706", values: grammarVals, today: quizHistory[0]?.grammar,           unit: "%" },
+                        ];
+                        return (
+                          <div className="grid grid-cols-2 gap-3 mb-6">
+                            {tiles.map((tile) => (
+                              <div key={tile.key} className="bg-white rounded-2xl border border-slate-100 px-3 pt-3 pb-2.5 flex flex-col gap-1">
+                                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: tile.color }}>{tile.label}</p>
+                                <SparkLine values={tile.values} color={tile.color} />
+                                <p className="text-sm font-black text-slate-700 leading-none">
+                                  {tile.today !== null && tile.today !== undefined
+                                    ? <>{tile.today}{tile.unit}</>
+                                    : <span className="text-slate-300 text-xs font-bold">—</span>}
+                                  {tile.unit === "" && <span className="text-[9px] font-bold text-slate-300 ml-1">today</span>}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
                       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-4">
                         Quiz Accuracy · Last 14 Days
                       </p>
