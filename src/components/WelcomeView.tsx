@@ -148,12 +148,12 @@ export default function WelcomeView() {
 
           {/* Headline */}
           <div className="text-center mb-8">
+            <p className="text-[9px] font-black uppercase tracking-widest text-indigo-500 mb-3">✨ AI-Powered Japanese</p>
             <h1 className="text-[2rem] font-black text-slate-900 leading-tight tracking-tighter italic mb-3">
               Build your Japanese.<br />Track the proof.
             </h1>
             <p className="text-slate-400 text-sm leading-relaxed max-w-xs mx-auto">
-              Every word you study becomes part of your permanent Japanese profile —
-              exactly which JLPT words you know and don&apos;t.
+              AI builds your cards, tracks your progress to JLPT, and tutors you in real conversation — all in one place.
             </p>
           </div>
 
@@ -175,7 +175,7 @@ export default function WelcomeView() {
                 className="absolute inset-0 bg-white rounded-3xl shadow-xl border border-slate-100 flex flex-col items-center justify-center gap-2 cursor-pointer active:scale-[0.98] transition-transform select-none"
               >
                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-300">
-                  N5 Word · Tap to reveal
+                  ✨ AI-built · N5 · Tap to reveal
                 </p>
                 <p className="text-5xl font-black text-slate-900 tracking-tighter">{word.japanese}</p>
                 <p className="text-sm text-slate-400 font-medium">{word.reading}</p>
@@ -412,7 +412,68 @@ export default function WelcomeView() {
           </p>
         </section>
 
-        {/* ── Section 3: Mini games ──────────────────────────────────────── */}
+        {/* ── Section 3: AI Sensei ───────────────────────────────────────── */}
+        <section className="py-12 border-t border-slate-100">
+          <div className="text-center mb-7">
+            <p className="text-[9px] font-black uppercase tracking-widest text-indigo-500 mb-2">✨ AI Sensei</p>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tighter italic leading-tight mb-2">
+              A tutor that adapts<br />to your level.
+            </h2>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              4 AI personas. Real conversation. Scenarios from ramen shops to job interviews.
+            </p>
+          </div>
+
+          {/* Persona row */}
+          <div className="grid grid-cols-4 gap-2 mb-5">
+            {[
+              { emoji: "🧑‍🎓", label: "Senpai",  desc: "Friendly",    border: "border-indigo-100", bg: "bg-indigo-50",  text: "text-indigo-600" },
+              { emoji: "👨‍🏫", label: "Sensei",  desc: "Strict",      border: "border-slate-200",  bg: "bg-slate-50",   text: "text-slate-700"  },
+              { emoji: "⚔️",  label: "Samurai", desc: "Philosopher", border: "border-rose-100",   bg: "bg-rose-50",    text: "text-rose-700"   },
+              { emoji: "⭐",  label: "Idol",    desc: "Coach",       border: "border-pink-100",   bg: "bg-pink-50",    text: "text-pink-600"   },
+            ].map(p => (
+              <div key={p.label} className={`border rounded-2xl p-2.5 flex flex-col items-center gap-1 text-center ${p.border} ${p.bg}`}>
+                <span className="text-xl">{p.emoji}</span>
+                <p className={`text-[9px] font-black leading-none ${p.text}`}>{p.label}</p>
+                <p className="text-[8px] text-slate-400 font-medium leading-none">{p.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Mock conversation */}
+          <div className="bg-slate-50 rounded-3xl p-4 space-y-3 mb-4">
+            <div className="flex gap-2.5 items-start">
+              <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-sm shrink-0">🧑‍🎓</div>
+              <div className="bg-white rounded-2xl rounded-tl-sm px-3.5 py-2.5 shadow-sm border border-slate-100 max-w-[78%]">
+                <p className="text-xs text-slate-700 font-medium leading-relaxed">ラーメン屋へようこそ！何にしますか？</p>
+                <p className="text-[9px] text-slate-400 mt-0.5">Welcome to the ramen shop! What&apos;ll it be?</p>
+              </div>
+            </div>
+            <div className="flex gap-2.5 items-start justify-end">
+              <div className="bg-indigo-600 rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[78%]">
+                <p className="text-xs text-white font-medium leading-relaxed">えーと… 醤油ラーメンをください！</p>
+                <p className="text-[9px] text-indigo-300 mt-0.5">Umm… soy sauce ramen please!</p>
+              </div>
+              <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-sm shrink-0">😊</div>
+            </div>
+            <div className="flex gap-2.5 items-start">
+              <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-sm shrink-0">🧑‍🎓</div>
+              <div className="bg-white rounded-2xl rounded-tl-sm px-3.5 py-2.5 shadow-sm border border-slate-100 max-w-[78%]">
+                <p className="text-xs text-slate-700 font-medium leading-relaxed">いい選択！「醤油」の発音が良かったです ✨</p>
+                <p className="text-[9px] text-slate-400 mt-0.5">Great choice! Your pronunciation was perfect ✨</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Scenario chips */}
+          <div className="flex flex-wrap gap-2">
+            {["🍜 Ramen Shop", "🏪 Convenience Store", "💼 Job Interview", "✈️ Travel", "🏥 Doctor Visit"].map(s => (
+              <span key={s} className="text-[10px] font-black text-slate-500 bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-full">{s}</span>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Section 4: Mini games ──────────────────────────────────────── */}
         <section className="py-12 border-t border-slate-100">
           <div className="text-center mb-7">
             <p className="text-[9px] font-black uppercase tracking-widest text-indigo-500 mb-2">Mini Games</p>
@@ -457,10 +518,10 @@ export default function WelcomeView() {
             <div className="space-y-2">
               {[
                 {
-                  icon: "✍️",
+                  icon: "✨",
                   step: "01",
-                  title: "Add any word",
-                  sub:  "Type it — AI builds the card with furigana and example sentences instantly.",
+                  title: "Type any word",
+                  sub:  "AI instantly builds the card — furigana, reading, meaning, example sentence, and audio.",
                 },
                 {
                   icon: "🃏",
