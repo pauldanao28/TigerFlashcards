@@ -529,7 +529,7 @@ export default function WelcomeView() {
           </div>
 
           <p className="text-center text-[10px] text-slate-400 font-medium mt-3.5">
-            1,345 cards across all 5 JLPT levels — already built in.
+            Your cards, organized by JLPT level. Study only what matters for your next exam.
           </p>
         </section>
 
