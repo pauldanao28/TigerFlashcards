@@ -1067,7 +1067,7 @@ export default function StudyView() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -30, scale: 0.94 }}
               transition={{ type: "spring", stiffness: 340, damping: 26 }}
-              className="fixed top-24 md:top-12 left-0 right-0 z-[200] flex justify-center pointer-events-none px-6"
+              className="fixed top-[8.5rem] md:top-12 left-0 right-0 z-[200] flex justify-center pointer-events-none px-6"
             >
               <div className={`bg-white rounded-3xl shadow-2xl px-5 py-3.5 flex items-center gap-3 max-w-xs w-full border ${
                 cardMasteryToast.direction === "up"
@@ -1368,45 +1368,36 @@ export default function StudyView() {
         */}
           {/* HUD & ACCURACY STACK - MUST BE RELATIVE */}
           <div className="relative z-10 flex flex-col items-center gap-2 mb-2 md:mb-6 w-full animate-in fade-in slide-in-from-top-2 duration-700">
-            {/* --- 1. SESSION STREAK (FIXED PROPERTY NAME) --- */}
-            {sessionStreak >= 3 && (
-              <div className="absolute -top-8 left-0 right-0 flex justify-center pointer-events-none">
+            {/* --- 1. SESSION STREAK --- */}
+            <AnimatePresence>
+              {sessionStreak >= 3 && (
                 <motion.div
-                  initial={{ scale: 0.9, opacity: 0, y: 10 }}
+                  initial={{ scale: 0.9, opacity: 0, y: -6 }}
                   animate={{
                     scale: 1,
                     opacity: 1,
-                    y: [0, -6, 0],
+                    y: [0, -4, 0],
                     boxShadow: [
-                      // <--- Changed from shadow to boxShadow
                       "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)",
                       "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
                       "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)",
                     ],
                   }}
+                  exit={{ scale: 0.9, opacity: 0, y: -6 }}
                   transition={{
-                    y: {
-                      duration: 3.5,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                    },
-                    boxShadow: {
-                      // <--- Changed from shadow to boxShadow
-                      duration: 3.5,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                    },
-                    default: { duration: 0.7 },
+                    y: { duration: 3.5, repeat: Infinity, ease: "easeInOut" },
+                    boxShadow: { duration: 3.5, repeat: Infinity, ease: "easeInOut" },
+                    default: { duration: 0.4 },
                   }}
-                  className="flex items-center gap-2 bg-white/70 backdrop-blur-sm px-4 py-1.5 rounded-full border border-orange-100 mb-1"
+                  className="flex items-center gap-2 bg-white/70 backdrop-blur-sm px-4 py-1.5 rounded-full border border-orange-100"
                 >
                   <span className="text-lg">🔥</span>
                   <span className="font-black text-slate-800 tracking-tight text-[11px] uppercase">
                     {sessionStreak} {t.in_a_row}
                   </span>
                 </motion.div>
-              </div>
-            )}
+              )}
+            </AnimatePresence>
 
             {/* Daily Goal / Goal Met (Simple, No Background) */}
             <div className="flex flex-col items-center min-h-[32px] justify-center">
