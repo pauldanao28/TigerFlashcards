@@ -89,7 +89,7 @@ export default function AdminAnalytics() {
       {/* Quiz activity */}
       <section>
         <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Quiz Activity (30d)</h3>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {["grammar", "reading", "listening"].map((type) => {
             const q = data.quiz[type] ?? { sessions: 0, correct: 0, total: 0 };
             const accuracy = q.total > 0 ? Math.round((q.correct / q.total) * 100) : 0;
