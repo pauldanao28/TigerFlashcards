@@ -137,15 +137,16 @@ export default function StudyView() {
   const [recapAnimMastered, setRecapAnimMastered] = useState(0);
   const [comboToast, setComboToast] = useState<string | null>(null);
   const [milestoneToast, setMilestoneToast] = useState<{ label: string; count: number } | null>(null);
-  const [cardMasteryToast, setCardMasteryToast] = useState<{ word: string; level: string; levelMastered: number } | null>(null);
+  const [cardMasteryToast, setCardMasteryToast] = useState<{ word: string; level: string; levelMastered: number; direction: "up" | "down" } | null>(null);
   const [toastAnimCount, setToastAnimCount] = useState(0);
   const [toastPhase, setToastPhase] = useState<"split" | "merged">("split");
 
   useEffect(() => {
     if (!cardMasteryToast) return;
     const target = cardMasteryToast.levelMastered;
+    const isDown = cardMasteryToast.direction === "down";
     setToastPhase("split");
-    setToastAnimCount(Math.max(0, target - 1));
+    setToastAnimCount(isDown ? target + 1 : Math.max(0, target - 1));
     const t = setTimeout(() => {
       setToastPhase("merged");
       setToastAnimCount(target);
@@ -688,8 +689,14 @@ export default function StudyView() {
         setSessionNewMastered((prev) => prev + 1);
         const level = currentCard.jlpt_level ?? "N5";
         const levelMastered = updatedCards.filter(c => c.jlpt_level === level && cardMasteredCheck(c.scores)).length;
-        setCardMasteryToast({ word: currentCard.japanese, level, levelMastered });
+        setCardMasteryToast({ word: currentCard.japanese, level, levelMastered, direction: "up" });
         navigator.vibrate?.([60, 40, 100]);
+        setTimeout(() => setCardMasteryToast(null), 2000);
+      } else if (wasAlreadyMastered && !isNowMastered) {
+        const level = currentCard.jlpt_level ?? "N5";
+        const levelMastered = updatedCards.filter(c => c.jlpt_level === level && cardMasteredCheck(c.scores)).length;
+        setCardMasteryToast({ word: currentCard.japanese, level, levelMastered, direction: "down" });
+        navigator.vibrate?.([40, 30, 60]);
         setTimeout(() => setCardMasteryToast(null), 2000);
       }
       for (const m of [10, 25, 50, 100, 250, 500]) {
@@ -936,10 +943,6 @@ export default function StudyView() {
       setLevelUpToast({ level: `${trackedPercent}%`, lang: language, direction: "up", filter: jlptFilter !== "All" ? jlptFilter : undefined });
       navigator.vibrate?.([60, 40, 100]);
       setTimeout(() => setLevelUpToast(null), 4000);
-    } else if (trackedPercent < prev.percent) {
-      setLevelUpToast({ level: `${trackedPercent}%`, lang: language, direction: "down", filter: jlptFilter !== "All" ? jlptFilter : undefined });
-      navigator.vibrate?.([30, 60, 30]);
-      setTimeout(() => setLevelUpToast(null), 4000);
     }
     prevMasteryRef.current = { percent: trackedPercent, lang: language, filter: jlptFilter };
   }, [trackedPercent, language, jlptFilter]);
@@ -1062,17 +1065,25 @@ export default function StudyView() {
               transition={{ type: "spring", stiffness: 340, damping: 26 }}
               className="fixed top-24 md:top-12 left-0 right-0 z-[200] flex justify-center pointer-events-none px-6"
             >
-              <div className="bg-white rounded-3xl shadow-2xl shadow-emerald-100/60 border border-emerald-100 px-5 py-3.5 flex items-center gap-3 max-w-xs w-full">
+              <div className={`bg-white rounded-3xl shadow-2xl px-5 py-3.5 flex items-center gap-3 max-w-xs w-full border ${
+                cardMasteryToast.direction === "up"
+                  ? "shadow-emerald-100/60 border-emerald-100"
+                  : "shadow-rose-100/60 border-rose-100"
+              }`}>
                 <motion.div
-                  initial={{ scale: 0, rotate: -30 }}
+                  initial={{ scale: 0, rotate: cardMasteryToast.direction === "up" ? -30 : 30 }}
                   animate={{ scale: 1, rotate: 0 }}
                   transition={{ type: "spring", stiffness: 500, damping: 14, delay: 0.05 }}
                   className="text-2xl shrink-0"
                 >
-                  ⭐
+                  {cardMasteryToast.direction === "up" ? "⭐" : "💔"}
                 </motion.div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-emerald-600 font-black text-[10px] uppercase tracking-widest leading-none">Mastered</p>
+                  <p className={`font-black text-[10px] uppercase tracking-widest leading-none ${
+                    cardMasteryToast.direction === "up" ? "text-emerald-600" : "text-rose-500"
+                  }`}>
+                    {cardMasteryToast.direction === "up" ? "Mastered" : "Lost"}
+                  </p>
                   <p className="text-slate-800 font-black text-base leading-tight truncate mt-0.5">{cardMasteryToast.word}</p>
                 </div>
                 <div className="shrink-0 text-right flex flex-col items-end gap-1.5">
@@ -1082,7 +1093,7 @@ export default function StudyView() {
                   <div className="flex items-baseline gap-1 justify-end">
                     <motion.span
                       key={toastAnimCount}
-                      initial={{ scale: 1.45, color: "#10b981" }}
+                      initial={{ scale: 1.45, color: cardMasteryToast.direction === "up" ? "#10b981" : "#f43f5e" }}
                       animate={{ scale: 1, color: "#334155" }}
                       transition={{ type: "spring", stiffness: 380, damping: 14 }}
                       className="font-black text-2xl tabular-nums leading-none inline-block"
@@ -1092,14 +1103,16 @@ export default function StudyView() {
                     <AnimatePresence>
                       {toastPhase === "split" && (
                         <motion.span
-                          key="plusone"
+                          key="delta"
                           initial={{ x: 8, opacity: 0 }}
                           animate={{ x: 0, opacity: 1 }}
                           exit={{ x: -10, opacity: 0, scale: 0.5 }}
                           transition={{ type: "spring", stiffness: 420, damping: 18 }}
-                          className="text-emerald-500 font-black text-xl tabular-nums leading-none"
+                          className={`font-black text-xl tabular-nums leading-none ${
+                            cardMasteryToast.direction === "up" ? "text-emerald-500" : "text-rose-500"
+                          }`}
                         >
-                          +1
+                          {cardMasteryToast.direction === "up" ? "+1" : "-1"}
                         </motion.span>
                       )}
                     </AnimatePresence>
