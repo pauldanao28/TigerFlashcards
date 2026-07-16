@@ -23,7 +23,21 @@ function SparkLine({ values, color }: { values: (number | null)[]; color: string
   const pts = values
     .map((v, i) => ({ v, i }))
     .filter((p): p is { v: number; i: number } => p.v !== null);
-  if (pts.length < 2) return <div style={{ width: W, height: H }} />;
+  if (pts.length === 0) return (
+    <div style={{ width: W, height: H }} className="flex items-center">
+      <div className="w-full h-px bg-slate-100" />
+    </div>
+  );
+  if (pts.length === 1) {
+    const cx = ((pts[0].i / Math.max(values.length - 1, 1)) * W).toFixed(1);
+    const cy = (H / 2).toFixed(1);
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
+        <line x1="0" y1={cy} x2={W} y2={cy} stroke={color} strokeWidth="1" strokeOpacity="0.2" strokeDasharray="3,3" />
+        <circle cx={cx} cy={cy} r="2.5" fill={color} />
+      </svg>
+    );
+  }
   const min = Math.min(...pts.map((p) => p.v));
   const max = Math.max(...pts.map((p) => p.v), min + 1);
   const x = (i: number) => (i / (values.length - 1)) * W;
@@ -151,8 +165,8 @@ export default function StatsPage() {
         .from("user_review_counts")
         .select("study_date, count")
         .eq("user_id", user.id)
-        .order("study_date", { ascending: false })
-        .limit(14),
+        .gte("study_date", since)
+        .order("study_date", { ascending: false }),
       supabase
         .from("quiz_daily_stats")
         .select("study_date, quiz_type, correct, total")
@@ -161,15 +175,17 @@ export default function StatsPage() {
         .order("study_date", { ascending: false }),
     ]);
 
-    setDailyHistory(reviewData || []);
-
-    // Build a 14-day grid; aggregate multiple sessions per day per type
+    // Build full 14-day grid (newest first: index 0 = today)
     const days: string[] = [];
     for (let i = 0; i < 14; i++) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       days.push(d.toLocaleDateString("en-CA"));
     }
+
+    // Pad vocab to full 14 days (0 for days with no reviews)
+    const vocabMap = new Map((reviewData ?? []).map(r => [r.study_date, r.count]));
+    setDailyHistory(days.map(date => ({ study_date: date, count: vocabMap.get(date) ?? 0 })));
     const acc: Record<string, Record<string, { correct: number; total: number }>> = {};
     for (const row of quizData ?? []) {
       if (!acc[row.study_date]) acc[row.study_date] = {};
@@ -1854,7 +1870,7 @@ export default function StatsPage() {
                         </div>
 
                         <div className="relative flex items-end justify-between gap-1.5 md:gap-3 h-56">
-                          {dailyHistory.map((day, i) => {
+                          {[...dailyHistory].reverse().map((day, i) => {
                             const maxCount = Math.max(
                               ...dailyHistory.map((d) => d.count),
                               1,
@@ -1863,7 +1879,7 @@ export default function StatsPage() {
                               (day.count / maxCount) * 100,
                               4,
                             );
-                            const isToday = i === 0;
+                            const isToday = i === dailyHistory.length - 1;
 
                             return (
                               <div
@@ -1987,8 +2003,8 @@ export default function StatsPage() {
                           </div>
                         );
                       })()}
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-4">
-                        Quiz Accuracy · Last 14 Days
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">
+                        Last 7 Days
                       </p>
                       {/* Column headers */}
                       <div className="flex items-center gap-3 mb-1 px-2">
@@ -1999,7 +2015,7 @@ export default function StatsPage() {
                       </div>
                       {/* Rows */}
                       <div className="space-y-0.5">
-                        {quizHistory.map((row, i) => {
+                        {quizHistory.slice(0, 7).map((row, i) => {
                           const isToday = i === 0;
                           const dot = (pct: number | null) => {
                             if (pct === null) return <span className="text-slate-200 text-lg leading-none">·</span>;
