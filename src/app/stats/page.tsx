@@ -64,6 +64,7 @@ export default function StatsPage() {
   const [quizHistory, setQuizHistory] = useState<
     { study_date: string; reading: number | null; listening: number | null; grammar: number | null }[]
   >([]);
+  const [historyTab, setHistoryTab] = useState<"flashcards" | "quizzes">("flashcards");
   const [showHistory, setShowHistory] = useState(false);
   const [reviewsToday, setReviewsToday] = useState(0);
   const [previewPack, setPreviewPack] = useState<any | null>(null);
@@ -1786,190 +1787,199 @@ export default function StatsPage() {
 
               <div className="relative w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
                 {/* Header */}
-                <div className="p-8 border-b border-slate-50 flex justify-between items-end bg-gradient-to-b from-slate-50/50 to-transparent">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
+                <div className="p-6 border-b border-slate-50 flex justify-between items-start bg-gradient-to-b from-slate-50/50 to-transparent">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-3">
                       <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
                       <h3 className="text-2xl font-black text-slate-800 uppercase italic tracking-tight">
                         {t.activity_log}
                       </h3>
                     </div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-4">
-                      {t.progress_tracking} • {t.last_14_days}
-                    </p>
+                    {/* Tabs */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setHistoryTab("flashcards")}
+                        className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${historyTab === "flashcards" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
+                      >
+                        🃏 Flashcards
+                      </button>
+                      <button
+                        onClick={() => setHistoryTab("quizzes")}
+                        className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${historyTab === "quizzes" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
+                      >
+                        📊 Quizzes
+                      </button>
+                    </div>
                   </div>
                   <button
                     onClick={() => setShowHistory(false)}
-                    className="h-12 w-12 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-800 hover:shadow-sm transition-all active:scale-90"
+                    className="h-10 w-10 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-800 hover:shadow-sm transition-all active:scale-90 shrink-0 ml-3"
                   >
                     ✕
                   </button>
                 </div>
 
                 <div className="p-8 md:p-10 overflow-y-auto custom-scrollbar">
-                  {/* The Visual Chart Area */}
-                  <div className="relative bg-slate-50/50 rounded-[2.5rem] p-6 border border-slate-100 mb-8">
-                    {/* Subtle Grid Lines Background */}
-                    <div className="absolute inset-0 grid grid-rows-4 px-6 py-6 opacity-[0.03] pointer-events-none">
-                      {[...Array(4)].map((_, i) => (
-                        <div key={i} className="border-t border-black w-full" />
-                      ))}
-                    </div>
+                  {historyTab === "flashcards" && (
+                    <>
+                      {/* The Visual Chart Area */}
+                      <div className="relative bg-slate-50/50 rounded-[2.5rem] p-6 border border-slate-100 mb-8">
+                        {/* Subtle Grid Lines Background */}
+                        <div className="absolute inset-0 grid grid-rows-4 px-6 py-6 opacity-[0.03] pointer-events-none">
+                          {[...Array(4)].map((_, i) => (
+                            <div key={i} className="border-t border-black w-full" />
+                          ))}
+                        </div>
 
-                    <div className="relative flex items-end justify-between gap-1.5 md:gap-3 h-56">
-                      {dailyHistory.map((day, i) => {
-                        const maxCount = Math.max(
-                          ...dailyHistory.map((d) => d.count),
-                          1,
-                        );
-                        const heightPercentage = Math.max(
-                          (day.count / maxCount) * 100,
-                          4,
-                        ); // Min 4% height so 0s are visible
-                        const isToday = i === 0;
+                        <div className="relative flex items-end justify-between gap-1.5 md:gap-3 h-56">
+                          {dailyHistory.map((day, i) => {
+                            const maxCount = Math.max(
+                              ...dailyHistory.map((d) => d.count),
+                              1,
+                            );
+                            const heightPercentage = Math.max(
+                              (day.count / maxCount) * 100,
+                              4,
+                            );
+                            const isToday = i === 0;
 
-                        return (
-                          <div
-                            key={day.study_date}
-                            className="flex-1 flex flex-col items-center group h-full justify-end"
-                          >
-                            {/* The Bar */}
-                            <div className="relative w-full flex flex-col justify-end h-full">
-                              {/* Tooltip */}
-                              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-black px-2.5 py-1.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100 pointer-events-none z-10 shadow-xl">
-                                {day.count}{" "}
-                                <span className="text-slate-400 font-bold ml-0.5">
-                                  pts
-                                </span>
-                              </div>
-
+                            return (
                               <div
-                                style={{ height: `${heightPercentage}%` }}
-                                className={`w-full rounded-t-2xl transition-all duration-700 ease-out cursor-default
-                        ${
-                          isToday
-                            ? "bg-gradient-to-t from-indigo-600 to-indigo-400 shadow-lg shadow-indigo-100"
-                            : "bg-slate-200 group-hover:bg-slate-300 group-hover:shadow-md"
-                        }`}
-                              />
-                            </div>
-                            {/* Label */}
-                            <div className="mt-4 flex flex-col items-center">
-                              <span
-                                className={`text-[8px] font-black uppercase tracking-tighter ${isToday ? "text-indigo-600" : "text-slate-400"}`}
+                                key={day.study_date}
+                                className="flex-1 flex flex-col items-center group h-full justify-end"
                               >
-                                {new Date(day.study_date).toLocaleDateString(
-                                  "en-SG",
-                                  { weekday: "short" },
-                                )}
-                              </span>
-                              <span className="text-[7px] font-bold text-slate-300 mt-0.5">
-                                {new Date(day.study_date).getDate()}
-                              </span>
+                                <div className="relative w-full flex flex-col justify-end h-full">
+                                  <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-black px-2.5 py-1.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100 pointer-events-none z-10 shadow-xl">
+                                    {day.count}{" "}
+                                    <span className="text-slate-400 font-bold ml-0.5">
+                                      pts
+                                    </span>
+                                  </div>
+
+                                  <div
+                                    style={{ height: `${heightPercentage}%` }}
+                                    className={`w-full rounded-t-2xl transition-all duration-700 ease-out cursor-default
+                            ${
+                              isToday
+                                ? "bg-gradient-to-t from-indigo-600 to-indigo-400 shadow-lg shadow-indigo-100"
+                                : "bg-slate-200 group-hover:bg-slate-300 group-hover:shadow-md"
+                            }`}
+                                  />
+                                </div>
+                                <div className="mt-4 flex flex-col items-center">
+                                  <span
+                                    className={`text-[8px] font-black uppercase tracking-tighter ${isToday ? "text-indigo-600" : "text-slate-400"}`}
+                                  >
+                                    {new Date(day.study_date).toLocaleDateString(
+                                      "en-SG",
+                                      { weekday: "short" },
+                                    )}
+                                  </span>
+                                  <span className="text-[7px] font-bold text-slate-300 mt-0.5">
+                                    {new Date(day.study_date).getDate()}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Stats Summary Cards */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-indigo-100 transition-colors">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-500">
+                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                              </svg>
                             </div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                              {t.total}
+                            </p>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Stats Summary Cards */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-indigo-100 transition-colors">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-500">
-                          <svg
-                            className="w-3 h-3"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-                          </svg>
+                          <p className="text-3xl font-black text-slate-800 tracking-tight">
+                            {dailyHistory.reduce((acc, curr) => acc + curr.count, 0)}
+                            <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">
+                              {t.reviews}
+                            </span>
+                          </p>
                         </div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                          {t.total}
-                        </p>
-                      </div>
-                      <p className="text-3xl font-black text-slate-800 tracking-tight">
-                        {dailyHistory.reduce(
-                          (acc, curr) => acc + curr.count,
-                          0,
-                        )}
-                        <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">
-                          {t.reviews}
-                        </span>
-                      </p>
-                    </div>
 
-                    <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-emerald-100 transition-colors">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-500">
-                          <svg
-                            className="w-3 h-3"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
+                        <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-emerald-100 transition-colors">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-500">
+                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                              {t.average}
+                            </p>
+                          </div>
+                          <p className="text-3xl font-black text-slate-800 tracking-tight">
+                            {Math.round(dailyHistory.reduce((acc, curr) => acc + curr.count, 0) / (dailyHistory.length || 1))}
+                            <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">
+                              {t.daily}
+                            </span>
+                          </p>
                         </div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                          {t.average}
-                        </p>
                       </div>
-                      <p className="text-3xl font-black text-slate-800 tracking-tight">
-                        {Math.round(
-                          dailyHistory.reduce(
-                            (acc, curr) => acc + curr.count,
-                            0,
-                          ) / (dailyHistory.length || 1),
-                        )}
-                        <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">
-                          {t.daily}
-                        </span>
+                    </>
+                  )}
+
+                  {historyTab === "quizzes" && (
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-4">
+                        Quiz Accuracy · Last 14 Days
                       </p>
+                      {/* Column headers */}
+                      <div className="flex items-center gap-3 mb-1 px-2">
+                        <span className="w-20 shrink-0" />
+                        <span className="flex-1 text-center text-[10px] font-black text-indigo-400">📖</span>
+                        <span className="flex-1 text-center text-[10px] font-black text-violet-400">🎧</span>
+                        <span className="flex-1 text-center text-[10px] font-black text-amber-400">📝</span>
+                      </div>
+                      {/* Rows */}
+                      <div className="space-y-0.5">
+                        {quizHistory.map((row, i) => {
+                          const isToday = i === 0;
+                          const dot = (pct: number | null) => {
+                            if (pct === null) return <span className="text-slate-200 text-lg leading-none">·</span>;
+                            const color = pct >= 80 ? "text-emerald-400" : pct >= 60 ? "text-amber-400" : "text-rose-400";
+                            return (
+                              <span className={`text-base leading-none ${color}`} title={`${pct}%`}>●</span>
+                            );
+                          };
+                          return (
+                            <div
+                              key={row.study_date}
+                              className={`flex items-center gap-3 py-2 px-2 rounded-xl ${isToday ? "bg-indigo-50" : ""}`}
+                            >
+                              <div className="w-20 shrink-0 flex items-center gap-1.5">
+                                <span className={`text-[10px] font-black ${isToday ? "text-indigo-600" : "text-slate-500"}`}>
+                                  {new Date(row.study_date + "T00:00:00").toLocaleDateString("en-SG", { month: "short", day: "numeric" })}
+                                </span>
+                                {isToday && <span className="text-[8px] font-black text-indigo-300 uppercase tracking-widest">now</span>}
+                              </div>
+                              <span className="flex-1 flex justify-center">{dot(row.reading)}</span>
+                              <span className="flex-1 flex justify-center">{dot(row.listening)}</span>
+                              <span className="flex-1 flex justify-center">{dot(row.grammar)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Legend */}
+                      <div className="flex items-center gap-4 mt-5 px-2">
+                        <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Key</span>
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400"><span className="text-emerald-400">●</span> ≥80%</span>
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400"><span className="text-amber-400">●</span> ≥60%</span>
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400"><span className="text-rose-400">●</span> &lt;60%</span>
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400"><span className="text-slate-200 text-sm">·</span> none</span>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
-
-                  {/* Quiz accuracy by day */}
-                  <div className="mt-6">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">Quiz Accuracy · Last 14 Days</p>
-                    <div className="rounded-2xl border border-slate-100 overflow-hidden bg-white">
-                      {/* Header */}
-                      <div className="grid grid-cols-4 border-b border-slate-100 bg-slate-50">
-                        <div className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-slate-400">Date</div>
-                        <div className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-indigo-400 text-center">📖 Read</div>
-                        <div className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-violet-400 text-center">🎧 Listen</div>
-                        <div className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-amber-400 text-center">📝 Grammar</div>
-                      </div>
-                      {quizHistory.map((row, i) => {
-                        const isToday = i === 0;
-                        const hasAny = row.reading !== null || row.listening !== null || row.grammar !== null;
-                        const pill = (pct: number | null) => {
-                          if (pct === null) return <span className="text-slate-200 text-[10px] font-black">—</span>;
-                          const color = pct >= 80 ? "bg-emerald-50 text-emerald-600" : pct >= 60 ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-500";
-                          return <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-black ${color}`}>{pct}%</span>;
-                        };
-                        return (
-                          <div key={row.study_date} className={`grid grid-cols-4 border-b border-slate-50 last:border-0 ${isToday ? "bg-indigo-50/40" : hasAny ? "" : "opacity-40"}`}>
-                            <div className="px-3 py-2.5 flex items-center gap-1.5">
-                              <span className="text-[10px] font-black text-slate-600">
-                                {new Date(row.study_date + "T00:00:00").toLocaleDateString("en-SG", { month: "short", day: "numeric" })}
-                              </span>
-                              {isToday && <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">today</span>}
-                            </div>
-                            <div className="px-3 py-2.5 flex items-center justify-center">{pill(row.reading)}</div>
-                            <div className="px-3 py-2.5 flex items-center justify-center">{pill(row.listening)}</div>
-                            <div className="px-3 py-2.5 flex items-center justify-center">{pill(row.grammar)}</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
 
                 <div className="p-6 bg-slate-50/50 text-center mt-auto border-t border-slate-50">
                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] opacity-60">
