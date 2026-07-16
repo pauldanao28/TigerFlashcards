@@ -540,6 +540,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
         .then(({ error }) => { if (error) console.error("[reading_score save]", error.code, error.message); });
       supabase.rpc("log_quiz_daily", { p_type: "reading", p_n_level: level, p_correct: passedTotal, p_total: newResults.length })
         .then(({ error }) => { if (error) console.error("[log_quiz_daily reading]", error.code, error.message); });
+      supabase.rpc("upsert_score_snapshot", { p_reading: newReadingScore });
       try { localStorage.setItem("flashkado-done-reading", new Date().toLocaleDateString("en-CA")); } catch {}
     } else {
       setCurrentIdx(i => i + 1);

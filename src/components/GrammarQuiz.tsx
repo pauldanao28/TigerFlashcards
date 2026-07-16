@@ -498,6 +498,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
       .then(({ error }) => { if (error) console.error("[grammar_score save]", error.code, error.message); });
     supabase.rpc("log_quiz_daily", { p_type: "grammar", p_n_level: levelAtStart, p_correct: finalScore, p_total: totalQ })
       .then(({ error }) => { if (error) console.error("[log_quiz_daily grammar]", error.code, error.message); });
+    supabase.rpc("upsert_score_snapshot", { p_grammar: newGrammarScore });
     try { localStorage.setItem("flashkado-done-grammar", new Date().toLocaleDateString("en-CA")); } catch {}
   };
 

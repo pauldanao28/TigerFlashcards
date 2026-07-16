@@ -70,6 +70,31 @@ function useCountUp(target: number): number {
   return display;
 }
 
+function Sparkline({ data, color }: { data: number[]; color: string }) {
+  const W = 100, H = 28;
+  const max = Math.max(...data, 1);
+  const points = data.map((v, i) => ({
+    x: (i / (data.length - 1)) * W,
+    y: H - 2 - (v / max) * (H - 6),
+  }));
+  const line = points.map(p => `${p.x},${p.y}`).join(" ");
+  const area = `M${points[0].x},${H} ` + points.map(p => `L${p.x},${p.y}`).join(" ") + ` L${points[points.length - 1].x},${H} Z`;
+  const last = points[points.length - 1];
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-7" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={`sg-${color}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.18" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#sg-${color})`} />
+      <polyline points={line} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={last.x} cy={last.y} r="2" fill={color} />
+    </svg>
+  );
+}
+
 function ScoreTile({
   href,
   emoji,
@@ -77,6 +102,8 @@ function ScoreTile({
   score,
   sub,
   nlevelOverride,
+  sparkline,
+  sparkColor,
 }: {
   href: string;
   emoji: string;
@@ -84,6 +111,8 @@ function ScoreTile({
   score: number | null;
   sub?: string;
   nlevelOverride?: JlptLevel;
+  sparkline?: number[];
+  sparkColor?: string;
 }) {
   const s = score ?? 0;
   const displayScore = useCountUp(s);
@@ -115,6 +144,9 @@ function ScoreTile({
           />
         </div>
       </div>
+      {sparkline && sparkline.some(v => v > 0) && sparkColor && (
+        <Sparkline data={sparkline} color={sparkColor} />
+      )}
       {sub && <p className="text-[10px] text-slate-400">{sub}</p>}
     </Link>
   );
@@ -145,13 +177,16 @@ export default function Dashboard() {
     () => _dashboardCache.get(user?.id ?? "") ?? null
   );
   const [doneTodayQuizzes, setDoneTodayQuizzes] = useState({ reading: false, listening: false, grammar: false });
+  const [sparklines, setSparklines] = useState<{ vocab: number[]; reading: number[]; listening: number[]; grammar: number[] } | null>(null);
 
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      // Round 1: profile + default deck + today's review count + quiz completions in parallel
       const today = new Date().toLocaleDateString("en-CA");
-      const [profileRes, deckRes, reviewRes, quizRes] = await Promise.all([
+      const since7 = new Date(Date.now() - 6 * 864e5).toLocaleDateString("en-CA");
+
+      // Round 1: profile + deck + today counts + 7-day quiz + 7-day vocab reviews
+      const [profileRes, deckRes, reviewRes, quizRes, vocabHistRes] = await Promise.all([
         supabase
           .from("profiles")
           .select("full_name, streak_count, max_streak, reading_score, listening_score, grammar_score")
@@ -159,11 +194,36 @@ export default function Dashboard() {
           .single(),
         supabase.from("decks").select("id").eq("user_id", user.id).eq("is_default", true).single(),
         supabase.from("user_review_counts").select("count").eq("user_id", user.id).eq("study_date", today).maybeSingle(),
-        supabase.from("quiz_daily_stats").select("quiz_type").eq("user_id", user.id).eq("study_date", today),
+        supabase.from("quiz_daily_stats").select("study_date, quiz_type, correct, total").eq("user_id", user.id).gte("study_date", since7),
+        supabase.from("user_review_counts").select("study_date, count").eq("user_id", user.id).gte("study_date", since7),
       ]);
 
-      const doneTypes = new Set((quizRes.data ?? []).map((r: { quiz_type: string }) => r.quiz_type));
+      // Done-today pills
+      const doneTypes = new Set((quizRes.data ?? []).filter((r: { study_date: string }) => r.study_date === today).map((r: { quiz_type: string }) => r.quiz_type));
       setDoneTodayQuizzes({ reading: doneTypes.has("reading"), listening: doneTypes.has("listening"), grammar: doneTypes.has("grammar") });
+
+      // Build 7-day sparkline arrays [oldest → today]
+      const days7 = Array.from({ length: 7 }, (_, i) => new Date(Date.now() - (6 - i) * 864e5).toLocaleDateString("en-CA"));
+      const quizByDate: Record<string, Record<string, { c: number; t: number }>> = {};
+      for (const r of quizRes.data ?? []) {
+        if (!quizByDate[r.study_date]) quizByDate[r.study_date] = {};
+        const prev = quizByDate[r.study_date][r.quiz_type] ?? { c: 0, t: 0 };
+        quizByDate[r.study_date][r.quiz_type] = { c: prev.c + r.correct, t: prev.t + r.total };
+      }
+      const quizSpark = (type: string) => days7.map(d => {
+        const e = quizByDate[d]?.[type];
+        return e?.t ? Math.round((e.c / e.t) * 100) : 0;
+      });
+      const vocabByDate: Record<string, number> = {};
+      for (const r of vocabHistRes.data ?? []) vocabByDate[r.study_date] = r.count;
+      const vocabCounts = days7.map(d => vocabByDate[d] ?? 0);
+      const vocabMax = Math.max(...vocabCounts, 1);
+      setSparklines({
+        vocab: vocabCounts.map(c => Math.round((c / vocabMax) * 100)),
+        reading: quizSpark("reading"),
+        listening: quizSpark("listening"),
+        grammar: quizSpark("grammar"),
+      });
 
       const p = profileRes.data;
       const deckId = deckRes.data?.id;
@@ -278,6 +338,7 @@ export default function Dashboard() {
       }
 
       supabase.from("profiles").update(profileUpdates).eq("id", user.id);
+      supabase.rpc("upsert_score_snapshot", { p_vocab: vocabScore, ...(grammarScore != null ? { p_grammar: grammarScore } : {}) });
 
       const fresh: ProfileScores = {
         name: p?.full_name ?? null,
@@ -411,10 +472,10 @@ export default function Dashboard() {
 
       {/* 2×2 skill tiles */}
       <div className="px-4 grid grid-cols-2 gap-3">
-        <ScoreTile href="/study"                    emoji="🃏" label="Vocabulary" score={data.vocab_score}     sub={`${data.deck_size.toLocaleString()} cards in deck`} nlevelOverride={data.vocab_nlevel} />
-        <ScoreTile href="/quizzes?open=grammar"    emoji="📝" label="Grammar"    score={data.grammar_score}   />
-        <ScoreTile href="/quizzes?open=sentence"   emoji="📖" label="Reading"    score={data.reading_score}   sub="Sentence quiz" />
-        <ScoreTile href="/quizzes?open=listening"  emoji="🎧" label="Listening"  score={data.listening_score} sub="Listening quiz" />
+        <ScoreTile href="/study"                   emoji="🃏" label="Vocabulary" score={data.vocab_score}     sub={`${data.deck_size.toLocaleString()} cards in deck`} nlevelOverride={data.vocab_nlevel} sparkline={sparklines?.vocab}     sparkColor="#6366f1" />
+        <ScoreTile href="/quizzes?open=grammar"    emoji="📝" label="Grammar"    score={data.grammar_score}                                                                                                 sparkline={sparklines?.grammar}   sparkColor="#f59e0b" />
+        <ScoreTile href="/quizzes?open=sentence"   emoji="📖" label="Reading"    score={data.reading_score}   sub="Sentence quiz"                                                                           sparkline={sparklines?.reading}   sparkColor="#0ea5e9" />
+        <ScoreTile href="/quizzes?open=listening"  emoji="🎧" label="Listening"  score={data.listening_score} sub="Listening quiz"                                                                          sparkline={sparklines?.listening} sparkColor="#8b5cf6" />
       </div>
 
       {/* Vocabulary by JLPT level */}
