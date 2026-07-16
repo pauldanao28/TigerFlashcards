@@ -1,286 +1,475 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
+import Logo from "@/components/Logo";
 
-// ── Mini phone screen mockups ─────────────────────────────────────────
+// ── Demo data ─────────────────────────────────────────────────────────
 
-function FlashcardScreen() {
-  return (
-    <div className="flex flex-col h-full bg-slate-50 px-3 pt-2 pb-3 gap-2">
-      <p className="text-[7px] font-black uppercase tracking-widest text-slate-400">Japanese → English</p>
-      <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center gap-1">
-        <p className="text-[22px] font-black text-slate-900">勉強する</p>
-        <p className="text-[8px] text-slate-400 font-medium">べんきょうする</p>
-      </div>
-      <div className="bg-indigo-600 rounded-xl py-2.5 text-center">
-        <p className="text-white font-black text-xs">to study</p>
-      </div>
-      <div className="flex gap-2">
-        <div className="flex-1 bg-rose-50 border border-rose-100 rounded-xl py-2 text-center">
-          <p className="text-[8px] font-black text-rose-500">✗ Again</p>
-        </div>
-        <div className="flex-1 bg-emerald-50 border border-emerald-100 rounded-xl py-2 text-center">
-          <p className="text-[8px] font-black text-emerald-600">✓ Got it</p>
-        </div>
-      </div>
-    </div>
-  );
+const DEMO_WORDS = [
+  { japanese: "食べる",   reading: "たべる",     english: "to eat"             },
+  { japanese: "水",       reading: "みず",       english: "water"              },
+  { japanese: "大きい",   reading: "おおきい",   english: "big, large"         },
+  { japanese: "行く",     reading: "いく",       english: "to go"              },
+  { japanese: "友達",     reading: "ともだち",   english: "friend"             },
+  { japanese: "見る",     reading: "みる",       english: "to see, watch"      },
+  { japanese: "日本語",   reading: "にほんご",   english: "Japanese language"  },
+  { japanese: "勉強する", reading: "べんきょうする", english: "to study"       },
+];
+
+const GAMES = [
+  { emoji: "🎯", name: "Color Focus",   reveal: "Trains word-recognition speed under time pressure" },
+  { emoji: "⚡", name: "Speed Match",   reveal: "Reveals words you know vs. only think you know"   },
+  { emoji: "💀", name: "Survival",      reveal: "Exposes your weakest cards under real pressure"    },
+  { emoji: "👂", name: "Listen & Pick", reveal: "Tests if you can hear what you've memorized"      },
+];
+
+// ── Hooks ─────────────────────────────────────────────────────────────
+
+function useInView(threshold = 0.25) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setInView(true); },
+      { threshold },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [threshold]);
+  return { ref, inView };
 }
 
-function ListeningScreen() {
-  return (
-    <div className="flex flex-col h-full bg-slate-50 px-3 pt-2 pb-3 gap-2">
-      <p className="text-[7px] font-black uppercase tracking-widest text-slate-400">Listen &amp; recall</p>
-      <div className="flex-1 flex flex-col items-center justify-center gap-3">
-        {/* Big play button */}
-        <div className="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center shadow-lg shadow-indigo-200">
-          <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
-            <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
-          </svg>
-        </div>
-        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Tap to listen</p>
-        {/* Revealed sentence */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-3 w-full text-center">
-          <p className="text-[13px] font-black text-slate-800">毎日勉強します</p>
-          <p className="text-[7px] text-slate-300 font-medium mt-1">revealed</p>
-        </div>
-      </div>
-      <div className="flex gap-2">
-        <div className="flex-1 bg-rose-50 border border-rose-100 rounded-xl py-2.5 text-center">
-          <p className="text-[8px] font-black text-rose-500">✕ Missed It</p>
-        </div>
-        <div className="flex-1 bg-emerald-50 border border-emerald-100 rounded-xl py-2.5 text-center">
-          <p className="text-[8px] font-black text-emerald-600">✓ Got It</p>
-        </div>
-      </div>
-    </div>
-  );
+function useCountUp(target: number, durationMs = 1400, active = false) {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    let raf: number;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min((now - start) / durationMs, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setVal(Math.round(eased * target));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, durationMs, active]);
+  return val;
 }
 
-function GrammarScreen() {
-  return (
-    <div className="flex flex-col h-full bg-slate-50 px-3 pt-2 pb-3 gap-2">
-      <p className="text-[7px] font-black uppercase tracking-widest text-slate-400">Fill in — N4</p>
-      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-3">
-        <p className="text-[11px] font-bold text-slate-800 leading-relaxed">
-          毎日日本語を{" "}
-          <span className="bg-amber-100 px-1.5 py-0.5 rounded text-amber-800">______</span>{" "}
-          います。
-        </p>
-        <p className="text-[8px] text-slate-400 mt-1.5">I study Japanese every day.</p>
-      </div>
-      <div className="flex-1 grid grid-cols-2 gap-1.5">
-        {[
-          { text: "勉強して", correct: true },
-          { text: "食べて", correct: false },
-          { text: "飲んで", correct: false },
-          { text: "読んで", correct: false },
-        ].map((opt) => (
-          <div
-            key={opt.text}
-            className={`rounded-xl flex items-center justify-center ${
-              opt.correct
-                ? "bg-emerald-100 border-2 border-emerald-400"
-                : "bg-white border border-slate-100 shadow-sm"
-            }`}
-          >
-            <p className={`text-[11px] font-black ${opt.correct ? "text-emerald-700" : "text-slate-700"}`}>
-              {opt.text}
-            </p>
-          </div>
-        ))}
-      </div>
-      <div className="bg-emerald-500 rounded-xl py-2.5 text-center">
-        <p className="text-white font-black text-[9px] uppercase tracking-widest">✓ Correct!</p>
-      </div>
-    </div>
-  );
-}
-
-function SenseiScreen() {
-  return (
-    <div className="flex flex-col justify-end h-full bg-slate-50 px-3 pt-2 pb-2 gap-2">
-      <div className="flex-1 flex flex-col justify-end gap-2">
-        <div className="bg-white rounded-2xl rounded-tl-sm border border-slate-100 shadow-sm p-2.5 max-w-[88%]">
-          <p className="text-[7px] text-indigo-500 font-black mb-0.5">AI先生</p>
-          <p className="text-[8px] font-bold text-slate-700 leading-relaxed">日本語で話してみてください！</p>
-        </div>
-        <div className="bg-indigo-600 rounded-2xl rounded-tr-sm p-2.5 max-w-[88%] self-end">
-          <p className="text-[8px] font-bold text-white leading-relaxed">今日学校に行きたかった</p>
-        </div>
-        <div className="bg-white rounded-2xl rounded-tl-sm border border-slate-100 shadow-sm p-2.5 max-w-[88%]">
-          <p className="text-[7px] text-indigo-500 font-black mb-0.5">AI先生</p>
-          <p className="text-[8px] font-bold text-slate-700 leading-relaxed">
-            ✓ 自然！「行きました」でも正しいですよ。
-          </p>
-        </div>
-      </div>
-      <div className="bg-white border border-slate-200 rounded-xl px-3 py-2 flex items-center gap-2 shrink-0">
-        <p className="flex-1 text-[8px] text-slate-300 font-medium">日本語を入力...</p>
-        <div className="w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center shrink-0">
-          <span className="text-white text-[7px]">↑</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Slide data ────────────────────────────────────────────────────────
-
-const SCREENS = [FlashcardScreen, ListeningScreen, GrammarScreen, SenseiScreen];
-
-const COPY = {
-  en: [
-    {
-      title: "AI Flashcards",
-      desc: "Mine any word — AI builds the card with furigana and example sentences instantly.",
-    },
-    {
-      title: "Listening Practice",
-      desc: "Real Japanese audio, no text crutch. Listen, then reveal the sentence and grade yourself.",
-    },
-    {
-      title: "Grammar Quiz",
-      desc: "N5→N1 fill-in & translation drills. Unlock harder patterns as you master each level.",
-    },
-    {
-      title: "AI Sensei",
-      desc: "Chat in Japanese. AI corrects your mistakes the way a real teacher would.",
-    },
-  ],
-  ja: [
-    {
-      title: "AI単語カード",
-      desc: "単語を追加するだけでAIがカードを自動生成。ふりがなと例文付き。",
-    },
-    {
-      title: "リスニング練習",
-      desc: "テキストなし、本物の音声で聴解力を鍛える。",
-    },
-    {
-      title: "文法クイズ",
-      desc: "N5からN1まで穴埋めと翻訳。レベルアップで難しいパターンも解放。",
-    },
-    {
-      title: "AI先生",
-      desc: "日本語でチャット。AIが自然に間違いを添削します。",
-    },
-  ],
-};
-
-// ── Component ─────────────────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────────────
 
 export default function WelcomeView() {
-  const [slide, setSlide] = useState(0);
-  const [visible, setVisible] = useState(true);
-  const touchStartX = useRef<number | null>(null);
+  const [cardIndex, setCardIndex]     = useState(0);
+  const [isFlipped, setIsFlipped]     = useState(false);
+  const [transitioning, setTrans]     = useState(false);
+  const [practiced, setPracticed]     = useState(0);
+  const [showSticky, setShowSticky]   = useState(false);
 
-  const copies = COPY.en;
-  const isLast = slide === SCREENS.length - 1;
-  const { title, desc } = copies[slide];
-  const Screen = SCREENS[slide];
+  const heroCTARef  = useRef<HTMLDivElement>(null);
+  const finalCTARef = useRef<HTMLDivElement>(null);
 
-  const goTo = (i: number) => {
-    if (i === slide || i < 0 || i >= SCREENS.length) return;
-    setVisible(false);
+  const { ref: dashRef, inView: dashInView } = useInView(0.2);
+
+  const word = DEMO_WORDS[cardIndex % DEMO_WORDS.length];
+
+  // Dashboard count-ups
+  const n5Count       = useCountUp(47,  1500, dashInView);
+  const n4Count       = useCountUp(12,  1200, dashInView);
+  const streakCount   = useCountUp(7,    800, dashInView);
+  const masteredCount = useCountUp(47,  1500, dashInView);
+
+  // Show sticky bar only after scrolling past the hero CTA
+  useEffect(() => {
+    const els = [heroCTARef.current, finalCTARef.current].filter(Boolean) as Element[];
+    const observer = new IntersectionObserver(
+      (entries) => setShowSticky(!entries.some(e => e.isIntersecting)),
+      { threshold: 0.6 },
+    );
+    els.forEach(el => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
+  const handleFlip = () => {
+    if (!isFlipped && !transitioning) setIsFlipped(true);
+  };
+
+  const handleGrade = () => {
+    if (transitioning) return;
+    setPracticed(p => p + 1);
+    setTrans(true);
     setTimeout(() => {
-      setSlide(i);
-      setVisible(true);
-    }, 150);
-  };
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-  };
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return;
-    const diff = touchStartX.current - e.changedTouches[0].clientX;
-    if (diff > 50) goTo(slide + 1);
-    else if (diff < -50) goTo(slide - 1);
-    touchStartX.current = null;
+      setIsFlipped(false);
+      setCardIndex(i => i + 1);
+      setTrans(false);
+    }, 360);
   };
 
   return (
-    <main className="h-[100dvh] max-h-[100dvh] w-full bg-white flex flex-col fixed inset-0 overflow-hidden">
-      {/* Phone mockup — fills remaining space, centered */}
-      <div
-        className="flex-1 flex items-center justify-center pt-16"
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-      >
-        {/* Phone frame */}
-        <div
-          className="relative bg-slate-900 rounded-[34px] shadow-2xl shadow-slate-300"
-          style={{ width: 210, height: 350, padding: 3 }}
-        >
-          {/* Dynamic island */}
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-[52px] h-[14px] bg-slate-900 rounded-full z-10" />
-          {/* Screen glass */}
-          <div
-            className="w-full h-full bg-white rounded-[31px] overflow-hidden transition-opacity duration-150"
-            style={{ opacity: visible ? 1 : 0 }}
+    <main className="min-h-[100dvh] w-full bg-white overflow-y-auto overflow-x-hidden pb-28">
+
+      {/* ── Sticky bottom bar ──────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showSticky && (
+          <motion.div
+            initial={{ y: 80 }}
+            animate={{ y: 0 }}
+            exit={{ y: 80 }}
+            transition={{ type: "spring", stiffness: 420, damping: 34 }}
+            className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-slate-100 px-5 py-3"
+            style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}
           >
-            {/* Feature content */}
-            <div className="h-full pt-5">
-              <Screen />
+            <Link
+              href="/login"
+              className="block w-full max-w-sm mx-auto py-3.5 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] text-center shadow-lg shadow-indigo-100 active:scale-[0.97] transition-all"
+            >
+              Get Started — it&apos;s free
+            </Link>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="max-w-md mx-auto px-5">
+
+        {/* ── Section 1: Hero ────────────────────────────────────────────── */}
+        <section className="pt-12 pb-12">
+
+          {/* Logo */}
+          <div className="flex flex-col items-center mb-8">
+            <Logo className="w-9 h-12 mb-3" />
+            <p className="text-[9px] font-black uppercase tracking-[0.32em] text-indigo-400">FlashKado</p>
+          </div>
+
+          {/* Headline */}
+          <div className="text-center mb-8">
+            <h1 className="text-[2rem] font-black text-slate-900 leading-tight tracking-tighter italic mb-3">
+              Build your Japanese.<br />Track the proof.
+            </h1>
+            <p className="text-slate-400 text-sm leading-relaxed max-w-xs mx-auto">
+              Every word you study becomes part of your permanent Japanese profile —
+              exactly which JLPT words you know and don&apos;t.
+            </p>
+          </div>
+
+          {/* ── Interactive flashcard ── */}
+          <div style={{ perspective: "1200px" }} className="w-full mb-3">
+            <div
+              style={{
+                transformStyle: "preserve-3d",
+                transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+                transition: "transform 0.42s cubic-bezier(0.4,0,0.2,1)",
+                position: "relative",
+                height: "11.5rem",
+              }}
+            >
+              {/* Front */}
+              <div
+                style={{ backfaceVisibility: "hidden" }}
+                onClick={handleFlip}
+                className="absolute inset-0 bg-white rounded-3xl shadow-xl border border-slate-100 flex flex-col items-center justify-center gap-2 cursor-pointer active:scale-[0.98] transition-transform select-none"
+              >
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-300">
+                  N5 Word · Tap to reveal
+                </p>
+                <p className="text-5xl font-black text-slate-900 tracking-tighter">{word.japanese}</p>
+                <p className="text-sm text-slate-400 font-medium">{word.reading}</p>
+              </div>
+
+              {/* Back */}
+              <div
+                style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+                className="absolute inset-0 bg-white rounded-3xl shadow-xl border border-indigo-100 flex flex-col items-center justify-center gap-2 select-none"
+              >
+                <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">N5 · Meaning</p>
+                <p className="text-4xl font-black text-slate-900 tracking-tighter">{word.japanese}</p>
+                <p className="text-xs text-slate-400 font-medium">{word.reading}</p>
+                <p className="text-2xl font-black text-indigo-600 mt-0.5">{word.english}</p>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Bottom: dots → title → desc → button → sign-in */}
-      <div
-        className="shrink-0 px-6 pb-8 flex flex-col items-center"
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-      >
-        {/* Pagination dots */}
-        <div className="flex gap-1.5 mb-5 mt-5">
-          {SCREENS.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => goTo(i)}
-              className={`rounded-full transition-all duration-300 ${
-                i === slide ? "w-6 h-2 bg-indigo-600" : "w-2 h-2 bg-slate-200"
-              }`}
-            />
-          ))}
-        </div>
+          {/* Grade buttons — only when flipped */}
+          <AnimatePresence mode="wait">
+            {isFlipped && (
+              <motion.div
+                key="grade"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.18 }}
+                className="flex gap-3 mb-4"
+              >
+                <button
+                  onClick={handleGrade}
+                  className="flex-1 bg-rose-50 border border-rose-100 rounded-2xl py-3.5 font-black text-sm text-rose-500 active:scale-95 transition-all"
+                >
+                  ✗ Again
+                </button>
+                <button
+                  onClick={handleGrade}
+                  className="flex-1 bg-emerald-50 border border-emerald-100 rounded-2xl py-3.5 font-black text-sm text-emerald-600 active:scale-95 transition-all"
+                >
+                  ✓ Got it
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-        {/* Title + description */}
-        <div
-          className="text-center mb-6 transition-opacity duration-150"
-          style={{ opacity: visible ? 1 : 0 }}
-        >
-          <h2 className="text-2xl font-black text-slate-900 mb-2">{title}</h2>
-          <p className="text-sm text-slate-400 leading-relaxed max-w-xs mx-auto">{desc}</p>
-        </div>
+          {/* Post-grade banner */}
+          <AnimatePresence>
+            {practiced > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ type: "spring", stiffness: 340, damping: 24 }}
+                className="bg-indigo-50 border border-indigo-100 rounded-2xl px-4 py-3 flex items-center justify-between mb-5"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xl">🎌</span>
+                  <div>
+                    <p className="text-indigo-700 font-black text-xs leading-none mb-0.5">
+                      {practiced} {practiced === 1 ? "word" : "words"} practiced
+                    </p>
+                    <p className="text-indigo-400 text-[10px] font-medium">Sign up to save your progress</p>
+                  </div>
+                </div>
+                <Link
+                  href="/login"
+                  className="bg-indigo-600 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl active:scale-95 transition-all whitespace-nowrap shrink-0"
+                >
+                  Save →
+                </Link>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-        {/* CTA */}
-        {isLast ? (
-          <Link
-            href="/login"
-            className="w-full py-[1.1rem] bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-[0.97] transition-all text-center"
-          >
-            {"Get Started — it's free"}
-          </Link>
-        ) : (
-          <button
-            onClick={() => goTo(slide + 1)}
-            className="w-full py-[1.1rem] bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-indigo-100 active:scale-[0.97] transition-all"
-          >
-            {"Next"}
-          </button>
-        )}
+          {/* Hero CTA */}
+          <div ref={heroCTARef}>
+            <Link
+              href="/login"
+              className="block w-full py-[1.1rem] bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-[0.97] transition-all text-center"
+            >
+              Get Started — it&apos;s free
+            </Link>
+            <Link
+              href="/login"
+              className="block mt-3 text-center text-[10px] font-bold text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              Already a member? Sign in →
+            </Link>
+          </div>
+        </section>
 
-        <Link
-          href="/login"
-          className="mt-3.5 text-[10px] font-bold text-slate-400 hover:text-slate-600 active:opacity-60 transition-colors"
-        >
-          {"Already a member? Sign in →"}
-        </Link>
+        {/* ── Section 2: Dashboard preview ──────────────────────────────── */}
+        <section className="py-12 border-t border-slate-100">
+          <div className="text-center mb-7">
+            <p className="text-[9px] font-black uppercase tracking-widest text-indigo-500 mb-2">Your Profile</p>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tighter italic leading-tight mb-2">
+              Built automatically,<br />just by studying.
+            </h2>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              Not a vague score. The exact words you know — and the ones you don&apos;t yet.
+            </p>
+          </div>
+
+          {/* Mock dashboard */}
+          <div ref={dashRef} className="bg-white rounded-3xl border border-slate-100 shadow-lg overflow-hidden">
+
+            {/* Header strip */}
+            <div className="bg-slate-900 px-5 py-4 flex items-center justify-between">
+              <div>
+                <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest">Vocabulary Level</p>
+                <p className="text-white font-black text-xl tracking-tighter">JLPT N5</p>
+              </div>
+              <div className="flex gap-4 text-right">
+                <div>
+                  <p className="text-white font-black text-2xl tabular-nums leading-none">{streakCount}</p>
+                  <p className="text-slate-500 text-[9px] font-black uppercase tracking-widest">Streak 🔥</p>
+                </div>
+                <div>
+                  <p className="text-white font-black text-2xl tabular-nums leading-none">{masteredCount}</p>
+                  <p className="text-slate-500 text-[9px] font-black uppercase tracking-widest">Mastered ⭐</p>
+                </div>
+              </div>
+            </div>
+
+            {/* JLPT bars */}
+            <div className="px-5 py-5 space-y-4">
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">JLPT Progress</p>
+
+              {/* N5 */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-black text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">N5</span>
+                  <span className="text-[10px] font-black text-slate-400 tabular-nums">{n5Count} / 800 mastered</span>
+                </div>
+                <div className="h-2.5 bg-emerald-100 rounded-full overflow-hidden">
+                  <motion.div
+                    className="h-full bg-emerald-500 rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: dashInView ? `${(47 / 800) * 100}%` : "0%" }}
+                    transition={{ duration: 1.5, ease: [0.4, 0, 0.2, 1], delay: 0.1 }}
+                  />
+                </div>
+              </div>
+
+              {/* N4 */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-black text-teal-700 bg-teal-100 border border-teal-200 px-2 py-0.5 rounded-full">N4</span>
+                  <span className="text-[10px] font-black text-slate-400 tabular-nums">{n4Count} / 600 mastered</span>
+                </div>
+                <div className="h-2.5 bg-teal-100 rounded-full overflow-hidden">
+                  <motion.div
+                    className="h-full bg-teal-500 rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: dashInView ? `${(12 / 600) * 100}%` : "0%" }}
+                    transition={{ duration: 1.2, ease: [0.4, 0, 0.2, 1], delay: 0.2 }}
+                  />
+                </div>
+              </div>
+
+              {/* N3 locked */}
+              <div className="opacity-25">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-black text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full">N3</span>
+                  <span className="text-[10px] font-black text-slate-400">🔒 Not started</span>
+                </div>
+                <div className="h-2.5 bg-amber-100 rounded-full" />
+              </div>
+
+              {/* Score tiles row */}
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                {[
+                  { label: "Vocab",     val: "N5", color: "text-emerald-600" },
+                  { label: "Reading",   val: "N5", color: "text-teal-600"    },
+                  { label: "Listening", val: "N5", color: "text-indigo-600"  },
+                ].map(s => (
+                  <div key={s.label} className="bg-slate-50 rounded-2xl p-2.5 text-center">
+                    <p className={`font-black text-base ${s.color}`}>{s.val}</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <p className="text-center text-[10px] text-slate-400 font-medium mt-3.5">
+            Your numbers update every time you study.
+          </p>
+        </section>
+
+        {/* ── Section 3: Mini games ──────────────────────────────────────── */}
+        <section className="py-12 border-t border-slate-100">
+          <div className="text-center mb-7">
+            <p className="text-[9px] font-black uppercase tracking-widest text-indigo-500 mb-2">Mini Games</p>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tighter italic leading-tight mb-2">
+              Games that find<br />your gaps.
+            </h2>
+            <p className="text-slate-400 text-sm">Not just practice — diagnosis.</p>
+          </div>
+
+          {/* Horizontal scroll row */}
+          <div className="flex gap-3 overflow-x-auto -mx-5 px-5 pb-2 snap-x snap-mandatory" style={{ scrollbarWidth: "none" }}>
+            {GAMES.map((g, i) => (
+              <motion.div
+                key={g.name}
+                initial={{ opacity: 0, y: 12 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{ delay: i * 0.07, duration: 0.3 }}
+                className="flex-shrink-0 snap-start w-44 bg-slate-900 rounded-3xl p-4 flex flex-col gap-2.5"
+              >
+                <span className="text-3xl">{g.emoji}</span>
+                <p className="text-white font-black text-sm leading-tight">{g.name}</p>
+                <p className="text-slate-400 text-[11px] leading-snug font-medium">{g.reveal}</p>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Section 4: The loop ────────────────────────────────────────── */}
+        <section className="py-12 border-t border-slate-100">
+          <div className="text-center mb-8">
+            <p className="text-[9px] font-black uppercase tracking-widest text-indigo-500 mb-2">How It Works</p>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tighter italic">
+              Everything compounds.
+            </h2>
+          </div>
+
+          <div className="relative">
+            {/* Vertical connector line */}
+            <div className="absolute left-8 top-10 bottom-10 w-px bg-slate-100" />
+
+            <div className="space-y-2">
+              {[
+                {
+                  icon: "✍️",
+                  step: "01",
+                  title: "Add any word",
+                  sub:  "Type it — AI builds the card with furigana and example sentences instantly.",
+                },
+                {
+                  icon: "🃏",
+                  step: "02",
+                  title: "Study daily",
+                  sub:  "Flashcards, listening quizzes, and games adapt to what you actually need.",
+                },
+                {
+                  icon: "📈",
+                  step: "03",
+                  title: "Profile grows",
+                  sub:  "JLPT level, mastery count, and scores update automatically — no setup.",
+                },
+              ].map((item) => (
+                <div key={item.step} className="flex gap-4 p-3">
+                  <div className="shrink-0 w-10 h-10 bg-white border border-slate-100 shadow-sm rounded-2xl flex items-center justify-center text-xl z-10">
+                    {item.icon}
+                  </div>
+                  <div className="pt-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{item.step}</span>
+                      <span className="text-sm font-black text-slate-900">{item.title}</span>
+                    </div>
+                    <p className="text-xs text-slate-400 leading-relaxed">{item.sub}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Section 5: Final CTA ──────────────────────────────────────── */}
+        <section className="py-12 border-t border-slate-100">
+          <div className="text-center mb-7">
+            <h2 className="text-2xl font-black text-slate-900 tracking-tighter italic leading-tight mb-3">
+              Start your Japanese journey<br />in 30 seconds.
+            </h2>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              Free · No credit card · Bring your own words<br />or import 30 N5 words to begin.
+            </p>
+          </div>
+
+          <div ref={finalCTARef}>
+            <Link
+              href="/login"
+              className="block w-full py-[1.1rem] bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-[0.97] transition-all text-center mb-3"
+            >
+              Get Started — it&apos;s free
+            </Link>
+            <Link
+              href="/login"
+              className="block text-center text-[10px] font-bold text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              Already a member? Sign in →
+            </Link>
+          </div>
+        </section>
+
       </div>
     </main>
   );
