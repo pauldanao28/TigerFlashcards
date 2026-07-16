@@ -633,7 +633,7 @@ export default function AdminChat({ userId }: { userId: string }) {
         } catch (aiErr) {
           console.error("AI step failed:", aiErr);
           if (aiErr instanceof Error && aiErr.message === "LIMIT_REACHED") {
-            setErrorMsg("Daily word-generation limit reached — words already in the library were still added. New ones will sync tomorrow.");
+            setErrorMsg("Daily word-generation limit reached — this keeps the app free for everyone. Words already in the library were still added; the rest are saved in your list, just try adding them again tomorrow.");
           }
         }
       }
@@ -1277,7 +1277,7 @@ export default function AdminChat({ userId }: { userId: string }) {
         </div>
         <p className="text-center text-[10px] text-slate-300 mt-2 font-medium uppercase tracking-widest">
           {chatUsage != null && chatUsage.remaining <= 0
-            ? "Daily message limit reached — come back tomorrow!"
+            ? "Daily message limit reached — this keeps Sensei free for everyone. Come back tomorrow!"
             : <>Tap underlined kanji · Add to deck · {chatUsage?.remaining ?? '…'}/{chatUsage?.limit ?? 20} messages left today</>}
           {" · "}
           {ttsUsage != null && ttsUsage.remaining <= 0

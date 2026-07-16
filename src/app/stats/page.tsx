@@ -717,7 +717,7 @@ export default function StatsPage() {
       console.error("ProcessWords Error:", e);
       showAlert(
         e.message === "AI Limit Reached"
-          ? "Daily word-generation limit reached — come back tomorrow to add more!"
+          ? "Daily word-generation limit reached — this keeps the app free for everyone. Come back tomorrow to add more!"
           : `Something went wrong: ${e.message}`
       );
     } finally {

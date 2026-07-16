@@ -442,7 +442,7 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
         } catch (aiErr) {
           console.error("AI step failed:", aiErr);
           if (aiErr instanceof Error && aiErr.message === "LIMIT_REACHED") {
-            showAlert("Daily word-generation limit reached — words already in the library were still added. New ones will sync tomorrow.");
+            showAlert("Daily word-generation limit reached — this keeps the app free for everyone. Words already in the library were still added; the rest are saved in your list, just try adding them again tomorrow.");
           }
         }
       }

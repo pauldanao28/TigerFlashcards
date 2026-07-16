@@ -783,7 +783,7 @@ export default function StudyView() {
           if (!res.ok) {
             if (res.status === 429 && !shownGenerateLimitAlertRef.current) {
               shownGenerateLimitAlertRef.current = true;
-              showAlert("Daily word-generation limit reached — this card (and any others) will sync automatically tomorrow.");
+              showAlert("Daily word-generation limit reached — this keeps the app free for everyone. This card (and any others) will sync automatically once the limit resets tomorrow.");
             }
             return;
           }

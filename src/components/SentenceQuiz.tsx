@@ -259,7 +259,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
   const load = useCallback(async () => {
     if (loadingRef.current) return;
     if (!isAdmin && usage != null && usage.remaining <= 0) {
-      setError(`Daily limit reached — ${usage.limit} quizzes per day. Come back tomorrow!`);
+      setError(`Daily limit reached — ${usage.limit} quizzes per day keeps this free for everyone. Come back tomorrow!`);
       setPhase("loading"); // show error state (error takes priority in render)
       return;
     }
@@ -474,7 +474,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
         } catch (aiErr) {
           console.error("AI step failed:", aiErr);
           if (aiErr instanceof Error && aiErr.message === "LIMIT_REACHED") {
-            showAlert("Daily word-generation limit reached — words already in the library were still added. New ones will sync tomorrow.");
+            showAlert("Daily word-generation limit reached — this keeps the app free for everyone. Words already in the library were still added; the rest are saved in your list, just try adding them again tomorrow.");
           }
         }
       }
