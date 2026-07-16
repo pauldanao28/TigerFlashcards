@@ -2284,7 +2284,7 @@ export default function StatsPage() {
         <motion.button
           onClick={() => { setShowAddSheet(true); setAddSheetTab("word"); }}
           whileTap={{ scale: 0.88 }}
-          className="fixed bottom-24 right-5 z-[150] w-14 h-14 bg-indigo-600 text-white rounded-full shadow-xl shadow-indigo-300/50 flex items-center justify-center"
+          className="fixed bottom-24 right-5 z-[205] w-14 h-14 bg-indigo-600 text-white rounded-full shadow-xl shadow-indigo-300/50 flex items-center justify-center"
         >
           <Plus size={26} strokeWidth={2.5} />
           {pendingWords.length > 0 && (
@@ -2296,7 +2296,7 @@ export default function StatsPage() {
 
         {/* ── Add Cards Bottom Sheet ── */}
         {showAddSheet && (
-          <div className="fixed inset-0 z-[200] flex flex-col justify-end">
+          <div className="fixed inset-0 z-[250] flex flex-col justify-end">
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -2350,7 +2350,6 @@ export default function StatsPage() {
                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Japanese or English word</p>
                       <div className="flex gap-2">
                         <input
-                          autoFocus
                           type="text"
                           value={input}
                           onChange={(e) => setInput(e.target.value)}
@@ -2399,7 +2398,6 @@ export default function StatsPage() {
                         )}
                       </div>
                       <textarea
-                        autoFocus
                         value={batchInput}
                         onChange={(e) => setBatchInput(e.target.value)}
                         rows={9}
