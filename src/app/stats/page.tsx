@@ -1285,12 +1285,22 @@ export default function StatsPage() {
                 </div>
               </div>
 
-              <div className="mt-12 pt-8 border-t border-slate-100">
+              {/* SIGN OUT — separated from the danger zone */}
+              <div className="mt-8 pt-6 border-t border-slate-100">
+                <button
+                  onClick={handleLogout}
+                  className="w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100 transition-all active:scale-95"
+                >
+                  {t.signout}
+                </button>
+              </div>
+
+              {/* DANGER ZONE — intentionally far from sign out */}
+              <div className="mt-16 pt-8 border-t-2 border-red-100">
                 <h3 className="text-[10px] font-black text-red-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                   <span>⚠️</span> {t.danger_zone}
                 </h3>
 
-                {/* DELETE ACCOUNT SECTION */}
                 <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div className="max-w-[250px]">
                     <p className="text-sm font-bold text-red-700 leading-tight">
@@ -1308,14 +1318,6 @@ export default function StatsPage() {
                     {t.delete_btn}
                   </button>
                 </div>
-              </div>
-              <div className="mt-8 pt-6 border-t border-slate-100">
-                <button
-                  onClick={handleLogout}
-                  className="w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all active:scale-95"
-                >
-                  {t.signout}
-                </button>
               </div>
               </div>
             </div>
