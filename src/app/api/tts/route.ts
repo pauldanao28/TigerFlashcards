@@ -9,10 +9,10 @@ export async function POST(req: Request) {
   const user = await getAuthedUser(req);
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
 
-  const { text, voice } = await req.json();
+  const { text, voice, isPreview } = await req.json();
   if (!text) return NextResponse.json({ error: "No text" }, { status: 400 });
 
-  const usage = await checkAndRecordUsage(user.id, "tts");
+  const usage = await checkAndRecordUsage(user.id, isPreview ? "tts_preview" : "tts");
   if (!usage.allowed) {
     return NextResponse.json({ error: "Daily audio limit reached" }, { status: 429 });
   }

@@ -167,6 +167,11 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
     getTodayUsage(userId, "quiz_listening").then(setUsage);
   }, [userId]);
   useEffect(() => { refreshUsage(); }, [refreshUsage]);
+  const [ttsUsage, setTtsUsage] = useState<AiUsageInfo | null>(null);
+  const refreshTtsUsage = useCallback(() => {
+    getTodayUsage(userId, "tts").then(setTtsUsage);
+  }, [userId]);
+  useEffect(() => { refreshTtsUsage(); }, [refreshTtsUsage]);
 
   useEffect(() => {
     if (!skillScore) return;
@@ -457,8 +462,8 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
     const q = questions[currentIdx];
     if (!q) return;
     setIsPlaying(true);
-    playTTS(toSpeechText(q.sentence_jp), "ja-JP", { onEnd: () => setIsPlaying(false) });
-  }, [questions, currentIdx]);
+    playTTS(toSpeechText(q.sentence_jp), "ja-JP", { onEnd: () => setIsPlaying(false) }).then(refreshTtsUsage);
+  }, [questions, currentIdx, refreshTtsUsage]);
 
   const handleRate = (gotIt: boolean) => {
     const q = questions[currentIdx];
@@ -635,6 +640,11 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
                     {isPlaying ? <Loader2 size={32} className="text-white animate-spin" /> : <Ear size={32} className="text-white" />}
                   </button>
                   <p className="text-slate-400 font-medium text-xs text-center">Listen as many times as you need, then reveal to check yourself.</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-300">
+                    {ttsUsage != null && ttsUsage.remaining <= 0
+                      ? "Voice plays used up — switching to browser voice"
+                      : <>🔊 {ttsUsage?.remaining ?? '…'}/{ttsUsage?.limit ?? 5} voice plays left today</>}
+                  </p>
                 </div>
               ) : (
                 /* Revealed — tappable sentence + chunk meaning */

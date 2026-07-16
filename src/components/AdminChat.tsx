@@ -160,6 +160,11 @@ export default function AdminChat({ userId }: { userId: string }) {
     getTodayUsage(userId, "chat").then(setChatUsage);
   }, [userId]);
   useEffect(() => { refreshChatUsage(); }, [refreshChatUsage]);
+  const [ttsUsage, setTtsUsage] = useState<AiUsageInfo | null>(null);
+  const refreshTtsUsage = useCallback(() => {
+    getTodayUsage(userId, "tts").then(setTtsUsage);
+  }, [userId]);
+  useEffect(() => { refreshTtsUsage(); }, [refreshTtsUsage]);
   const [showList, setShowList] = useState(false);
   const [batchAdding, setBatchAdding] = useState(false);
   const [addedSummary, setAddedSummary] = useState<any[]>([]);
@@ -717,7 +722,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       return;
     }
     setSpeakingId(msgId);
-    playTTS(ttsClean(text), "ja-JP", { onEnd: () => setSpeakingId(null) });
+    playTTS(ttsClean(text), "ja-JP", { onEnd: () => setSpeakingId(null) }).then(refreshTtsUsage);
   };
 
   // ── Render message content ──────────────────────────────────────────────────
@@ -1201,7 +1206,7 @@ export default function AdminChat({ userId }: { userId: string }) {
                     <div className={`text-[10px] font-bold mt-0.5 ${v.gender === "Female" ? "text-pink-500" : "text-blue-500"}`}>{v.gender}</div>
                     <div className="text-[10px] text-slate-400 mt-1">{v.desc}</div>
                     <button
-                      onClick={(e) => { e.stopPropagation(); playTTS("こんにちは！よろしくお願いします。", "ja-JP", { voice: v.id }); }}
+                      onClick={(e) => { e.stopPropagation(); playTTS("こんにちは！よろしくお願いします。", "ja-JP", { voice: v.id, isPreview: true }); }}
                       className="mt-3 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-violet-600 transition-colors">
                       ▶ Preview
                     </button>
@@ -1270,7 +1275,11 @@ export default function AdminChat({ userId }: { userId: string }) {
         <p className="text-center text-[10px] text-slate-300 mt-2 font-medium uppercase tracking-widest">
           {chatUsage != null && chatUsage.remaining <= 0
             ? "Daily message limit reached — come back tomorrow!"
-            : <>Tap underlined kanji · Add to deck · {chatUsage?.remaining ?? '…'}/{chatUsage?.limit ?? 80} messages left today</>}
+            : <>Tap underlined kanji · Add to deck · {chatUsage?.remaining ?? '…'}/{chatUsage?.limit ?? 20} messages left today</>}
+          {" · "}
+          {ttsUsage != null && ttsUsage.remaining <= 0
+            ? "voice replies used up (browser voice will play instead)"
+            : <>🔊 {ttsUsage?.remaining ?? '…'}/{ttsUsage?.limit ?? 5} voice replies left today</>}
         </p>
       </div>
     </div>

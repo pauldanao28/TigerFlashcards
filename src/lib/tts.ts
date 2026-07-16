@@ -55,7 +55,7 @@ export function speak(text: string, lang: "ja-JP" | "en-US" = "ja-JP") {
 }
 
 // AdminChat sensei messages — Gemini TTS route, cached per session
-async function fetchAudio(text: string, voice?: string): Promise<string> {
+async function fetchAudio(text: string, voice?: string, isPreview?: boolean): Promise<string> {
   const resolvedVoice = voice ?? getVoice();
   const key = `${resolvedVoice}:${text}`;
   const cached = cache.get(key);
@@ -65,7 +65,7 @@ async function fetchAudio(text: string, voice?: string): Promise<string> {
   if (!promise) {
     promise = authedFetch("/api/tts", {
       method: "POST",
-      body: JSON.stringify({ text, voice: resolvedVoice }),
+      body: JSON.stringify({ text, voice: resolvedVoice, isPreview }),
     })
       .then(async (r) => {
         if (!r.ok) throw new Error(`TTS ${r.status}`);
@@ -99,7 +99,7 @@ function speechSynthFallback(text: string, lang: string, rate = 0.85, onEnd?: ()
 export async function playTTS(
   text: string,
   lang: "ja-JP" | "en-US" = "ja-JP",
-  opts: { onEnd?: () => void; voice?: VoiceId } = {}
+  opts: { onEnd?: () => void; voice?: VoiceId; isPreview?: boolean } = {}
 ): Promise<void> {
   stopTTS();
   if (!text.trim()) return;
@@ -110,7 +110,7 @@ export async function playTTS(
   }
 
   try {
-    const url = await fetchAudio(text, opts.voice);
+    const url = await fetchAudio(text, opts.voice, opts.isPreview);
     const audio = new Audio(url);
     currentAudio = audio;
     if (opts.onEnd) audio.addEventListener("ended", opts.onEnd, { once: true });
