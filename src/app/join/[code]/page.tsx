@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, use } from "react";
+import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 interface JoinProps {
-  params: Promise<{ username: string }>;
+  params: Promise<{ code: string }>;
 }
 
 export default function JoinPage({ params }: JoinProps) {
@@ -12,22 +13,29 @@ export default function JoinPage({ params }: JoinProps) {
 
   // Unwrap the promise for Next.js 16/React 19
   const resolvedParams = use(params);
-  const username = resolvedParams.username;
-  const referrerName = decodeURIComponent(username);
+  const code = decodeURIComponent(resolvedParams.code).toUpperCase();
+  const [referrerName, setReferrerName] = useState<string | null>(null);
 
   useEffect(() => {
-    if (referrerName) {
-      // Store the referrer name for the Auth page to read
-      localStorage.setItem("tg_referrer", referrerName);
+    if (!code) return;
 
-      // Snappy redirect: 800ms is enough to read the name
-      const timer = setTimeout(() => {
-        router.push("/login"); // or wherever your Auth.tsx is located
-      }, 800);
+    // Store the code for the Auth page (or the post-login fallback in
+    // StudyView) to process once the new user actually signs up.
+    localStorage.setItem("tg_referrer", code);
 
-      return () => clearTimeout(timer);
-    }
-  }, [referrerName, router]);
+    supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("referral_code", code)
+      .maybeSingle()
+      .then(({ data }) => setReferrerName(data?.full_name || "a friend"));
+
+    const timer = setTimeout(() => {
+      router.push("/login");
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [code, router]);
 
   return (
     <div className="fixed inset-0 h-[100dvh] w-full bg-slate-50 flex flex-col items-center justify-center p-4 overflow-hidden overscroll-none">
@@ -44,7 +52,7 @@ export default function JoinPage({ params }: JoinProps) {
               You've been invited by
             </p>
             <p className="text-3xl font-black text-indigo-600 italic uppercase tracking-tight">
-              {referrerName}
+              {referrerName ?? "…"}
             </p>
           </div>
 

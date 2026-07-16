@@ -93,13 +93,14 @@ export const handleIgnoreRequest = async (senderId: string) => {
   return { error };
 };
 
-export const processReferral = async (newUserId: string, referrerName: string) => {
+export const processReferral = async (newUserId: string, referralCode: string) => {
   try {
-    // 1. Find the Referrer
+    // 1. Find the Referrer — matched by referral_code (stable, unique, opaque),
+    // not full_name (user-editable, starts blank, not guaranteed unique).
     const { data: referrer, error: findError } = await supabase
       .from("profiles")
       .select("id, full_name")
-      .ilike("full_name", referrerName)
+      .eq("referral_code", referralCode.toUpperCase())
       .maybeSingle();
 
     if (findError || !referrer) {

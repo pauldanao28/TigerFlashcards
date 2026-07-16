@@ -13,12 +13,14 @@ import { useAppAlert } from "@/context/AlertContext";
 export const SocialDock = ({
   userId, // Added your unique ID
   username,
+  referralCode,
   friends,
   onClose,
   fetchFriends,
 }: {
   userId: string;
   username: string; // Add this prop
+  referralCode: string | null;
   friends: any[];
   onClose: () => void;
   fetchFriends?: () => Promise<void>;
@@ -85,17 +87,30 @@ export const SocialDock = ({
 
   // The logic for sharing or connecting
   const handleSocialAction = async () => {
-    // 1. Safety check: stop if we don't have a name
-    if (!username) {
-      showAlert("Error getting username. Please wait a moment.");
+    // 1. Safety check: stop if we don't have a code yet
+    if (!referralCode) {
+      showAlert("Error getting your referral code. Please wait a moment.");
       return; // Stop the function here
     }
 
-    const shareUrl = `https://flashkado.app/join/${encodeURIComponent(username)}`;
+    const shareUrl = `https://flashkado.com/join/${referralCode}`;
+    const shareMessage = `Join me on FlashKado! I'm learning Japanese with AI-powered flashcards 🇯🇵 ${shareUrl}`;
+
+    // Prefer the native share sheet (lets them pick Messages/WhatsApp/etc
+    // directly) — fall back to clipboard copy where it's unavailable.
+    if (navigator.share) {
+      try {
+        await navigator.share({ text: shareMessage, url: shareUrl });
+        return;
+      } catch {
+        // User cancelled the share sheet — not an error, just stop.
+        return;
+      }
+    }
 
     try {
-      await navigator.clipboard.writeText(shareUrl);
-      showAlert("Link copied to clipboard!");
+      await navigator.clipboard.writeText(shareMessage);
+      showAlert("Invite message copied to clipboard!");
     } catch (err) {
       showAlert("Failed to copy link.");
     }

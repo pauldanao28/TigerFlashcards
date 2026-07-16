@@ -58,9 +58,9 @@ export default function Auth() {
       error = signUpError;
       if (!error && data.user) {
         // --- REFERRAL LOGIC START ---
-        const refName = localStorage.getItem("tg_referrer");
-        if (refName) {
-          await processReferral(data.user.id, refName);
+        const refCode = localStorage.getItem("tg_referrer");
+        if (refCode) {
+          await processReferral(data.user.id, refCode);
         }
         // --- REFERRAL LOGIC END ---
 

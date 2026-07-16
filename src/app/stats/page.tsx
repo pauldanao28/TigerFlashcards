@@ -86,6 +86,7 @@ export default function StatsPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
   const [feedbackForm, setFeedbackForm] = useState({
     type: "feedback",
     subject: "",
@@ -308,7 +309,7 @@ export default function StatsPage() {
     const { data } = await supabase
       .from("profiles")
       .select(
-        "full_name, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, sfx_enabled, swipe_only, imported_packs, is_admin, is_premium",
+        "full_name, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, sfx_enabled, swipe_only, imported_packs, is_admin, is_premium, referral_code",
       )
       .eq("id", user?.id)
       .single();
@@ -324,6 +325,7 @@ export default function StatsPage() {
       setIsAdmin(data.is_admin);
       setIsPremium(data.is_premium ?? false);
       setProfileName(data.full_name);
+      setReferralCode(data.referral_code ?? null);
     }
   };
 
@@ -1367,6 +1369,48 @@ export default function StatsPage() {
                       Social Auth
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* INVITE FRIENDS — referral code + one-tap share */}
+              <div className="mb-8">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span>🎁</span> Invite Friends
+                </h3>
+                <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-[10px] text-slate-400 font-medium leading-tight mb-3">
+                    Share your link — new friends who sign up through it are added to your circle automatically.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 px-4 py-3 bg-white rounded-xl border border-slate-200 font-black text-sm text-slate-700 tracking-widest truncate">
+                      {referralCode ? `flashkado.com/join/${referralCode}` : "…"}
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!referralCode) return;
+                        const shareUrl = `https://flashkado.com/join/${referralCode}`;
+                        const shareMessage = `Join me on FlashKado! I'm learning Japanese with AI-powered flashcards 🇯🇵 ${shareUrl}`;
+                        if (navigator.share) {
+                          try {
+                            await navigator.share({ text: shareMessage, url: shareUrl });
+                          } catch {
+                            // cancelled — no-op
+                          }
+                          return;
+                        }
+                        try {
+                          await navigator.clipboard.writeText(shareMessage);
+                          showAlert("Invite message copied to clipboard!");
+                        } catch {
+                          showAlert("Failed to copy link.");
+                        }
+                      }}
+                      disabled={!referralCode}
+                      className="px-5 py-3 bg-slate-800 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-95 disabled:opacity-40 shrink-0"
+                    >
+                      Copy
+                    </button>
+                  </div>
                 </div>
               </div>
 

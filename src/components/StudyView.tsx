@@ -127,6 +127,7 @@ export default function StudyView() {
   const [sessionStreak, setSessionStreak] = useState(0);
   const [dailyProgress, setDailyProgress] = useState(0);
   const [profileName, setProfileName] = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSocialOpen, setIsSocialOpen] = useState(false);
   const [friends, setFriends] = useState<any[]>([]);
@@ -212,9 +213,9 @@ export default function StudyView() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      const refName = localStorage.getItem("tg_referrer");
+      const refCode = localStorage.getItem("tg_referrer");
 
-      if (user && refName) {
+      if (user && refCode) {
         // 1. Quick check: Are they already linked?
         const { data: alreadyReferred } = await supabase
           .from("referrals")
@@ -223,8 +224,8 @@ export default function StudyView() {
           .maybeSingle();
 
         if (!alreadyReferred) {
-          console.log("Found pending referral for:", refName);
-          await processReferral(user.id, refName);
+          console.log("Found pending referral for:", refCode);
+          await processReferral(user.id, refCode);
 
           // Optional: Trigger a refresh of your friends list
           // if you have a local state for it
@@ -264,6 +265,7 @@ export default function StudyView() {
         setPrefsLoaded(true);
         setHasOnboarded(p.has_onboarded);
         setProfileName(p.full_name);
+        setReferralCode(p.referral_code ?? null);
         setIsAdmin(p.is_admin ?? false);
         if (p.vocab_score != null) vocabScoreRef.current = p.vocab_score;
 
@@ -1669,6 +1671,7 @@ export default function StudyView() {
           <SocialDock
             userId={user.id}
             username={profileName}
+            referralCode={referralCode}
             friends={friends}
             onClose={() => setIsSocialOpen(false)}
             fetchFriends={fetchFriends}
