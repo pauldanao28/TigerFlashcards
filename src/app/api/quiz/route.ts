@@ -48,16 +48,16 @@ ${mistakeSummary ? `最近の間違い：\n${mistakeSummary}` : ""}
 
 必ず以下のJSON形式のみで返答すること。コードブロック・余分なテキスト一切不要：
 {"questions":[
-  {"type":"grammar","sentence":"昨日、映画___見ました。","blank_hint":"object marker","choices":["を","が","に","は"],"answer":"を","explanation":"直接目的語には助詞「を」を使います。"},
-  {"type":"reading","japanese":"彼女（かのじょ）は毎朝（まいあさ）コーヒーを飲（の）みます。","choices":["She drinks coffee every morning.","She drinks tea every morning.","He drinks coffee every morning.","She drinks coffee every evening."],"answer":"She drinks coffee every morning.","explanation":"毎朝＝every morning、飲む＝to drink。"},
-  {"type":"writing","english":"I went to the convenience store yesterday.","answer":"昨日（きのう）、コンビニに行（い）きました。","hint":"destination uses に","explanation":"「〜に行く」で「go to〜」。昨日＝yesterday、コンビニ＝convenience store。"}
+  {"type":"grammar","sentence":"昨日、映画___見ました。","blank_hint":"object marker","choices":["を","が","に","は"],"answer":"を","explanation":"動詞の前の名詞に使う助詞を考えよう。"},
+  {"type":"reading","japanese":"彼女（かのじょ）は毎朝（まいあさ）コーヒーを飲（の）みます。","choices":["She drinks coffee every morning.","She drinks tea every morning.","He drinks coffee every morning.","She drinks coffee every evening."],"answer":"She drinks coffee every morning.","explanation":"時を表す言葉と主語に注目。"},
+  {"type":"writing","english":"I went to the convenience store yesterday.","answer":"昨日（きのう）、コンビニに行（い）きました。","hint":"destination uses に","explanation":"行き先を示すときの助詞を思い出そう。"}
 ]}
 
 ルール：
 - grammarのsentenceの空欄は___（アンダースコア3つ）で表す。choicesは4つ、answerはその中の1つ。
 - readingのjapaneseは難しい漢字にふりがなを付ける（例：彼女（かのじょ））。choicesは自然な英訳4つ、answerはその中の1つ。
 - writingのanswerは自然な日本語の模範解答。hintは短い文法ヒント（英語）。
-- explanationはすべて日本語で1〜2文。
+- explanationは日本語で短いヒント1文のみ。答えや文法の公式を直接述べず、考え方のきっかけだけを与えること。
 ${nLevel ? `- すべての問題が${nLevel}レベルであること。例文はあくまでフォーマット例であり、難易度の参考にしないこと。` : "- レベルと弱点に合った難易度にすること。"}`;
 
     const tryWithModel = async (modelId: string) => {

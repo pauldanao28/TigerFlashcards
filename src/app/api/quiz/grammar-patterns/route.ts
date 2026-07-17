@@ -58,13 +58,13 @@ Question type formats:
 Every question object must include:
 - "pattern_id": the exact id given for that pattern (echo back unchanged)
 - "type": exactly the assigned type shown above
-- "explanation": 1-2 sentences in Japanese explaining the answer
+- "explanation": a single short Japanese hint (1 sentence max) that nudges the learner toward the answer without stating the formula or answer directly — a gentle direction, not a solution
 
 Return ONLY a valid JSON array, one entry per pattern, same order:
 [
-  {"pattern_id":"<id>","type":"grammar","sentence":"昨日、映画___見ました。","choices":["を","が","に","は"],"answer":"を","explanation":"直接目的語には助詞「を」を使います。"},
-  {"pattern_id":"<id>","type":"reading","japanese":"彼女（かのじょ）は毎朝（まいあさ）コーヒーを飲（の）みます。","choices":["She drinks coffee every morning.","She drinks tea every morning.","He drinks coffee every morning.","She drinks coffee every evening."],"answer":"She drinks coffee every morning.","explanation":"毎朝＝every morning、飲む＝to drink。"},
-  {"pattern_id":"<id>","type":"writing","english":"I went to the convenience store yesterday.","answer":"昨日（きのう）、コンビニに行（い）きました。","hint":"destination uses に","explanation":"「〜に行く」で「go to〜」。"}
+  {"pattern_id":"<id>","type":"grammar","sentence":"昨日、映画___見ました。","choices":["を","が","に","は"],"answer":"を","explanation":"動詞の前の名詞に使う助詞を確認しよう。"},
+  {"pattern_id":"<id>","type":"reading","japanese":"彼女（かのじょ）は毎朝（まいあさ）コーヒーを飲（の）みます。","choices":["She drinks coffee every morning.","She drinks tea every morning.","He drinks coffee every morning.","She drinks coffee every evening."],"answer":"She drinks coffee every morning.","explanation":"時を表す言葉と主語に注目しよう。"},
+  {"pattern_id":"<id>","type":"writing","english":"I went to the convenience store yesterday.","answer":"昨日（きのう）、コンビニに行（い）きました。","hint":"destination uses に","explanation":"行き先を示すときの表現を思い出そう。"}
 ]`;
 
     const timeout = new Promise<never>((_, reject) =>
