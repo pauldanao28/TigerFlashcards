@@ -3,10 +3,12 @@ import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import {
-  addFriendByUsername,
+  addFriend,
+  addFriendById,
   cancelFriendRequest,
   handleAcceptRequest,
   handleIgnoreRequest,
+  type FriendCandidate,
 } from "@/lib/social";
 import { useAppAlert } from "@/context/AlertContext";
 import { FriendProfileModal } from "@/components/FriendProfileModal";
@@ -31,6 +33,7 @@ export const SocialDock = ({
   const [activeTab, setActiveTab] = useState<"friends" | "pending">("friends");
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
+  const [candidates, setCandidates] = useState<FriendCandidate[] | null>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -73,8 +76,13 @@ export const SocialDock = ({
     e.preventDefault();
     if (!newFriend.trim()) return;
 
-    const result = await addFriendByUsername(newFriend);
+    setCandidates(null);
+    const result = await addFriend(newFriend);
 
+    if (result.needsDisambiguation) {
+      setCandidates(result.matches);
+      return;
+    }
     if (result.success) {
       showAlert(`Success! Request sent to ${result.name}`);
       if (typeof fetchFriends === "function") {
@@ -83,6 +91,20 @@ export const SocialDock = ({
       setNewFriend(""); // Clear input
     } else if (result.error) {
       // This will show "Already in your circle" or "User not found"
+      showAlert(result.error);
+    }
+  };
+
+  const handlePickCandidate = async (candidate: FriendCandidate) => {
+    const result = await addFriendById(candidate);
+    if (result.success) {
+      showAlert(`Success! Request sent to ${result.name}`);
+      if (typeof fetchFriends === "function") {
+        await fetchFriends();
+      }
+      setNewFriend("");
+      setCandidates(null);
+    } else if (result.error) {
       showAlert(result.error);
     }
   };
@@ -162,12 +184,12 @@ export const SocialDock = ({
           </button>
         </div>
 
-        <form onSubmit={handleQuickAdd} className="mb-6 group">
+        <form onSubmit={handleQuickAdd} className="mb-2 group">
           <div className="relative">
             <input
               value={newFriend}
-              onChange={(e) => setNewFriend(e.target.value)}
-              placeholder="ADD BY USERNAME..."
+              onChange={(e) => { setNewFriend(e.target.value); setCandidates(null); }}
+              placeholder="ADD BY NAME OR CODE..."
               className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-4 text-[10px] font-black uppercase tracking-[0.2em] focus:bg-white focus:border-black outline-none transition-all placeholder:text-slate-300"
             />
             <button
@@ -178,6 +200,24 @@ export const SocialDock = ({
             </button>
           </div>
         </form>
+
+        {candidates && (
+          <div className="mb-6 p-2 bg-slate-50 rounded-2xl border border-slate-100 space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
+            <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 px-2 pt-1">
+              Multiple people named &ldquo;{newFriend.trim()}&rdquo; — who did you mean?
+            </p>
+            {candidates.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => handlePickCandidate(c)}
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-white hover:bg-indigo-50 border border-slate-100 hover:border-indigo-200 transition-all active:scale-[0.98]"
+              >
+                <span className="text-[11px] font-black text-slate-700">{c.full_name}</span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500">Add</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="flex gap-2 mb-6 p-1 bg-slate-50 rounded-2xl">
           <button

@@ -15,6 +15,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import LoadingScreen from "@/components/LoadingScreen";
 import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
 import { List, X, Plus, Loader2, RotateCcw } from "lucide-react";
+import { AVATAR_PRESETS } from "@/lib/avatars";
 
 interface StatsCardsCache { userId: string; cards: FlashcardData[]; deckId: string; }
 let _statsCardsCache: StatsCardsCache | null = null;
@@ -86,6 +87,7 @@ export default function StatsPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [statsVisible, setStatsVisible] = useState(true);
   const [feedbackForm, setFeedbackForm] = useState({
@@ -310,7 +312,7 @@ export default function StatsPage() {
     const { data } = await supabase
       .from("profiles")
       .select(
-        "full_name, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, sfx_enabled, swipe_only, imported_packs, is_admin, is_premium, referral_code, stats_visible_to_friends",
+        "full_name, avatar_url, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, sfx_enabled, swipe_only, imported_packs, is_admin, is_premium, referral_code, stats_visible_to_friends",
       )
       .eq("id", user?.id)
       .single();
@@ -326,6 +328,7 @@ export default function StatsPage() {
       setIsAdmin(data.is_admin);
       setIsPremium(data.is_premium ?? false);
       setProfileName(data.full_name);
+      setAvatarUrl(data.avatar_url ?? null);
       setReferralCode(data.referral_code ?? null);
       setStatsVisible(data.stats_visible_to_friends ?? true);
     }
@@ -902,6 +905,19 @@ export default function StatsPage() {
     }
   };
 
+  const updateAvatar = async (url: string) => {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ avatar_url: url })
+      .eq("id", user?.id);
+
+    if (!error) {
+      setAvatarUrl(url);
+    } else {
+      showAlert("Failed to update avatar");
+    }
+  };
+
   const updateBlocklist = async (newList: string[]) => {
     const { error } = await supabase
       .from("profiles")
@@ -1100,6 +1116,160 @@ export default function StatsPage() {
                 <span className="font-black text-[11px] uppercase tracking-widest text-slate-700">{t.settings}</span>
               </div>
               <div className="flex-1 overflow-y-auto p-6 max-w-3xl w-full mx-auto">
+              {/* ===== GROUP: ACCOUNT ===== */}
+              <div className="flex items-center gap-2.5 mb-6">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                <h2 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.3em]">Account</h2>
+                <div className="flex-1 h-px bg-slate-100" />
+              </div>
+
+              {/* AVATAR PICKER */}
+              <div className="mb-8">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span>🖼️</span> Avatar
+                </h3>
+                <div className="grid grid-cols-5 gap-3">
+                  {AVATAR_PRESETS.map((url) => (
+                    <button
+                      key={url}
+                      onClick={() => updateAvatar(url)}
+                      className={`relative aspect-square rounded-full overflow-hidden border-2 bg-slate-50 transition-all active:scale-95 ${
+                        avatarUrl === url
+                          ? "border-indigo-600 ring-2 ring-indigo-200"
+                          : "border-slate-100 hover:border-slate-300"
+                      }`}
+                    >
+                      <img src={url} alt="Avatar option" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="h-px bg-slate-100 w-full mb-8" />
+
+              {/* INVITE FRIENDS — referral code + one-tap share */}
+              <div className="mb-8">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span>🎁</span> Invite Friends
+                </h3>
+                <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-[10px] text-slate-400 font-medium leading-tight mb-3">
+                    Share your link — new friends who sign up through it are added to your circle automatically.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 px-4 py-3 bg-white rounded-xl border border-slate-200 font-black text-sm text-slate-700 tracking-widest truncate">
+                      {referralCode ? `flashkado.com/join/${referralCode}` : "…"}
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!referralCode) return;
+                        const shareUrl = `https://flashkado.com/join/${referralCode}`;
+                        const shareMessage = `Join me on FlashKado! I'm learning Japanese with AI-powered flashcards 🇯🇵 ${shareUrl}`;
+                        if (navigator.share) {
+                          try {
+                            await navigator.share({ text: shareMessage, url: shareUrl });
+                          } catch {
+                            // cancelled — no-op
+                          }
+                          return;
+                        }
+                        try {
+                          await navigator.clipboard.writeText(shareMessage);
+                          showAlert("Invite message copied to clipboard!");
+                        } catch {
+                          showAlert("Failed to copy link.");
+                        }
+                      }}
+                      disabled={!referralCode}
+                      className="px-5 py-3 bg-slate-800 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-95 disabled:opacity-40 shrink-0"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="h-px bg-slate-100 w-full mb-8" />
+
+              {/* ACCOUNT SECURITY SECTION */}
+              <div className="mb-8">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span>🔒</span> {t.account_security || "Account Security"}
+                </h3>
+
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 gap-4">
+                  <div className="max-w-[250px]">
+                    <p className="text-sm font-bold text-slate-700 leading-tight">
+                      {t.update_password || "Update Password"}
+                    </p>
+                    <p className="text-[9px] text-slate-400 font-medium mt-0.5 leading-relaxed">
+                      {user?.app_metadata?.provider === "email"
+                        ? t.update_password_desc ||
+                          "Change your login password to keep your account secure."
+                        : t.social_login_msg ||
+                          "Your account is managed via Google/Facebook."}
+                    </p>
+                  </div>
+
+                  {user?.app_metadata?.provider === "email" ? (
+                    <button
+                      onClick={() => router.push("/update-password")}
+                      className="w-full sm:w-auto px-6 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-indigo-600 hover:text-indigo-600 transition-all active:scale-95 shadow-sm flex items-center justify-center gap-2"
+                    >
+                      <span>🔄</span> {t.change_btn || "Change"}
+                    </button>
+                  ) : (
+                    <div className="px-4 py-2 bg-slate-100 rounded-lg text-[9px] font-black text-slate-400 uppercase tracking-widest border border-slate-200">
+                      Social Auth
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="h-px bg-slate-100 w-full mb-8" />
+
+              {/* SIGN OUT — separated from the danger zone */}
+              <div className="mb-8">
+                <button
+                  onClick={handleLogout}
+                  className="w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-slate-800 text-white hover:bg-slate-700 transition-all active:scale-95 shadow-sm"
+                >
+                  {t.signout}
+                </button>
+              </div>
+
+              {/* DANGER ZONE — intentionally far from sign out */}
+              <div className="mt-16 pt-8 border-t-2 border-red-100">
+                <h3 className="text-[10px] font-black text-red-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                  <span>⚠️</span> {t.danger_zone}
+                </h3>
+
+                <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="max-w-[250px]">
+                    <p className="text-sm font-bold text-red-700 leading-tight">
+                      {t.delete_account}
+                    </p>
+                    <p className="text-[9px] text-red-400 font-medium mt-0.5 leading-relaxed">
+                      {t.delete_account_desc}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleDeleteAccount}
+                    className="w-full sm:w-auto px-6 py-2.5 bg-white border border-red-200 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white hover:border-red-600 transition-all active:scale-95 shadow-sm"
+                  >
+                    {t.delete_btn}
+                  </button>
+                </div>
+              </div>
+
+              {/* ===== GROUP: PREFERENCES ===== */}
+              <div className="flex items-center gap-2.5 mb-6 mt-16">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                <h2 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.3em]">Preferences</h2>
+                <div className="flex-1 h-px bg-slate-100" />
+              </div>
+
               <div className="mb-8">
                 {/* Header Section */}
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -1263,7 +1433,12 @@ export default function StatsPage() {
                 </div>
               </div>
 
-              <div className="h-px bg-slate-100 w-full mb-8" />
+              {/* ===== GROUP: FEEDBACK ===== */}
+              <div className="flex items-center gap-2.5 mb-6 mt-16">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                <h2 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.3em]">Feedback</h2>
+                <div className="flex-1 h-px bg-slate-100" />
+              </div>
 
               {/* BUG & FEEDBACK SECTION - NEW */}
               <div className="mb-4">
@@ -1358,121 +1533,6 @@ export default function StatsPage() {
                 )}
               </div>
 
-              {/* ... after Feedback Section and before Danger Zone ... */}
-
-              <div className="h-px bg-slate-100 w-full mb-8" />
-
-              {/* ACCOUNT SECURITY SECTION */}
-              <div className="mb-8">
-                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span>🔒</span> {t.account_security || "Account Security"}
-                </h3>
-
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 gap-4">
-                  <div className="max-w-[250px]">
-                    <p className="text-sm font-bold text-slate-700 leading-tight">
-                      {t.update_password || "Update Password"}
-                    </p>
-                    <p className="text-[9px] text-slate-400 font-medium mt-0.5 leading-relaxed">
-                      {user?.app_metadata?.provider === "email"
-                        ? t.update_password_desc ||
-                          "Change your login password to keep your account secure."
-                        : t.social_login_msg ||
-                          "Your account is managed via Google/Facebook."}
-                    </p>
-                  </div>
-
-                  {user?.app_metadata?.provider === "email" ? (
-                    <button
-                      onClick={() => router.push("/update-password")}
-                      className="w-full sm:w-auto px-6 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-indigo-600 hover:text-indigo-600 transition-all active:scale-95 shadow-sm flex items-center justify-center gap-2"
-                    >
-                      <span>🔄</span> {t.change_btn || "Change"}
-                    </button>
-                  ) : (
-                    <div className="px-4 py-2 bg-slate-100 rounded-lg text-[9px] font-black text-slate-400 uppercase tracking-widest border border-slate-200">
-                      Social Auth
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* INVITE FRIENDS — referral code + one-tap share */}
-              <div className="mb-8">
-                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span>🎁</span> Invite Friends
-                </h3>
-                <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] text-slate-400 font-medium leading-tight mb-3">
-                    Share your link — new friends who sign up through it are added to your circle automatically.
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 px-4 py-3 bg-white rounded-xl border border-slate-200 font-black text-sm text-slate-700 tracking-widest truncate">
-                      {referralCode ? `flashkado.com/join/${referralCode}` : "…"}
-                    </div>
-                    <button
-                      onClick={async () => {
-                        if (!referralCode) return;
-                        const shareUrl = `https://flashkado.com/join/${referralCode}`;
-                        const shareMessage = `Join me on FlashKado! I'm learning Japanese with AI-powered flashcards 🇯🇵 ${shareUrl}`;
-                        if (navigator.share) {
-                          try {
-                            await navigator.share({ text: shareMessage, url: shareUrl });
-                          } catch {
-                            // cancelled — no-op
-                          }
-                          return;
-                        }
-                        try {
-                          await navigator.clipboard.writeText(shareMessage);
-                          showAlert("Invite message copied to clipboard!");
-                        } catch {
-                          showAlert("Failed to copy link.");
-                        }
-                      }}
-                      disabled={!referralCode}
-                      className="px-5 py-3 bg-slate-800 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-95 disabled:opacity-40 shrink-0"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* SIGN OUT — separated from the danger zone */}
-              <div className="mt-8 pt-6 border-t border-slate-100">
-                <button
-                  onClick={handleLogout}
-                  className="w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-slate-800 text-white hover:bg-slate-700 transition-all active:scale-95 shadow-sm"
-                >
-                  {t.signout}
-                </button>
-              </div>
-
-              {/* DANGER ZONE — intentionally far from sign out */}
-              <div className="mt-16 pt-8 border-t-2 border-red-100">
-                <h3 className="text-[10px] font-black text-red-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                  <span>⚠️</span> {t.danger_zone}
-                </h3>
-
-                <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="max-w-[250px]">
-                    <p className="text-sm font-bold text-red-700 leading-tight">
-                      {t.delete_account}
-                    </p>
-                    <p className="text-[9px] text-red-400 font-medium mt-0.5 leading-relaxed">
-                      {t.delete_account_desc}
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={handleDeleteAccount}
-                    className="w-full sm:w-auto px-6 py-2.5 bg-white border border-red-200 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white hover:border-red-600 transition-all active:scale-95 shadow-sm"
-                  >
-                    {t.delete_btn}
-                  </button>
-                </div>
-              </div>
               </div>
             </div>
           )}

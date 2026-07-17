@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { translations } from "@/lib/languages";
 import { processReferral } from "@/lib/social";
+import { randomAvatarPreset } from "@/lib/avatars";
 import { useAppAlert } from "@/context/AlertContext";
 import Logo from "./Logo";
 import { Eye, EyeOff } from "lucide-react";
@@ -63,6 +64,13 @@ export default function Auth() {
           await processReferral(data.user.id, refCode);
         }
         // --- REFERRAL LOGIC END ---
+
+        // Assign a random preset avatar — only if one isn't set yet
+        await supabase
+          .from("profiles")
+          .update({ avatar_url: randomAvatarPreset() })
+          .eq("id", data.user.id)
+          .is("avatar_url", null);
 
         if (data.user?.identities?.length === 0) {
           await showAlert("This email is already registered. Try logging in!");

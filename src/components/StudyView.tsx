@@ -7,7 +7,8 @@ import { supabase } from "@/lib/supabase";
 import { translations } from "@/lib/languages";
 import { calculateGlobalStats } from "@/lib/stats";
 import { processReferral } from "@/lib/social";
-import { rollingAvg, vocabMastery, JLPT_VOCAB_INCREMENT, jlptLevel } from "@/lib/scoring";
+import { rollingAvg, vocabMastery, JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
+import { useFriends } from "@/hooks/useFriends";
 import { authedFetch } from "@/lib/authedFetch";
 import { useAppAlert } from "@/context/AlertContext";
 
@@ -130,7 +131,7 @@ export default function StudyView() {
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSocialOpen, setIsSocialOpen] = useState(false);
-  const [friends, setFriends] = useState<any[]>([]);
+  const { friends, fetchFriends } = useFriends();
   const [showStreakBanner, setShowStreakBanner] = useState(false);
   const [goalStreak, setGoalStreak] = useState(0);
   const [sessionCards, setSessionCards] = useState(0);
@@ -382,153 +383,6 @@ export default function StudyView() {
       _studyCache.currentCard = currentCard;
     }
   }, [currentCard, user?.id]);
-
-  const fetchFriends = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // 1. Get today's date string
-    const today = new Date().toISOString().split("T")[0];
-
-    const { data, error } = await supabase
-      .from("friendships")
-      .select(
-        `
-    id,
-    status,
-    user_id,
-    friend_id,
-    sender:profiles!friendships_user_id_fkey (
-      *,
-      stats:user_review_counts(count) 
-    ),
-    receiver:profiles!friendships_friend_id_fkey (
-      *,
-      stats:user_review_counts(count)
-    )
-  `,
-      )
-      .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
-      // 2. Filter the sub-query so it only gets rows for TODAY
-      .eq("sender.stats.study_date", today)
-      .eq("receiver.stats.study_date", today);
-
-    if (data) {
-      const formatted = data
-        .map((row: any) => {
-          // --- CRITICAL LOGIC START ---
-          // A row's 'user_id' is ALWAYS the person who clicked "Add Friend"
-          const isSentByMe = row.user_id === user.id;
-          // If I sent it, my friend is the 'receiver'.
-          // If THEY sent it, my friend is the 'sender'.
-          const friendProfile = isSentByMe ? row.receiver : row.sender;
-          // --- CRITICAL LOGIC END ---
-
-          if (!friendProfile) return null;
-
-          // Same "weakest pillar" rule Dashboard.tsx uses for your own
-          // overall level — mirrors real JLPT rules (a level requires all
-          // skills, not just your best one).
-          const friendScores = [
-            friendProfile.vocab_score,
-            friendProfile.grammar_score,
-            friendProfile.reading_score,
-            friendProfile.listening_score,
-          ].filter((s): s is number => s != null);
-          const nLevel = friendScores.length > 0 ? jlptLevel(Math.min(...friendScores)) : null;
-
-          return {
-            friendshipId: row.id,
-            id: friendProfile.id,
-            name: friendProfile.full_name,
-            avatar:
-              friendProfile.avatar_url ||
-              `https://api.dicebear.com/7.x/avataaars/svg?seed=${friendProfile.id}`,
-            status: row.status,
-            isSentByMe: isSentByMe,
-            // NEW LOGIC: Pull from the stats array we just joined
-            dailyProgress: friendProfile.stats?.[0]?.count || 0,
-            goal: friendProfile.daily_goal || 10,
-            streak: friendProfile.streak_count || 0,
-            isOnline: friendProfile.is_online,
-            nLevel,
-          };
-        })
-        .filter((f): f is any => f !== null)
-        // FINAL FILTER: If there's a duplicate ID, keep only the one we need
-        .filter(
-          (item, index, self) =>
-            index === self.findIndex((t) => t.id === item.id),
-        );
-
-      setFriends(formatted);
-    }
-  };
-
-  useEffect(() => {
-    // 1. Initial Load
-    fetchFriends();
-
-    // 2. REALTIME: Profile Updates (Online Status & Streaks)
-    const profileChannel = supabase
-      .channel("profile-updates")
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "profiles" },
-        (payload) => {
-          setFriends((current) =>
-            current.map((friend) =>
-              friend.id === payload.new.id
-                ? {
-                    ...friend,
-                    isOnline: payload.new.is_online,
-                    streak: payload.new.streak_count,
-                  }
-                : friend,
-            ),
-          );
-        },
-      )
-      .subscribe();
-
-    // 3. REALTIME: Progress Updates (The New Table)
-    const progressChannel = supabase
-      .channel("progress-updates")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "user_review_counts",
-        },
-        () => {
-          // When someone's count changes, we re-fetch to get the new numbers
-          fetchFriends();
-        },
-      )
-      .subscribe();
-
-    // 4. REALTIME: Friendship Changes (New requests/Accepts)
-    const friendshipChannel = supabase
-      .channel("friendship-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "friendships" },
-        () => {
-          fetchFriends();
-        },
-      )
-      .subscribe();
-
-    // CLEANUP: Remove all three channels
-    return () => {
-      supabase.removeChannel(profileChannel);
-      supabase.removeChannel(progressChannel);
-      supabase.removeChannel(friendshipChannel);
-    };
-  }, []);
 
   // Keep module-level cache in sync so re-mounting the component skips the loading spinner
   useEffect(() => {
@@ -1283,38 +1137,60 @@ export default function StudyView() {
             </div>
             </div>
           </div>
-          {/* Mode toggle — top right */}
-          <button
-            onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
-            className={`pointer-events-auto flex flex-col items-center gap-0.5 px-3 py-2 rounded-2xl border font-black transition-all active:scale-95 ${
-              language === "jp"
-                ? "bg-indigo-50 border-indigo-100 text-indigo-600"
-                : "bg-orange-50 border-orange-100 text-orange-600"
-            }`}
-          >
-            <span className="text-base leading-none">{language === "jp" ? "🇯🇵" : "🇺🇸"}</span>
-            <span className="text-[8px] uppercase tracking-widest leading-none">
-              {language === "jp" ? t.recognition : t.recall}
-            </span>
-          </button>
+          {/* Top-right controls — Study Circle + Mode toggle */}
+          <div className="flex items-center gap-2 pointer-events-auto">
+            <button
+              onClick={() => setIsSocialOpen(true)}
+              className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
+            >
+              <span className="text-lg">👥</span>
+              {friends.some((f) => f.status === "pending" && !f.isSentByMe) && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-white" />
+              )}
+            </button>
+            <button
+              onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
+              className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-2xl border font-black transition-all active:scale-95 ${
+                language === "jp"
+                  ? "bg-indigo-50 border-indigo-100 text-indigo-600"
+                  : "bg-orange-50 border-orange-100 text-orange-600"
+              }`}
+            >
+              <span className="text-base leading-none">{language === "jp" ? "🇯🇵" : "🇺🇸"}</span>
+              <span className="text-[8px] uppercase tracking-widest leading-none">
+                {language === "jp" ? t.recognition : t.recall}
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* --- 2. DESKTOP NAVIGATION --- */}
         <div className="hidden md:flex relative top-0 w-full z-50 px-8 py-8 items-center justify-between pointer-events-auto">
-          {/* Mode toggle — desktop top right */}
-          <button
-            onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
-            className={`absolute right-8 top-8 flex flex-col items-center gap-1 px-4 py-2.5 rounded-2xl border font-black transition-all hover:scale-105 active:scale-95 shadow-sm ${
-              language === "jp"
-                ? "bg-indigo-50 border-indigo-100 text-indigo-600"
-                : "bg-orange-50 border-orange-100 text-orange-600"
-            }`}
-          >
-            <span className="text-lg leading-none">{language === "jp" ? "🇯🇵" : "🇺🇸"}</span>
-            <span className="text-[9px] uppercase tracking-widest leading-none">
-              {language === "jp" ? t.recognition : t.recall}
-            </span>
-          </button>
+          {/* Top-right controls — Study Circle + Mode toggle */}
+          <div className="absolute right-8 top-8 flex items-center gap-3">
+            <button
+              onClick={() => setIsSocialOpen(true)}
+              className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+            >
+              <span className="text-xl">👥</span>
+              {friends.some((f) => f.status === "pending" && !f.isSentByMe) && (
+                <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white" />
+              )}
+            </button>
+            <button
+              onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
+              className={`flex flex-col items-center gap-1 px-4 py-2.5 rounded-2xl border font-black transition-all hover:scale-105 active:scale-95 shadow-sm ${
+                language === "jp"
+                  ? "bg-indigo-50 border-indigo-100 text-indigo-600"
+                  : "bg-orange-50 border-orange-100 text-orange-600"
+              }`}
+            >
+              <span className="text-lg leading-none">{language === "jp" ? "🇯🇵" : "🇺🇸"}</span>
+              <span className="text-[9px] uppercase tracking-widest leading-none">
+                {language === "jp" ? t.recognition : t.recall}
+              </span>
+            </button>
+          </div>
           <div className="flex items-center gap-6 h-14">
             <Link href="/" className="hover:opacity-80 transition-opacity">
               <Logo className="w-12 h-14" />

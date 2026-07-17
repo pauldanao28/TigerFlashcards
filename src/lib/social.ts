@@ -1,54 +1,88 @@
 // src/lib/social.ts
 import { supabase } from './supabase';
-export const addFriendByUsername = async (targetUsername: string) => {
-  // 1. Get Current User
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Not logged in" };
 
-  const cleanUsername = targetUsername.trim();
-  if (!cleanUsername) return { error: "Please enter a name" };
+export type FriendCandidate = { id: string; full_name: string };
 
-  // 2. Find the target user via the narrow RPC — profiles is no longer
-  // publicly readable, so a stranger's row can only be found this way,
-  // and only id/full_name are ever returned (no scores/streak).
-  const { data: profiles, error: profileError } = await supabase
-    .rpc('find_user_by_name', { p_name: cleanUsername });
+// Referral codes are always 8 chars from generate_referral_code()'s charset
+// (uppercase letters minus I/L/O, digits minus 0/1) — distinct enough from
+// a display name that we can auto-detect which kind of lookup to do.
+const REFERRAL_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{8}$/i;
 
-  // Check if query failed or no user was found
-  if (profileError || !profiles || profiles.length === 0) {
-    return { error: "User not found" };
-  }
+type FriendActionResult =
+  | { success: true; name: string; error?: undefined; needsDisambiguation?: undefined }
+  | { error: string; success?: undefined; needsDisambiguation?: undefined }
+  | { needsDisambiguation: true; matches: FriendCandidate[]; success?: undefined; error?: undefined };
 
-  // Safely extract the single object from the array
-  const targetProfile = profiles[0];
-
-  // 3. Validation: Don't add yourself
-  if (targetProfile.id === user.id) {
+const sendFriendRequest = async (
+  currentUserId: string,
+  target: FriendCandidate,
+): Promise<FriendActionResult> => {
+  if (target.id === currentUserId) {
     return { error: "You can't add yourself" };
   }
 
-  // 4. Insert the Friendship (Single Row Approach)
   const { error: insertError } = await supabase
     .from('friendships')
     .insert([
-      { 
-        user_id: user.id,            // You (The Sender)
-        friend_id: targetProfile.id,   // Them (The Receiver)
-        status: 'pending' 
-      }
+      {
+        user_id: currentUserId,   // You (the sender)
+        friend_id: target.id,     // Them (the receiver)
+        status: 'pending',
+      },
     ]);
 
-  // 5. Handle Errors (like duplicate requests)
   if (insertError) {
-    // Check for unique constraint violation (already friends or pending)
+    // Unique constraint violation (already friends or pending)
     if (insertError.code === '23505') {
       return { error: "Request already exists or you are already friends" };
     }
     return { error: insertError.message };
   }
 
-  console.log("Success! Found and added:", targetProfile.full_name);
-  return { success: true, name: targetProfile.full_name };
+  return { success: true, name: target.full_name };
+};
+
+// Single entry point for the "add friend" box — accepts either a display
+// name or a referral code. Returns `needsDisambiguation` with the candidate
+// list when a name matches more than one profile, instead of silently
+// picking one (find_user_by_name no longer collapses to a single row).
+export const addFriend = async (input: string): Promise<FriendActionResult> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not logged in" };
+
+  const cleaned = input.trim();
+  if (!cleaned) return { error: "Please enter a name or code" };
+
+  if (REFERRAL_CODE_PATTERN.test(cleaned)) {
+    const { data: matches, error } = await supabase
+      .rpc('find_user_by_referral_code', { p_code: cleaned });
+
+    if (error || !matches || matches.length === 0) {
+      return { error: "Code not found" };
+    }
+    return sendFriendRequest(user.id, matches[0]);
+  }
+
+  // profiles is no longer publicly readable, so a stranger's row can only
+  // be found via this narrow RPC, and only id/full_name are ever returned
+  // (no scores/streak).
+  const { data: matches, error } = await supabase
+    .rpc('find_user_by_name', { p_name: cleaned });
+
+  if (error || !matches || matches.length === 0) {
+    return { error: "User not found" };
+  }
+  if (matches.length > 1) {
+    return { needsDisambiguation: true as const, matches: matches as FriendCandidate[] };
+  }
+  return sendFriendRequest(user.id, matches[0]);
+};
+
+// Used once a disambiguation list is shown and the user taps the right one.
+export const addFriendById = async (target: FriendCandidate): Promise<FriendActionResult> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not logged in" };
+  return sendFriendRequest(user.id, target);
 };
 
 export const cancelFriendRequest = async (friendId: string) => {

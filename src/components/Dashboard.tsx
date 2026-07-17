@@ -1,10 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
+import { AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { getLevel, jlptLevel, JLPT_VOCAB_INCREMENT, grammarPatternScore } from "@/lib/scoring";
 import LoadingScreen from "@/components/LoadingScreen";
+import { SocialDock } from "@/components/SocialDock";
+import { useFriends } from "@/hooks/useFriends";
 
 type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
 
@@ -12,6 +15,7 @@ const DAILY_GOAL = 10;
 
 interface ProfileScores {
   name: string | null;
+  referral_code: string | null;
   streak: number;
   max_streak: number;
   daily_count: number;
@@ -145,6 +149,8 @@ export default function Dashboard() {
     () => _dashboardCache.get(user?.id ?? "") ?? null
   );
   const [doneTodayQuizzes, setDoneTodayQuizzes] = useState({ reading: false, listening: false, grammar: false });
+  const [isSocialOpen, setIsSocialOpen] = useState(false);
+  const { friends, fetchFriends } = useFriends();
 
   useEffect(() => {
     if (!user) return;
@@ -155,7 +161,7 @@ export default function Dashboard() {
       const [profileRes, deckRes, reviewRes, quizRes] = await Promise.all([
         supabase
           .from("profiles")
-          .select("full_name, streak_count, max_streak, reading_score, listening_score, grammar_score")
+          .select("full_name, referral_code, streak_count, max_streak, reading_score, listening_score, grammar_score")
           .eq("id", user.id)
           .single(),
         supabase.from("decks").select("id").eq("user_id", user.id).eq("is_default", true).single(),
@@ -283,6 +289,7 @@ export default function Dashboard() {
 
       const fresh: ProfileScores = {
         name: p?.full_name ?? null,
+        referral_code: p?.referral_code ?? null,
         streak: p?.streak_count ?? 0,
         max_streak: p?.max_streak ?? 0,
         daily_count: reviewRes.data?.count ?? 0,
@@ -329,10 +336,23 @@ export default function Dashboard() {
     <div className="min-h-screen bg-slate-50 pb-28 md:pb-8">
       {/* Header */}
       <div className="bg-white border-b border-slate-100 px-5 pt-14 md:pt-8 pb-6">
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{greeting}</p>
-        <h1 className="text-2xl font-black text-slate-900 italic mt-0.5 leading-tight">
-          {name || "Learner"} 👋
-        </h1>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{greeting}</p>
+            <h1 className="text-2xl font-black text-slate-900 italic mt-0.5 leading-tight">
+              {name || "Learner"} 👋
+            </h1>
+          </div>
+          <button
+            onClick={() => setIsSocialOpen(true)}
+            className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-slate-50 border-slate-100 shadow-sm active:scale-95 transition-all shrink-0"
+          >
+            <span className="text-lg">👥</span>
+            {friends.some((f) => f.status === "pending" && !f.isSentByMe) && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-white" />
+            )}
+          </button>
+        </div>
         <div className="flex items-center gap-3 mt-2">
           {streak > 0 && (
             <span className="inline-flex items-center gap-1.5 bg-orange-50 border border-orange-100 px-3 py-1 rounded-full">
@@ -456,6 +476,19 @@ export default function Dashboard() {
         </div>
       )}
       </div>
+
+      <AnimatePresence>
+        {isSocialOpen && user?.id && (
+          <SocialDock
+            userId={user.id}
+            username={name || ""}
+            referralCode={data.referral_code}
+            friends={friends}
+            onClose={() => setIsSocialOpen(false)}
+            fetchFriends={fetchFriends}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

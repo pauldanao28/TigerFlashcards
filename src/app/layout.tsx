@@ -94,11 +94,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js'); }`,
-          }}
-        />
+        {process.env.NODE_ENV === "production" && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js'); }`,
+            }}
+          />
+        )}
       </head>
       <body className="antialiased bg-slate-50 text-slate-900">
         <AuthProvider>
