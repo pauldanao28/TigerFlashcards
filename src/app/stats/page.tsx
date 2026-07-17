@@ -8,7 +8,7 @@ import { User } from "@supabase/supabase-js";
 import { translations } from "@/lib/languages";
 import { useUploadGuard } from "@/context/UploadGuardContext";
 import { useAppAlert } from "@/context/AlertContext";
-import { motion } from "framer-motion";
+import { motion, useAnimationControls } from "framer-motion";
 import Logo from "@/components/Logo";
 import { calculateGlobalStats } from "@/lib/stats";
 import { authedFetch } from "@/lib/authedFetch";
@@ -3099,20 +3099,34 @@ function StatCard({
   label,
   value,
   color,
-  onClick, // 1. Add the prop here
+  onClick,
 }: {
   label: string;
   value: number;
   color: string;
-  onClick?: () => void; // 2. Define the type (optional)
+  onClick?: () => void;
 }) {
+  const controls = useAnimationControls();
+
+  const handleClick = () => {
+    if (onClick) {
+      onClick();
+    } else {
+      controls.start({
+        x: [-8, 8, -6, 6, -3, 3, 0],
+        transition: { duration: 0.4, ease: "easeInOut" },
+      });
+    }
+  };
+
   return (
-    <div
-      onClick={onClick}
-      className={`bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex justify-between items-center transition-all ${
+    <motion.div
+      animate={controls}
+      onClick={handleClick}
+      className={`bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex justify-between items-center transition-all cursor-pointer ${
         onClick
-          ? "cursor-pointer hover:border-slate-300 hover:scale-[1.02] active:scale-95"
-          : ""
+          ? "hover:border-slate-300 hover:scale-[1.02] active:scale-95"
+          : "active:scale-95"
       }`}
     >
       <div>
@@ -3126,7 +3140,6 @@ function StatCard({
       <div
         className={`w-12 h-12 rounded-2xl ${color} opacity-20 flex items-center justify-center`}
       >
-        {/* Optional: Add a small chevron if it's clickable */}
         {onClick && (
           <span
             className={`text-xl font-black ${color.replace("bg-", "text-")} opacity-100`}
@@ -3135,6 +3148,6 @@ function StatCard({
           </span>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
