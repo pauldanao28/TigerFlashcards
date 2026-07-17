@@ -46,6 +46,9 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "FlashKado" }],
   creator: "FlashKado",
+  verification: {
+    google: "YIe9bCDYHHJ95eUlnm4IxV74W1i_kMirKOr6DspgtZE",
+  },
   openGraph: {
     type: "website",
     locale: "en_US",
