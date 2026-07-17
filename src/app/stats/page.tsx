@@ -1373,7 +1373,7 @@ export default function StatsPage() {
                         Show my stats to friends
                       </p>
                       <p className="text-[10px] text-slate-400 font-medium leading-tight">
-                        Friends can always see your name and streak. Turn this off to hide your detailed level and scores from them.
+                        Friends can always see your name, streak, and overall level. Turn this off to hide your detailed score breakdown from them.
                       </p>
                     </div>
                     <button

@@ -38,7 +38,8 @@ export const FriendProfileModal = ({ friendId, onClose }: { friendId: string; on
     let cancelled = false;
     supabase
       .rpc("get_friend_profile", { p_friend_id: friendId })
-      .then(({ data }: { data: FriendProfile[] | null }) => {
+      .then(({ data, error }: { data: FriendProfile[] | null; error: { message: string } | null }) => {
+        if (error) console.error("get_friend_profile failed:", error.message);
         if (!cancelled) {
           setProfile(data?.[0] ?? null);
           setLoading(false);
@@ -50,7 +51,9 @@ export const FriendProfileModal = ({ friendId, onClose }: { friendId: string; on
   const scores = profile
     ? [profile.vocab_score, profile.grammar_score, profile.reading_score, profile.listening_score].filter((s): s is number => s != null)
     : [];
-  const nLevel = scores.length > 0 ? jlptLevel(Math.min(...scores)) : null;
+  // No activity yet defaults to N5, same as the Dashboard's own overall-level badge.
+  // Shown regardless of stats_hidden — that toggle only hides the detailed breakdown below.
+  const nLevel = profile ? jlptLevel(scores.length > 0 ? Math.min(...scores) : 0) : null;
 
   return (
     <>
@@ -106,7 +109,8 @@ export const FriendProfileModal = ({ friendId, onClose }: { friendId: string; on
 
               {profile.stats_hidden ? (
                 <div className="py-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Stats are private</p>
+                  <p className="text-lg mb-1">🔒</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Profile Locked</p>
                   <p className="text-[10px] text-slate-400 mt-1">{profile.full_name} has hidden their detailed progress.</p>
                 </div>
               ) : (

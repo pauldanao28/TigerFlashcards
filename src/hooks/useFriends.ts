@@ -55,7 +55,9 @@ export function useFriends() {
             friendProfile.reading_score,
             friendProfile.listening_score,
           ].filter((s): s is number => s != null);
-          const nLevel = friendScores.length > 0 ? jlptLevel(Math.min(...friendScores)) : null;
+          // No activity yet defaults to N5, same as your own Dashboard's
+          // overall-level badge (weakestScore falls back to 0 there too).
+          const nLevel = jlptLevel(friendScores.length > 0 ? Math.min(...friendScores) : 0);
 
           return {
             friendshipId: row.id,
