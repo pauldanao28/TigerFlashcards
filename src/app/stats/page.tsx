@@ -865,8 +865,8 @@ export default function StatsPage() {
   const masteredList = useMemo(() => {
     return cards.filter((c) => {
       const s = c.scores;
-      return ((s?.jp_to_en?.total || 0) >= 5 && (s?.jp_to_en?.percent || 0) >= 70) ||
-             ((s?.en_to_jp?.total || 0) >= 5 && (s?.en_to_jp?.percent || 0) >= 70);
+      return ((s?.jp_to_en?.pass || 0) >= 5 && (s?.jp_to_en?.percent || 0) >= 70) ||
+             ((s?.en_to_jp?.pass || 0) >= 5 && (s?.en_to_jp?.percent || 0) >= 70);
     });
   }, [cards]);
 

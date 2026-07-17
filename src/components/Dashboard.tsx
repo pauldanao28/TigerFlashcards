@@ -241,8 +241,8 @@ export default function Dashboard() {
         const sc = scoreMap.get(card.id);
         const lvl = card.jlpt_level as JlptLevel;
         jlptStats[lvl].total++;
-        const jpM = (sc?.jp_to_en?.total ?? 0) >= 5 && (sc?.jp_to_en?.percent ?? 0) >= 70;
-        const enM = (sc?.en_to_jp?.total ?? 0) >= 5 && (sc?.en_to_jp?.percent ?? 0) >= 70;
+        const jpM = (sc?.jp_to_en?.pass ?? 0) >= 5 && (sc?.jp_to_en?.percent ?? 0) >= 70;
+        const enM = (sc?.en_to_jp?.pass ?? 0) >= 5 && (sc?.en_to_jp?.percent ?? 0) >= 70;
         if (jpM || enM) jlptStats[lvl].mastered++;
       }
 

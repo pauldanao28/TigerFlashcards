@@ -552,10 +552,10 @@ export default function StudyView() {
       setCards(updatedCards);
 
       // Card mastery milestone toast
-      const cardMasteredCheck = (sc: { jp_to_en?: { total?: number; percent?: number }; en_to_jp?: { total?: number; percent?: number } } | undefined) => {
+      const cardMasteredCheck = (sc: { jp_to_en?: { pass?: number; total?: number; percent?: number }; en_to_jp?: { pass?: number; total?: number; percent?: number } } | undefined) => {
         const jp = sc?.jp_to_en; const en = sc?.en_to_jp;
-        return ((jp?.total ?? 0) >= MASTERY_MIN_TRIES && (jp?.percent ?? 0) >= 70) ||
-               ((en?.total ?? 0) >= MASTERY_MIN_TRIES && (en?.percent ?? 0) >= 70);
+        return ((jp?.pass ?? 0) >= MASTERY_MIN_TRIES && (jp?.percent ?? 0) >= 70) ||
+               ((en?.pass ?? 0) >= MASTERY_MIN_TRIES && (en?.percent ?? 0) >= 70);
       };
       const prevMastered = cards.filter(c => cardMasteredCheck(c.scores)).length;
       const newMastered = updatedCards.filter(c => cardMasteredCheck(c.scores)).length;
@@ -749,7 +749,7 @@ export default function StudyView() {
     let raw = 0;
     for (const lvl of ["N5", "N4", "N3", "N2", "N1"] as const) {
       const lvlCards = cards.filter(c => c.jlpt_level === lvl);
-      const mastered = lvlCards.filter(c => (c.scores?.[mode]?.total ?? 0) >= MASTERY_MIN_TRIES && (c.scores?.[mode]?.percent ?? 0) >= 70).length;
+      const mastered = lvlCards.filter(c => (c.scores?.[mode]?.pass ?? 0) >= MASTERY_MIN_TRIES && (c.scores?.[mode]?.percent ?? 0) >= 70).length;
       raw += Math.min(mastered / JLPT_VOCAB_INCREMENT[lvl], 1) * 20;
     }
     return Math.round(raw);
@@ -803,7 +803,7 @@ export default function StudyView() {
   const jlptLevelMastery = useMemo(() => {
     if (jlptFilter === "All" || filteredCards.length === 0) return null;
     const mode = language === "jp" ? "jp_to_en" : "en_to_jp";
-    const known = filteredCards.filter(c => (c.scores?.[mode]?.total ?? 0) >= MASTERY_MIN_TRIES && (c.scores?.[mode]?.percent ?? 0) >= 70).length;
+    const known = filteredCards.filter(c => (c.scores?.[mode]?.pass ?? 0) >= MASTERY_MIN_TRIES && (c.scores?.[mode]?.percent ?? 0) >= 70).length;
     return Math.round((known / filteredCards.length) * 100);
   }, [filteredCards, jlptFilter, language]);
 
