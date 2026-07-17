@@ -108,6 +108,7 @@ export default function StatsPage() {
   >([]);
   const [historyTab, setHistoryTab] = useState<"flashcards" | "quizzes">("flashcards");
   const [showHistory, setShowHistory] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
   const [reviewsToday, setReviewsToday] = useState(0);
   const [previewPack, setPreviewPack] = useState<any | null>(null);
   const [addedWordsSummary, setAddedWordsSummary] = useState<any[]>([]);
@@ -1652,11 +1653,11 @@ export default function StatsPage() {
 
             <StatCard
               label={t.daily_progress}
-              value={reviewsToday} // The count for today
+              value={reviewsToday}
               color="bg-amber-400"
               onClick={() => {
-                fetchHistory(); // Fetch fresh data
-                setShowHistory(true); // Open overlay
+                fetchHistory();
+                setShowCelebration(true);
               }}
             />
 
@@ -1954,6 +1955,108 @@ export default function StatsPage() {
               </div>
             </div>
           )}
+
+          {/* --- Celebration Modal --- */}
+          {showCelebration && (() => {
+            const CONFETTI = [
+              { color: "#6366f1", left: 8,  delay: 0,    drift: -40, h: 10, w: 10, round: true  },
+              { color: "#f59e0b", left: 18, delay: 0.1,  drift: 35,  h: 6,  w: 12, round: false },
+              { color: "#10b981", left: 28, delay: 0.25, drift: -20, h: 8,  w: 8,  round: true  },
+              { color: "#f43f5e", left: 38, delay: 0.05, drift: 50,  h: 6,  w: 10, round: false },
+              { color: "#3b82f6", left: 50, delay: 0.2,  drift: -55, h: 10, w: 6,  round: false },
+              { color: "#8b5cf6", left: 60, delay: 0.15, drift: 25,  h: 6,  w: 8,  round: true  },
+              { color: "#f59e0b", left: 70, delay: 0.3,  drift: -30, h: 8,  w: 8,  round: false },
+              { color: "#6366f1", left: 80, delay: 0.1,  drift: 45,  h: 6,  w: 6,  round: true  },
+              { color: "#10b981", left: 90, delay: 0.2,  drift: -50, h: 10, w: 6,  round: true  },
+              { color: "#f43f5e", left: 13, delay: 0.35, drift: 60,  h: 6,  w: 10, round: false },
+              { color: "#3b82f6", left: 33, delay: 0.08, drift: -65, h: 8,  w: 8,  round: true  },
+              { color: "#8b5cf6", left: 55, delay: 0.22, drift: 30,  h: 6,  w: 6,  round: false },
+              { color: "#f43f5e", left: 43, delay: 0.18, drift: -45, h: 8,  w: 6,  round: true  },
+              { color: "#6366f1", left: 75, delay: 0.28, drift: 55,  h: 6,  w: 10, round: false },
+            ];
+            const msg = reviewsToday === 0
+              ? { emoji: "📚", line1: "No reviews yet today,", line2: "let's change that!" }
+              : reviewsToday >= 20
+              ? { emoji: "🔥", line1: `${reviewsToday} words practiced`, line2: "You're on fire today!" }
+              : { emoji: "🎉", line1: `${reviewsToday} ${reviewsToday === 1 ? "word" : "words"} practiced`, line2: "today — great work!" };
+            return (
+              <div className="fixed inset-0 z-[225] flex items-center justify-center p-4">
+                {/* Confetti particles */}
+                {CONFETTI.map((c, i) => (
+                  <motion.div
+                    key={i}
+                    className="absolute pointer-events-none"
+                    style={{
+                      backgroundColor: c.color,
+                      width: c.w,
+                      height: c.h,
+                      borderRadius: c.round ? "50%" : "2px",
+                      left: `${c.left}%`,
+                      top: -16,
+                    }}
+                    initial={{ y: -16, opacity: 1, rotate: 0 }}
+                    animate={{ y: "105vh", x: c.drift, opacity: [1, 1, 0.6, 0], rotate: 400 }}
+                    transition={{ duration: 2, delay: c.delay, ease: [0.2, 0.8, 0.6, 1] }}
+                  />
+                ))}
+                {/* Backdrop */}
+                <motion.div
+                  className="absolute inset-0 bg-indigo-950/70 backdrop-blur-lg"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.25 }}
+                  onClick={() => { setShowCelebration(false); setShowHistory(true); }}
+                />
+                {/* Card */}
+                <motion.div
+                  className="relative z-10 bg-white rounded-[3rem] p-10 text-center max-w-xs w-full shadow-2xl overflow-hidden"
+                  initial={{ scale: 0.6, opacity: 0, y: 30 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  transition={{ type: "spring", stiffness: 360, damping: 24, delay: 0.05 }}
+                >
+                  {/* Background glow */}
+                  <div className="absolute inset-0 bg-gradient-to-b from-indigo-50/60 to-transparent pointer-events-none" />
+                  {/* Emoji */}
+                  <motion.div
+                    className="text-6xl mb-5 select-none"
+                    initial={{ scale: 0, rotate: -15 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 20, delay: 0.15 }}
+                  >
+                    {msg.emoji}
+                  </motion.div>
+                  {/* Count */}
+                  <motion.p
+                    className="text-5xl font-black text-indigo-600 tracking-tight leading-none mb-3"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.22, duration: 0.35 }}
+                  >
+                    {msg.line1}
+                  </motion.p>
+                  <motion.p
+                    className="text-base font-bold text-slate-500 mb-8"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.32, duration: 0.3 }}
+                  >
+                    {msg.line2}
+                  </motion.p>
+                  {/* CTA */}
+                  <motion.button
+                    onClick={() => { setShowCelebration(false); setShowHistory(true); }}
+                    className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-200"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4, duration: 0.3 }}
+                    whileTap={{ scale: 0.96 }}
+                  >
+                    See Full Progress →
+                  </motion.button>
+                </motion.div>
+              </div>
+            );
+          })()}
 
           {/* --- Daily Activity Overlay --- */}
           {showHistory && (
