@@ -185,7 +185,7 @@ function OverallBanner({ level, score }: { level: string; score: number }) {
       <motion.div
         animate={springControls}
         whileTap={coolingDown ? {} : { scale: 0.98 }}
-        className={`bg-indigo-600 rounded-2xl px-5 pt-4 pb-5 select-none transition-opacity duration-300 ${coolingDown ? "cursor-default opacity-80" : "cursor-pointer"}`}
+        className="bg-indigo-600 rounded-2xl px-5 pt-4 pb-5 select-none cursor-pointer"
       >
         <div className="flex items-center justify-between mb-4">
           <div>
