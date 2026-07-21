@@ -141,7 +141,13 @@ Return ONLY a valid JSON array, no markdown, no explanation:
     );
 
     const tryWithModel = async (modelId: string) => {
-      const model = genAI.getGenerativeModel({ model: modelId });
+      const model = genAI.getGenerativeModel({
+        model: modelId,
+        generationConfig: {
+          responseMimeType: "application/json",
+          maxOutputTokens: 8192,
+        } as any,
+      });
       const result = await Promise.race([model.generateContent(prompt), timeout]);
       return result.response.text();
     };
