@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect } from "react";
-import { AnimatePresence } from "framer-motion";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
@@ -135,45 +135,79 @@ const OVERALL_SEGMENTS = [
   { label: "N1", color: "bg-red-500"     },
 ];
 
+const SAKURA_PETALS = [
+  { left: 10, delay: 0,    drift: -18, rotate: 120, size: 18 },
+  { left: 22, delay: 0.08, drift:  24, rotate: -90, size: 14 },
+  { left: 35, delay: 0.18, drift: -30, rotate: 200, size: 20 },
+  { left: 48, delay: 0.04, drift:  15, rotate: 150, size: 16 },
+  { left: 58, delay: 0.14, drift: -22, rotate: -60, size: 18 },
+  { left: 70, delay: 0.22, drift:  32, rotate: 180, size: 14 },
+  { left: 80, delay: 0.06, drift: -12, rotate: 240, size: 16 },
+  { left: 90, delay: 0.16, drift:  20, rotate: -45, size: 20 },
+];
+
 function OverallBanner({ level, score }: { level: string; score: number }) {
   const displayScore = useCountUp(score);
+  const [burst, setBurst] = useState(0); // increment to re-trigger petals
+  const bannerRef = useRef<HTMLDivElement>(null);
+
+  const handleTap = useCallback(() => setBurst(b => b + 1), []);
+
   return (
-    <div className="mt-4 bg-indigo-600 rounded-2xl px-5 pt-4 pb-5">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Overall Level</p>
-          <p className="text-4xl font-black text-white mt-0.5">{level}</p>
+    <div ref={bannerRef} className="mt-4 relative" onClick={handleTap}>
+      <div className="bg-indigo-600 rounded-2xl px-5 pt-4 pb-5 select-none cursor-pointer active:scale-[0.98] transition-transform duration-100">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Overall Level</p>
+            <p className="text-4xl font-black text-white mt-0.5">{level}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Avg Score</p>
+            <p className="text-3xl font-black text-white mt-0.5 tabular-nums">{displayScore}%</p>
+          </div>
         </div>
-        <div className="text-right">
-          <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Avg Score</p>
-          <p className="text-3xl font-black text-white mt-0.5 tabular-nums">{displayScore}%</p>
+
+        {/* Segmented N-level progress bar */}
+        <div className="flex gap-1">
+          {OVERALL_SEGMENTS.map((seg, i) => {
+            const segStart = i * 20;
+            const fill = Math.min(Math.max(score - segStart, 0), 20) / 20;
+            const reached = score >= segStart + 20;
+            const active = fill > 0 && !reached;
+            return (
+              <div key={i} className="flex-1 flex flex-col gap-1">
+                <div className="h-2 rounded-full overflow-hidden bg-indigo-800/60">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ${fill > 0 ? seg.color : ""}`}
+                    style={{ width: `${fill * 100}%` }}
+                  />
+                </div>
+                <p className={`text-center text-[8px] font-black uppercase tracking-widest transition-colors ${
+                  reached ? "text-white" : active ? "text-indigo-300" : "text-indigo-700"
+                }`}>
+                  {seg.label}
+                </p>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* Segmented N-level progress bar */}
-      <div className="flex gap-1">
-        {OVERALL_SEGMENTS.map((seg, i) => {
-          const segStart = i * 20;
-          const fill = Math.min(Math.max(score - segStart, 0), 20) / 20;
-          const reached = score >= segStart + 20;
-          const active = fill > 0 && !reached;
-          return (
-            <div key={i} className="flex-1 flex flex-col gap-1">
-              <div className="h-2 rounded-full overflow-hidden bg-indigo-800/60">
-                <div
-                  className={`h-full rounded-full transition-all duration-700 ${fill > 0 ? seg.color : ""}`}
-                  style={{ width: `${fill * 100}%` }}
-                />
-              </div>
-              <p className={`text-center text-[8px] font-black uppercase tracking-widest transition-colors ${
-                reached ? "text-white" : active ? "text-indigo-300" : "text-indigo-700"
-              }`}>
-                {seg.label}
-              </p>
-            </div>
-          );
-        })}
-      </div>
+      {/* Sakura petals — re-keyed on burst so AnimatePresence remounts them each tap */}
+      <AnimatePresence>
+        {burst > 0 && SAKURA_PETALS.map((p, i) => (
+          <motion.div
+            key={`${burst}-${i}`}
+            className="absolute top-4 pointer-events-none select-none"
+            style={{ left: `${p.left}%`, fontSize: p.size }}
+            initial={{ y: 0, x: 0, opacity: 1, rotate: 0, scale: 1 }}
+            animate={{ y: 160, x: p.drift, opacity: 0, rotate: p.rotate, scale: 0.6 }}
+            transition={{ duration: 1.4, delay: p.delay, ease: [0.2, 0.6, 0.8, 1] }}
+          >
+            🌸
+          </motion.div>
+        ))}
+      </AnimatePresence>
     </div>
   );
 }
