@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useAnimationControls } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
@@ -148,14 +148,21 @@ const SAKURA_PETALS = [
 
 function OverallBanner({ level, score }: { level: string; score: number }) {
   const displayScore = useCountUp(score);
-  const [burst, setBurst] = useState(0); // increment to re-trigger petals
+  const [burst, setBurst] = useState(0);
   const bannerRef = useRef<HTMLDivElement>(null);
+  const springControls = useAnimationControls();
 
-  const handleTap = useCallback(() => setBurst(b => b + 1), []);
+  const handleTap = useCallback(() => {
+    setBurst(b => b + 1);
+    springControls.start({
+      scale: [1, 0.95, 1.04, 0.98, 1],
+      transition: { duration: 0.45, ease: "easeInOut" },
+    });
+  }, [springControls]);
 
   return (
     <div ref={bannerRef} className="mt-4 relative" onClick={handleTap}>
-      <div className="bg-indigo-600 rounded-2xl px-5 pt-4 pb-5 select-none cursor-pointer active:scale-[0.98] transition-transform duration-100">
+      <motion.div animate={springControls} whileTap={{ scale: 0.98 }} className="bg-indigo-600 rounded-2xl px-5 pt-4 pb-5 select-none cursor-pointer">
         <div className="flex items-center justify-between mb-4">
           <div>
             <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Overall Level</p>
@@ -191,7 +198,7 @@ function OverallBanner({ level, score }: { level: string; score: number }) {
             );
           })}
         </div>
-      </div>
+      </motion.div>
 
       {/* Sakura petals — re-keyed on burst so AnimatePresence remounts them each tap */}
       <AnimatePresence>
