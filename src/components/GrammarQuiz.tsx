@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { X, ChevronLeft, Loader2, List, Volume2 } from "lucide-react";
 import { speak } from "@/lib/tts";
 import { grammarPatternScore, dailySessionWeight, jlptLevel } from "@/lib/scoring";
+import LevelUpModal from "@/components/LevelUpModal";
 import { authedFetch } from "@/lib/authedFetch";
 import { getTodayUsage, AiUsageInfo } from "@/lib/aiUsage";
 import { useAppAlert } from "@/context/AlertContext";
@@ -138,6 +139,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
   const [currentLevel, setCurrentLevel] = useState<JlptLevel>("N5");
   const [levelProgress, setLevelProgress] = useState<{ mastered: number; total: number }>({ mastered: 0, total: 0 });
   const [skillScore, setSkillScore] = useState<{ from: number; to: number } | null>(null);
+  const [levelUp, setLevelUp] = useState<{ from: string; to: string } | null>(null);
   const [usage, setUsage] = useState<AiUsageInfo | null>(null);
   const refreshUsage = useCallback(() => {
     getTodayUsage(userId, "quiz_grammar").then(setUsage);
@@ -506,6 +508,10 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
     const oldGrammarScore = grammarScoreRef.current;
     grammarScoreRef.current = newGrammarScore;
     setSkillScore({ from: oldGrammarScore, to: newGrammarScore });
+    const JLPT = ["N5", "N4", "N3", "N2", "N1"];
+    const oldLevel = jlptLevel(oldGrammarScore);
+    const newLevel = jlptLevel(newGrammarScore);
+    if (JLPT.indexOf(newLevel) > JLPT.indexOf(oldLevel)) setLevelUp({ from: oldLevel, to: newLevel });
     supabase.from("profiles").update({ grammar_score: newGrammarScore }).eq("id", userId)
       .then(({ error }) => { if (error) console.error("[grammar_score save]", error.code, error.message); });
     supabase.rpc("log_quiz_daily", { p_type: "grammar", p_n_level: levelAtStart, p_correct: finalScore, p_total: totalQ })
@@ -990,6 +996,10 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
             </div>
           </div>
         </div>
+      )}
+      {/* ── Level-up celebration ── */}
+      {levelUp && (
+        <LevelUpModal from={levelUp.from} to={levelUp.to} quizType="grammar" onDismiss={() => setLevelUp(null)} />
       )}
     </div>
   );

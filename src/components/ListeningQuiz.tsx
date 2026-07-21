@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, List, Volume2, ChevronLeft, Ear } from "lucide-react";
 import { speak, playTTS, stopTTS } from "@/lib/tts";
 import { levelQuizScore, jlptLevel } from "@/lib/scoring";
+import LevelUpModal from "@/components/LevelUpModal";
 import { authedFetch } from "@/lib/authedFetch";
 import { getTodayUsage, AiUsageInfo } from "@/lib/aiUsage";
 import { useAppAlert } from "@/context/AlertContext";
@@ -164,6 +165,7 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
   const [backConfirm, setBackConfirm] = useState(false);
   const [skillScore, setSkillScore] = useState<{ from: number; to: number } | null>(null);
   const [animatedScore, setAnimatedScore] = useState(0);
+  const [levelUp, setLevelUp] = useState<{ from: string; to: string } | null>(null);
   const [usage, setUsage] = useState<AiUsageInfo | null>(null);
   const refreshUsage = useCallback(() => {
     getTodayUsage(userId, "quiz_listening").then(setUsage);
@@ -489,6 +491,10 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
       const oldListeningScore = listeningScoreRef.current;
       listeningScoreRef.current = newListeningScore;
       setSkillScore({ from: oldListeningScore, to: newListeningScore });
+      const JLPT = ["N5", "N4", "N3", "N2", "N1"];
+      const oldLevel = jlptLevel(oldListeningScore);
+      const newLevel = jlptLevel(newListeningScore);
+      if (JLPT.indexOf(newLevel) > JLPT.indexOf(oldLevel)) setLevelUp({ from: oldLevel, to: newLevel });
       supabase.from("profiles").update({ listening_score: newListeningScore, listening_stats: updatedStats }).eq("id", userId)
         .then(({ error }) => { if (error) console.error("[listening_score save]", error.code, error.message); });
       supabase.rpc("log_quiz_daily", { p_type: "listening", p_n_level: level, p_correct: gotCount, p_total: newResults.length })
@@ -936,6 +942,10 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
             </div>
           </div>
         </div>
+      )}
+      {/* ── Level-up celebration ── */}
+      {levelUp && (
+        <LevelUpModal from={levelUp.from} to={levelUp.to} quizType="listening" onDismiss={() => setLevelUp(null)} />
       )}
     </motion.div>
   );

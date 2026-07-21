@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, List, Volume2, ChevronLeft } from "lucide-react";
 import { speak } from "@/lib/tts";
 import { levelQuizScore, jlptLevel } from "@/lib/scoring";
+import LevelUpModal from "@/components/LevelUpModal";
 import { authedFetch } from "@/lib/authedFetch";
 import { getTodayUsage, AiUsageInfo } from "@/lib/aiUsage";
 import { useAppAlert } from "@/context/AlertContext";
@@ -161,6 +162,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
   const [backConfirm, setBackConfirm] = useState(false);
   const [skillScore, setSkillScore] = useState<{ from: number; to: number } | null>(null);
   const [animatedScore, setAnimatedScore] = useState(0);
+  const [levelUp, setLevelUp] = useState<{ from: string; to: string } | null>(null);
   const [usage, setUsage] = useState<AiUsageInfo | null>(null);
 
   const refreshUsage = useCallback(() => {
@@ -534,6 +536,10 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
       const oldReadingScore = readingScoreRef.current;
       readingScoreRef.current = newReadingScore;
       setSkillScore({ from: oldReadingScore, to: newReadingScore });
+      const JLPT = ["N5", "N4", "N3", "N2", "N1"];
+      const oldLevel = jlptLevel(oldReadingScore);
+      const newLevel = jlptLevel(newReadingScore);
+      if (JLPT.indexOf(newLevel) > JLPT.indexOf(oldLevel)) setLevelUp({ from: oldLevel, to: newLevel });
       supabase.from("profiles").update({ reading_score: newReadingScore, reading_stats: updatedStats }).eq("id", userId)
         .then(({ error }) => { if (error) console.error("[reading_score save]", error.code, error.message); });
       supabase.rpc("log_quiz_daily", { p_type: "reading", p_n_level: level, p_correct: passedTotal, p_total: newResults.length })
@@ -1026,6 +1032,10 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
             </div>
           </div>
         </div>
+      )}
+      {/* ── Level-up celebration ── */}
+      {levelUp && (
+        <LevelUpModal from={levelUp.from} to={levelUp.to} quizType="reading" onDismiss={() => setLevelUp(null)} />
       )}
     </motion.div>
   );
