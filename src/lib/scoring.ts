@@ -151,11 +151,12 @@ export function grammarPatternScore(
   for (const level of LEVELS) {
     const ids = byLevel.get(level) ?? [];
     if (ids.length === 0) continue;
-    const mastered = ids.filter(id => {
+    const contribution = ids.reduce((sum, id) => {
       const s = scoreMap.get(id);
-      return s && s.total >= 1 && s.percent >= 67;
-    }).length;
-    score += (mastered / ids.length) * 20;
+      if (!s || s.percent < 67) return sum;
+      return sum + Math.min(s.total / 3, 1);
+    }, 0);
+    score += (contribution / ids.length) * 20;
   }
   return Math.min(100, Math.round(score));
 }

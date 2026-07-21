@@ -25,7 +25,7 @@ function incrementGrammarDailyCount(): void {
 
 const JLPT_ORDER = ["N5", "N4", "N3", "N2", "N1"] as const;
 type JlptLevel = (typeof JLPT_ORDER)[number];
-const MASTERY_MIN_ATTEMPTS = 1;
+const MASTERY_MIN_ATTEMPTS = 3;
 const MASTERY_MIN_PERCENT = 67;
 const PATTERNS_PER_ROUND = 20;
 
