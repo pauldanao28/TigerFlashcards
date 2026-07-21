@@ -171,6 +171,15 @@ Return ONLY a valid JSON array, no markdown, no explanation:
       } catch {}
     }
 
+    // Partial recovery: extract individual objects even if the array wrapper is truncated
+    const objectMatches = cleaned.match(/\{[^{}]*"sentence_jp"[^{}]*\}/g);
+    if (objectMatches && objectMatches.length > 0) {
+      const recovered = objectMatches.flatMap(m => { try { return [JSON.parse(m)]; } catch { return []; } });
+      if (recovered.length > 0) {
+        return NextResponse.json({ sentences: validateSentences(recovered, typedCards) });
+      }
+    }
+
     return NextResponse.json({ error: "Failed to parse sentences" }, { status: 500 });
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);

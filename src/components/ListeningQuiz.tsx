@@ -554,7 +554,7 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
           </div>
           <div className="w-full bg-sky-50 border border-sky-100 rounded-2xl px-4 py-3 text-left space-y-1.5">
             <p className="text-sky-800 font-bold text-xs leading-relaxed">
-              📈 Sentences use your <span className="font-black">weakest vocab cards</span> at your current N level. Complete 5 rounds (100 questions) at 70% accuracy to advance your listening score to the next level.
+              📈 Sentences use your <span className="font-black">weakest vocab cards</span> at your current N level. Keep your listening accuracy strong across rounds to advance your score to the next level.
             </p>
             <p className="text-sky-700 font-medium text-xs leading-relaxed">
               Tap any word in the revealed sentence to look it up.

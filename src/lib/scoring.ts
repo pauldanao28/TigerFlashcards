@@ -153,7 +153,7 @@ export function grammarPatternScore(
     if (ids.length === 0) continue;
     const mastered = ids.filter(id => {
       const s = scoreMap.get(id);
-      return s && s.total >= 3 && s.percent >= 67;
+      return s && s.total >= 1 && s.percent >= 67;
     }).length;
     score += (mastered / ids.length) * 20;
   }

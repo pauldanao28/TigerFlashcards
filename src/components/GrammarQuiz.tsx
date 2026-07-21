@@ -25,7 +25,7 @@ function incrementGrammarDailyCount(): void {
 
 const JLPT_ORDER = ["N5", "N4", "N3", "N2", "N1"] as const;
 type JlptLevel = (typeof JLPT_ORDER)[number];
-const MASTERY_MIN_ATTEMPTS = 3;
+const MASTERY_MIN_ATTEMPTS = 1;
 const MASTERY_MIN_PERCENT = 67;
 const PATTERNS_PER_ROUND = 20;
 
@@ -562,7 +562,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
           </div>
           <div className="w-full bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-3 text-left space-y-1.5">
             <p className="text-emerald-800 font-bold text-xs leading-relaxed">
-              🔓 Master every <span className="font-black">{currentLevel}</span> pattern ({MASTERY_MIN_ATTEMPTS}+ attempts, ≥{MASTERY_MIN_PERCENT}% accuracy each) to unlock the next level.
+              🔓 Answer each <span className="font-black">{currentLevel}</span> pattern correctly and consistently to unlock the next level.
             </p>
             <p className="text-emerald-700 font-medium text-xs leading-relaxed">
               Unseen and weak patterns are always prioritised. Tap any kanji to look it up.

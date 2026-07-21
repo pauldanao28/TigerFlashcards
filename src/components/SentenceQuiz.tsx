@@ -597,7 +597,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
           </div>
           <div className="w-full bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 text-left space-y-1.5">
             <p className="text-amber-800 font-bold text-xs leading-relaxed">
-              📈 Cards are drawn from your <span className="font-black">current N level</span>. Complete 5 rounds (100 questions) at 70% accuracy to advance your reading score to the next level.
+              📈 Cards are drawn from your <span className="font-black">current N level</span>. Keep your reading accuracy strong across rounds to advance your score to the next level.
             </p>
             <p className="text-amber-700 font-medium text-xs leading-relaxed">
               Tap any kanji in a sentence to look it up.
