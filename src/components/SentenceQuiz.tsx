@@ -311,24 +311,38 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
 
       const pick = [...pool].sort(() => Math.random() - 0.5).slice(0, Math.min(20, pool.length));
 
-      const res = await authedFetch("/api/quiz/sentences", {
-        method: "POST",
-        body: JSON.stringify({
-          cards: pick.map((c: any) => ({ japanese: c.japanese, reading: c.reading, english: c.english })),
-          difficulty: readingScoreRef.current,
-        }),
-      });
+      // Split into two batches of ≤10 and fire in parallel — smaller batches are far less
+      // likely to be truncated by the model, so all 20 sentences reliably come back.
+      const BATCH = 10;
+      const batches: typeof pick[] = [];
+      for (let i = 0; i < pick.length; i += BATCH) batches.push(pick.slice(i, i + BATCH));
+
+      const batchResults = await Promise.all(
+        batches.map((batch, batchIdx) =>
+          authedFetch("/api/quiz/sentences", {
+            method: "POST",
+            body: JSON.stringify({
+              cards: batch.map((c: any) => ({ japanese: c.japanese, reading: c.reading, english: c.english })),
+              difficulty: readingScoreRef.current,
+            }),
+          }).then(async (res) => {
+            if (!res.ok) {
+              const body = await res.json().catch(() => ({}));
+              throw new Error(body.error || "Failed to generate sentences");
+            }
+            const { sentences } = await res.json();
+            const offset = batchIdx * BATCH;
+            return (sentences ?? []).map((s: any) => ({ ...s, id: (s.id as number) + offset }));
+          })
+        )
+      );
 
       refreshUsage();
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || "Failed to generate sentences");
-      }
-      const { sentences } = await res.json();
+      const allSentences = batchResults.flat();
 
       // Index by the numeric id the API echoes back — immune to word-form mismatches.
       const sentenceByIdx = new Map<number, { sentence_jp: string; sentence_en: string }>(
-        (sentences ?? []).map((s: any) => [s.id as number, s])
+        allSentences.map((s: any) => [s.id as number, s])
       );
 
       const merged: QuizCard[] = pick
