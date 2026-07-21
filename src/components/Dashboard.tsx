@@ -135,34 +135,58 @@ const OVERALL_SEGMENTS = [
   { label: "N1", color: "bg-red-500"     },
 ];
 
-const SAKURA_PETALS = [
-  { left: 10, delay: 0,    drift: -18, rotate: 120, size: 18 },
-  { left: 22, delay: 0.08, drift:  24, rotate: -90, size: 14 },
-  { left: 35, delay: 0.18, drift: -30, rotate: 200, size: 20 },
-  { left: 48, delay: 0.04, drift:  15, rotate: 150, size: 16 },
-  { left: 58, delay: 0.14, drift: -22, rotate: -60, size: 18 },
-  { left: 70, delay: 0.22, drift:  32, rotate: 180, size: 14 },
-  { left: 80, delay: 0.06, drift: -12, rotate: 240, size: 16 },
-  { left: 90, delay: 0.16, drift:  20, rotate: -45, size: 20 },
-];
+const MAX_TAPS = 5;
+const COOLDOWN_MS = 4000;
+
+function randomPetals(count = 7) {
+  return Array.from({ length: count }, () => ({
+    left:   5 + Math.random() * 88,
+    delay:  Math.random() * 0.25,
+    drift:  (Math.random() - 0.5) * 72,
+    rotate: (Math.random() - 0.5) * 400,
+    size:   13 + Math.random() * 9,
+  }));
+}
+
+type PetalBurst = { id: number; petals: ReturnType<typeof randomPetals> };
 
 function OverallBanner({ level, score }: { level: string; score: number }) {
   const displayScore = useCountUp(score);
-  const [burst, setBurst] = useState(0);
-  const bannerRef = useRef<HTMLDivElement>(null);
+  const [bursts, setBursts] = useState<PetalBurst[]>([]);
+  const [tapsLeft, setTapsLeft] = useState(MAX_TAPS);
+  const [coolingDown, setCoolingDown] = useState(false);
+  const nextId = useRef(0);
   const springControls = useAnimationControls();
 
   const handleTap = useCallback(() => {
-    setBurst(b => b + 1);
+    if (coolingDown) return;
+
+    const id = nextId.current++;
+    setBursts(prev => [...prev, { id, petals: randomPetals() }]);
+    setTimeout(() => setBursts(prev => prev.filter(b => b.id !== id)), 1800);
+
     springControls.start({
       scale: [1, 0.95, 1.04, 0.98, 1],
       transition: { duration: 0.45, ease: "easeInOut" },
     });
-  }, [springControls]);
+
+    setTapsLeft(prev => {
+      const next = prev - 1;
+      if (next <= 0) {
+        setCoolingDown(true);
+        setTimeout(() => { setTapsLeft(MAX_TAPS); setCoolingDown(false); }, COOLDOWN_MS);
+      }
+      return next;
+    });
+  }, [coolingDown, springControls]);
 
   return (
-    <div ref={bannerRef} className="mt-4 relative" onClick={handleTap}>
-      <motion.div animate={springControls} whileTap={{ scale: 0.98 }} className="bg-indigo-600 rounded-2xl px-5 pt-4 pb-5 select-none cursor-pointer">
+    <div className="mt-4 relative" onClick={handleTap}>
+      <motion.div
+        animate={springControls}
+        whileTap={coolingDown ? {} : { scale: 0.98 }}
+        className={`bg-indigo-600 rounded-2xl px-5 pt-4 pb-5 select-none transition-opacity duration-300 ${coolingDown ? "cursor-default opacity-80" : "cursor-pointer"}`}
+      >
         <div className="flex items-center justify-between mb-4">
           <div>
             <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Overall Level</p>
@@ -198,22 +222,36 @@ function OverallBanner({ level, score }: { level: string; score: number }) {
             );
           })}
         </div>
+
+        {/* Tap charge dots */}
+        <div className="flex justify-center gap-1 mt-3">
+          {Array.from({ length: MAX_TAPS }).map((_, i) => (
+            <motion.div
+              key={i}
+              className="w-1 h-1 rounded-full"
+              animate={{ backgroundColor: i < tapsLeft ? "#a5b4fc" : "#3730a3" }}
+              transition={{ duration: 0.3 }}
+            />
+          ))}
+        </div>
       </motion.div>
 
-      {/* Sakura petals — re-keyed on burst so AnimatePresence remounts them each tap */}
+      {/* Sakura petal bursts */}
       <AnimatePresence>
-        {burst > 0 && SAKURA_PETALS.map((p, i) => (
-          <motion.div
-            key={`${burst}-${i}`}
-            className="absolute top-4 pointer-events-none select-none"
-            style={{ left: `${p.left}%`, fontSize: p.size }}
-            initial={{ y: 0, x: 0, opacity: 1, rotate: 0, scale: 1 }}
-            animate={{ y: 160, x: p.drift, opacity: 0, rotate: p.rotate, scale: 0.6 }}
-            transition={{ duration: 1.4, delay: p.delay, ease: [0.2, 0.6, 0.8, 1] }}
-          >
-            🌸
-          </motion.div>
-        ))}
+        {bursts.flatMap(burst =>
+          burst.petals.map((p, i) => (
+            <motion.div
+              key={`${burst.id}-${i}`}
+              className="absolute top-4 pointer-events-none select-none"
+              style={{ left: `${p.left}%`, fontSize: p.size }}
+              initial={{ y: 0, x: 0, opacity: 1, rotate: 0, scale: 1 }}
+              animate={{ y: 170, x: p.drift, opacity: 0, rotate: p.rotate, scale: 0.5 }}
+              transition={{ duration: 1.5, delay: p.delay, ease: [0.2, 0.6, 0.8, 1] }}
+            >
+              🌸
+            </motion.div>
+          ))
+        )}
       </AnimatePresence>
     </div>
   );
