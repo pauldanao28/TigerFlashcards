@@ -647,8 +647,8 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
                   <p className="text-slate-400 font-medium text-xs text-center">Listen as many times as you need, then reveal to check yourself.</p>
                   <p className="text-[9px] font-black uppercase tracking-widest text-slate-300">
                     {ttsUsage != null && ttsUsage.remaining <= 0
-                      ? "Voice plays used up — switching to browser voice"
-                      : <>🔊 {ttsUsage?.remaining ?? '…'}/{ttsUsage?.limit ?? 5} voice plays left today</>}
+                      ? "🔊 Browser voice — still tap to listen"
+                      : <>🎙️ AI voice · {ttsUsage?.remaining ?? '…'}/{ttsUsage?.limit ?? 5} left today</>}
                   </p>
                 </div>
               ) : (
