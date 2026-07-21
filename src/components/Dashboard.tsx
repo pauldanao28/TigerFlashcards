@@ -127,17 +127,52 @@ function ScoreTile({
 // Module-level cache — survives Next.js client-side navigation, clears on full reload
 const _dashboardCache = new Map<string, ProfileScores>();
 
+const OVERALL_SEGMENTS = [
+  { label: "N5", color: "bg-indigo-500"  },
+  { label: "N4", color: "bg-emerald-500" },
+  { label: "N3", color: "bg-amber-500"   },
+  { label: "N2", color: "bg-orange-500"  },
+  { label: "N1", color: "bg-red-500"     },
+];
+
 function OverallBanner({ level, score }: { level: string; score: number }) {
   const displayScore = useCountUp(score);
   return (
-    <div className="mt-4 bg-indigo-600 rounded-2xl px-5 py-4 flex items-center justify-between">
-      <div>
-        <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Overall Level</p>
-        <p className="text-4xl font-black text-white mt-0.5">{level}</p>
+    <div className="mt-4 bg-indigo-600 rounded-2xl px-5 pt-4 pb-5">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Overall Level</p>
+          <p className="text-4xl font-black text-white mt-0.5">{level}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Avg Score</p>
+          <p className="text-3xl font-black text-white mt-0.5 tabular-nums">{displayScore}%</p>
+        </div>
       </div>
-      <div className="text-right">
-        <p className="text-[9px] font-black uppercase tracking-widest text-indigo-300">Avg Score</p>
-        <p className="text-3xl font-black text-white mt-0.5 tabular-nums">{displayScore}%</p>
+
+      {/* Segmented N-level progress bar */}
+      <div className="flex gap-1">
+        {OVERALL_SEGMENTS.map((seg, i) => {
+          const segStart = i * 20;
+          const fill = Math.min(Math.max(score - segStart, 0), 20) / 20;
+          const reached = score >= segStart + 20;
+          const active = fill > 0 && !reached;
+          return (
+            <div key={i} className="flex-1 flex flex-col gap-1">
+              <div className="h-2 rounded-full overflow-hidden bg-indigo-800/60">
+                <div
+                  className={`h-full rounded-full transition-all duration-700 ${fill > 0 ? seg.color : ""}`}
+                  style={{ width: `${fill * 100}%` }}
+                />
+              </div>
+              <p className={`text-center text-[8px] font-black uppercase tracking-widest transition-colors ${
+                reached ? "text-white" : active ? "text-indigo-300" : "text-indigo-700"
+              }`}>
+                {seg.label}
+              </p>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
