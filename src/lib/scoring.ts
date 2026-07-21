@@ -63,12 +63,12 @@ export function bootstrapVocabScore(
 }
 
 // Dual gate for reading and listening per N level:
-// — volume gate: at least 5 quizzes (100 questions) at that level
-// — accuracy gate: at least 70% correct (70 out of 100)
+// — volume gate: at least 8 quizzes (160 questions) at that level
+// — accuracy gate: at least 70% correct (112 out of 160)
 // Both must be met for full credit (20 pts per level).
 // Partial credit = min(volume%, accuracy%) so neither gate can be bypassed.
-export const QUIZ_LEVEL_REQUIRED_TOTAL = 100;   // 5 quizzes × 20 questions
-export const QUIZ_LEVEL_REQUIRED_CORRECT = 70;  // 70% of 100
+export const QUIZ_LEVEL_REQUIRED_TOTAL = 160;   // 8 quizzes × 20 questions
+export const QUIZ_LEVEL_REQUIRED_CORRECT = 112; // 70% of 160
 
 export function levelQuizScore(
   stats: Partial<Record<string, { correct: number; total: number }>>
