@@ -615,7 +615,7 @@ export default function StudyView() {
       localStorage.removeItem("show_first_timer_hint");
     }
 
-    const knownStats = { pass: 3, fail: 0, total: 3, percent: 100 };
+    const knownStats = { pass: MASTERY_MIN_TRIES, fail: 0, total: MASTERY_MIN_TRIES, percent: 100 };
     const newScores = { jp_to_en: knownStats, en_to_jp: knownStats };
 
     await supabase.from("user_scores").upsert(
@@ -632,6 +632,7 @@ export default function StudyView() {
       c.id === currentCard.id ? { ...c, scores: newScores } : c,
     );
     setCards(updatedCards);
+    setSessionNewMastered((prev) => prev + 1);
 
     const pool = jlptFilter === "All" ? updatedCards : updatedCards.filter(c => c.jlpt_level === jlptFilter);
     setCurrentCard(getNextPriorityCard(pool.length > 0 ? pool : updatedCards, language, currentCard.id));
