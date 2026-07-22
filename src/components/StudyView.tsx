@@ -634,10 +634,20 @@ export default function StudyView() {
     setCards(updatedCards);
     setSessionNewMastered((prev) => prev + 1);
 
+    const level = currentCard.jlpt_level ?? "N5";
+    const levelMastered = updatedCards.filter(c =>
+      c.jlpt_level === level &&
+      ((c.scores?.jp_to_en?.pass ?? 0) >= MASTERY_MIN_TRIES && (c.scores?.jp_to_en?.percent ?? 0) >= 70) ||
+      ((c.scores?.en_to_jp?.pass ?? 0) >= MASTERY_MIN_TRIES && (c.scores?.en_to_jp?.percent ?? 0) >= 70)
+    ).length;
+    setCardMasteryToast({ word: currentCard.japanese, level, levelMastered, direction: "up" });
+    navigator.vibrate?.([60, 40, 100]);
+    setTimeout(() => setCardMasteryToast(null), 2000);
+
     const pool = jlptFilter === "All" ? updatedCards : updatedCards.filter(c => c.jlpt_level === jlptFilter);
     setCurrentCard(getNextPriorityCard(pool.length > 0 ? pool : updatedCards, language, currentCard.id));
     setIsFlipped(false);
-  }, [currentCard, user, cards, language, jlptFilter, showHints]);
+  }, [currentCard, user, cards, language, jlptFilter, showHints, setCardMasteryToast]);
 
   // --- 7. AI Sync Logic ---
   useEffect(() => {
