@@ -146,6 +146,20 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
   }, [userId]);
   useEffect(() => { refreshUsage(); }, [refreshUsage]);
   const [animatedScore, setAnimatedScore] = useState(0);
+  const [animatedPct, setAnimatedPct] = useState(0);
+
+  useEffect(() => {
+    if (phase !== "done" || questions.length === 0) { setAnimatedPct(0); return; }
+    const target = Math.round((score / questions.length) * 100);
+    let current = 0;
+    const step = Math.max(1, Math.ceil(target / 30));
+    const timer = setInterval(() => {
+      current = Math.min(current + step, target);
+      setAnimatedPct(current);
+      if (current >= target) clearInterval(timer);
+    }, 30);
+    return () => clearInterval(timer);
+  }, [phase, score, questions]);
 
   useEffect(() => {
     if (!skillScore) return;
@@ -604,7 +618,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
               {score}<span className="text-slate-300 font-bold text-2xl"> / {questions.length}</span>
             </h2>
             <p className="text-slate-400 font-black uppercase tracking-widest text-[10px] mt-1">
-              {Math.round(pct * 100)}% correct · {pct >= 0.8 ? "Excellent!" : pct >= 0.5 ? "Good work!" : "Keep practicing!"}
+              {animatedPct}% correct · {pct >= 0.8 ? "Excellent!" : pct >= 0.5 ? "Good work!" : "Keep practicing!"}
             </p>
             {skillScore !== null && (
               <p className="text-amber-600 font-black text-2xl mt-3 tabular-nums">

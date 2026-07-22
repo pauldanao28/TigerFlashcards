@@ -162,6 +162,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
   const [backConfirm, setBackConfirm] = useState(false);
   const [skillScore, setSkillScore] = useState<{ from: number; to: number } | null>(null);
   const [animatedScore, setAnimatedScore] = useState(0);
+  const [animatedPct, setAnimatedPct] = useState(0);
   const [levelUp, setLevelUp] = useState<{ from: string; to: string } | null>(null);
   const [usage, setUsage] = useState<AiUsageInfo | null>(null);
 
@@ -170,6 +171,19 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
   }, [userId]);
 
   useEffect(() => { refreshUsage(); }, [refreshUsage]);
+
+  useEffect(() => {
+    if (phase !== "done" || results.length === 0) { setAnimatedPct(0); return; }
+    const target = Math.round((results.filter(r => r.passed).length / results.length) * 100);
+    let current = 0;
+    const step = Math.max(1, Math.ceil(target / 30));
+    const timer = setInterval(() => {
+      current = Math.min(current + step, target);
+      setAnimatedPct(current);
+      if (current >= target) clearInterval(timer);
+    }, 30);
+    return () => clearInterval(timer);
+  }, [phase, results]);
 
   useEffect(() => {
     if (!skillScore) return;
@@ -781,7 +795,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
             </div>
             <h2 className="text-4xl font-black text-slate-900 mb-1">{passedCount}<span className="text-slate-300 font-bold text-2xl"> / {results.length}</span></h2>
             <p className="text-slate-400 font-black uppercase tracking-widest text-[10px] mt-1">
-              {results.length > 0 ? Math.round((passedCount / results.length) * 100) : 0}% correct · scores updated
+              {animatedPct}% correct · scores updated
             </p>
             {skillScore !== null && (
               <p className="text-emerald-600 font-black text-2xl mt-3 tabular-nums">
