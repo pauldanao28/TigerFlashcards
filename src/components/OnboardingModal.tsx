@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppAlert } from "@/context/AlertContext";
+import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
 
 interface OnboardingProps {
   userId: string;
@@ -122,17 +123,40 @@ export default function OnboardingModal({
 
       const n5Words = pack.card_data as any[];
 
-      // Upsert cards and get IDs
-      const { data: uploadedCards, error: mErr } = await supabase
-        .from("master_cards")
-        .upsert(
-          n5Words.map((w) => ({ ...w, creator_id: userId })),
-          { onConflict: "japanese" },
-        )
-        .select("id");
+      // Reuse existing master_cards rows untouched (master_cards is a shared
+      // library — another user may have already added one of these words),
+      // only inserting genuinely new ones, normalized on the way in.
+      const CHUNK = 150;
+      const existingByJapanese = new Map<string, { id: string }>();
+      for (let i = 0; i < n5Words.length; i += CHUNK) {
+        const chunk = n5Words.slice(i, i + CHUNK).map((w) => w.japanese);
+        const { data: existing } = await supabase
+          .from("master_cards")
+          .select("id, japanese")
+          .in("japanese", chunk);
+        (existing ?? []).forEach((row) => existingByJapanese.set(row.japanese, row));
+      }
 
-      if (mErr || !uploadedCards) throw mErr;
-      const cardIds = uploadedCards.map((c) => c.id);
+      const newWords = n5Words.filter((w) => !existingByJapanese.has(w.japanese));
+      let insertedCards: { id: string }[] = [];
+      if (newWords.length > 0) {
+        const { data: inserted, error: mErr } = await supabase
+          .from("master_cards")
+          .insert(
+            newWords.map((w) => ({
+              ...w,
+              english: typeof w.english === "string" ? normalizeEnglish(w.english) : w.english,
+              reading: typeof w.reading === "string" ? stripParens(w.reading) : w.reading,
+              partOfSpeech: typeof w.partOfSpeech === "string" ? normalizePartOfSpeech(w.partOfSpeech) : w.partOfSpeech,
+              creator_id: userId,
+            })),
+          )
+          .select("id");
+        if (mErr || !inserted) throw mErr;
+        insertedCards = inserted;
+      }
+
+      const cardIds = [...existingByJapanese.values(), ...insertedCards].map((c) => c.id);
 
       // Create Default Deck
       const { data: deck, error: dErr } = await supabase

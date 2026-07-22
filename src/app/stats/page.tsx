@@ -16,6 +16,7 @@ import LoadingScreen from "@/components/LoadingScreen";
 import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
 import { List, X, Plus, Loader2, RotateCcw } from "lucide-react";
 import { AVATAR_PRESETS } from "@/lib/avatars";
+import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
 
 interface StatsCardsCache { userId: string; cards: FlashcardData[]; deckId: string; }
 let _statsCardsCache: StatsCardsCache | null = null;
@@ -987,35 +988,78 @@ export default function StatsPage() {
     try {
       const nWords = pack.card_data as any[];
 
-      // 2. Upsert words (Standard logic)
-      const { data: uploadedCards, error: mErr } = await supabase
-        .from("master_cards")
-        .upsert(
-          nWords.map((w) => ({ ...w, creator_id: user.id })),
-          { onConflict: "japanese" },
-        )
-        .select("id, japanese, english");
+      // 2. Reuse existing master_cards rows untouched (never overwrite a
+      // shared card's data just because a pack happens to include the same
+      // word) — only insert genuinely new words, normalized on the way in.
+      const CARD_CHUNK = 150;
+      const existingByJapanese = new Map<string, { id: string; japanese: string; english: string }>();
+      for (let i = 0; i < nWords.length; i += CARD_CHUNK) {
+        const chunk = nWords.slice(i, i + CARD_CHUNK).map((w) => w.japanese);
+        const { data: existing } = await supabase
+          .from("master_cards")
+          .select("id, japanese, english")
+          .in("japanese", chunk);
+        (existing ?? []).forEach((row) => existingByJapanese.set(row.japanese, row));
+      }
 
-      if (mErr || !uploadedCards) throw mErr;
+      const newWords = nWords.filter((w) => !existingByJapanese.has(w.japanese));
+      let insertedCards: { id: string; japanese: string; english: string }[] = [];
+      if (newWords.length > 0) {
+        const { data: inserted, error: mErr } = await supabase
+          .from("master_cards")
+          .insert(
+            newWords.map((w) => ({
+              ...w,
+              english: typeof w.english === "string" ? normalizeEnglish(w.english) : w.english,
+              reading: typeof w.reading === "string" ? stripParens(w.reading) : w.reading,
+              partOfSpeech: typeof w.partOfSpeech === "string" ? normalizePartOfSpeech(w.partOfSpeech) : w.partOfSpeech,
+              creator_id: user.id,
+            })),
+          )
+          .select("id, japanese, english");
+        if (mErr || !inserted) throw mErr;
+        insertedCards = inserted;
+      }
+
+      const uploadedCards = [...existingByJapanese.values(), ...insertedCards];
       const cardIds = uploadedCards.map((c) => c.id);
 
-      // 3. Link and Score Initialization
+      // 3. Find which of these cards you're already studying (e.g. an
+      // overlapping word from another pack, or one you added manually) —
+      // a starter pack import must never touch an existing score row.
+      // Chunked to stay well under URL length limits for large packs.
+      const CHUNK = 150;
+      const existingScoreIds = new Set<string>();
+      for (let i = 0; i < cardIds.length; i += CHUNK) {
+        const chunk = cardIds.slice(i, i + CHUNK);
+        const { data: existing } = await supabase
+          .from("user_scores")
+          .select("card_id")
+          .eq("user_id", user.id)
+          .in("card_id", chunk);
+        (existing ?? []).forEach((row) => existingScoreIds.add(row.card_id));
+      }
+      const newCardIds = cardIds.filter((id) => !existingScoreIds.has(id));
+
+      // 4. Link to deck (safe to upsert — no mutable progress here) and
+      // initialize scores ONLY for genuinely new cards.
       await Promise.all([
         supabase.from("deck_cards").upsert(
           cardIds.map((id) => ({ deck_id: defaultDeckId, card_id: id })),
           { onConflict: "deck_id,card_id" },
         ),
-        supabase.from("user_scores").upsert(
-          cardIds.map((id) => ({
-            user_id: user.id,
-            card_id: id,
-            scores_json: {
-              jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
-              en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
-            },
-          })),
-          { onConflict: "user_id,card_id" },
-        ),
+        newCardIds.length > 0
+          ? supabase.from("user_scores").insert(
+              newCardIds.map((id) => ({
+                user_id: user.id,
+                card_id: id,
+                scores_json: {
+                  jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
+                  en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
+                },
+              })),
+            )
+          : Promise.resolve(),
       ]);
 
       // 4. Update Profile with the ID ONLY
