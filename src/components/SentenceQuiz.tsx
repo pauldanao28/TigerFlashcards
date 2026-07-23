@@ -806,12 +806,24 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
 
           {results.filter(r => !r.passed).length > 0 && (
             <div className="w-full bg-white rounded-3xl border border-slate-100 shadow-sm px-5 py-4 mb-4">
-              <p className="text-[9px] font-black uppercase tracking-widest text-rose-400 mb-3">Review these</p>
-              <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto">
+              <p className="text-[9px] font-black uppercase tracking-widest text-rose-400 mb-3">
+                Review these · {results.filter(r => !r.passed).length} missed
+              </p>
+              <div className="flex flex-col divide-y divide-slate-100 max-h-80 overflow-y-auto">
                 {results.filter(r => !r.passed).map((r, i) => (
-                  <div key={i} className="bg-rose-50 border border-rose-100 rounded-xl px-3 py-1.5 flex items-center gap-1.5">
-                    <span className="text-sm font-black text-rose-700">{r.card.japanese}</span>
-                    <span className="text-[10px] text-rose-400">{r.card.english}</span>
+                  <div key={i} className="py-3 first:pt-0 last:pb-0">
+                    <p className="text-base leading-relaxed text-slate-800 font-medium mb-1.5">
+                      <HighlightedSentence
+                        sentence={r.card.sentence_jp}
+                        word={r.card.japanese}
+                        reading={r.card.reading}
+                        onWordTap={() => {}}
+                      />
+                    </p>
+                    <p className="text-xs text-slate-500 italic mb-2">{r.card.sentence_en}</p>
+                    <span className="text-[10px] font-black text-rose-600 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-full">
+                      {r.card.japanese} · {r.card.english}
+                    </span>
                   </div>
                 ))}
               </div>
