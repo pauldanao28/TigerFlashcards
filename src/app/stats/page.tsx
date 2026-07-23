@@ -84,6 +84,7 @@ export default function StatsPage() {
   const [batchInput, setBatchInput] = useState("");
   const [showBatch, setShowBatch] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [batchProcessing, setBatchProcessing] = useState(false);
   const [initLoading, setInitLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [userBlocklist, setUserBlocklist] = useState<string[]>([]);
@@ -793,6 +794,8 @@ export default function StatsPage() {
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     setWordListAdding(true);
     setUploadBusy(true);
+    setShowAddSheet(false);
+    setBatchProcessing(true);
     try {
       const succeededWords = await processWords(words);
       // Only drop the words that actually made it into the deck — anything that failed
@@ -803,6 +806,7 @@ export default function StatsPage() {
     } finally {
       setWordListAdding(false);
       setUploadBusy(false);
+      setBatchProcessing(false);
     }
   };
 
@@ -2985,9 +2989,11 @@ export default function StatsPage() {
                       />
                       <button
                         onClick={async () => {
+                          setShowAddSheet(false);
+                          setBatchProcessing(true);
                           setUploadBusy(true);
                           try { await processWords([batchInput]); }
-                          finally { setUploadBusy(false); }
+                          finally { setBatchProcessing(false); setUploadBusy(false); }
                         }}
                         disabled={loading || !batchInput.trim()}
                         className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
@@ -3025,6 +3031,16 @@ export default function StatsPage() {
 
               </div>
             </motion.div>
+          </div>
+        )}
+
+        {/* Batch processing overlay — sheet closes immediately, this shows while AI works */}
+        {batchProcessing && (
+          <div className="fixed inset-0 z-[220] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl px-10 py-8 flex flex-col items-center gap-4 shadow-2xl">
+              <div className="w-10 h-10 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin" />
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Processing…</p>
+            </div>
           </div>
         )}
 
