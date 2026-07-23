@@ -77,7 +77,7 @@ const CONFETTI_PARTICLES = [
 export default function StatsPage() {
   const router = useRouter();
   const t = translations.en;
-  const { setIsBusy: setUploadBusy } = useUploadGuard();
+  const { isBusy: uploadBusy, setIsBusy: setUploadBusy } = useUploadGuard();
   const { showAlert, showConfirm } = useAppAlert();
   const [cards, setCards] = useState<FlashcardData[]>([]);
   const [input, setInput] = useState("");
@@ -149,6 +149,14 @@ export default function StatsPage() {
   // Safety net: don't let the nav-guard get stuck "busy" forever if this page unmounts
   // some other way (browser back/forward) while a batch upload was mid-flight.
   useEffect(() => () => setUploadBusy(false), [setUploadBusy]);
+
+  // Block browser-level navigation (tab close, URL bar, browser back/forward) during upload.
+  useEffect(() => {
+    if (!uploadBusy) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [uploadBusy]);
 
   useEffect(() => {
     const fetchTodayCount = async () => {
@@ -733,6 +741,7 @@ export default function StatsPage() {
           new Map(allProcessedCards.map((c) => [c.japanese, c])).values(),
         ).map((c) => ({ ...c, alreadyInDeck: preExistingDeckIds.has(c.id) }));
         setAddedWordsSummary(finalSummary);
+        setShowAddSheet(false);
         setShowSummaryOverlay(true);
         fetchCards();
       }
@@ -783,6 +792,7 @@ export default function StatsPage() {
     // a few seconds for AI generation) and overwrite the empty-list flush below with stale data.
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     setWordListAdding(true);
+    setUploadBusy(true);
     try {
       const succeededWords = await processWords(words);
       // Only drop the words that actually made it into the deck — anything that failed
@@ -792,6 +802,7 @@ export default function StatsPage() {
       setShowWordList(false);
     } finally {
       setWordListAdding(false);
+      setUploadBusy(false);
     }
   };
 
