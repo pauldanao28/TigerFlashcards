@@ -128,7 +128,7 @@ function ScoreTile({
 const _dashboardCache = new Map<string, ProfileScores>();
 
 const OVERALL_SEGMENTS = [
-  { label: "N5", color: "bg-indigo-500"  },
+  { label: "N5", color: "bg-cyan-400"    },
   { label: "N4", color: "bg-emerald-500" },
   { label: "N3", color: "bg-amber-500"   },
   { label: "N2", color: "bg-orange-500"  },
@@ -214,7 +214,7 @@ function OverallBanner({ level, score }: { level: string; score: number }) {
                   />
                 </div>
                 <p className={`text-center text-[8px] font-black uppercase tracking-widest transition-colors ${
-                  reached ? "text-white" : active ? "text-indigo-300" : "text-indigo-700"
+                  reached ? "text-white" : active ? "text-indigo-300" : "text-indigo-400/70"
                 }`}>
                   {seg.label}
                 </p>
