@@ -21,6 +21,33 @@ import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/text
 interface StatsCardsCache { userId: string; cards: FlashcardData[]; deckId: string; }
 let _statsCardsCache: StatsCardsCache | null = null;
 
+interface QuickStats {
+  total: number;
+  mastered: number;
+  struggling: number;
+  jp: { tries: number; pass: number; fail: number };
+  en: { tries: number; pass: number; fail: number };
+}
+
+function computeQuickStats(rows: { user_scores?: { scores_json?: any }[] }[]): QuickStats {
+  let total = 0, mastered = 0, struggling = 0;
+  let jpTries = 0, jpPass = 0, jpFail = 0, enTries = 0, enPass = 0, enFail = 0;
+  for (const row of rows) {
+    const s = row.user_scores?.[0]?.scores_json;
+    const jp = s?.jp_to_en ?? {};
+    const en = s?.en_to_jp ?? {};
+    total++;
+    const jpPass5 = (jp.pass ?? 0) >= 5 && (jp.percent ?? 0) >= 70;
+    const enPass5 = (en.pass ?? 0) >= 5 && (en.percent ?? 0) >= 70;
+    if (jpPass5 || enPass5) mastered++;
+    const totalAttempts = (jp.total ?? 0) + (en.total ?? 0);
+    if (totalAttempts > 0 && ((jp.percent ?? 0) + (en.percent ?? 0)) / 2 < 40) struggling++;
+    jpTries += jp.total ?? 0; jpPass += jp.pass ?? 0; jpFail += jp.fail ?? 0;
+    enTries += en.total ?? 0; enPass += en.pass ?? 0; enFail += en.fail ?? 0;
+  }
+  return { total, mastered, struggling, jp: { tries: jpTries, pass: jpPass, fail: jpFail }, en: { tries: enTries, pass: enPass, fail: enFail } };
+}
+
 function SparkLine({ values, color }: { values: (number | null)[]; color: string }) {
   const W = 64, H = 28;
   const pts = values
@@ -86,6 +113,8 @@ export default function StatsPage() {
   const [loading, setLoading] = useState(false);
   const [batchProcessing, setBatchProcessing] = useState(false);
   const [initLoading, setInitLoading] = useState(false);
+  const [cardsLoading, setCardsLoading] = useState(false);
+  const [quickStats, setQuickStats] = useState<QuickStats | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [userBlocklist, setUserBlocklist] = useState<string[]>([]);
   const [showSettings, setShowSettings] = useState(false);
@@ -427,32 +456,30 @@ export default function StatsPage() {
     }
   };
 
-  // --- 2. Update processWords to save to Supabase ---
   const fetchCards = async () => {
-    if (!user || !defaultDeckId) {
-      //console.warn("fetchCards aborted: User or Deck ID missing");
-      return;
-    }
+    if (!user || !defaultDeckId) return;
 
+    setCardsLoading(true);
     try {
-      // 1. We query master_cards, but we use !inner on the join to filter the results
+      // Phase 1 — lean: fetch only scores_json (no text columns) to show stat numbers fast
+      const { data: leanData } = await supabase
+        .from("master_cards")
+        .select("id, deck_cards!inner(deck_id), user_scores(scores_json)")
+        .eq("deck_cards.deck_id", defaultDeckId)
+        .eq("user_scores.user_id", user.id)
+        .limit(10000);
+
+      if (leanData) setQuickStats(computeQuickStats(leanData));
+      setInitLoading(false); // page is now visible with stat numbers
+
+      // Phase 2 — full: fetch all card content for the card list (background)
       const allData: any[] = [];
       let error = null;
       const PAGE_SIZE = 1000;
       for (let from = 0; ; from += PAGE_SIZE) {
         const { data: page, error: pageErr } = await supabase
           .from("master_cards")
-          .select(
-            `
-        *,
-        deck_cards!inner (
-          deck_id, added_at
-        ),
-        user_scores (
-          scores_json
-        )
-      `,
-          )
+          .select(`*, deck_cards!inner(deck_id, added_at), user_scores(scores_json)`)
           .eq("deck_cards.deck_id", defaultDeckId)
           .eq("user_scores.user_id", user.id)
           .order("added_at", { foreignTable: "deck_cards", ascending: false })
@@ -461,37 +488,26 @@ export default function StatsPage() {
         if (page) allData.push(...page);
         if (!page || page.length < PAGE_SIZE) break;
       }
-      const data = allData;
 
-      if (error) {
-        console.error("Fetch Error:", (error as any).message);
-        return;
-      }
+      if (error) { console.error("Fetch Error:", (error as any).message); return; }
 
-      if (data) {
-        const flattened = data.map((card: any) => {
-          // user_scores is still an array from the join
-          const userStats = card.user_scores?.[0];
+      const flattened = allData.map((card: any) => ({
+        ...card,
+        added_to_deck_at: card.deck_cards?.[0]?.added_at,
+        scores: card.user_scores?.[0]?.scores_json || {
+          jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
+          en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
+        },
+      }));
 
-          return {
-            ...card,
-            added_to_deck_at: card.deck_cards?.[0]?.added_at,
-            scores: userStats?.scores_json || {
-              jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
-              en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
-            },
-          };
-        });
-
-        setCards(flattened);
-        if (user && defaultDeckId) {
-          _statsCardsCache = { userId: user.id, cards: flattened, deckId: defaultDeckId };
-        }
+      setCards(flattened);
+      if (user && defaultDeckId) {
+        _statsCardsCache = { userId: user.id, cards: flattened, deckId: defaultDeckId };
       }
     } catch (err) {
       console.error("Unexpected Fetch Error:", err);
     } finally {
-      // 2. FINISH: Always turn off loading at the end
+      setCardsLoading(false);
       setInitLoading(false);
     }
   };
@@ -842,11 +858,14 @@ export default function StatsPage() {
     }
   };
 
-  // 1. Aggregating Global Totals
-  const totalCards = cards.length;
-
-  // 1. Global Totals (Tries, Pass, Fail)
-  const globalStats = useMemo(() => calculateGlobalStats(cards), [cards]);
+  // Prefer quickStats (loaded fast) for number display; fall back to full cards once loaded.
+  const totalCards = quickStats?.total ?? cards.length;
+  const globalStats = useMemo(() => {
+    if (quickStats && cards.length === 0) {
+      return { jp: quickStats.jp, en: quickStats.en };
+    }
+    return calculateGlobalStats(cards);
+  }, [cards, quickStats]);
 
   // 1. Global Totals (Tries, Pass, Fail)
   // Separate Global Totals for both directions
@@ -898,9 +917,8 @@ export default function StatsPage() {
     });
   }, [cards]);
 
-  // 2. Derive the counts for your StatCards
-  const masteredCount = masteredList.length;
-  const strugglingCount = strugglingList.length;
+  const masteredCount = (quickStats && cards.length === 0) ? quickStats.mastered : masteredList.length;
+  const strugglingCount = (quickStats && cards.length === 0) ? quickStats.struggling : strugglingList.length;
 
   const filteredCards = useMemo(() => {
     const query = searchQuery.toLowerCase();
@@ -2603,6 +2621,18 @@ export default function StatsPage() {
               }}
             />
           </div>
+
+          {/* Card list skeleton while full content loads */}
+          {cardsLoading && cards.length === 0 && (
+            <div className="space-y-3 mb-6">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="bg-white rounded-[2rem] border border-slate-100 p-6 animate-pulse">
+                  <div className="h-5 bg-slate-100 rounded-full w-1/3 mb-3" />
+                  <div className="h-3 bg-slate-100 rounded-full w-1/2" />
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* List Views (Mobile & Desktop) */}
           <div className="md:hidden space-y-4">
