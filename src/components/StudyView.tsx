@@ -126,7 +126,11 @@ export default function StudyView() {
   const [language, setLanguage] = useState<"en" | "jp">("jp");
   const [streak, setStreak] = useState(0);
   const [sessionStreak, setSessionStreak] = useState(0);
-  const [dailyProgress, setDailyProgress] = useState(0);
+  const _today = new Date().toLocaleDateString("en-CA");
+  const _storedProgress = typeof window !== "undefined"
+    ? parseInt(localStorage.getItem("daily_progress_" + _today) ?? "0", 10) || 0
+    : 0;
+  const [dailyProgress, setDailyProgress] = useState(Math.min(_storedProgress, DAILY_GOAL));
   const [profileName, setProfileName] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -160,7 +164,7 @@ export default function StudyView() {
     return () => clearTimeout(t);
   }, [cardMasteryToast]);
 
-  const goalFired = useRef(false);
+  const goalFired = useRef(_storedProgress >= DAILY_GOAL);
   const maxComboRef = useRef(0); // all-time best consecutive-correct streak, from DB
   const hasInteracted = useRef(false); // suppresses autoplay on first mount (tab switch)
   const vocabScoreRef = useRef<number>(0);
@@ -531,6 +535,8 @@ export default function StudyView() {
       if (isPass) {
         const prog = dailyProgress + 1;
         setDailyProgress(prog);
+        const todayKey = "daily_progress_" + new Date().toLocaleDateString("en-CA");
+        localStorage.setItem(todayKey, String(prog));
         if (prog === DAILY_GOAL && !goalFired.current) {
           goalFired.current = true;
           const newStreak = await updateStreak();
