@@ -39,14 +39,18 @@ export default function StudyView() {
   const [language, setLanguage] = useState<"en" | "jp">("jp");
   const [streak, setStreak] = useState(0);
   const [sessionStreak, setSessionStreak] = useState(0);
-  const [dailyProgress, setDailyProgress] = useState(0);
+  const _today = new Date().toLocaleDateString("en-CA");
+  const _storedProgress = typeof window !== "undefined"
+    ? parseInt(localStorage.getItem("daily_progress_" + _today) ?? "0", 10) || 0
+    : 0;
+  const [dailyProgress, setDailyProgress] = useState(Math.min(_storedProgress, DAILY_GOAL));
   const [profileName, setProfileName] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSocialOpen, setIsSocialOpen] = useState(false);
   const [friends, setFriends] = useState<any[]>([]);
   const [showStreakBanner, setShowStreakBanner] = useState(false);
   const [goalStreak, setGoalStreak] = useState(0);
-  const goalFired = useRef(false);
+  const goalFired = useRef(_storedProgress >= DAILY_GOAL);
   const vocabScoreRef = useRef<number>(0);
   const vocabSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -506,6 +510,8 @@ export default function StudyView() {
       if (isPass) {
         const prog = dailyProgress + 1;
         setDailyProgress(prog);
+        const todayKey = "daily_progress_" + new Date().toLocaleDateString("en-CA");
+        localStorage.setItem(todayKey, String(prog));
         if (prog === DAILY_GOAL && !goalFired.current) {
           goalFired.current = true;
           const newStreak = await updateStreak();
