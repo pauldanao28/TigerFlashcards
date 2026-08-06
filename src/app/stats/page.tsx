@@ -462,14 +462,19 @@ export default function StatsPage() {
     setCardsLoading(true);
     try {
       // Phase 1 — lean: fetch only scores_json (no text columns) to show stat numbers fast
-      const { data: leanData } = await supabase
-        .from("master_cards")
-        .select("id, deck_cards!inner(deck_id), user_scores(scores_json)")
-        .eq("deck_cards.deck_id", defaultDeckId)
-        .eq("user_scores.user_id", user.id)
-        .limit(10000);
-
-      if (leanData) setQuickStats(computeQuickStats(leanData));
+      const leanAll: any[] = [];
+      const LEAN_PAGE = 1000;
+      for (let from = 0; ; from += LEAN_PAGE) {
+        const { data: page } = await supabase
+          .from("master_cards")
+          .select("id, deck_cards!inner(deck_id), user_scores(scores_json)")
+          .eq("deck_cards.deck_id", defaultDeckId)
+          .eq("user_scores.user_id", user.id)
+          .range(from, from + LEAN_PAGE - 1);
+        if (page) leanAll.push(...page);
+        if (!page || page.length < LEAN_PAGE) break;
+      }
+      if (leanAll.length) setQuickStats(computeQuickStats(leanAll));
       setInitLoading(false); // page is now visible with stat numbers
 
       // Phase 2 — full: fetch all card content for the card list (background)
