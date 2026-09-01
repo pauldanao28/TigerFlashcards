@@ -27,14 +27,23 @@ function ShareHandler() {
           .eq("id", user.id)
           .single();
 
-        const existing: string[] = profile?.pending_words ?? [];
+        // Merge Supabase + localStorage so we never drop words that haven't synced yet
+        const fromDb: string[] = profile?.pending_words ?? [];
+        let fromStorage: string[] = [];
+        try {
+          const stored = localStorage.getItem(`flashkado-word-list-${user.id}`);
+          fromStorage = stored ? JSON.parse(stored) : [];
+        } catch { /* storage unavailable */ }
 
-        if (existing.includes(raw)) {
+        // Union of both sources, preserving order (DB first, then any local-only additions)
+        const merged = [...new Set([...fromDb, ...fromStorage])];
+
+        if (merged.includes(raw)) {
           setStatus("duplicate");
           return;
         }
 
-        const updated = [...existing, raw];
+        const updated = [...merged, raw];
         await supabase.from("profiles").update({ pending_words: updated }).eq("id", user.id);
 
         try {
