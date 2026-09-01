@@ -15,15 +15,18 @@ function ShareHandler() {
     const raw = (searchParams.get("text") || searchParams.get("title") || "").trim();
     if (!raw) { setStatus("error"); return; }
 
-    // Chrome passes "selected text\npage-url" together in the text param.
-    // Extract just the first line that contains Japanese/meaningful content,
-    // dropping any URL lines (http://, https://, or bare paths like /article/...).
-    const lines = raw.split(/[\n\r]+/).map(l => l.trim()).filter(Boolean);
-    const word = (
-      lines.find(l => /[぀-ヿ一-龯゠-ヿ]/.test(l) && !/^https?:\/\//.test(l))
-      ?? lines.find(l => !/^https?:\/\//.test(l) && !/^\//.test(l))
+    // Chrome passes: quoted selected text + newline + page URL (with #:~:text= fragment).
+    // 1. Split into lines, drop any URL lines.
+    // 2. Pick the first line that contains Japanese, or the first non-URL line.
+    // 3. Strip surrounding quote characters Chrome adds.
+    const isUrl = (s: string) => /^https?:\/\//.test(s) || /^\//.test(s);
+    const lines = raw.split(/[\n\r]+/).map(l => l.trim()).filter(l => l && !isUrl(l));
+    const picked = (
+      lines.find(l => /[぀-ヿ一-龯]/.test(l))
       ?? lines[0]
-    ).trim();
+      ?? raw.split(/[\n\r]/)[0]
+    );
+    const word = picked.replace(/^[\s"'"'「」『』【】〔〕〈〉《》「-』]+|[\s"'"'「」『』【】〔〕〈〉《》「-』]+$/g, "").trim();
 
     if (!word) { setStatus("error"); return; }
     setWord(word);
