@@ -14,7 +14,19 @@ function ShareHandler() {
   useEffect(() => {
     const raw = (searchParams.get("text") || searchParams.get("title") || "").trim();
     if (!raw) { setStatus("error"); return; }
-    setWord(raw);
+
+    // Chrome passes "selected text\npage-url" together in the text param.
+    // Extract just the first line that contains Japanese/meaningful content,
+    // dropping any URL lines (http://, https://, or bare paths like /article/...).
+    const lines = raw.split(/[\n\r]+/).map(l => l.trim()).filter(Boolean);
+    const word = (
+      lines.find(l => /[぀-ヿ一-龯゠-ヿ]/.test(l) && !/^https?:\/\//.test(l))
+      ?? lines.find(l => !/^https?:\/\//.test(l) && !/^\//.test(l))
+      ?? lines[0]
+    ).trim();
+
+    if (!word) { setStatus("error"); return; }
+    setWord(word);
 
     const save = async () => {
       try {
@@ -38,12 +50,12 @@ function ShareHandler() {
         // Union of both sources, preserving order (DB first, then any local-only additions)
         const merged = [...new Set([...fromDb, ...fromStorage])];
 
-        if (merged.includes(raw)) {
+        if (merged.includes(word)) {
           setStatus("duplicate");
           return;
         }
 
-        const updated = [...merged, raw];
+        const updated = [...merged, word];
         await supabase.from("profiles").update({ pending_words: updated }).eq("id", user.id);
 
         try {
