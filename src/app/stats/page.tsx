@@ -336,6 +336,14 @@ export default function StatsPage() {
             setInitLoading(false);
           }
 
+          // Pre-populate from localStorage immediately so + sheet shows queue before Supabase returns
+          let localWords: string[] = [];
+          try {
+            const stored = localStorage.getItem(`flashkado-word-list-${user.id}`);
+            localWords = stored ? JSON.parse(stored) : [];
+            if (localWords.length > 0) setPendingWords(localWords);
+          } catch { /* ignore */ }
+
           const [, , , pendingData] = await Promise.all([
             fetchProfile(),
             fetchDefaultDeck(),
@@ -343,8 +351,10 @@ export default function StatsPage() {
             supabase.from("profiles").select("pending_words").eq("id", user.id).single(),
           ]);
           const dbWords: string[] = pendingData.data?.pending_words ?? [];
-          setPendingWords(dbWords);
-          localStorage.setItem(`flashkado-word-list-${user.id}`, JSON.stringify(dbWords));
+          // Union of DB + localStorage so we never drop locally-added words that haven't synced
+          const merged = [...new Set([...dbWords, ...localWords])];
+          setPendingWords(merged);
+          localStorage.setItem(`flashkado-word-list-${user.id}`, JSON.stringify(merged));
         } catch (error) {
           console.error("Error loading stats:", error);
         } finally {
