@@ -614,6 +614,14 @@ export default function StudyView() {
   // doesn't clutter the priority queue for words the user already knows.
   const handleAlreadyKnow = useCallback(async () => {
     if (!currentCard || !user) return;
+
+    // Refuse if the card has any prior attempts in either direction — scores
+    // may have been empty when the card first rendered (still loading) even
+    // though isNewCard looked true in the UI.
+    const existingJp = currentCard.scores?.jp_to_en?.total ?? 0;
+    const existingEn = currentCard.scores?.en_to_jp?.total ?? 0;
+    if (existingJp > 0 || existingEn > 0) return;
+
     hasInteracted.current = true;
 
     if (showHints) {
