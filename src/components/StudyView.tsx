@@ -1167,35 +1167,37 @@ export default function StudyView() {
             </div>
           </div>
           {/* Top-right controls — Study Circle + Mode toggle */}
-          <div className="flex items-center gap-2 pointer-events-auto">
-            <button
-              onClick={() => setIsSocialOpen(true)}
-              className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
-            >
-              <span className="text-lg">👥</span>
-              {friends.some((f) => f.status === "pending" && !f.isSentByMe) && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-white" />
-              )}
-            </button>
+          <div className="flex flex-col items-end gap-2 pointer-events-auto">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsSocialOpen(true)}
+                className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
+              >
+                <span className="text-lg">👥</span>
+                {friends.some((f) => f.status === "pending" && !f.isSentByMe) && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-white" />
+                )}
+              </button>
+              <button
+                onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
+                className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-2xl border font-black transition-all active:scale-95 ${
+                  language === "jp"
+                    ? "bg-indigo-50 border-indigo-100 text-indigo-600"
+                    : "bg-orange-50 border-orange-100 text-orange-600"
+                }`}
+              >
+                <span className="text-base leading-none">{language === "jp" ? "🇯🇵" : "🇺🇸"}</span>
+                <span className="text-[8px] uppercase tracking-widest leading-none">
+                  {language === "jp" ? t.recognition : t.recall}
+                </span>
+              </button>
+            </div>
             <button
               onClick={() => setIsQuickAddOpen(true)}
-              className="flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
+              className="flex items-center justify-center gap-1.5 w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
               title={t.quick_add}
             >
               <span className="text-lg font-black text-indigo-600">+</span>
-            </button>
-            <button
-              onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
-              className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-2xl border font-black transition-all active:scale-95 ${
-                language === "jp"
-                  ? "bg-indigo-50 border-indigo-100 text-indigo-600"
-                  : "bg-orange-50 border-orange-100 text-orange-600"
-              }`}
-            >
-              <span className="text-base leading-none">{language === "jp" ? "🇯🇵" : "🇺🇸"}</span>
-              <span className="text-[8px] uppercase tracking-widest leading-none">
-                {language === "jp" ? t.recognition : t.recall}
-              </span>
             </button>
           </div>
         </div>
