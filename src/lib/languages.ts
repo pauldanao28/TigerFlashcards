@@ -41,6 +41,7 @@ export const translations = {
     format_list: "1. List: word, meaning (one per line)",
     format_lyrics: "2. Lyrics: Paste a whole song or text. I'll pick out the new words for you!",
     add_new_word: "Add New Word...",
+    quick_add: "Add Words",
     success_added: "Successfully added {{count}} words!",
     in_a_row: "in a row",
     loading: "LOADING...",
@@ -229,6 +230,7 @@ export const translations = {
     format_list: "1. リスト形式: 単語, 意味 (1行に1項目)", // Risto keishiki: Tango, imi (1 item per line)
     format_lyrics: "2. 歌詞・長文: 歌詞や文章を貼り付けると、AIが新しい単語を抽出します！", // Kashi/Chōbun... (Paste lyrics/text and AI will extract words!)
     add_new_word: "単語を追加...", // Tango o tsuika
+    quick_add: "単語を追加", // Tango o tsuika (nav button)
     success_added: "{{count}}語を追加しました！", // {{count}}-go o tsuika shimashita!
     in_a_row: "連続",           // Renzoku (Consecutive)
     loading: "読み込み中...",       // "Yomikomi-chū"

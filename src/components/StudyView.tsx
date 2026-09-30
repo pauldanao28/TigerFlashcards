@@ -21,6 +21,7 @@ import CoachMarks from "@/components/CoachMarks";
 import { SocialDock } from "@/components/SocialDock";
 import SentenceQuiz from "@/components/SentenceQuiz";
 import ListeningQuiz from "@/components/ListeningQuiz";
+import QuickAddWord from "@/components/QuickAddWord";
 import { FlashcardData } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
 const DAILY_GOAL = 10;
@@ -135,6 +136,8 @@ export default function StudyView() {
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSocialOpen, setIsSocialOpen] = useState(false);
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [blocklist, setBlocklist] = useState<string[]>([]);
   const { friends, fetchFriends } = useFriends();
   const [showStreakBanner, setShowStreakBanner] = useState(false);
   const [goalStreak, setGoalStreak] = useState(0);
@@ -272,6 +275,7 @@ export default function StudyView() {
         setProfileName(p.full_name);
         setReferralCode(p.referral_code ?? null);
         setIsAdmin(p.is_admin ?? false);
+        setBlocklist(p.blocked_words || []);
         if (p.vocab_score != null) vocabScoreRef.current = p.vocab_score;
 
         // 1. Progress check
@@ -1174,6 +1178,13 @@ export default function StudyView() {
               )}
             </button>
             <button
+              onClick={() => setIsQuickAddOpen(true)}
+              className="flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
+              title={t.quick_add}
+            >
+              <span className="text-lg font-black text-indigo-600">+</span>
+            </button>
+            <button
               onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
               className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-2xl border font-black transition-all active:scale-95 ${
                 language === "jp"
@@ -1201,6 +1212,13 @@ export default function StudyView() {
               {friends.some((f) => f.status === "pending" && !f.isSentByMe) && (
                 <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white" />
               )}
+            </button>
+            <button
+              onClick={() => setIsQuickAddOpen(true)}
+              className="flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+              title={t.quick_add}
+            >
+              <span className="text-xl font-black text-indigo-600">+</span>
             </button>
             <button
               onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
@@ -1601,6 +1619,16 @@ export default function StudyView() {
           <ListeningQuiz userId={user.id} isAdmin={isAdmin} onClose={() => setShowListeningQuiz(false)} />
         )}
       </AnimatePresence>
+      {isQuickAddOpen && user?.id && defaultDeckId && (
+        <QuickAddWord
+          userId={user.id}
+          deckId={defaultDeckId}
+          isAdmin={isAdmin}
+          blocklist={blocklist}
+          onClose={() => setIsQuickAddOpen(false)}
+          onAdded={fetchInitialData}
+        />
+      )}
 
       {/* Session Recap Modal */}
       <AnimatePresence>
