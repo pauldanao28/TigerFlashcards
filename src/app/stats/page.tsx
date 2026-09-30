@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FlashcardData } from "@/lib/types";
@@ -11,10 +11,10 @@ import { useAppAlert } from "@/context/AlertContext";
 import { motion, useAnimationControls } from "framer-motion";
 import Logo from "@/components/Logo";
 import { calculateGlobalStats } from "@/lib/stats";
-import { authedFetch } from "@/lib/authedFetch";
 import LoadingScreen from "@/components/LoadingScreen";
 import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
-import { List, X, Plus, Loader2, RotateCcw } from "lucide-react";
+import AddWordsSheet from "@/components/AddWordsSheet";
+import { List, Plus, RotateCcw } from "lucide-react";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
 
@@ -107,11 +107,7 @@ export default function StatsPage() {
   const { isBusy: uploadBusy, setIsBusy: setUploadBusy } = useUploadGuard();
   const { showAlert, showConfirm } = useAppAlert();
   const [cards, setCards] = useState<FlashcardData[]>([]);
-  const [input, setInput] = useState("");
-  const [batchInput, setBatchInput] = useState("");
-  const [showBatch, setShowBatch] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [batchProcessing, setBatchProcessing] = useState(false);
   const [initLoading, setInitLoading] = useState(false);
   const [cardsLoading, setCardsLoading] = useState(false);
   const [quickStats, setQuickStats] = useState<QuickStats | null>(null);
@@ -161,21 +157,13 @@ export default function StatsPage() {
   const [showStrugglingCelebration, setShowStrugglingCelebration] = useState(false);
   const [reviewsToday, setReviewsToday] = useState(0);
   const [previewPack, setPreviewPack] = useState<any | null>(null);
-  const [addedWordsSummary, setAddedWordsSummary] = useState<any[]>([]);
-  const [showSummaryOverlay, setShowSummaryOverlay] = useState(false);
   const [sfxEnabled, setSfxEnabled] = useState(true);
-  const [pendingWords, setPendingWords] = useState<string[]>([]);
-  const [showWordList, setShowWordList] = useState(false);
-  const [wordListAdding, setWordListAdding] = useState(false);
-  const [wordListText, setWordListText] = useState("");
   const [showAddSheet, setShowAddSheet] = useState(false);
-  const [addSheetTab, setAddSheetTab] = useState<"word" | "paste" | "queue">("word");
+  const [pendingWordCount, setPendingWordCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
   const [cardFetchKey, setCardFetchKey] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const skipNextCardFetch = useRef(false);
-  useEffect(() => { if (showWordList) setWordListText(pendingWords.join("\n")); }, [showWordList]);
-  useEffect(() => { if (showAddSheet && addSheetTab === "queue") setWordListText(pendingWords.join("\n")); }, [showAddSheet, addSheetTab]);
   // Safety net: don't let the nav-guard get stuck "busy" forever if this page unmounts
   // some other way (browser back/forward) while a batch upload was mid-flight.
   useEffect(() => () => setUploadBusy(false), [setUploadBusy]);
@@ -336,25 +324,11 @@ export default function StatsPage() {
             setInitLoading(false);
           }
 
-          // Pre-populate from localStorage immediately so + sheet shows queue before Supabase returns
-          let localWords: string[] = [];
-          try {
-            const stored = localStorage.getItem(`flashkado-word-list-${user.id}`);
-            localWords = stored ? JSON.parse(stored) : [];
-            if (localWords.length > 0) setPendingWords(localWords);
-          } catch { /* ignore */ }
-
-          const [, , , pendingData] = await Promise.all([
+          await Promise.all([
             fetchProfile(),
             fetchDefaultDeck(),
             fetchStarterPacks(),
-            supabase.from("profiles").select("pending_words").eq("id", user.id).single(),
           ]);
-          const dbWords: string[] = pendingData.data?.pending_words ?? [];
-          // Union of DB + localStorage so we never drop locally-added words that haven't synced
-          const merged = [...new Set([...dbWords, ...localWords])];
-          setPendingWords(merged);
-          localStorage.setItem(`flashkado-word-list-${user.id}`, JSON.stringify(merged));
         } catch (error) {
           console.error("Error loading stats:", error);
         } finally {
@@ -551,302 +525,9 @@ export default function StatsPage() {
     }
   };
 
-  const processWords = async (inputList: string[]): Promise<Set<string>> => {
-    const succeededWords = new Set<string>();
-    if (!user || !defaultDeckId) {
-      showAlert("Please log in and ensure deck is initialized.");
-      return succeededWords;
-    }
+  const deleteCard = async (id: string) => {
+    if (!(await showConfirm("Remove this card from your collection?"))) return;
 
-    // Snapshot deck before any changes so we can flag cards already owned
-    const preExistingDeckIds = new Set(cards.map((c) => c.id));
-
-    const rawInput = inputList.join("\n").normalize("NFKC").trim();
-    if (!rawInput) return succeededWords;
-
-    // --- 1. Tokenization Logic ---
-    let wordsToProcess: string[] = [];
-    const isEnglishInput = /^[A-Za-z0-9\s.,!?-]+$/.test(rawInput);
-
-    // NEW: Single Add Bypass
-    // If only one item is provided, we treat it as a deliberate single add
-    // and do NOT chop the kanji/words.
-    if (inputList.length === 1 && inputList[0].trim().length > 0) {
-      wordsToProcess = [inputList[0].trim()];
-    }
-    // Batch Add Logic
-    else if (isEnglishInput) {
-      wordsToProcess = inputList
-        .map((w) => w.trim())
-        .filter((w) => w.length > 0);
-    } else if (rawInput.includes(",") || rawInput.includes("-")) {
-      wordsToProcess = inputList.map((line) => line.split(/[,-]/)[0].trim());
-    } else {
-      // Only use the "Chopper" (Segmenter) if it's a batch add/sentence
-      const segmenter = new Intl.Segmenter("ja-JP", { granularity: "word" });
-      const segments = segmenter.segment(rawInput);
-      wordsToProcess = Array.from(segments)
-        .map((s) => s.segment.trim())
-        .filter((w) => {
-          const isJapanese = /[\u3040-\u30ff\u4e00-\u9faf]/.test(w);
-          const isNotBlocked = !userBlocklist.includes(w);
-          const isMeaningful = w.length > 1 || /[\u4e00-\u9faf]/.test(w);
-          return isJapanese && isNotBlocked && isMeaningful;
-        });
-    }
-
-    const uniqueInputWords = [...new Set(wordsToProcess)];
-    if (uniqueInputWords.length === 0) return succeededWords;
-
-    setLoading(true);
-
-    /* --- NEW: PARTIAL DAILY LIMIT LOGIC --- */
-    let wordsToActuallyProcess = uniqueInputWords;
-    const DAILY_LIMIT = 50;
-
-    try {
-      if (isAdmin) throw new Error("skip"); // admins have no limit
-      const { data: performance } = await supabase
-        .from("admin_user_performance_master")
-        .select("cards_added_today")
-        .eq("id", user.id)
-        .single();
-
-      const currentToday = performance?.cards_added_today || 0;
-
-      if (currentToday >= DAILY_LIMIT) {
-        setLoading(false);
-        setInput("");
-        setBatchInput("");
-        showAlert(
-          t.limit_reached_msg
-            .replace("{{current}}", currentToday.toString())
-            .replace("{{limit}}", DAILY_LIMIT.toString()),
-        );
-        return succeededWords;
-      }
-
-      if (currentToday + uniqueInputWords.length > DAILY_LIMIT) {
-        const allowedCount = DAILY_LIMIT - currentToday;
-        // Slice the array to only include what fits in the remaining quota
-        wordsToActuallyProcess = uniqueInputWords.slice(0, allowedCount);
-
-        // Optional: Inform the user we are only doing a partial add
-        showAlert(
-          t.partial_limit_msg.replace("{{count}}", allowedCount.toString()),
-        );
-      }
-    } catch (limitErr) {
-      console.error("Limit check failed, proceeding anyway:", limitErr);
-    }
-    /* --- END OF PARTIAL LIMIT LOGIC --- */
-
-    // Helper inside the function to handle the DB linking
-    const performLinking = async (cardIds: string[]) => {
-      const currentCardIds = new Set(cards.map((c) => c.id));
-      const idsToLink = cardIds.filter((id) => !currentCardIds.has(id));
-
-      if (idsToLink.length > 0) {
-        const [deckRes, scoreRes] = await Promise.all([
-          supabase.from("deck_cards").upsert(
-            idsToLink.map((id) => ({ deck_id: defaultDeckId, card_id: id })),
-            { onConflict: "deck_id,card_id" },
-          ),
-          supabase.from("user_scores").upsert(
-            idsToLink.map((id) => ({
-              user_id: user.id,
-              card_id: id,
-              scores_json: {
-                jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
-                en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
-              },
-            })),
-            { onConflict: "user_id,card_id" },
-          ),
-        ]);
-        if (deckRes.error) throw deckRes.error;
-        if (scoreRes.error) throw scoreRes.error;
-      }
-    };
-
-    let allProcessedCards: any[] = [];
-
-    try {
-      // --- 2. Step 1: Handle Existing Cards (Instant) ---
-      const { data: existingCards, error: searchErr } = await supabase
-        .from("master_cards")
-        .select("*")
-        .in("japanese", wordsToActuallyProcess);
-
-      if (searchErr) throw searchErr;
-
-      if (existingCards) {
-        allProcessedCards = [...existingCards];
-        const foundIds = existingCards.map((c) => c.id);
-        if (foundIds.length > 0) await performLinking(foundIds);
-        existingCards.forEach((c) => succeededWords.add(c.japanese));
-      }
-
-      const existingMap = new Map(
-        existingCards?.map((c) => [c.japanese, c.id]) || [],
-      );
-      const wordsForAI = wordsToActuallyProcess.filter(
-        (w) => !existingMap.has(w),
-      );
-
-      // --- 3. Step 2: Handle New Words (AI) ---
-      if (wordsForAI.length > 0) {
-        try {
-          const res = await authedFetch("/api/generate", {
-            method: "POST",
-            body: JSON.stringify({ words: wordsForAI }),
-          });
-
-          if (!res.ok)
-            throw new Error(
-              res.status === 429 ? "AI Limit Reached" : "AI Error",
-            );
-
-          const items = await res.json();
-          const itemsArray = Array.isArray(items) ? items : [items];
-
-          // Deduplicate Gemini output by dictionary form
-          const seen = new Set<string>();
-          const deduplicatedItems = itemsArray
-            .map((item) => ({
-              japanese: String(item.japanese).trim(),
-              reading: String(item.reading || "").replace(/[a-zA-Z\s]/g, ""),
-              english: String(item.english || "").trim(),
-              partOfSpeech: String(item.partOfSpeech || "noun").trim().toLowerCase(),
-              jlpt_level: item.jlpt_level ?? null,
-              exampleSentence: item.exampleSentence || { jp: "", en: "" },
-              creator_id: user.id,
-            }))
-            .filter((item) => {
-              if (!item.japanese || seen.has(item.japanese)) return false;
-              seen.add(item.japanese);
-              return true;
-            });
-
-          // Second existing-card check against Gemini's normalized dictionary-form words.
-          // Catches cards that were missed by the first check (e.g. whole-text paste input).
-          const geminiWords = deduplicatedItems.map((i) => i.japanese);
-          const { data: alreadyInMaster } = await supabase
-            .from("master_cards")
-            .select("*")
-            .in("japanese", geminiWords);
-
-          const alreadyInMasterMap = new Map((alreadyInMaster ?? []).map((c) => [c.japanese, c]));
-
-          // Link already-existing cards without overwriting their data
-          if (alreadyInMaster && alreadyInMaster.length > 0) {
-            allProcessedCards = [...allProcessedCards, ...alreadyInMaster];
-            await performLinking(alreadyInMaster.map((c) => c.id));
-            alreadyInMaster.forEach((c) => succeededWords.add(c.japanese));
-          }
-
-          // Only upsert words that are truly new to master_cards
-          const trulyNewItems = deduplicatedItems.filter((i) => !alreadyInMasterMap.has(i.japanese));
-          if (trulyNewItems.length > 0) {
-            const { data: newCards, error: mErr } = await supabase
-              .from("master_cards")
-              .upsert(trulyNewItems, { onConflict: "japanese" })
-              .select("*");
-
-            if (mErr) throw mErr;
-            if (newCards) {
-              allProcessedCards = [...allProcessedCards, ...newCards];
-              await performLinking(newCards.map((c) => c.id));
-              newCards.forEach((c) => succeededWords.add(c.japanese));
-            }
-          }
-          wordsForAI.forEach((w) => succeededWords.add(w));
-        } catch (aiErr: any) {
-          console.error("AI Step Failed:", aiErr.message);
-          showAlert(`AI processing failed: ${aiErr.message}`);
-        }
-      }
-
-      // --- 3.5 Show Overlay ---
-      if (allProcessedCards.length > 0) {
-        const finalSummary = Array.from(
-          new Map(allProcessedCards.map((c) => [c.japanese, c])).values(),
-        ).map((c) => ({ ...c, alreadyInDeck: preExistingDeckIds.has(c.id) }));
-        setAddedWordsSummary(finalSummary);
-        setShowAddSheet(false);
-        setShowSummaryOverlay(true);
-        fetchCards();
-      }
-
-      // --- 4. Cleanup UI ---
-      setInput("");
-      setBatchInput("");
-      setShowBatch(false);
-    } catch (e: any) {
-      console.error("ProcessWords Error:", e);
-      showAlert(
-        e.message === "AI Limit Reached"
-          ? "Daily word-generation limit reached — this keeps the app free for everyone. Come back tomorrow to add more!"
-          : `Something went wrong: ${e.message}`
-      );
-    } finally {
-      setLoading(false);
-    }
-    return succeededWords;
-  };
-
-  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const syncWordList = useCallback((newList: string[]) => {
-    setPendingWords(newList);
-    if (user) localStorage.setItem(`flashkado-word-list-${user.id}`, JSON.stringify(newList));
-    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-    syncTimerRef.current = setTimeout(() => {
-      if (user) supabase.from("profiles").update({ pending_words: newList }).eq("id", user.id)
-        .then(({ error: e }) => { if (e) console.error("[DB word-list sync]", e.code, e.message); });
-    }, 1000);
-  }, [user]);
-
-  // Cancel any pending debounce and write immediately — used when closing the panel or
-  // adding to the deck, so a quick close/click right after typing can't lose the edit.
-  const flushWordList = useCallback((newList: string[]) => {
-    setPendingWords(newList);
-    if (user) {
-      localStorage.setItem(`flashkado-word-list-${user.id}`, JSON.stringify(newList));
-      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-      supabase.from("profiles").update({ pending_words: newList }).eq("id", user.id)
-        .then(({ error: e }) => { if (e) console.error("[DB word-list flush]", e.code, e.message); });
-    }
-  }, [user]);
-
-  const addWordListToDeck = async (words: string[]) => {
-    if (!words.length) return;
-    // Cancel any debounced sync from typing — it could otherwise fire mid-add (this can take
-    // a few seconds for AI generation) and overwrite the empty-list flush below with stale data.
-    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-    setWordListAdding(true);
-    setUploadBusy(true);
-    setShowAddSheet(false);
-    setBatchProcessing(true);
-    try {
-      const succeededWords = await processWords(words);
-      // Only drop the words that actually made it into the deck — anything that failed
-      // (AI error, daily limit) stays in the list so it isn't silently lost.
-      flushWordList(words.filter((w) => !succeededWords.has(w)));
-      setWordListText("");
-      setShowWordList(false);
-    } finally {
-      setWordListAdding(false);
-      setUploadBusy(false);
-      setBatchProcessing(false);
-    }
-  };
-
-  const deleteCard = async (id: string, isFromSummary = false) => {
-    // Only show the confirmation if it's NOT from the quick-summary overlay
-    if (!isFromSummary && !(await showConfirm("Remove this card from your collection?")))
-      return;
-
-    // 1. Database Cleanup (Linking & Scores)
     const { error: linkErr } = await supabase
       .from("deck_cards")
       .delete()
@@ -864,13 +545,7 @@ export default function StatsPage() {
       return;
     }
 
-    // 2. Update Main List UI
     setCards((prev) => prev.filter((c) => c.id !== id));
-
-    // 3. Update Overlay UI (If applicable)
-    if (isFromSummary) {
-      setAddedWordsSummary((prev) => prev.filter((c) => c.id !== id));
-    }
   };
 
   // Prefer quickStats (loaded fast) for number display; fall back to full cards once loaded.
@@ -2909,304 +2584,29 @@ export default function StatsPage() {
 
         {/* ── Add Cards FAB ── */}
         <motion.button
-          onClick={() => { setShowAddSheet(true); setAddSheetTab("word"); }}
+          onClick={() => setShowAddSheet(true)}
           whileTap={{ scale: 0.88 }}
           className="fixed bottom-24 right-5 z-[205] w-14 h-14 bg-indigo-600 text-white rounded-full shadow-xl shadow-indigo-300/50 flex items-center justify-center"
         >
           <Plus size={26} strokeWidth={2.5} />
-          {pendingWords.length > 0 && (
+          {pendingWordCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center">
-              {pendingWords.length}
+              {pendingWordCount}
             </span>
           )}
         </motion.button>
-
-        {/* ── Add Cards Bottom Sheet ── */}
-        {showAddSheet && (
-          <div className="fixed inset-0 z-[250] flex flex-col justify-end">
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              transition={{ duration: 0.28, ease: "easeOut" }}
-              className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
-              onClick={() => { flushWordList(wordListText.split("\n").map(w => w.trim()).filter(Boolean)); setShowAddSheet(false); }}
-            />
-            {/* Sheet */}
-            <motion.div
-              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-              transition={{ duration: 0.38, ease: [0.32, 0.72, 0, 1] }}
-              className="relative bg-white rounded-t-[2rem] shadow-2xl flex flex-col max-h-[85dvh]"
-            >
-              {/* Drag handle */}
-              <div className="flex justify-center pt-3 pb-1">
-                <div className="w-10 h-1 bg-slate-200 rounded-full" />
-              </div>
-
-              {/* Tab bar */}
-              <div className="flex items-center gap-1 px-5 pt-2 pb-3 border-b border-slate-100">
-                {(["word", "paste", "queue"] as const).map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setAddSheetTab(tab)}
-                    className={`relative flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${addSheetTab === tab ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
-                  >
-                    {tab === "word" && "Word"}
-                    {tab === "paste" && "Paste"}
-                    {tab === "queue" && "Queue"}
-                    {tab === "queue" && pendingWords.length > 0 && (
-                      <span className={`absolute -top-1.5 -right-1 text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center ${addSheetTab === "queue" ? "bg-white text-indigo-600" : "bg-indigo-600 text-white"}`}>
-                        {pendingWords.length}
-                      </span>
-                    )}
-                  </button>
-                ))}
-                <button
-                  onClick={() => { flushWordList(wordListText.split("\n").map(w => w.trim()).filter(Boolean)); setShowAddSheet(false); }}
-                  className="ml-2 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-400 hover:bg-slate-200 shrink-0"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-
-              {/* Tab content */}
-              <div className="flex-1 overflow-y-auto p-5">
-
-                {/* WORD TAB */}
-                {addSheetTab === "word" && (
-                  <div className="flex flex-col gap-4">
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Japanese or English word</p>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={input}
-                          onChange={(e) => setInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && input.trim()) {
-                              processWords(input.split("\n").filter(l => l.trim()));
-                            }
-                          }}
-                          placeholder="食べる / taberu / to eat…"
-                          className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-base font-bold outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
-                        />
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => { if (!input.trim()) return; processWords(input.split("\n").filter(l => l.trim())); }}
-                      disabled={loading || !input.trim()}
-                      className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
-                    >
-                      {loading ? <><Loader2 size={16} className="animate-spin" /> Generating…</> : <><Plus size={16} /> Add to Deck</>}
-                    </button>
-                    <p className="text-center text-[10px] text-slate-400 font-bold">AI generates the card — reading, meaning, JLPT level</p>
-                  </div>
-                )}
-
-                {/* PASTE TAB */}
-                {addSheetTab === "paste" && (() => {
-                  const lines = batchInput.trim().split("\n").filter(Boolean);
-                  const hasJp = /[぀-ヿ一-龯]/.test(batchInput);
-                  const avgLen = batchInput.length / Math.max(lines.length, 1);
-                  let hint: { label: string; emoji: string } | null = null;
-                  if (batchInput.trim()) {
-                    if (lines.length === 1) hint = { emoji: "🔤", label: "Single word" };
-                    else if (hasJp && avgLen > 15) hint = { emoji: "🎵", label: "Japanese text — AI extracts vocabulary" };
-                    else if (hasJp) hint = { emoji: "📋", label: "Japanese word list" };
-                    else if (avgLen > 20) hint = { emoji: "📖", label: "English text (Japanese input works best)" };
-                    else hint = { emoji: "📋", label: "English word list — one per line" };
-                  }
-                  return (
-                    <div className="flex flex-col gap-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Paste lyrics, a story, or a word list</p>
-                        {hint && (
-                          <span className="text-[10px] font-black bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded-full">
-                            {hint.emoji} {hint.label}
-                          </span>
-                        )}
-                      </div>
-                      <textarea
-                        value={batchInput}
-                        onChange={(e) => setBatchInput(e.target.value)}
-                        rows={9}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none font-mono leading-relaxed"
-                        placeholder={"食べる\n勉強する\n\nor paste a full song / article in Japanese…"}
-                      />
-                      <button
-                        onClick={async () => {
-                          setShowAddSheet(false);
-                          setBatchProcessing(true);
-                          setUploadBusy(true);
-                          try { await processWords([batchInput]); }
-                          finally { setBatchProcessing(false); setUploadBusy(false); }
-                        }}
-                        disabled={loading || !batchInput.trim()}
-                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
-                      >
-                        {loading ? <><Loader2 size={16} className="animate-spin" /> Processing…</> : <><Plus size={16} /> Extract &amp; Add</>}
-                      </button>
-                    </div>
-                  );
-                })()}
-
-                {/* QUEUE TAB */}
-                {addSheetTab === "queue" && (
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{pendingWords.length} word{pendingWords.length !== 1 ? "s" : ""} queued · one per line</p>
-                      <button onClick={() => { flushWordList([]); setWordListText(""); }} className="text-[10px] font-black text-rose-400 hover:text-rose-500 uppercase tracking-widest">Clear all</button>
-                    </div>
-                    <textarea
-                      value={wordListText}
-                      onChange={(e) => setWordListText(e.target.value)}
-                      onBlur={(e) => syncWordList(e.target.value.split("\n").map(w => w.trim()).filter(Boolean))}
-                      rows={10}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none font-mono leading-relaxed"
-                      placeholder={"食べる\n勉強\n彼女\n…"}
-                    />
-                    <button
-                      onClick={() => addWordListToDeck(wordListText.split("\n").map(w => w.trim()).filter(Boolean))}
-                      disabled={wordListAdding || !wordListText.trim()}
-                      className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
-                    >
-                      {wordListAdding ? <><Loader2 size={16} className="animate-spin" /> Adding…</> : <><Plus size={16} /> Add All to Deck</>}
-                    </button>
-                  </div>
-                )}
-
-              </div>
-            </motion.div>
-          </div>
+        {user?.id && defaultDeckId && (
+          <AddWordsSheet
+            userId={user.id}
+            deckId={defaultDeckId}
+            isAdmin={isAdmin}
+            blocklist={userBlocklist}
+            open={showAddSheet}
+            onClose={() => setShowAddSheet(false)}
+            onAdded={fetchCards}
+            onQueueCountChange={setPendingWordCount}
+          />
         )}
-
-        {/* Batch processing overlay — sheet closes immediately, this shows while AI works */}
-        {batchProcessing && (
-          <div className="fixed inset-0 z-[220] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
-            <div className="bg-white rounded-3xl px-10 py-8 flex flex-col items-center gap-4 shadow-2xl">
-              <div className="w-10 h-10 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin" />
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Processing…</p>
-            </div>
-          </div>
-        )}
-
-        {showSummaryOverlay && (
-          <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 flex flex-col max-h-[80vh] overflow-hidden">
-              {/* Header */}
-              <div className="p-6 border-b border-slate-100 flex justify-between items-start gap-3 bg-slate-50/50">
-                <div className="min-w-0">
-                  <h2 className="text-xl font-black text-slate-800 uppercase italic tracking-tighter">
-                    {t.words_added}
-                  </h2>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1 flex flex-wrap gap-x-1">
-                    <span>{addedWordsSummary.filter(w => !w.alreadyInDeck).length} new</span>
-                    {addedWordsSummary.some(w => w.alreadyInDeck) && (
-                      <span className="text-teal-500 whitespace-nowrap">· {addedWordsSummary.filter(w => w.alreadyInDeck).length} already in deck</span>
-                    )}
-                  </p>
-
-                  {/* NEW: Conditional Limit Badge */}
-                  {addedWordsSummary.length >= 50 && (
-                    <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-black border border-amber-200 animate-pulse">
-                      {t.limit_notice}
-                    </span>
-                  )}
-                </div>
-                <button
-                  onClick={() => setShowSummaryOverlay(false)}
-                  className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-slate-200 transition-colors text-slate-400"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* List content */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/30">
-                {addedWordsSummary.map((word, i) => (
-                  <div
-                    key={i}
-                    className={`group p-4 rounded-2xl border shadow-sm flex items-start gap-4 transition-all ${word.alreadyInDeck ? "bg-slate-50 border-slate-200 opacity-70" : "bg-white border-slate-100 hover:border-indigo-100"}`}
-                  >
-                    {/* 1. LEFT: KANJI AVATAR */}
-                    <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center border shadow-sm ${word.alreadyInDeck ? "bg-slate-100 border-slate-200" : "bg-indigo-50 border-indigo-100"}`}>
-                      <span className={`font-black text-xl ${word.alreadyInDeck ? "text-slate-400" : "text-indigo-600"}`}>
-                        {word.japanese[0]}
-                      </span>
-                    </div>
-
-                    {/* 2. CENTER: Content Info */}
-                    <div className="flex-1 min-w-0 flex flex-col text-left">
-                      <div className="flex items-baseline gap-2 flex-wrap">
-                        <span className="text-lg font-black text-slate-800 truncate">
-                          {word.japanese}
-                        </span>
-                        <span className="text-xs font-bold text-rose-500 uppercase tracking-tighter shrink-0 whitespace-nowrap">
-                          {word.reading}
-                        </span>
-                      </div>
-
-                      <p className="text-sm text-slate-600 font-medium mt-0.5 leading-tight pr-8 truncate">
-                        {word.english}
-                      </p>
-
-                      {/* Meta Tags */}
-                      <div className="mt-2 flex gap-1.5 flex-wrap">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md whitespace-nowrap">
-                          {word.partOfSpeech}
-                        </span>
-                        {word.alreadyInDeck && (
-                          <span className="text-[9px] font-black uppercase tracking-widest text-teal-600 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md whitespace-nowrap">
-                            Already in deck
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* 3. TOP RIGHT: THE DELETE BUTTON (Trash Can Style) */}
-                    <div className="flex-shrink-0 -mt-1 -mr-1">
-                      <button
-                        onClick={() => deleteCard(word.id, true)}
-                        className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all active:scale-90"
-                        title={t.delete}
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Footer */}
-              <div className="p-4 border-t border-slate-100">
-                <button
-                  onClick={() => setShowSummaryOverlay(false)}
-                  className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-[0.98] shadow-lg"
-                >
-                  {t.got_it}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {loading && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[220] flex flex-col items-center justify-center text-white">
-            <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-lg font-bold animate-pulse">{t.ai_building}</p>
-          </div>
-        )}
-
       </main>
     </div>
   );

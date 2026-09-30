@@ -21,7 +21,7 @@ import CoachMarks from "@/components/CoachMarks";
 import { SocialDock } from "@/components/SocialDock";
 import SentenceQuiz from "@/components/SentenceQuiz";
 import ListeningQuiz from "@/components/ListeningQuiz";
-import QuickAddWord from "@/components/QuickAddWord";
+import AddWordsSheet from "@/components/AddWordsSheet";
 import { FlashcardData } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
 const DAILY_GOAL = 10;
@@ -137,6 +137,7 @@ export default function StudyView() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSocialOpen, setIsSocialOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [pendingWordCount, setPendingWordCount] = useState(0);
   const [blocklist, setBlocklist] = useState<string[]>([]);
   const { friends, fetchFriends } = useFriends();
   const [showStreakBanner, setShowStreakBanner] = useState(false);
@@ -1194,10 +1195,15 @@ export default function StudyView() {
             </div>
             <button
               onClick={() => setIsQuickAddOpen(true)}
-              className="flex items-center justify-center gap-1.5 w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
+              className="relative flex items-center justify-center gap-1.5 w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
               title={t.quick_add}
             >
               <span className="text-lg font-black text-indigo-600">+</span>
+              {pendingWordCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center">
+                  {pendingWordCount}
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -1217,10 +1223,15 @@ export default function StudyView() {
             </button>
             <button
               onClick={() => setIsQuickAddOpen(true)}
-              className="flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+              className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
               title={t.quick_add}
             >
               <span className="text-xl font-black text-indigo-600">+</span>
+              {pendingWordCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                  {pendingWordCount}
+                </span>
+              )}
             </button>
             <button
               onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
@@ -1621,14 +1632,16 @@ export default function StudyView() {
           <ListeningQuiz userId={user.id} isAdmin={isAdmin} onClose={() => setShowListeningQuiz(false)} />
         )}
       </AnimatePresence>
-      {isQuickAddOpen && user?.id && defaultDeckId && (
-        <QuickAddWord
+      {user?.id && defaultDeckId && (
+        <AddWordsSheet
           userId={user.id}
           deckId={defaultDeckId}
           isAdmin={isAdmin}
           blocklist={blocklist}
+          open={isQuickAddOpen}
           onClose={() => setIsQuickAddOpen(false)}
           onAdded={fetchInitialData}
+          onQueueCountChange={setPendingWordCount}
         />
       )}
 
