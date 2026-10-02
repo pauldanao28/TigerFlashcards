@@ -9,6 +9,9 @@ export const AI_DAILY_LIMITS = {
   quiz_grammar: 2,       // grammar quiz rounds per day
   quiz_sentences: 2,     // reading quiz rounds per day
   quiz_listening: 2,     // listening quiz rounds per day
+  reader_generate: 10,    // AI-written reading passages per day
+  reader_annotate: 15,    // passages glossed (pasted or generated) per day
+  reader_ask: 20,         // "ask about this passage" questions per day
 } as const;
 
 // Premium gets a higher ceiling, not a bypass — even a paying user shouldn't
@@ -23,6 +26,9 @@ export const AI_DAILY_LIMITS_PREMIUM = {
   quiz_grammar: 10,
   quiz_sentences: 10,
   quiz_listening: 10,
+  reader_generate: 40,
+  reader_annotate: 60,
+  reader_ask: 80,
 } as const;
 
 export type AiEndpoint = keyof typeof AI_DAILY_LIMITS;

@@ -7,6 +7,7 @@ import LoadingScreen from "@/components/LoadingScreen";
 import SentenceQuiz from "@/components/SentenceQuiz";
 import ListeningQuiz from "@/components/ListeningQuiz";
 import GrammarQuiz from "@/components/GrammarQuiz";
+import ReaderView from "@/components/ReaderView";
 
 function QuizzesInner() {
   const router = useRouter();
@@ -16,6 +17,7 @@ function QuizzesInner() {
   const [showSentence, setShowSentence] = useState(false);
   const [showListening, setShowListening] = useState(false);
   const [showGrammar, setShowGrammar] = useState(false);
+  const [showReader, setShowReader] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -28,6 +30,7 @@ function QuizzesInner() {
       if (open === "sentence") setShowSentence(true);
       else if (open === "listening") setShowListening(true);
       else if (open === "grammar") setShowGrammar(true);
+      else if (open === "reader") setShowReader(true);
     });
   }, [router, searchParams]);
 
@@ -44,6 +47,24 @@ function QuizzesInner() {
       <div className="max-w-2xl mx-auto">
       {/* Quiz cards */}
       <div className="px-4 pt-2 flex flex-col gap-3">
+        {/* Reader */}
+        <button
+          onClick={() => setShowReader(true)}
+          className="bg-white rounded-2xl p-5 border-2 border-indigo-100 shadow-sm active:scale-95 transition-all text-left w-full relative overflow-hidden"
+        >
+          <span className="absolute top-3 right-3 text-[8px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+            New
+          </span>
+          <div className="flex items-center gap-4">
+            <span className="text-3xl">📚</span>
+            <div className="flex-1">
+              <p className="font-black text-slate-900">Reader</p>
+              <p className="text-xs text-slate-400 mt-0.5">Paste any text (or let AI write one) — tap words to add them, ask about grammar</p>
+            </div>
+            <span className="text-slate-300 text-lg">›</span>
+          </div>
+        </button>
+
         {/* Reading / Sentence Quiz */}
         <button
           onClick={() => setShowSentence(true)}
@@ -137,6 +158,9 @@ function QuizzesInner() {
       )}
       {showGrammar && (
         <GrammarQuiz userId={userId} onClose={() => setShowGrammar(false)} />
+      )}
+      {showReader && (
+        <ReaderView userId={userId} onClose={() => setShowReader(false)} />
       )}
     </div>
   );
