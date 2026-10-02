@@ -24,6 +24,7 @@ import ListeningQuiz from "@/components/ListeningQuiz";
 import AddWordsSheet from "@/components/AddWordsSheet";
 import { FlashcardData } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
+import { Plus } from "lucide-react";
 const DAILY_GOAL = 10;
 const MASTERY_MIN_TRIES = 5;
 
@@ -1193,18 +1194,6 @@ export default function StudyView() {
                 </span>
               </button>
             </div>
-            <button
-              onClick={() => setIsQuickAddOpen(true)}
-              className="relative flex items-center justify-center gap-1.5 w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
-              title={t.quick_add}
-            >
-              <span className="text-lg font-black text-indigo-600">+</span>
-              {pendingWordCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center">
-                  {pendingWordCount}
-                </span>
-              )}
-            </button>
           </div>
         </div>
 
@@ -1219,18 +1208,6 @@ export default function StudyView() {
               <span className="text-xl">👥</span>
               {friends.some((f) => f.status === "pending" && !f.isSentByMe) && (
                 <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white" />
-              )}
-            </button>
-            <button
-              onClick={() => setIsQuickAddOpen(true)}
-              className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
-              title={t.quick_add}
-            >
-              <span className="text-xl font-black text-indigo-600">+</span>
-              {pendingWordCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
-                  {pendingWordCount}
-                </span>
               )}
             </button>
             <button
@@ -1632,6 +1609,20 @@ export default function StudyView() {
           <ListeningQuiz userId={user.id} isAdmin={isAdmin} onClose={() => setShowListeningQuiz(false)} />
         )}
       </AnimatePresence>
+      {/* Add Cards FAB — same button as the Profile page's, just raised clear of the
+          Fail/Pass buttons below it instead of sitting at Profile's bottom-24. */}
+      <motion.button
+        onClick={() => setIsQuickAddOpen(true)}
+        whileTap={{ scale: 0.88 }}
+        className="fixed bottom-48 right-5 z-[205] w-14 h-14 bg-indigo-600 text-white rounded-full shadow-xl shadow-indigo-300/50 flex items-center justify-center"
+      >
+        <Plus size={26} strokeWidth={2.5} />
+        {pendingWordCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center">
+            {pendingWordCount}
+          </span>
+        )}
+      </motion.button>
       {user?.id && defaultDeckId && (
         <AddWordsSheet
           userId={user.id}
