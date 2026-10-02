@@ -22,7 +22,15 @@ interface WordTooltip {
   jlpt?: string[];
   isCommon?: boolean;
   compounds?: { word: string; reading: string; meaning: string; jlpt: string[]; is_common: boolean }[];
+  deckStatus?: WordStatus;
+  deckAccuracy?: number;
 }
+
+// "new" = not in the user's deck at all. "weak" = in the deck but struggling
+// (same <40% threshold the stats page uses for its Struggling list). "known"
+// = in the deck and not struggling — no special highlight needed.
+type WordStatus = "new" | "weak" | "known";
+const WEAK_THRESHOLD = 40;
 
 const LEVELS = ["N5", "N4", "N3", "N2", "N1"] as const;
 type Level = (typeof LEVELS)[number];
@@ -42,9 +50,34 @@ function getSegmenter(): Intl.Segmenter | null {
 
 type WordTapHandler = (word: string, e: React.MouseEvent | React.TouchEvent) => void;
 
-// Same tap-to-lookup rendering as SentenceQuiz/GrammarQuiz: kanji words get a dotted
-// underline, no furigana shown until tapped (so reading it stays a real reading exercise).
-function TappableText({ text, keyPrefix, onWordTap }: { text: string; keyPrefix: string; onWordTap: WordTapHandler }) {
+// Background tints the whole word (continuous, via the wrapping span); decoration colors
+// only the dotted underline under each kanji character (applied per-char, like the plain
+// tappable style already does).
+const STATUS_BG: Record<WordStatus, string> = {
+  new: "bg-amber-100/70", // not in the deck yet
+  weak: "bg-rose-100/70", // in the deck but struggling — same color as the stats page's Struggling list
+  known: "",
+};
+const STATUS_DECORATION: Record<WordStatus, string> = {
+  new: "decoration-amber-500",
+  weak: "decoration-rose-500",
+  known: "decoration-indigo-400",
+};
+
+// Same tap-to-lookup rendering as SentenceQuiz/GrammarQuiz (dotted underline, no furigana
+// until tapped), extended with deck-awareness: unknown/weak words get a colored highlight
+// instead of the plain underline, so they stand out while reading.
+function TappableText({
+  text,
+  keyPrefix,
+  onWordTap,
+  getStatus,
+}: {
+  text: string;
+  keyPrefix: string;
+  onWordTap: WordTapHandler;
+  getStatus: (word: string) => WordStatus;
+}) {
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const segmenter = getSegmenter();
   const subSegs = segmenter ? [...segmenter.segment(text)] : [{ segment: text, isWordLike: false }];
@@ -53,10 +86,11 @@ function TappableText({ text, keyPrefix, onWordTap }: { text: string; keyPrefix:
       {subSegs.map((sub, i) => {
         if (sub.isWordLike && kanjiRe.test(sub.segment)) {
           const word = sub.segment;
+          const status = getStatus(word);
           return (
             <span
               key={`${keyPrefix}-${i}`}
-              className="cursor-pointer active:opacity-60 transition-opacity"
+              className={`cursor-pointer active:opacity-60 transition-opacity rounded px-0.5 ${STATUS_BG[status]}`}
               onClick={(e) => { e.stopPropagation(); onWordTap(word, e); }}
               onTouchStart={(e) => { touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
               onTouchEnd={(e) => {
@@ -69,7 +103,7 @@ function TappableText({ text, keyPrefix, onWordTap }: { text: string; keyPrefix:
               }}
             >
               {word.split("").map((ch, ci) =>
-                kanjiRe.test(ch) ? <span key={ci} className="underline decoration-dotted decoration-indigo-400 underline-offset-2">{ch}</span> : ch,
+                kanjiRe.test(ch) ? <span key={ci} className={`underline decoration-dotted underline-offset-2 ${STATUS_DECORATION[status]}`}>{ch}</span> : ch,
               )}
             </span>
           );
@@ -116,6 +150,7 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
   const handleAddWord = async (word: string) => {
     await processWords([word]);
     setAddedWords((prev) => new Set(prev).add(word));
+    setWordStatus((prev) => new Map(prev).set(word, { status: "known" }));
   };
 
   const [phase, setPhase] = useState<"input" | "loading" | "reading">("input");
@@ -130,6 +165,41 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
   const [passage, setPassage] = useState("");
   const [grammarNotes, setGrammarNotes] = useState<GrammarNote[]>([]);
   const [showNotes, setShowNotes] = useState(false);
+  const [wordStatus, setWordStatus] = useState<Map<string, { status: WordStatus; accuracy?: number }>>(new Map());
+
+  const getWordStatus = (word: string): WordStatus => wordStatus.get(word)?.status ?? "new";
+
+  // Look up every kanji word in the passage against the user's own deck (not just
+  // master_cards — a word can exist there without this user ever having added it),
+  // so new/weak words can be highlighted instead of treated the same as known ones.
+  const loadWordStatus = async (text: string) => {
+    const segmenter = getSegmenter();
+    if (!segmenter) return;
+    const words = new Set(
+      [...segmenter.segment(text)]
+        .filter((s) => s.isWordLike && kanjiRe.test(s.segment))
+        .map((s) => s.segment),
+    );
+    if (words.size === 0) { setWordStatus(new Map()); return; }
+
+    const { data: cards } = await supabase.from("master_cards").select("id, japanese").in("japanese", [...words]);
+    const cardIds = (cards ?? []).map((c) => c.id);
+    const { data: scores } = cardIds.length
+      ? await supabase.from("user_scores").select("card_id, scores_json").eq("user_id", userId).in("card_id", cardIds)
+      : { data: [] as { card_id: string; scores_json: any }[] };
+    const scoreByCardId = new Map((scores ?? []).map((s) => [s.card_id, s.scores_json]));
+
+    const map = new Map<string, { status: WordStatus; accuracy?: number }>();
+    for (const word of words) {
+      const card = (cards ?? []).find((c) => c.japanese === word);
+      const s = card ? scoreByCardId.get(card.id) : undefined;
+      if (!s) { map.set(word, { status: "new" }); continue; }
+      const totalAttempts = (s.jp_to_en?.total || 0) + (s.en_to_jp?.total || 0);
+      const accuracy = Math.round(((s.jp_to_en?.percent || 0) + (s.en_to_jp?.percent || 0)) / 2);
+      map.set(word, { status: totalAttempts > 0 && accuracy < WEAK_THRESHOLD ? "weak" : "known", accuracy });
+    }
+    setWordStatus(map);
+  };
 
   const [qa, setQa] = useState<{ q: string; a: string }[]>([]);
   const [askInput, setAskInput] = useState("");
@@ -141,13 +211,24 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
 
   const handleWordTap: WordTapHandler = (word, e) => {
     e.stopPropagation();
-    setTooltip({ word, reading: "", editWord: word, knownEnglish: undefined, jishoLoading: true });
+    const status = wordStatus.get(word);
+    setTooltip({
+      word,
+      reading: "",
+      editWord: word,
+      knownEnglish: undefined,
+      jishoLoading: true,
+      deckStatus: status?.status ?? "new",
+      deckAccuracy: status?.accuracy,
+    });
 
     (async () => {
-      const { data: card } = await supabase.from("master_cards").select("id, english").eq("japanese", word).maybeSingle();
-      if (!card) { setTooltip((prev) => (prev ? { ...prev, knownEnglish: null } : prev)); return; }
-      const { data: score } = await supabase.from("user_scores").select("id").eq("user_id", userId).eq("card_id", card.id).maybeSingle();
-      setTooltip((prev) => (prev ? { ...prev, knownEnglish: score ? card.english : null } : prev));
+      if (status?.status !== "known" && status?.status !== "weak") {
+        setTooltip((prev) => (prev ? { ...prev, knownEnglish: null } : prev));
+        return;
+      }
+      const { data: card } = await supabase.from("master_cards").select("english").eq("japanese", word).maybeSingle();
+      setTooltip((prev) => (prev ? { ...prev, knownEnglish: card?.english ?? null } : prev));
     })();
 
     const isSingleKanji = word.length === 1 && kanjiRe.test(word);
@@ -195,6 +276,7 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
       setGrammarNotes(data.grammarNotes ?? []);
       setQa([]);
       setShowNotes(false);
+      await loadWordStatus(text);
       setPhase("reading");
     } catch (e: any) {
       setError(e.message || "Something went wrong");
@@ -373,8 +455,16 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
         <div className="flex-1 flex flex-col min-h-0">
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-xl mx-auto w-full px-5 py-6">
+              <div className="flex items-center gap-4 mb-3 px-1">
+                <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-600">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-amber-100/70 border border-amber-400" /> New
+                </span>
+                <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-rose-600">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-rose-100/70 border border-rose-400" /> Weak
+                </span>
+              </div>
               <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6 text-xl leading-[2.6] whitespace-pre-wrap break-words">
-                <TappableText text={passage} keyPrefix="p" onWordTap={handleWordTap} />
+                <TappableText text={passage} keyPrefix="p" onWordTap={handleWordTap} getStatus={getWordStatus} />
               </div>
 
               <AnimatePresence>
@@ -464,11 +554,19 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
                   </button>
                 </div>
                 <div className="text-sm text-indigo-500 font-bold mt-0.5">{tooltip.reading}</div>
-                {tooltip.knownEnglish && (
+                {tooltip.deckStatus === "weak" ? (
+                  <div className="mt-1 inline-flex items-center gap-1 bg-rose-50 text-rose-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                    ⚠️ Weak — {tooltip.deckAccuracy}% accuracy
+                  </div>
+                ) : tooltip.knownEnglish ? (
                   <div className="mt-1 inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full">
                     ✓ in your deck
                   </div>
-                )}
+                ) : tooltip.deckStatus === "new" ? (
+                  <div className="mt-1 inline-flex items-center gap-1 bg-amber-50 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                    Not in your deck yet
+                  </div>
+                ) : null}
               </div>
               <button onClick={() => setTooltip(null)} className="text-slate-300 hover:text-slate-500 mt-1 shrink-0"><X size={16} /></button>
             </div>
