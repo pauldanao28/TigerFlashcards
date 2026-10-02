@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, Sparkles, Send, Loader2, List, Volume2, BookOpen, NotebookText, X } from "lucide-react";
+import { ChevronLeft, Sparkles, Send, Loader2, Plus, Check, Volume2, BookOpen, NotebookText, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { speak } from "@/lib/tts";
+import { useAddWords } from "@/hooks/useAddWords";
 
 interface GrammarNote {
   pattern: string;
@@ -82,10 +83,41 @@ function TappableText({ text, keyPrefix, onWordTap }: { text: string; keyPrefix:
 /**
  * Paste any Japanese text (or have AI write one) and read it with the same
  * tap-a-kanji-to-look-it-up interaction as the Grammar/Reading quizzes —
- * dotted underline, Jisho lookup, add to the shared word queue — plus
- * grammar notes for the specific passage and a question box scoped to it.
+ * dotted underline, Jisho lookup for the definition — plus grammar notes for
+ * the specific passage and a question box scoped to it. Adding a looked-up
+ * word goes through the same useAddWords pipeline as the Add Sheet (Profile
+ * page / Study tab), landing in the deck immediately, not a deferred queue.
  */
 export default function ReaderView({ userId, onClose }: { userId: string; onClose: () => void }) {
+  const [deckId, setDeckId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [blocklist, setBlocklist] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!userId) return;
+    Promise.all([
+      supabase.from("decks").select("id").eq("user_id", userId).eq("is_default", true).maybeSingle(),
+      supabase.from("profiles").select("is_admin, blocked_words").eq("id", userId).maybeSingle(),
+    ]).then(([deckRes, profileRes]) => {
+      setDeckId(deckRes.data?.id ?? null);
+      setIsAdmin(!!profileRes.data?.is_admin);
+      setBlocklist(profileRes.data?.blocked_words ?? []);
+    });
+  }, [userId]);
+
+  const { loading: addLoading, processWords } = useAddWords({
+    userId,
+    deckId: deckId ?? "",
+    isAdmin,
+    blocklist,
+  });
+  const [addedWords, setAddedWords] = useState<Set<string>>(new Set());
+
+  const handleAddWord = async (word: string) => {
+    await processWords([word]);
+    setAddedWords((prev) => new Set(prev).add(word));
+  };
+
   const [phase, setPhase] = useState<"input" | "loading" | "reading">("input");
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -103,36 +135,6 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
   const [askInput, setAskInput] = useState("");
   const [asking, setAsking] = useState(false);
   const qaEndRef = useRef<HTMLDivElement>(null);
-
-  // ── Pending word list — shared with the Add Sheet and the Sensei chat (same
-  // profiles.pending_words field), so a word queued here shows up there too. ──
-  const [wordList, setWordList] = useState<string[]>([]);
-  const WORD_LIST_KEY = `flashkado-word-list-${userId}`;
-
-  useEffect(() => {
-    if (!userId) return;
-    let localWords: string[] = [];
-    try {
-      const stored = localStorage.getItem(WORD_LIST_KEY);
-      localWords = stored ? JSON.parse(stored) : [];
-      if (localWords.length > 0) setWordList(localWords);
-    } catch { /* ignore */ }
-
-    supabase.from("profiles").select("pending_words").eq("id", userId).maybeSingle().then(({ data }) => {
-      const dbWords: string[] = data?.pending_words ?? [];
-      const merged = [...new Set([...dbWords, ...localWords])];
-      setWordList(merged);
-      localStorage.setItem(WORD_LIST_KEY, JSON.stringify(merged));
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
-
-  const syncWordList = (newList: string[]) => {
-    setWordList(newList);
-    localStorage.setItem(WORD_LIST_KEY, JSON.stringify(newList));
-    supabase.from("profiles").update({ pending_words: newList }).eq("id", userId)
-      .then(({ error: e }) => { if (e) console.error("[DB word-list sync]", e.code, e.message); });
-  };
 
   // ── Tap a kanji word → tooltip with Jisho lookup, same as the quizzes/Sensei chat ──
   const [tooltip, setTooltip] = useState<WordTooltip | null>(null);
@@ -281,14 +283,6 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
               </span>
             </button>
           )}
-          {wordList.length > 0 && (
-            <span className="relative p-2 text-slate-400">
-              <List size={16} />
-              <span className="absolute -top-0.5 -right-0.5 bg-indigo-600 text-white text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">
-                {wordList.length}
-              </span>
-            </span>
-          )}
           {phase !== "reading" && <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 text-slate-400 active:scale-90"><X size={16} /></button>}
         </div>
       </div>
@@ -298,7 +292,7 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
         <div className="flex-1 overflow-y-auto px-5 py-6 max-w-xl mx-auto w-full">
           <h2 className="text-xl font-black text-slate-900 mb-1">Paste something to read</h2>
           <p className="text-slate-500 text-sm font-medium mb-4 leading-relaxed">
-            Lyrics, a manga page, a news snippet, anything. Tap any kanji to look it up and queue it, just like in the quizzes — and get grammar notes for the specific text.
+            Lyrics, a manga page, a news snippet, anything. Tap any kanji to look it up and add it to your deck — and get grammar notes for the specific text.
           </p>
 
           <textarea
@@ -498,11 +492,11 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
                         <p className="text-[10px] text-slate-500 truncate">{c.meaning}</p>
                       </div>
                       <button
-                        onClick={() => { if (!wordList.includes(c.word)) syncWordList([...wordList, c.word]); }}
-                        disabled={wordList.includes(c.word)}
-                        className={`shrink-0 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg transition-colors active:scale-95 ${wordList.includes(c.word) ? "bg-emerald-50 text-emerald-600 cursor-default" : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"}`}
+                        onClick={() => handleAddWord(c.word)}
+                        disabled={addLoading || addedWords.has(c.word)}
+                        className={`shrink-0 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg transition-colors active:scale-95 ${addedWords.has(c.word) ? "bg-emerald-50 text-emerald-600 cursor-default" : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"}`}
                       >
-                        {wordList.includes(c.word) ? "Added" : "+ Add"}
+                        {addedWords.has(c.word) ? "Added" : "+ Add"}
                       </button>
                     </div>
                   ))}
@@ -528,11 +522,22 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
               placeholder="e.g. 食べる"
             />
             <button
-              onClick={() => { const word = tooltip.editWord.trim(); if (word && !wordList.includes(word)) syncWordList([...wordList, word]); setTooltip(null); }}
-              disabled={!tooltip.editWord.trim()}
+              onClick={async () => {
+                const word = tooltip.editWord.trim();
+                if (!word) return;
+                await handleAddWord(word);
+                setTooltip(null);
+              }}
+              disabled={!tooltip.editWord.trim() || addLoading || addedWords.has(tooltip.editWord.trim())}
               className="mt-3 w-full flex items-center justify-center gap-1.5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40"
             >
-              <List size={11} /> Add to List
+              {addLoading ? (
+                <><Loader2 size={11} className="animate-spin" /> Adding…</>
+              ) : addedWords.has(tooltip.editWord.trim()) ? (
+                <><Check size={11} /> Added</>
+              ) : (
+                <><Plus size={11} /> Add to Deck</>
+              )}
             </button>
           </div>
         </>
