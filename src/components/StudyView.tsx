@@ -1194,35 +1194,61 @@ export default function StudyView() {
                 </span>
               </button>
             </div>
+            <motion.button
+              onClick={() => setIsQuickAddOpen(true)}
+              whileTap={{ scale: 0.88 }}
+              className="relative w-11 h-11 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300/50 flex items-center justify-center"
+            >
+              <Plus size={20} strokeWidth={2.5} />
+              {pendingWordCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                  {pendingWordCount}
+                </span>
+              )}
+            </motion.button>
           </div>
         </div>
 
         {/* --- 2. DESKTOP NAVIGATION --- */}
         <div className="hidden md:flex relative top-0 w-full z-50 px-8 py-8 items-center justify-between pointer-events-auto">
           {/* Top-right controls — Study Circle + Mode toggle */}
-          <div className="absolute right-8 top-8 flex items-center gap-3">
-            <button
-              onClick={() => setIsSocialOpen(true)}
-              className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+          <div className="absolute right-8 top-8 flex flex-col items-end gap-2">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsSocialOpen(true)}
+                className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+              >
+                <span className="text-xl">👥</span>
+                {friends.some((f) => f.status === "pending" && !f.isSentByMe) && (
+                  <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white" />
+                )}
+              </button>
+              <button
+                onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
+                className={`flex flex-col items-center gap-1 px-4 py-2.5 rounded-2xl border font-black transition-all hover:scale-105 active:scale-95 shadow-sm ${
+                  language === "jp"
+                    ? "bg-indigo-50 border-indigo-100 text-indigo-600"
+                    : "bg-orange-50 border-orange-100 text-orange-600"
+                }`}
+              >
+                <span className="text-lg leading-none">{language === "jp" ? "🇯🇵" : "🇺🇸"}</span>
+                <span className="text-[9px] uppercase tracking-widest leading-none">
+                  {language === "jp" ? t.recognition : t.recall}
+                </span>
+              </button>
+            </div>
+            <motion.button
+              onClick={() => setIsQuickAddOpen(true)}
+              whileTap={{ scale: 0.88 }}
+              className="relative w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300/50 flex items-center justify-center hover:scale-105 transition-all"
             >
-              <span className="text-xl">👥</span>
-              {friends.some((f) => f.status === "pending" && !f.isSentByMe) && (
-                <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white" />
+              <Plus size={22} strokeWidth={2.5} />
+              {pendingWordCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                  {pendingWordCount}
+                </span>
               )}
-            </button>
-            <button
-              onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
-              className={`flex flex-col items-center gap-1 px-4 py-2.5 rounded-2xl border font-black transition-all hover:scale-105 active:scale-95 shadow-sm ${
-                language === "jp"
-                  ? "bg-indigo-50 border-indigo-100 text-indigo-600"
-                  : "bg-orange-50 border-orange-100 text-orange-600"
-              }`}
-            >
-              <span className="text-lg leading-none">{language === "jp" ? "🇯🇵" : "🇺🇸"}</span>
-              <span className="text-[9px] uppercase tracking-widest leading-none">
-                {language === "jp" ? t.recognition : t.recall}
-              </span>
-            </button>
+            </motion.button>
           </div>
           <div className="flex items-center gap-6 h-14">
             <Link href="/" className="hover:opacity-80 transition-opacity">
@@ -1609,20 +1635,6 @@ export default function StudyView() {
           <ListeningQuiz userId={user.id} isAdmin={isAdmin} onClose={() => setShowListeningQuiz(false)} />
         )}
       </AnimatePresence>
-      {/* Add Cards FAB — same button as the Profile page's, just raised clear of the
-          Fail/Pass buttons below it instead of sitting at Profile's bottom-24. */}
-      <motion.button
-        onClick={() => setIsQuickAddOpen(true)}
-        whileTap={{ scale: 0.88 }}
-        className="fixed bottom-48 right-5 z-[205] w-14 h-14 bg-indigo-600 text-white rounded-full shadow-xl shadow-indigo-300/50 flex items-center justify-center"
-      >
-        <Plus size={26} strokeWidth={2.5} />
-        {pendingWordCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center">
-            {pendingWordCount}
-          </span>
-        )}
-      </motion.button>
       {user?.id && defaultDeckId && (
         <AddWordsSheet
           userId={user.id}
