@@ -920,9 +920,12 @@ export default function StudyView() {
 
   // Rolling "recently reviewed" list — naturally deduped (one row per card) and
   // naturally rolling (re-reviewing a card just moves it back to the top).
+  // Adding a word also touches user_scores (it creates the zeroed scores_json
+  // row), so last_reviewed_at alone isn't enough to mean "actually reviewed" —
+  // require at least one real pass/fail too, or brand-new words show up here.
   const historyList = useMemo(() => {
     return cards
-      .filter((c) => !!c.last_reviewed_at)
+      .filter((c) => !!c.last_reviewed_at && ((c.scores?.jp_to_en?.total ?? 0) + (c.scores?.en_to_jp?.total ?? 0)) > 0)
       .sort((a, b) => (b.last_reviewed_at || "").localeCompare(a.last_reviewed_at || ""))
       .slice(0, 20);
   }, [cards]);
