@@ -340,6 +340,10 @@ export default function StudyView() {
         )
         .eq("deck_cards.deck_id", defaultDeckId)
         .eq("user_scores.user_id", user?.id)
+        // Required for .range() pagination to be reliable past one page — without a
+        // deterministic order, Postgres doesn't guarantee stable row order between
+        // separate paged queries, so rows can be skipped or duplicated across pages.
+        .order("id", { ascending: true })
         .range(from, from + PAGE_SIZE - 1);
       if (pageErr) { error = pageErr; break; }
       if (page) allData.push(...page);

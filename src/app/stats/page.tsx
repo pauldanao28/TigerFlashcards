@@ -454,6 +454,9 @@ export default function StatsPage() {
           .select("id, deck_cards!inner(deck_id), user_scores(scores_json)")
           .eq("deck_cards.deck_id", defaultDeckId)
           .eq("user_scores.user_id", user.id)
+          // Required for .range() pagination to be reliable past one page — see the
+          // full-fetch query below for why.
+          .order("id", { ascending: true })
           .range(from, from + LEAN_PAGE - 1);
         if (page) leanAll.push(...page);
         if (!page || page.length < LEAN_PAGE) break;
@@ -472,6 +475,10 @@ export default function StatsPage() {
           .eq("deck_cards.deck_id", defaultDeckId)
           .eq("user_scores.user_id", user.id)
           .order("added_at", { foreignTable: "deck_cards", ascending: false })
+          // Tiebreaker for cards added in the same batch (identical added_at) — without
+          // a unique secondary key, .range() pagination can skip or duplicate rows among
+          // ties once the deck crosses one page.
+          .order("id", { ascending: true })
           .range(from, from + PAGE_SIZE - 1);
         if (pageErr) { error = pageErr; break; }
         if (page) allData.push(...page);
