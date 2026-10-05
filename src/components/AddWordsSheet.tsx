@@ -282,9 +282,11 @@ export default function AddWordsSheet({
         </div>
       )}
 
-      {/* Batch processing overlay — sheet closes immediately, this shows while AI works */}
+      {/* Batch processing overlay — sheet closes immediately, this shows while AI works.
+          z-[260]: above the sheet itself (z-[250]) since the Word tab's single-add path
+          leaves the sheet open, so this/the summary below must render on top of it, not behind. */}
       {batchProcessing && (
-        <div className="fixed inset-0 z-[220] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[260] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white rounded-3xl px-10 py-8 flex flex-col items-center gap-4 shadow-2xl">
             <div className="w-10 h-10 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin" />
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Processing…</p>
@@ -293,7 +295,7 @@ export default function AddWordsSheet({
       )}
 
       {showSummary && (
-        <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[260] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 flex flex-col max-h-[80vh] overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex justify-between items-start gap-3 bg-slate-50/50">
               <div className="min-w-0">
@@ -395,7 +397,7 @@ export default function AddWordsSheet({
       )}
 
       {loading && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[220] flex flex-col items-center justify-center text-white">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[260] flex flex-col items-center justify-center text-white">
           <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
           <p className="text-lg font-bold animate-pulse">{t.ai_building}</p>
         </div>
