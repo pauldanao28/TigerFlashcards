@@ -360,7 +360,14 @@ export default function StudyView() {
         // ✅ FIX: Only pick a new card if we don't already have one on screen.
         // This prevents the card from "jumping" when you return to the tab.
         setCurrentCard((prev) => {
-          if (prev) return prev; // Keep the card that was already there
+          if (prev) {
+            // Same card stays on screen (no jump), but refresh it from the just-fetched
+            // server data — otherwise a stale cached snapshot (e.g. restored from
+            // _studyCache with 0 attempts) lingers forever and the Already-Know button
+            // keeps thinking an already-studied word is brand new.
+            const fresh = flattened.find((c) => c.id === prev.id);
+            return fresh ?? prev;
+          }
           return getNextPriorityCard(flattened, "jp");
         });
         _studyCache = { userId: user.id, cards: flattened, deckId: defaultDeckId, currentCard: currentCardRef.current };
