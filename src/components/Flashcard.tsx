@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { motion, useMotionValue, useTransform } from "framer-motion";
+import { Star } from "lucide-react";
 import { FlashcardData } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { translations } from "@/lib/languages";
@@ -26,6 +27,8 @@ interface FlashcardProps {
   isFlipped: boolean;
   onFlip: (state: boolean) => void;
   audioPulse?: number;
+  isPriority?: boolean;
+  onTogglePriority?: () => void;
 }
 
 const triggerHaptic = (ms = 10) => {
@@ -46,6 +49,8 @@ export default function Flashcard({
   isFlipped, // Use prop instead of local state
   onFlip, // Use prop setter
   audioPulse,
+  isPriority,
+  onTogglePriority,
 }: FlashcardProps) {
   const t = translations.en;
   const { showAlert } = useAppAlert();
@@ -345,6 +350,19 @@ export default function Flashcard({
         >
           {/* FRONT SIDE */}
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-white rounded-3xl border-4 border-white shadow-2xl [backface-visibility:hidden] p-8 text-center overflow-hidden">
+            {onTogglePriority && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onTogglePriority(); }}
+                className="absolute top-4 right-4 z-10 p-2 rounded-full hover:bg-amber-50 active:scale-90 transition-all"
+                title={isPriority ? "Remove from Priority" : "Add to Priority"}
+              >
+                <Star
+                  size={20}
+                  className={isPriority ? "text-amber-500" : "text-slate-300"}
+                  fill={isPriority ? "currentColor" : "none"}
+                />
+              </button>
+            )}
             <div className="flex-1 flex items-center justify-center w-full">
               <span
                 className={`font-black text-slate-800 leading-tight break-words w-full 

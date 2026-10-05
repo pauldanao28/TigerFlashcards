@@ -24,9 +24,10 @@ import ListeningQuiz from "@/components/ListeningQuiz";
 import AddWordsSheet from "@/components/AddWordsSheet";
 import { FlashcardData } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus } from "lucide-react";
+import { Plus, History, Star } from "lucide-react";
 const DAILY_GOAL = 10;
 const MASTERY_MIN_TRIES = 5;
+const PRIORITY_CAP = 30;
 
 const JLPT_BAR_COLOR: Record<"N5" | "N4" | "N3" | "N2" | "N1", string> = {
   N5: "bg-emerald-500",
@@ -69,6 +70,13 @@ function getNextPriorityCard(
   const getScore = (c: FlashcardData) => c.scores?.[mode]?.percent || 0;
   const getTries = (c: FlashcardData) => c.scores?.[mode]?.total || 0;
 
+  // Priority words get a strong (not absolute) pull toward the front of rotation,
+  // independent of their actual score — that's the whole point of starring one.
+  const priorityCards = allCards.filter((c) => c.is_priority && c.id !== lastCardId);
+  if (priorityCards.length > 0 && Math.random() < 0.4) {
+    return priorityCards[Math.floor(Math.random() * priorityCards.length)];
+  }
+
   const sorted = [...allCards].sort((a, b) => getScore(a) - getScore(b));
   const weakestCards = sorted.slice(0, 10);
   const weakestIds = new Set(weakestCards.map((c) => c.id));
@@ -108,6 +116,15 @@ function getNextPriorityCard(
     : allCards[0];
 }
 
+// Combined pass-rate across both study directions, for a single at-a-glance score.
+function cardOverallPercent(c: FlashcardData): number {
+  const jp = c.scores?.jp_to_en;
+  const en = c.scores?.en_to_jp;
+  const pass = (jp?.pass || 0) + (en?.pass || 0);
+  const total = (jp?.total || 0) + (en?.total || 0);
+  return total > 0 ? Math.round((pass / total) * 100) : 0;
+}
+
 export default function StudyView() {
   const { user, loading } = useAuth();
   const { showAlert } = useAppAlert();
@@ -140,6 +157,8 @@ export default function StudyView() {
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [pendingWordCount, setPendingWordCount] = useState(0);
   const [blocklist, setBlocklist] = useState<string[]>([]);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showPriorityModal, setShowPriorityModal] = useState(false);
   const { friends, fetchFriends } = useFriends();
   const [showStreakBanner, setShowStreakBanner] = useState(false);
   const [goalStreak, setGoalStreak] = useState(0);
@@ -335,7 +354,7 @@ export default function StudyView() {
           `
           *,
           deck_cards!inner (deck_id),
-          user_scores (scores_json)
+          user_scores (scores_json, is_priority, prioritized_at, updated_at)
         `,
         )
         .eq("deck_cards.deck_id", defaultDeckId)
@@ -358,6 +377,9 @@ export default function StudyView() {
           jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
           en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
         },
+        is_priority: card.user_scores?.[0]?.is_priority || false,
+        prioritized_at: card.user_scores?.[0]?.prioritized_at || null,
+        last_reviewed_at: card.user_scores?.[0]?.updated_at || null,
       }));
       setCards(flattened);
       if (flattened.length > 0) {
@@ -680,6 +702,42 @@ export default function StudyView() {
     setIsFlipped(false);
   }, [currentCard, user, cards, language, jlptFilter, showHints, setCardMasteryToast]);
 
+  // Rolling cap: starring a 31st word bumps whichever one has been starred longest,
+  // rather than blocking the action or requiring the user to manage the count by hand.
+  const togglePriority = useCallback(async (card: FlashcardData) => {
+    if (!user) return;
+    const turningOn = !card.is_priority;
+    let demotedId: string | null = null;
+
+    if (turningOn) {
+      const current = cards.filter((c) => c.is_priority);
+      if (current.length >= PRIORITY_CAP) {
+        const oldest = [...current].sort((a, b) =>
+          (a.prioritized_at || "").localeCompare(b.prioritized_at || ""),
+        )[0];
+        if (oldest) {
+          demotedId = oldest.id;
+          await supabase.from("user_scores")
+            .update({ is_priority: false, prioritized_at: null })
+            .eq("user_id", user.id).eq("card_id", oldest.id);
+        }
+      }
+    }
+
+    const prioritized_at = turningOn ? new Date().toISOString() : null;
+    await supabase.from("user_scores")
+      .update({ is_priority: turningOn, prioritized_at })
+      .eq("user_id", user.id).eq("card_id", card.id);
+
+    const applyPatch = (c: FlashcardData) => {
+      if (c.id === card.id) return { ...c, is_priority: turningOn, prioritized_at };
+      if (demotedId && c.id === demotedId) return { ...c, is_priority: false, prioritized_at: null };
+      return c;
+    };
+    setCards((prev) => prev.map(applyPatch));
+    setCurrentCard((prev) => (prev ? applyPatch(prev) : prev));
+  }, [user, cards]);
+
   // --- 7. AI Sync Logic ---
   useEffect(() => {
     const syncAI = async () => {
@@ -859,6 +917,21 @@ export default function StudyView() {
     const known = filteredCards.filter(c => (c.scores?.[mode]?.pass ?? 0) >= MASTERY_MIN_TRIES && (c.scores?.[mode]?.percent ?? 0) >= 70).length;
     return Math.round((known / filteredCards.length) * 100);
   }, [filteredCards, jlptFilter, language]);
+
+  // Rolling "recently reviewed" list — naturally deduped (one row per card) and
+  // naturally rolling (re-reviewing a card just moves it back to the top).
+  const historyList = useMemo(() => {
+    return cards
+      .filter((c) => !!c.last_reviewed_at)
+      .sort((a, b) => (b.last_reviewed_at || "").localeCompare(a.last_reviewed_at || ""))
+      .slice(0, 20);
+  }, [cards]);
+
+  const priorityList = useMemo(() => {
+    return cards
+      .filter((c) => c.is_priority)
+      .sort((a, b) => (b.prioritized_at || "").localeCompare(a.prioritized_at || ""));
+  }, [cards]);
 
   // Level-up detection: track whichever % is visible — per-N-level when filtered, overall when "All"
   const trackedPercent = jlptFilter !== "All" ? (jlptLevelMastery ?? masteryPercent) : masteryPercent;
@@ -1216,18 +1289,34 @@ export default function StudyView() {
                 </span>
               </button>
             </div>
-            <motion.button
-              onClick={() => setIsQuickAddOpen(true)}
-              whileTap={{ scale: 0.88 }}
-              className="relative w-11 h-11 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300/50 flex items-center justify-center"
-            >
-              <Plus size={20} strokeWidth={2.5} />
-              {pendingWordCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
-                  {pendingWordCount}
-                </span>
-              )}
-            </motion.button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowHistoryModal(true)}
+                className="flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
+                title="Recently Reviewed"
+              >
+                <History size={18} className="text-slate-500" />
+              </button>
+              <button
+                onClick={() => setShowPriorityModal(true)}
+                className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
+                title="Priority Words"
+              >
+                <Star size={18} className="text-amber-500" fill={cards.some((c) => c.is_priority) ? "currentColor" : "none"} />
+              </button>
+              <motion.button
+                onClick={() => setIsQuickAddOpen(true)}
+                whileTap={{ scale: 0.88 }}
+                className="relative w-11 h-11 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300/50 flex items-center justify-center"
+              >
+                <Plus size={20} strokeWidth={2.5} />
+                {pendingWordCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                    {pendingWordCount}
+                  </span>
+                )}
+              </motion.button>
+            </div>
           </div>
         </div>
 
@@ -1259,18 +1348,34 @@ export default function StudyView() {
                 </span>
               </button>
             </div>
-            <motion.button
-              onClick={() => setIsQuickAddOpen(true)}
-              whileTap={{ scale: 0.88 }}
-              className="relative w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300/50 flex items-center justify-center hover:scale-105 transition-all"
-            >
-              <Plus size={22} strokeWidth={2.5} />
-              {pendingWordCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
-                  {pendingWordCount}
-                </span>
-              )}
-            </motion.button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowHistoryModal(true)}
+                className="flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+                title="Recently Reviewed"
+              >
+                <History size={20} className="text-slate-500" />
+              </button>
+              <button
+                onClick={() => setShowPriorityModal(true)}
+                className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+                title="Priority Words"
+              >
+                <Star size={20} className="text-amber-500" fill={cards.some((c) => c.is_priority) ? "currentColor" : "none"} />
+              </button>
+              <motion.button
+                onClick={() => setIsQuickAddOpen(true)}
+                whileTap={{ scale: 0.88 }}
+                className="relative w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300/50 flex items-center justify-center hover:scale-105 transition-all"
+              >
+                <Plus size={22} strokeWidth={2.5} />
+                {pendingWordCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                    {pendingWordCount}
+                  </span>
+                )}
+              </motion.button>
+            </div>
           </div>
           <div className="flex items-center gap-6 h-14">
             <Link href="/" className="hover:opacity-80 transition-opacity">
@@ -1515,6 +1620,8 @@ export default function StudyView() {
                     isFlipped={isFlipped}
                     onFlip={setIsFlipped}
                     audioPulse={audioPulse}
+                    isPriority={!!currentCard.is_priority}
+                    onTogglePriority={() => togglePriority(currentCard)}
                   />
                 ) : !dataLoading && cards.length === 0 && hasLoadedOnce ? (
                   <div className="w-full h-full flex flex-col items-center justify-center bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 p-8 text-center">
@@ -1791,6 +1898,134 @@ export default function StudyView() {
                     </div>
                   );
                 })}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* History Modal — last 20 reviewed words, rolling + deduped by construction */}
+      <AnimatePresence>
+        {showHistoryModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[220] bg-black/20"
+              onClick={() => setShowHistoryModal(false)}
+            />
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[221] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm max-h-[80vh] flex flex-col"
+              style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+            >
+              <div className="flex items-center justify-between mb-4 shrink-0">
+                <div className="flex items-center gap-2">
+                  <History size={16} className="text-slate-400" />
+                  <p className="text-slate-800 font-black text-sm uppercase tracking-tight">Recently Reviewed</p>
+                </div>
+                <button onClick={() => setShowHistoryModal(false)} className="text-slate-300 hover:text-slate-500">✕</button>
+              </div>
+              <div className="flex-1 overflow-y-auto space-y-2 -mx-1 px-1">
+                {historyList.length === 0 ? (
+                  <p className="text-center text-slate-400 text-xs font-bold py-8">
+                    No reviews yet — flip a few cards first!
+                  </p>
+                ) : (
+                  historyList.map((c) => {
+                    const pct = cardOverallPercent(c);
+                    return (
+                      <div
+                        key={c.id}
+                        className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-black text-slate-800 text-sm truncate">{c.japanese}</p>
+                          <p className="text-slate-400 text-[11px] font-medium truncate">
+                            {c.reading} • {c.english}
+                          </p>
+                        </div>
+                        <span
+                          className={`shrink-0 text-[10px] font-black px-2 py-1 rounded-full ${
+                            pct >= 70
+                              ? "bg-emerald-100 text-emerald-700"
+                              : pct >= 40
+                                ? "bg-amber-100 text-amber-700"
+                                : "bg-rose-100 text-rose-700"
+                          }`}
+                        >
+                          {pct}%
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Priority Words Modal — rolling cap of 30, prioritize/unprioritize */}
+      <AnimatePresence>
+        {showPriorityModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[220] bg-black/20"
+              onClick={() => setShowPriorityModal(false)}
+            />
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[221] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm max-h-[80vh] flex flex-col"
+              style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+            >
+              <div className="flex items-center justify-between mb-4 shrink-0">
+                <div className="flex items-center gap-2">
+                  <Star size={16} className="text-amber-500" fill="currentColor" />
+                  <p className="text-slate-800 font-black text-sm uppercase tracking-tight">Priority Words</p>
+                </div>
+                <button onClick={() => setShowPriorityModal(false)} className="text-slate-300 hover:text-slate-500">✕</button>
+              </div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3 shrink-0">
+                {priorityList.length}/{PRIORITY_CAP} starred — tap ★ on a card to add more
+              </p>
+              <div className="flex-1 overflow-y-auto space-y-2 -mx-1 px-1">
+                {priorityList.length === 0 ? (
+                  <p className="text-center text-slate-400 text-xs font-bold py-8">
+                    No priority words yet — star a card during study to pull it into rotation more often.
+                  </p>
+                ) : (
+                  priorityList.map((c) => (
+                    <div
+                      key={c.id}
+                      className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-black text-slate-800 text-sm truncate">{c.japanese}</p>
+                        <p className="text-slate-400 text-[11px] font-medium truncate">
+                          {c.reading} • {c.english}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => togglePriority(c)}
+                        className="shrink-0 p-2 rounded-full hover:bg-amber-100 active:scale-90 transition-all"
+                        title="Remove from Priority"
+                      >
+                        <Star size={18} className="text-amber-500" fill="currentColor" />
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
             </motion.div>
           </>

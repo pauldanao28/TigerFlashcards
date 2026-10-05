@@ -44,6 +44,9 @@ export type FlashcardData = MasterCard & {
   scores: UserScore['scores_json'];
   next_review_at: string;
   added_to_deck_at?: string | null;
+  is_priority?: boolean;
+  prioritized_at?: string | null;
+  last_reviewed_at?: string | null;
 };
 
 export type StudyMode = 'recognition' | 'production';
