@@ -14,12 +14,15 @@ import { calculateGlobalStats } from "@/lib/stats";
 import LoadingScreen from "@/components/LoadingScreen";
 import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
 import AddWordsSheet from "@/components/AddWordsSheet";
-import { List, Plus, RotateCcw } from "lucide-react";
+import { List, Plus, RotateCcw, Star } from "lucide-react";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
 
 interface StatsCardsCache { userId: string; cards: FlashcardData[]; deckId: string; }
 let _statsCardsCache: StatsCardsCache | null = null;
+
+// Keep in sync with StudyView.tsx's rolling priority cap.
+const PRIORITY_CAP = 30;
 
 interface QuickStats {
   total: number;
@@ -471,7 +474,7 @@ export default function StatsPage() {
       for (let from = 0; ; from += PAGE_SIZE) {
         const { data: page, error: pageErr } = await supabase
           .from("master_cards")
-          .select(`*, deck_cards!inner(deck_id, added_at), user_scores(scores_json)`)
+          .select(`*, deck_cards!inner(deck_id, added_at), user_scores(scores_json, is_priority, prioritized_at)`)
           .eq("deck_cards.deck_id", defaultDeckId)
           .eq("user_scores.user_id", user.id)
           .order("added_at", { foreignTable: "deck_cards", ascending: false })
@@ -494,6 +497,8 @@ export default function StatsPage() {
           jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
           en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
         },
+        is_priority: card.user_scores?.[0]?.is_priority || false,
+        prioritized_at: card.user_scores?.[0]?.prioritized_at || null,
       }));
 
       setCards(flattened);
@@ -553,6 +558,40 @@ export default function StatsPage() {
     }
 
     setCards((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  // Rolling cap: starring a 31st word bumps whichever one has been starred longest,
+  // same rule as the Study tab's star toggle (they share the same user_scores columns).
+  const toggleCardPriority = async (card: FlashcardData) => {
+    if (!user) return;
+    const turningOn = !card.is_priority;
+    let demotedId: string | null = null;
+
+    if (turningOn) {
+      const current = cards.filter((c) => c.is_priority);
+      if (current.length >= PRIORITY_CAP) {
+        const oldest = [...current].sort((a, b) =>
+          (a.prioritized_at || "").localeCompare(b.prioritized_at || ""),
+        )[0];
+        if (oldest) {
+          demotedId = oldest.id;
+          await supabase.from("user_scores")
+            .update({ is_priority: false, prioritized_at: null })
+            .eq("user_id", user.id).eq("card_id", oldest.id);
+        }
+      }
+    }
+
+    const prioritized_at = turningOn ? new Date().toISOString() : null;
+    await supabase.from("user_scores")
+      .update({ is_priority: turningOn, prioritized_at })
+      .eq("user_id", user.id).eq("card_id", card.id);
+
+    setCards((prev) => prev.map((c) => {
+      if (c.id === card.id) return { ...c, is_priority: turningOn, prioritized_at };
+      if (demotedId && c.id === demotedId) return { ...c, is_priority: false, prioritized_at: null };
+      return c;
+    }));
   };
 
   // Prefer quickStats (loaded fast) for number display; fall back to full cards once loaded.
@@ -2346,6 +2385,19 @@ export default function StatsPage() {
                 >
                   {/* ACTION BUTTONS (Top Right) */}
                   <div className="absolute top-4 right-4 flex items-center gap-1">
+                    {/* PRIORITY STAR */}
+                    <button
+                      onClick={() => toggleCardPriority(card)}
+                      className="w-8 h-8 flex items-center justify-center active:scale-90 transition-all"
+                      title={card.is_priority ? "Remove from Priority" : "Add to Priority"}
+                    >
+                      <Star
+                        size={16}
+                        className={card.is_priority ? "text-amber-500" : "text-slate-300"}
+                        fill={card.is_priority ? "currentColor" : "none"}
+                      />
+                    </button>
+
                     {/* REPORT BUTTON */}
                     <button
                       onClick={() => handleReport(card.id, card.english)}
@@ -2539,6 +2591,19 @@ export default function StatsPage() {
                       </td>
                       <td className="px-4 py-4 text-right">
                         <div className="flex justify-end gap-2">
+                          {/* PRIORITY STAR */}
+                          <button
+                            onClick={() => toggleCardPriority(card)}
+                            className="p-2 hover:bg-amber-50 rounded-lg transition-colors"
+                            title={card.is_priority ? "Remove from Priority" : "Add to Priority"}
+                          >
+                            <Star
+                              size={18}
+                              className={card.is_priority ? "text-amber-500" : "text-slate-300"}
+                              fill={card.is_priority ? "currentColor" : "none"}
+                            />
+                          </button>
+
                           {/* REPORT BUTTON */}
                           <button
                             onClick={() => handleReport(card.id, card.english)}
