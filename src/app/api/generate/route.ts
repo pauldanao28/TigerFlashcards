@@ -39,6 +39,12 @@ Rules for the "english" field:
 - Good: "eat", "challenge", "mistake", "beautiful", "panic / scare", "companion / escort"
 - Bad: "(to) eat", "eat (food)", "challenge (suru verb)", "mistake (error)", "panic, scare, consternation, or economic crisis", "companion; attendant; escort; accompaniment; offering"
 
+Rules for the "exampleSentence" field:
+- REQUIRED for every item — never omit it or leave "jp"/"en" empty, even for particles, pronouns, or words that feel too simple to need one.
+- "jp": ONE natural, appropriately-leveled Japanese sentence that actually contains the word (its dictionary form or a natural inflection of it), not just the word in isolation. No furigana or parenthetical readings embedded in the sentence text.
+- "en": a natural English translation of that exact sentence — not a restatement of the word's dictionary definition.
+- Keep both short (roughly 5-15 words) and don't lean on grammar harder than the word's own JLPT level.
+
 Output ONLY raw JSON as an ARRAY of objects:
 [
   {

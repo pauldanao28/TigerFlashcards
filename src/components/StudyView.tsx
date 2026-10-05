@@ -683,37 +683,48 @@ export default function StudyView() {
   // --- 7. AI Sync Logic ---
   useEffect(() => {
     const syncAI = async () => {
-      if (currentCard?.english === "Pending AI Sync") {
-        setAiLoading(true);
-        try {
-          const res = await authedFetch("/api/generate", {
-            method: "POST",
-            body: JSON.stringify({ words: [currentCard.japanese] }),
-          });
-          if (!res.ok) {
-            if (res.status === 429 && !shownGenerateLimitAlertRef.current) {
-              shownGenerateLimitAlertRef.current = true;
-              showAlert("Daily word-generation limit reached — this keeps the app free for everyone. This card (and any others) will sync automatically once the limit resets tomorrow.");
-            }
-            return;
-          }
-          const data = await res.json();
-          const fetched = Array.isArray(data) ? data[0] : data;
+      if (!currentCard) return;
+      // Full placeholder card (nothing real to show yet) — needs the whole row replaced,
+      // so block the card on a loading skeleton while it syncs.
+      const needsFullSync = currentCard.english === "Pending AI Sync";
+      // Otherwise-normal card that's just missing its example sentence (older cards from
+      // before exampleSentence was required, or a generation that returned it empty) —
+      // backfill quietly in the background without disturbing the card on screen.
+      const needsSentenceOnly = !needsFullSync && !currentCard.exampleSentence?.jp?.trim();
+      if (!needsFullSync && !needsSentenceOnly) return;
 
-          await supabase
-            .from("master_cards")
-            .update({ ...fetched })
-            .eq("id", currentCard.id);
-          const updated = { ...currentCard, ...fetched };
-          setCurrentCard(updated);
-          setCards((prev) =>
-            prev.map((c) => (c.id === currentCard.id ? updated : c)),
-          );
-        } catch (e) {
-          console.error(e);
-        } finally {
-          setAiLoading(false);
+      if (needsFullSync) setAiLoading(true);
+      try {
+        const res = await authedFetch("/api/generate", {
+          method: "POST",
+          body: JSON.stringify({ words: [currentCard.japanese] }),
+        });
+        if (!res.ok) {
+          if (res.status === 429 && !shownGenerateLimitAlertRef.current) {
+            shownGenerateLimitAlertRef.current = true;
+            showAlert("Daily word-generation limit reached — this keeps the app free for everyone. This card (and any others) will sync automatically once the limit resets tomorrow.");
+          }
+          return;
         }
+        const data = await res.json();
+        const fetched = Array.isArray(data) ? data[0] : data;
+        // Full sync replaces everything; sentence-only backfill only touches the one
+        // field, so it never silently overwrites english/reading the user already knows.
+        const patch = needsFullSync ? fetched : { exampleSentence: fetched.exampleSentence };
+
+        await supabase
+          .from("master_cards")
+          .update(patch)
+          .eq("id", currentCard.id);
+        const updated = { ...currentCard, ...patch };
+        setCurrentCard(updated);
+        setCards((prev) =>
+          prev.map((c) => (c.id === currentCard.id ? updated : c)),
+        );
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (needsFullSync) setAiLoading(false);
       }
     };
     syncAI();

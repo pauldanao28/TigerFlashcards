@@ -397,10 +397,17 @@ export default function Flashcard({
 
             {/* Footer Area */}
             <div className="mt-auto pt-4 border-t border-indigo-400/50 w-full">
-              {card?.exampleSentence && (
-                <p className="text-xs italic text-indigo-100 opacity-90 mb-4 line-clamp-2 overflow-hidden break-words px-2">
-                  "{card?.exampleSentence.jp}"
-                </p>
+              {card?.exampleSentence?.jp && (
+                <div className="mb-4 px-2 text-center">
+                  <p className="text-base italic text-indigo-50 line-clamp-3 overflow-hidden break-words">
+                    "{card.exampleSentence.jp}"
+                  </p>
+                  {card.exampleSentence.en && (
+                    <p className="text-xs text-indigo-200/80 mt-1 line-clamp-2 overflow-hidden break-words">
+                      {card.exampleSentence.en}
+                    </p>
+                  )}
+                </div>
               )}
 
               <div className="flex justify-center items-center gap-4 relative">
