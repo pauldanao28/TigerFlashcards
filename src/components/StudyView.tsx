@@ -1949,17 +1949,30 @@ export default function StudyView() {
                             {c.reading} • {c.english}
                           </p>
                         </div>
-                        <span
-                          className={`shrink-0 text-[10px] font-black px-2 py-1 rounded-full ${
-                            pct >= 70
-                              ? "bg-emerald-100 text-emerald-700"
-                              : pct >= 40
-                                ? "bg-amber-100 text-amber-700"
-                                : "bg-rose-100 text-rose-700"
-                          }`}
-                        >
-                          {pct}%
-                        </span>
+                        <div className="shrink-0 flex items-center gap-2">
+                          <span
+                            className={`text-[10px] font-black px-2 py-1 rounded-full ${
+                              pct >= 70
+                                ? "bg-emerald-100 text-emerald-700"
+                                : pct >= 40
+                                  ? "bg-amber-100 text-amber-700"
+                                  : "bg-rose-100 text-rose-700"
+                            }`}
+                          >
+                            {pct}%
+                          </span>
+                          <button
+                            onClick={() => togglePriority(c)}
+                            className="p-1.5 rounded-full hover:bg-amber-100 active:scale-90 transition-all"
+                            title={c.is_priority ? "Remove from Priority" : "Add to Priority"}
+                          >
+                            <Star
+                              size={16}
+                              className={c.is_priority ? "text-amber-500" : "text-slate-300"}
+                              fill={c.is_priority ? "currentColor" : "none"}
+                            />
+                          </button>
+                        </div>
                       </div>
                     );
                   })
