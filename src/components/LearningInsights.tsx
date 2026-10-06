@@ -101,9 +101,9 @@ export default function LearningInsights({ isAdmin }: { isAdmin: boolean }) {
   const quizEntries = Object.entries(summary.quizPerformance).sort(([, a], [, b]) => b.sessions - a.sessions);
 
   return (
-    <div className="grid gap-8">
+    <div className="flex flex-col gap-8 w-full min-w-0">
       {/* Overview */}
-      <section>
+      <section className="min-w-0">
         <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Overview</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard label="Total Words" value={summary.totals.totalWords} />
@@ -114,7 +114,7 @@ export default function LearningInsights({ isAdmin }: { isAdmin: boolean }) {
       </section>
 
       {/* Funnel */}
-      <section>
+      <section className="min-w-0">
         <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">New / Learning / Mastered</h3>
         <div className="grid grid-cols-3 gap-4">
           <StatCard label="New" value={summary.funnel.new} sub="never reviewed" />
@@ -124,7 +124,7 @@ export default function LearningInsights({ isAdmin }: { isAdmin: boolean }) {
       </section>
 
       {/* Direction + Streak + Consistency */}
-      <section>
+      <section className="min-w-0">
         <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Recognition vs. Recall</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard label="JP → EN" value={`${summary.direction.jpToEn.avgAccuracy}%`} sub={`${summary.direction.jpToEn.totalReviews} reviews`} />
@@ -135,7 +135,7 @@ export default function LearningInsights({ isAdmin }: { isAdmin: boolean }) {
       </section>
 
       {/* JLPT breakdown */}
-      <section>
+      <section className="min-w-0">
         <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">By JLPT Level</h3>
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
           {(["N5", "N4", "N3", "N2", "N1"] as const).map((lvl) => {
@@ -156,7 +156,7 @@ export default function LearningInsights({ isAdmin }: { isAdmin: boolean }) {
       </section>
 
       {/* Acquisition vs Review velocity */}
-      <section>
+      <section className="min-w-0">
         <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Last 14 Days</h3>
         <div className="grid md:grid-cols-2 gap-4">
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
@@ -176,7 +176,7 @@ export default function LearningInsights({ isAdmin }: { isAdmin: boolean }) {
 
       {/* Part of speech */}
       {posEntries.length > 0 && (
-        <section>
+        <section className="min-w-0">
           <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">By Part of Speech</h3>
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
             {posEntries.map(([pos, d]) => (
@@ -195,7 +195,7 @@ export default function LearningInsights({ isAdmin }: { isAdmin: boolean }) {
       )}
 
       {/* Content coverage + Priority effectiveness */}
-      <section>
+      <section className="min-w-0">
         <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Content & Priority</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard label="Has Example" value={`${summary.contentCoverage.exampleSentencePct}%`} sub="of your deck" />
@@ -207,7 +207,7 @@ export default function LearningInsights({ isAdmin }: { isAdmin: boolean }) {
 
       {/* Quiz performance */}
       {quizEntries.length > 0 && (
-        <section>
+        <section className="min-w-0">
           <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Quiz Performance (30d)</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {quizEntries.map(([type, d]) => (
@@ -219,7 +219,7 @@ export default function LearningInsights({ isAdmin }: { isAdmin: boolean }) {
 
       {/* Weakest words */}
       {summary.weakestWords.length > 0 && (
-        <section>
+        <section className="min-w-0">
           <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Weakest Words</h3>
           <WordList words={summary.weakestWords} badgeClass="bg-rose-100 text-rose-700" />
         </section>
@@ -227,7 +227,7 @@ export default function LearningInsights({ isAdmin }: { isAdmin: boolean }) {
 
       {/* Relapsed words */}
       {summary.relapsedWords.length > 0 && (
-        <section>
+        <section className="min-w-0">
           <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Slipping (Were Strong, Now Below 70%)</h3>
           <WordList words={summary.relapsedWords} badgeClass="bg-amber-100 text-amber-700" />
         </section>
@@ -235,7 +235,7 @@ export default function LearningInsights({ isAdmin }: { isAdmin: boolean }) {
 
       {/* Grammar weak points */}
       {summary.grammarWeakPoints.length > 0 && (
-        <section>
+        <section className="min-w-0">
           <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Grammar Weak Points</h3>
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm divide-y divide-slate-50">
             {summary.grammarWeakPoints.map((g, i) => (
@@ -253,7 +253,7 @@ export default function LearningInsights({ isAdmin }: { isAdmin: boolean }) {
 
       {/* AI narrative — admin only, the one part of this that costs anything */}
       {isAdmin && (
-        <section>
+        <section className="min-w-0">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">AI Analysis</h3>
             <button
