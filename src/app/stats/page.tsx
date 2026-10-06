@@ -2723,7 +2723,9 @@ function StatCard({
         <p className="text-slate-400 text-[10px] font-black uppercase tracking-tighter">
           {label}
         </p>
-        <p className="text-4xl font-black text-slate-800">{value || 0}</p>
+        <p className={`font-black text-slate-800 ${String(value || 0).length >= 6 ? "text-2xl" : String(value || 0).length >= 5 ? "text-3xl" : "text-4xl"}`}>
+          {value || 0}
+        </p>
       </div>
 
       {/* Visual Icon Box */}
