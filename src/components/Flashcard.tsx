@@ -61,7 +61,7 @@ export default function Flashcard({
   onMnemonicGenerated,
 }: FlashcardProps) {
   const t = translations.en;
-  const { showAlert } = useAppAlert();
+  const { showAlert, showConfirm } = useAppAlert();
   //const [flipped, setFlipped] = useState(false);
   const [hasVibrated, setHasVibrated] = useState(false);
   const [isReady, setIsReady] = useState(false);
@@ -270,6 +270,17 @@ export default function Flashcard({
 
   const handleOpenMnemonic = async (e: React.MouseEvent) => {
     e.stopPropagation();
+
+    // Only confirm when this is about to spend an AI call — viewing an already-cached
+    // mnemonic is free, so no need to make the user tap through a dialog for that.
+    if (!card.mnemonic && !mnemonicLoading) {
+      const confirmed = await showConfirm(
+        `Generate a memory aid for ${card.japanese}? This uses one of your daily AI lookups.`,
+        { title: "Remember this kanji?", confirmLabel: "Generate" },
+      );
+      if (!confirmed) return;
+    }
+
     setShowMnemonic(true);
     if (card.mnemonic || mnemonicLoading) return; // already cached or already fetching
 
