@@ -919,6 +919,21 @@ export default function StudyView() {
     [cards, jlptFilter],
   );
 
+  // "Due" has no real schedule to check against (no next_review_at tracking) — it's a
+  // heuristic: anything not yet Mastered (same pass>=5 && percent>=70-in-either-direction
+  // bar used everywhere else in the app, e.g. the Profile page's Mastered/Struggling
+  // split) still needs reps today, whether that's a brand-new card or a weak one.
+  const dueToday = useMemo(() => {
+    return filteredCards.filter((c) => {
+      const jp = c.scores?.jp_to_en;
+      const en = c.scores?.en_to_jp;
+      const isMastered =
+        ((jp?.pass ?? 0) >= MASTERY_MIN_TRIES && (jp?.percent ?? 0) >= 70) ||
+        ((en?.pass ?? 0) >= MASTERY_MIN_TRIES && (en?.percent ?? 0) >= 70);
+      return !isMastered;
+    }).length;
+  }, [filteredCards]);
+
   // Mastery % for the selected N-level (known cards ≥70% in current mode / total at that level)
   const jlptLevelMastery = useMemo(() => {
     if (jlptFilter === "All" || filteredCards.length === 0) return null;
@@ -1545,6 +1560,14 @@ export default function StudyView() {
                 </motion.div>
               )}
             </div>
+
+            {/* Due Today — heuristic count of not-yet-mastered cards, separate from the
+                flat 10-review habit goal above; this one scales with your actual backlog. */}
+            {!dataLoading && cards.length > 0 && (
+              <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest -mt-1">
+                📋 {dueToday} {dueToday === 1 ? "word" : "words"} due today
+              </p>
+            )}
 
             {/* Accuracy info */}
             {!dataLoading && cards.length > 0 && currentCard && (
