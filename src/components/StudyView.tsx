@@ -152,18 +152,14 @@ export default function StudyView() {
     ? parseInt(localStorage.getItem("daily_progress_" + _today) ?? "0", 10) || 0
     : 0;
   const [dailyProgress, setDailyProgress] = useState(Math.min(_storedProgress, DAILY_GOAL));
-  // "Mastered today" has no server-side record of *when* a word crossed the mastery
-  // bar — only its current score state — so like dailyProgress, this is a live event
-  // counter (incremented the instant handleScore detects a mastery transition) persisted
-  // to localStorage per-day, not something reconstructable from current scores alone.
-  const _storedMastered = typeof window !== "undefined"
-    ? parseInt(localStorage.getItem("mastered_today_" + _today) ?? "0", 10) || 0
-    : 0;
-  const [masteredToday, setMasteredToday] = useState(_storedMastered);
-  // Unlike dailyProgress/masteredToday, this one has a real server-side source of
-  // truth (user_review_counts, written by the increment_daily_review RPC) — fetched
-  // on mount below and then bumped optimistically alongside that same RPC call, so
-  // it survives reloads and stays roughly in sync across devices within the day.
+  // Mastered Today and Review Target both have a real server-side source of truth
+  // (user_mastery_counts / user_review_counts, written via RPC) — fetched on mount
+  // below and then bumped optimistically alongside each RPC call, so both survive
+  // reloads and stay roughly in sync across devices within the day. Unlike
+  // dailyProgress (still localStorage-only), there's no reconstructing either from
+  // current card state alone — only the live transition tells you a mastery (or
+  // review) happened "today".
+  const [masteredToday, setMasteredToday] = useState(0);
   const [reviewsToday, setReviewsToday] = useState(0);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
@@ -291,7 +287,7 @@ export default function StudyView() {
     const fetchUserEnvironment = async () => {
       // Fetch Profile & Deck in parallel for speed
       const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
-      const [profileRes, deckRes, reviewCountRes] = await Promise.all([
+      const [profileRes, deckRes, reviewCountRes, masteryCountRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user?.id).maybeSingle(),
         supabase
           .from("decks")
@@ -305,8 +301,15 @@ export default function StudyView() {
           .eq("user_id", user?.id)
           .eq("study_date", sgToday)
           .maybeSingle(),
+        supabase
+          .from("user_mastery_counts")
+          .select("count")
+          .eq("user_id", user?.id)
+          .eq("mastery_date", sgToday)
+          .maybeSingle(),
       ]);
       if (reviewCountRes.data) setReviewsToday(reviewCountRes.data.count);
+      if (masteryCountRes.data) setMasteredToday(masteryCountRes.data.count);
 
       if (profileRes.data) {
         const p = profileRes.data;
@@ -632,11 +635,9 @@ export default function StudyView() {
       const isNowMastered = cardMasteredCheck(newScores);
       if (!wasAlreadyMastered && isNowMastered) {
         setSessionNewMastered((prev) => prev + 1);
-        setMasteredToday((prev) => {
-          const next = prev + 1;
-          localStorage.setItem("mastered_today_" + new Date().toLocaleDateString("en-CA"), String(next));
-          return next;
-        });
+        setMasteredToday((prev) => prev + 1);
+        supabase.rpc("increment_mastery_count", { target_user_id: user.id })
+          .then(({ error }) => { if (error) console.error("Error incrementing mastery count:", error); });
         const level = currentCard.jlpt_level ?? "N5";
         const levelMastered = updatedCards.filter(c => c.jlpt_level === level && cardMasteredCheck(c.scores)).length;
         setCardMasteryToast({ word: currentCard.japanese, level, levelMastered, direction: "up" });
