@@ -14,7 +14,6 @@ import { calculateGlobalStats } from "@/lib/stats";
 import LoadingScreen from "@/components/LoadingScreen";
 import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
 import AddWordsSheet from "@/components/AddWordsSheet";
-import LearningInsights from "@/components/LearningInsights";
 import { List, Plus, Star } from "lucide-react";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
@@ -133,7 +132,6 @@ export default function StatsPage() {
   const [triage, setTriage] = useState<{ packName: string; cards: TriageCard[] } | null>(null);
   const [swipeOnly, setSwipeOnly] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [showAdvancedStats, setShowAdvancedStats] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -1581,23 +1579,18 @@ export default function StatsPage() {
 
           </div>
 
-          {/* Advanced Stats — all live-computed, no AI involved except the admin-only
-              Analyze button inside LearningInsights itself. */}
+          {/* Advanced Stats — separate page, all live-computed (no AI except the
+              admin-only Analyze button inside it). */}
           <div className="mb-10">
-            <button
-              onClick={() => setShowAdvancedStats((v) => !v)}
+            <Link
+              href="/stats/insights"
               className="w-full flex items-center justify-between bg-white px-6 py-4 rounded-2xl shadow-sm border border-slate-100 font-black text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.99]"
             >
               <span className="flex items-center gap-2 text-sm">
                 <span className="text-lg">📈</span> Advanced Stats
               </span>
-              <span className="text-slate-400 text-xs">{showAdvancedStats ? "Hide ▲" : "Show ▼"}</span>
-            </button>
-            {showAdvancedStats && (
-              <div className="mt-4">
-                <LearningInsights isAdmin={isAdmin} />
-              </div>
-            )}
+              <span className="text-slate-400 text-xs">View →</span>
+            </Link>
           </div>
 
           {/* Starter Packs Section */}
