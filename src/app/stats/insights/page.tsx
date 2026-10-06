@@ -38,7 +38,7 @@ export default function AdvancedStatsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
+    <main className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans overflow-x-hidden">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-2xl md:text-3xl font-black text-slate-800 flex items-center gap-3">
