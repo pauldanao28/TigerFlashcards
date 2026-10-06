@@ -183,6 +183,7 @@ export default function StudyView() {
   const [comboToast, setComboToast] = useState<string | null>(null);
   const [milestoneToast, setMilestoneToast] = useState<{ label: string; count: number } | null>(null);
   const [cardMasteryToast, setCardMasteryToast] = useState<{ word: string; level: string; levelMastered: number; direction: "up" | "down" } | null>(null);
+  const [jlptFilterToast, setJlptFilterToast] = useState<string | null>(null);
   const [toastAnimCount, setToastAnimCount] = useState(0);
   const [toastPhase, setToastPhase] = useState<"split" | "merged">("split");
 
@@ -1233,6 +1234,27 @@ export default function StudyView() {
           )}
         </AnimatePresence>
 
+        {/* JLPT Filter Applied Toast — confirms the filter actually changed, since the
+            breakdown modal closes silently otherwise and the effect isn't obvious. */}
+        <AnimatePresence>
+          {jlptFilterToast && (
+            <motion.div
+              initial={{ opacity: 0, y: 80, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 60, scale: 0.92 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-24 md:bottom-12 left-0 md:left-56 right-0 z-[200] flex justify-center pointer-events-none px-6"
+            >
+              <div className="bg-white rounded-3xl shadow-2xl shadow-indigo-100/60 border border-indigo-100 px-6 py-3.5 flex items-center gap-3 max-w-sm w-full">
+                <span className="text-xl shrink-0">🎯</span>
+                <p className="text-slate-800 font-black text-xs uppercase tracking-widest leading-none">
+                  {jlptFilterToast}
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Card Milestone Toast */}
         <AnimatePresence>
           {milestoneToast && (
@@ -1963,10 +1985,13 @@ export default function StudyView() {
               className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[211] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm"
               style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
             >
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-1.5">
                 <p className="text-slate-800 font-black text-sm uppercase tracking-tight">{t.by_level}</p>
                 <button onClick={() => setShowJlptBreakdown(false)} className="text-slate-300 hover:text-slate-500">✕</button>
               </div>
+              <p className="text-[10px] font-bold text-slate-400 mb-4 leading-relaxed">
+                Tap a level to filter what you study. Percentages below show each level&apos;s share of your deck, not mastery.
+              </p>
               {/* Filter chips */}
               <div className="flex gap-2 mb-5 flex-wrap">
                 {(["All", "N5", "N4", "N3", "N2", "N1"] as const).map((lvl) => {
@@ -1975,7 +2000,12 @@ export default function StudyView() {
                   return (
                     <button
                       key={lvl}
-                      onClick={() => { setJlptFilter(lvl); setShowJlptBreakdown(false); }}
+                      onClick={() => {
+                        setJlptFilter(lvl);
+                        setShowJlptBreakdown(false);
+                        setJlptFilterToast(lvl === "All" ? "Studying all levels" : `Now studying ${lvl} only`);
+                        setTimeout(() => setJlptFilterToast(null), 2200);
+                      }}
                       className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
                         isActive
                           ? isAll
