@@ -29,6 +29,7 @@ const DAILY_GOAL = 10;
 const MASTERY_MIN_TRIES = 5;
 const PRIORITY_CAP = 30;
 const MASTERED_GOAL = 20;
+const REVIEW_TARGET = 100;
 
 const JLPT_BAR_COLOR: Record<"N5" | "N4" | "N3" | "N2" | "N1", string> = {
   N5: "bg-emerald-500",
@@ -159,6 +160,11 @@ export default function StudyView() {
     ? parseInt(localStorage.getItem("mastered_today_" + _today) ?? "0", 10) || 0
     : 0;
   const [masteredToday, setMasteredToday] = useState(_storedMastered);
+  // Unlike dailyProgress/masteredToday, this one has a real server-side source of
+  // truth (user_review_counts, written by the increment_daily_review RPC) — fetched
+  // on mount below and then bumped optimistically alongside that same RPC call, so
+  // it survives reloads and stays roughly in sync across devices within the day.
+  const [reviewsToday, setReviewsToday] = useState(0);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -284,7 +290,8 @@ export default function StudyView() {
 
     const fetchUserEnvironment = async () => {
       // Fetch Profile & Deck in parallel for speed
-      const [profileRes, deckRes] = await Promise.all([
+      const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+      const [profileRes, deckRes, reviewCountRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user?.id).maybeSingle(),
         supabase
           .from("decks")
@@ -292,7 +299,14 @@ export default function StudyView() {
           .eq("user_id", user?.id)
           .eq("is_default", true)
           .maybeSingle(),
+        supabase
+          .from("user_review_counts")
+          .select("count")
+          .eq("user_id", user?.id)
+          .eq("study_date", sgToday)
+          .maybeSingle(),
       ]);
+      if (reviewCountRes.data) setReviewsToday(reviewCountRes.data.count);
 
       if (profileRes.data) {
         const p = profileRes.data;
@@ -531,6 +545,7 @@ export default function StudyView() {
       const newSessionStreak = isPass ? sessionStreak + 1 : 0;
       setSessionStreak(newSessionStreak);
       incrementStudyCount();
+      setReviewsToday((prev) => prev + 1);
 
       // Session stats
       setSessionCards((prev) => prev + 1);
@@ -1574,6 +1589,25 @@ export default function StudyView() {
                 </motion.div>
               )}
             </div>
+
+            {/* Review Target — pace gauge for clearing the backlog. Deliberately separate
+                from the Daily Goal bar above: that one stays a low, easy-to-hit 10 because
+                it drives the streak, and a streak only works as a habit tool if missing it
+                is rare. This bar can be missed with zero consequence — it's just a number. */}
+            {!dataLoading && cards.length > 0 && (
+              <div className="flex flex-col items-center -mt-1">
+                <div className="w-24 h-1 bg-slate-200 rounded-full overflow-hidden mb-1.5">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min((reviewsToday / REVIEW_TARGET) * 100, 100)}%` }}
+                    className="h-full bg-indigo-500 transition-all duration-500"
+                  />
+                </div>
+                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                  🔁 {reviewsToday}/{REVIEW_TARGET} reviews today
+                </p>
+              </div>
+            )}
 
             {/* Due Today — heuristic count of not-yet-mastered cards, separate from the
                 flat 10-review habit goal above; this one scales with your actual backlog. */}
