@@ -25,7 +25,10 @@ interface CardRow {
   user_scores: { scores_json: { jp_to_en: ModeStats; en_to_jp: ModeStats } | null; is_priority: boolean | null }[];
 }
 
-const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+// Matches the rest of the app's "today" convention (stats/page.tsx's fetchTodayCount) —
+// increment_daily_review writes study_date in Singapore time, so bucketing in plain UTC
+// would miscount reviews made during SGT's first 8 hours of a new day.
+const dayKey = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
 const daysAgo = (n: number) => {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() - n);
@@ -144,7 +147,13 @@ async function buildSummary(userId: string) {
     .gte("study_date", since30);
   const byDay: Record<string, number> = {};
   for (let i = 0; i < 30; i++) byDay[dayKey(daysAgo(i))] = 0;
-  for (const r of reviewRows ?? []) if (r.study_date in byDay) byDay[r.study_date] = r.count;
+  for (const r of reviewRows ?? []) {
+    // study_date may come back as a bare date ("2026-10-06") or a full timestamp
+    // ("2026-10-06T00:00:00+00:00") depending on the column type — normalize either
+    // way before using it as a key, or every row silently fails to match.
+    const key = String(r.study_date).slice(0, 10);
+    if (key in byDay) byDay[key] = r.count;
+  }
   const last7 = Object.entries(byDay).filter(([d]) => d >= dayKey(daysAgo(6))).reduce((s, [, c]) => s + c, 0);
   const last30 = Object.values(byDay).reduce((s, c) => s + c, 0);
 
