@@ -777,6 +777,21 @@ export default function StudyView() {
     setCurrentCard((prev) => (prev ? applyPatch(prev) : prev));
   }, []);
 
+  // Tap-to-explain for the three goal chips — a hover title does nothing on mobile,
+  // so these are the actual way most users will learn what each number means.
+  const showReviewsHint = () => showAlert(
+    "Every card you grade today — right or wrong — counts toward this. Goal: 100/day, enough to make real progress clearing your backlog.",
+    { title: "🔁 Reviews Today" },
+  );
+  const showStillLearningHint = () => showAlert(
+    "Words that haven't hit Mastered yet (5+ correct passes at 70%+ accuracy). This is your backlog size, not a daily schedule — it only shrinks as words actually get mastered.",
+    { title: "📋 Still Learning" },
+  );
+  const showMasteredHint = () => showAlert(
+    "Words that crossed the Mastered bar today specifically — not just reviewed, actually mastered. Goal: 20/day to stay on pace.",
+    { title: "🎯 Mastered Today" },
+  );
+
   // --- 7. AI Sync Logic ---
   useEffect(() => {
     const syncAI = async () => {
@@ -1324,18 +1339,18 @@ export default function StudyView() {
                   card stays glanceable rather than growing into a second stats block. */}
               {!dataLoading && cards.length > 0 && (
                 <div className="flex items-center justify-between gap-1.5 mt-1 pt-1.5 border-t border-slate-100">
-                  <span className="flex items-center gap-0.5 text-[8px] font-black text-slate-400 tabular-nums" title="Reviews today">
+                  <button onClick={showReviewsHint} className="flex items-center gap-0.5 text-[8px] font-black text-slate-400 tabular-nums active:scale-95 transition-transform">
                     🔁 {reviewsToday}/{REVIEW_TARGET}
-                  </span>
-                  <span className="flex items-center gap-0.5 text-[8px] font-black text-slate-400 tabular-nums" title="Words still learning">
+                  </button>
+                  <button onClick={showStillLearningHint} className="flex items-center gap-0.5 text-[8px] font-black text-slate-400 tabular-nums active:scale-95 transition-transform">
                     📋 {stillLearningCount}
-                  </span>
-                  <span
-                    className={`flex items-center gap-0.5 text-[8px] font-black tabular-nums ${masteredToday >= MASTERED_GOAL ? "text-emerald-500" : "text-slate-400"}`}
-                    title="Mastered today"
+                  </button>
+                  <button
+                    onClick={showMasteredHint}
+                    className={`flex items-center gap-0.5 text-[8px] font-black tabular-nums active:scale-95 transition-transform ${masteredToday >= MASTERED_GOAL ? "text-emerald-500" : "text-slate-400"}`}
                   >
                     🎯 {masteredToday}/{MASTERED_GOAL}
-                  </span>
+                  </button>
                 </div>
               )}
             </div>
@@ -1525,18 +1540,18 @@ export default function StudyView() {
                 {/* Compact goal chips — same metrics as the mobile card, one row. */}
                 {!dataLoading && cards.length > 0 && (
                   <div className="flex items-center justify-between gap-2 mt-0.5 pt-2 border-t border-slate-100">
-                    <span className="flex items-center gap-1 text-[10px] font-black text-slate-400 tabular-nums" title="Reviews today">
+                    <button onClick={showReviewsHint} className="flex items-center gap-1 text-[10px] font-black text-slate-400 tabular-nums hover:text-slate-600 active:scale-95 transition-all">
                       🔁 {reviewsToday}/{REVIEW_TARGET}
-                    </span>
-                    <span className="flex items-center gap-1 text-[10px] font-black text-slate-400 tabular-nums" title="Words still learning">
+                    </button>
+                    <button onClick={showStillLearningHint} className="flex items-center gap-1 text-[10px] font-black text-slate-400 tabular-nums hover:text-slate-600 active:scale-95 transition-all">
                       📋 {stillLearningCount}
-                    </span>
-                    <span
-                      className={`flex items-center gap-1 text-[10px] font-black tabular-nums ${masteredToday >= MASTERED_GOAL ? "text-emerald-500" : "text-slate-400"}`}
-                      title="Mastered today"
+                    </button>
+                    <button
+                      onClick={showMasteredHint}
+                      className={`flex items-center gap-1 text-[10px] font-black tabular-nums active:scale-95 transition-all ${masteredToday >= MASTERED_GOAL ? "text-emerald-500 hover:text-emerald-600" : "text-slate-400 hover:text-slate-600"}`}
                     >
                       🎯 {masteredToday}/{MASTERED_GOAL}
-                    </span>
+                    </button>
                   </div>
                 )}
               </div>
