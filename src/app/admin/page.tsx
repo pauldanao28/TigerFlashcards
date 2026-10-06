@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useAppAlert } from "@/context/AlertContext";
 import { authedFetch } from "@/lib/authedFetch";
 import AdminAnalytics from "@/components/AdminAnalytics";
+import AdminLearningInsights from "@/components/AdminLearningInsights";
 
 export default function AdminDashboard() {
   const t = translations.en;
@@ -14,7 +15,7 @@ export default function AdminDashboard() {
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [activeTab, setActiveTab] = useState<"cards" | "system" | "analytics">("cards");
+  const [activeTab, setActiveTab] = useState<"cards" | "system" | "analytics" | "insights">("cards");
   const [view, setView] = useState<"pending" | "resolved" | "ignored">(
     "pending",
   );
@@ -30,7 +31,7 @@ export default function AdminDashboard() {
   });
 
   const fetchData = useCallback(async () => {
-    if (activeTab === "analytics") return;
+    if (activeTab === "analytics" || activeTab === "insights") return;
     setLoading(true);
 
     if (activeTab === "cards") {
@@ -268,15 +269,21 @@ export default function AdminDashboard() {
           >
             📊 Analytics
           </button>
+          <button
+            onClick={() => setActiveTab("insights")}
+            className={`px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${activeTab === "insights" ? "bg-slate-900 text-white shadow-lg" : "text-slate-500 hover:text-slate-700"}`}
+          >
+            🧠 My Progress
+          </button>
         </div>
 
         {/* HEADER SECTION */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
           <div>
             <h1 className="text-3xl font-black text-slate-800 flex items-center gap-3">
-              {activeTab === "analytics" ? "📊" : "🚩"}{" "}
-              {activeTab === "cards" ? t.admin_title : activeTab === "system" ? "General Feedback" : "Analytics"}
-              {activeTab !== "analytics" && (
+              {activeTab === "analytics" ? "📊" : activeTab === "insights" ? "🧠" : "🚩"}{" "}
+              {activeTab === "cards" ? t.admin_title : activeTab === "system" ? "General Feedback" : activeTab === "insights" ? "My Progress" : "Analytics"}
+              {activeTab !== "analytics" && activeTab !== "insights" && (
                 <span className="text-sm bg-indigo-100 text-indigo-600 px-3 py-1 rounded-full font-bold">
                   {activeTab === "cards"
                     ? reports.length
@@ -286,7 +293,7 @@ export default function AdminDashboard() {
             </h1>
 
             {/* STATUS TOGGLE TABS */}
-            {activeTab !== "analytics" && (
+            {activeTab !== "analytics" && activeTab !== "insights" && (
               <div className="flex gap-1 bg-slate-200/50 p-1 rounded-xl mt-4 w-fit border border-slate-200">
                 <button
                   onClick={() => setView("pending")}
@@ -319,9 +326,10 @@ export default function AdminDashboard() {
         </div>
 
         {activeTab === "analytics" && <AdminAnalytics />}
+        {activeTab === "insights" && <AdminLearningInsights />}
 
         {/* REPORTS LIST */}
-        {activeTab !== "analytics" && (
+        {activeTab !== "analytics" && activeTab !== "insights" && (
         <div className="grid gap-6">
           {activeTab === "cards" ? (
             /* EXISTING CARD REPORTS MAPPING */

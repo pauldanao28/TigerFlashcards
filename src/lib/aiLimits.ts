@@ -14,6 +14,7 @@ export const AI_DAILY_LIMITS = {
   reader_ask: 20,         // "ask about this passage" questions per day
   mnemonic: 20,           // kanji mnemonics generated per day — most taps hit the
                           // master_cards cache and never reach this limit at all
+  learning_insights: 3,   // admin-only "analyze my progress" narrative per day
 } as const;
 
 // Premium gets a higher ceiling, not a bypass — even a paying user shouldn't
@@ -32,6 +33,7 @@ export const AI_DAILY_LIMITS_PREMIUM = {
   reader_annotate: 60,
   reader_ask: 80,
   mnemonic: 60,
+  learning_insights: 10,
 } as const;
 
 export type AiEndpoint = keyof typeof AI_DAILY_LIMITS;
