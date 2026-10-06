@@ -1318,6 +1318,25 @@ export default function StudyView() {
                   )}
                 </div>
               )}
+              {/* Compact goal chips — Review Target, Still Learning, Mastered Today.
+                  Kept to a single row of small icon+number chips (not full bars) so this
+                  card stays glanceable rather than growing into a second stats block. */}
+              {!dataLoading && cards.length > 0 && (
+                <div className="flex items-center justify-between gap-1.5 mt-1 pt-1.5 border-t border-slate-100">
+                  <span className="flex items-center gap-0.5 text-[8px] font-black text-slate-400 tabular-nums" title="Reviews today">
+                    🔁 {reviewsToday}/{REVIEW_TARGET}
+                  </span>
+                  <span className="flex items-center gap-0.5 text-[8px] font-black text-slate-400 tabular-nums" title="Words still learning">
+                    📋 {stillLearningCount}
+                  </span>
+                  <span
+                    className={`flex items-center gap-0.5 text-[8px] font-black tabular-nums ${masteredToday >= MASTERED_GOAL ? "text-emerald-500" : "text-slate-400"}`}
+                    title="Mastered today"
+                  >
+                    🎯 {masteredToday}/{MASTERED_GOAL}
+                  </span>
+                </div>
+              )}
             </div>
             </div>
           </div>
@@ -1502,6 +1521,23 @@ export default function StudyView() {
                     )}
                   </div>
                 )}
+                {/* Compact goal chips — same metrics as the mobile card, one row. */}
+                {!dataLoading && cards.length > 0 && (
+                  <div className="flex items-center justify-between gap-2 mt-0.5 pt-2 border-t border-slate-100">
+                    <span className="flex items-center gap-1 text-[10px] font-black text-slate-400 tabular-nums" title="Reviews today">
+                      🔁 {reviewsToday}/{REVIEW_TARGET}
+                    </span>
+                    <span className="flex items-center gap-1 text-[10px] font-black text-slate-400 tabular-nums" title="Words still learning">
+                      📋 {stillLearningCount}
+                    </span>
+                    <span
+                      className={`flex items-center gap-1 text-[10px] font-black tabular-nums ${masteredToday >= MASTERED_GOAL ? "text-emerald-500" : "text-slate-400"}`}
+                      title="Mastered today"
+                    >
+                      🎯 {masteredToday}/{MASTERED_GOAL}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1591,45 +1627,6 @@ export default function StudyView() {
                 </motion.div>
               )}
             </div>
-
-            {/* Review Target — pace gauge for clearing the backlog. Deliberately separate
-                from the Daily Goal bar above: that one stays a low, easy-to-hit 10 because
-                it drives the streak, and a streak only works as a habit tool if missing it
-                is rare. This bar can be missed with zero consequence — it's just a number. */}
-            {!dataLoading && cards.length > 0 && (
-              <div className="flex flex-col items-center -mt-1">
-                <div className="w-24 h-1 bg-slate-200 rounded-full overflow-hidden mb-1.5">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${Math.min((reviewsToday / REVIEW_TARGET) * 100, 100)}%` }}
-                    className="h-full bg-indigo-500 transition-all duration-500"
-                  />
-                </div>
-                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">
-                  🔁 {reviewsToday}/{REVIEW_TARGET} reviews today
-                </p>
-              </div>
-            )}
-
-            {/* Still Learning — heuristic count of not-yet-mastered cards, separate from
-                the flat 10-review habit goal above; this one scales with your actual backlog. */}
-            {!dataLoading && cards.length > 0 && (
-              <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest -mt-1">
-                📋 {stillLearningCount} {stillLearningCount === 1 ? "word" : "words"} still learning
-              </p>
-            )}
-
-            {/* Mastered Today — live event counter (only increments; see masteredToday
-                comment above), goal is a personal target, not tied to any deadline. */}
-            {!dataLoading && cards.length > 0 && (
-              <p
-                className={`text-[8px] font-black uppercase tracking-widest -mt-1 ${
-                  masteredToday >= MASTERED_GOAL ? "text-emerald-500" : "text-slate-400"
-                }`}
-              >
-                🎯 {masteredToday}/{MASTERED_GOAL} mastered today
-              </p>
-            )}
 
             {/* Accuracy info */}
             {!dataLoading && cards.length > 0 && currentCard && (
