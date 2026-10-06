@@ -14,7 +14,7 @@ import { calculateGlobalStats } from "@/lib/stats";
 import LoadingScreen from "@/components/LoadingScreen";
 import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
 import AddWordsSheet from "@/components/AddWordsSheet";
-import { List, Plus, RotateCcw, Star } from "lucide-react";
+import { List, Plus, Star } from "lucide-react";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
 
@@ -163,9 +163,6 @@ export default function StatsPage() {
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [pendingWordCount, setPendingWordCount] = useState(0);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [cardFetchKey, setCardFetchKey] = useState(0);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const skipNextCardFetch = useRef(false);
   // Safety net: don't let the nav-guard get stuck "busy" forever if this page unmounts
   // some other way (browser back/forward) while a batch upload was mid-flight.
@@ -336,13 +333,12 @@ export default function StatsPage() {
           console.error("Error loading stats:", error);
         } finally {
           setInitLoading(false);
-          setIsRefreshing(false);
         }
       }
     };
 
     initData();
-  }, [user, refreshKey]);
+  }, [user]);
 
   // 2. ONLY fetch cards once we have a valid Deck ID
   useEffect(() => {
@@ -352,7 +348,7 @@ export default function StatsPage() {
       return;
     }
     fetchCards();
-  }, [user, defaultDeckId, cardFetchKey]);
+  }, [user, defaultDeckId]);
 
   const fetchProfile = async () => {
     const { data } = await supabase
@@ -409,13 +405,6 @@ export default function StatsPage() {
       setDeckTitle(tempTitle.trim());
       setIsEditingTitle(false);
     }
-  };
-
-  const handleRefresh = () => {
-    _statsCardsCache = null;
-    setIsRefreshing(true);
-    setRefreshKey((k) => k + 1);
-    setCardFetchKey((k) => k + 1);
   };
 
   const handleLogout = async () => {
@@ -674,6 +663,14 @@ export default function StatsPage() {
 
   const visibleCards = filteredCards.slice(0, displayLimit);
 
+  // Keeps big tries counts (19,095 reviews deep into a word) from blowing out
+  // the fixed-width stat tiles — "19.1K" reads fine at the same size "19095" doesn't.
+  const formatCount = (n: number) => {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+    return String(n);
+  };
+
   const getPosColor = (pos: string) => {
     const p = pos?.toLowerCase() || "";
     if (p.includes("noun")) return "bg-blue-100 text-blue-700 border-blue-200";
@@ -913,16 +910,8 @@ export default function StatsPage() {
             </div>
           </div>
 
-          {/* RIGHT: Refresh + Settings */}
+          {/* RIGHT: Settings */}
           <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              title="Refresh"
-              className="flex items-center justify-center w-10 h-10 bg-white rounded-xl shadow-sm border border-slate-100 text-slate-400 hover:text-slate-600 transition-all active:scale-90 disabled:opacity-40"
-            >
-              <RotateCcw size={14} className={isRefreshing ? "animate-spin" : ""} />
-            </button>
             <button
               onClick={() => setShowSettings(true)}
               className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 font-black text-slate-600 transition-all active:scale-95 h-10 uppercase tracking-widest text-[10px]"
@@ -1513,7 +1502,7 @@ export default function StatsPage() {
                         {t.tries}
                       </p>
                       <p className="text-xl font-black">
-                        {globalStats.jp.tries}
+                        {formatCount(globalStats.jp.tries)}
                       </p>
                     </div>
                     <div>
@@ -1558,7 +1547,7 @@ export default function StatsPage() {
                         {t.tries}
                       </p>
                       <p className="text-xl font-black">
-                        {globalStats.en.tries}
+                        {formatCount(globalStats.en.tries)}
                       </p>
                     </div>
                     <div>

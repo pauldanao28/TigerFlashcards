@@ -247,10 +247,10 @@ export default function AdminDashboard() {
   if (loading) return <LoadingScreen />;
 
   return (
-    <main className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
+    <main className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans overflow-x-hidden">
       <div className="max-w-4xl mx-auto">
         {/* TOP LEVEL NAVIGATION (Cards vs System) */}
-        <div className="flex bg-slate-200/50 p-1.5 rounded-2xl w-fit mb-8 border border-slate-200">
+        <div className="flex flex-wrap gap-1.5 bg-slate-200/50 p-1.5 rounded-2xl w-fit max-w-full mb-8 border border-slate-200">
           <button
             onClick={() => setActiveTab("cards")}
             className={`px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${activeTab === "cards" ? "bg-slate-900 text-white shadow-lg" : "text-slate-500 hover:text-slate-700"}`}
