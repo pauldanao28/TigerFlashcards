@@ -2055,7 +2055,14 @@ export default function StudyView() {
                         className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3"
                       >
                         <div className="min-w-0">
-                          <p className="font-black text-slate-800 text-sm truncate">{c.japanese}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-black text-slate-800 text-sm truncate">{c.japanese}</p>
+                            {c.jlpt_level && (
+                              <span className={`shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-md border uppercase tracking-tighter ${JLPT_BADGE_COLOR[c.jlpt_level]}`}>
+                                {c.jlpt_level}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-slate-400 text-[11px] font-medium truncate">
                             {c.reading} • {c.english}
                           </p>
@@ -2135,7 +2142,14 @@ export default function StudyView() {
                       className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3"
                     >
                       <div className="min-w-0">
-                        <p className="font-black text-slate-800 text-sm truncate">{c.japanese}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-black text-slate-800 text-sm truncate">{c.japanese}</p>
+                          {c.jlpt_level && (
+                            <span className={`shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-md border uppercase tracking-tighter ${JLPT_BADGE_COLOR[c.jlpt_level]}`}>
+                              {c.jlpt_level}
+                            </span>
+                          )}
+                        </div>
                         <p className="text-slate-400 text-[11px] font-medium truncate">
                           {c.reading} • {c.english}
                         </p>
