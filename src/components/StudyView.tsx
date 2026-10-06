@@ -28,6 +28,7 @@ import { Plus, History, Star } from "lucide-react";
 const DAILY_GOAL = 10;
 const MASTERY_MIN_TRIES = 5;
 const PRIORITY_CAP = 30;
+const MASTERED_GOAL = 20;
 
 const JLPT_BAR_COLOR: Record<"N5" | "N4" | "N3" | "N2" | "N1", string> = {
   N5: "bg-emerald-500",
@@ -150,6 +151,14 @@ export default function StudyView() {
     ? parseInt(localStorage.getItem("daily_progress_" + _today) ?? "0", 10) || 0
     : 0;
   const [dailyProgress, setDailyProgress] = useState(Math.min(_storedProgress, DAILY_GOAL));
+  // "Mastered today" has no server-side record of *when* a word crossed the mastery
+  // bar — only its current score state — so like dailyProgress, this is a live event
+  // counter (incremented the instant handleScore detects a mastery transition) persisted
+  // to localStorage per-day, not something reconstructable from current scores alone.
+  const _storedMastered = typeof window !== "undefined"
+    ? parseInt(localStorage.getItem("mastered_today_" + _today) ?? "0", 10) || 0
+    : 0;
+  const [masteredToday, setMasteredToday] = useState(_storedMastered);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -608,6 +617,11 @@ export default function StudyView() {
       const isNowMastered = cardMasteredCheck(newScores);
       if (!wasAlreadyMastered && isNowMastered) {
         setSessionNewMastered((prev) => prev + 1);
+        setMasteredToday((prev) => {
+          const next = prev + 1;
+          localStorage.setItem("mastered_today_" + new Date().toLocaleDateString("en-CA"), String(next));
+          return next;
+        });
         const level = currentCard.jlpt_level ?? "N5";
         const levelMastered = updatedCards.filter(c => c.jlpt_level === level && cardMasteredCheck(c.scores)).length;
         setCardMasteryToast({ word: currentCard.japanese, level, levelMastered, direction: "up" });
@@ -1566,6 +1580,18 @@ export default function StudyView() {
             {!dataLoading && cards.length > 0 && (
               <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest -mt-1">
                 📋 {dueToday} {dueToday === 1 ? "word" : "words"} due today
+              </p>
+            )}
+
+            {/* Mastered Today — live event counter (only increments; see masteredToday
+                comment above), goal is a personal target, not tied to any deadline. */}
+            {!dataLoading && cards.length > 0 && (
+              <p
+                className={`text-[8px] font-black uppercase tracking-widest -mt-1 ${
+                  masteredToday >= MASTERED_GOAL ? "text-emerald-500" : "text-slate-400"
+                }`}
+              >
+                🎯 {masteredToday}/{MASTERED_GOAL} mastered today
               </p>
             )}
 
