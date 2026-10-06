@@ -32,10 +32,15 @@ const MiniBars = ({ byDay, color }: { byDay: Record<string, number>; color: stri
   const days = Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).slice(-14);
   const max = Math.max(1, ...days.map(([, v]) => v));
   return (
-    <div className="flex items-end gap-1.5 h-20">
+    <div className="flex items-end gap-1.5">
       {days.map(([day, count]) => (
-        <div key={day} className="flex-1 flex flex-col items-center justify-end gap-1" title={`${day}: ${count}`}>
-          <div className={`w-full ${color} rounded-t-md min-h-[2px]`} style={{ height: `${(count / max) * 100}%` }} />
+        <div key={day} className="flex-1 flex flex-col items-center gap-1" title={`${day}: ${count}`}>
+          {/* The bar's height is a % of this box — it needs an explicit pixel height
+              to resolve against; a % height on a child of an auto-sized (shrink-to-fit)
+              flex item just collapses to 0, which is why these bars were rendering flat. */}
+          <div className="w-full h-16 flex items-end">
+            <div className={`w-full ${color} rounded-t-md min-h-[2px]`} style={{ height: `${(count / max) * 100}%` }} />
+          </div>
           <span className="text-[8px] text-slate-300 font-bold">{day.slice(5)}</span>
         </div>
       ))}
