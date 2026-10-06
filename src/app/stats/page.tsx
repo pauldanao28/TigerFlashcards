@@ -1524,7 +1524,7 @@ export default function StatsPage() {
                         {t.pass}
                       </p>
                       <p className="text-xl font-black text-emerald-400">
-                        {globalStats.jp.pass}
+                        {formatCount(globalStats.jp.pass)}
                       </p>
                     </div>
                   </div>
@@ -1569,7 +1569,7 @@ export default function StatsPage() {
                         {t.pass}
                       </p>
                       <p className="text-xl font-black text-emerald-400">
-                        {globalStats.en.pass}
+                        {formatCount(globalStats.en.pass)}
                       </p>
                     </div>
                   </div>
