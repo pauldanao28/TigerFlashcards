@@ -15,6 +15,18 @@ export interface MasterCard {
   alternatives?: string[];
   is_public: boolean;
   created_at: string;
+  mnemonic?: KanjiMnemonic | null;
+}
+
+export interface KanjiMnemonicEntry {
+  character: string;
+  radicals: string;
+  story: string;
+}
+
+export interface KanjiMnemonic {
+  entries: KanjiMnemonicEntry[];
+  origin?: string;
 }
 
 // 2. The Personal Progress (from user_scores table)

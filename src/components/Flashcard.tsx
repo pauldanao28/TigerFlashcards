@@ -1,12 +1,18 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { motion, useMotionValue, useTransform } from "framer-motion";
-import { Star } from "lucide-react";
-import { FlashcardData } from "@/lib/types";
+import { Star, Lightbulb, Loader2, X } from "lucide-react";
+import { FlashcardData, KanjiMnemonic } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { translations } from "@/lib/languages";
 import { speak } from "@/lib/tts";
 import { useAppAlert } from "@/context/AlertContext";
+import { authedFetch } from "@/lib/authedFetch";
+
+// Only kanji carry a radical/origin story worth explaining — hiragana, katakana,
+// and punctuation in the word (okurigana, particles) don't.
+const KANJI_RE = /[一-鿿]/;
 
 const JLPT_BADGE_COLOR: Record<string, string> = {
   N5: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -29,6 +35,7 @@ interface FlashcardProps {
   audioPulse?: number;
   isPriority?: boolean;
   onTogglePriority?: () => void;
+  onMnemonicGenerated?: (cardId: string, mnemonic: KanjiMnemonic) => void;
 }
 
 const triggerHaptic = (ms = 10) => {
@@ -51,12 +58,16 @@ export default function Flashcard({
   audioPulse,
   isPriority,
   onTogglePriority,
+  onMnemonicGenerated,
 }: FlashcardProps) {
   const t = translations.en;
   const { showAlert } = useAppAlert();
   //const [flipped, setFlipped] = useState(false);
   const [hasVibrated, setHasVibrated] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  const [showMnemonic, setShowMnemonic] = useState(false);
+  const [mnemonicLoading, setMnemonicLoading] = useState(false);
+  const [mnemonicError, setMnemonicError] = useState<string | null>(null);
 
   // 1. Setup Motion Values for Swipe
   const x = useMotionValue(0);
@@ -257,6 +268,34 @@ export default function Flashcard({
     }
   };
 
+  const handleOpenMnemonic = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowMnemonic(true);
+    if (card.mnemonic || mnemonicLoading) return; // already cached or already fetching
+
+    setMnemonicLoading(true);
+    setMnemonicError(null);
+    try {
+      const res = await authedFetch("/api/mnemonic", {
+        method: "POST",
+        body: JSON.stringify({ japanese: card.japanese, reading: card.reading, english: card.english }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMnemonicError(data.error || "Couldn't generate a mnemonic right now.");
+        return;
+      }
+      const mnemonic: KanjiMnemonic = { entries: data.entries, origin: data.origin };
+      // Cache on the shared card row — same mnemonic for every user who studies this word.
+      await supabase.from("master_cards").update({ mnemonic }).eq("id", card.id);
+      onMnemonicGenerated?.(card.id, mnemonic);
+    } catch {
+      setMnemonicError("Couldn't generate a mnemonic right now.");
+    } finally {
+      setMnemonicLoading(false);
+    }
+  };
+
   const getFontSize = (text: string, isJapanese: boolean) => {
     const len = text.length;
     if (isJapanese) {
@@ -299,6 +338,7 @@ export default function Flashcard({
   const isBackJapanese = card ? backText === card.japanese : false;
 
   return (
+    <>
     <div className="w-full max-w-[320px] h-full [perspective:1000px] touch-none mx-auto">
       <motion.div
         style={{ x, rotate, opacity }}
@@ -436,6 +476,16 @@ export default function Flashcard({
                   🔊
                 </button>
 
+                {card?.japanese && KANJI_RE.test(card.japanese) && (
+                  <button
+                    onClick={handleOpenMnemonic}
+                    className="p-3 bg-white/10 hover:bg-white/20 rounded-full transition-all border border-white/20 active:scale-95"
+                    title="Remember this kanji"
+                  >
+                    <Lightbulb size={18} />
+                  </button>
+                )}
+
                 <button
                   onClick={handleReport}
                   className="absolute right-[-10px] bottom-[-10px] text-[9px] font-black uppercase tracking-widest text-indigo-300/40 hover:text-white transition-colors p-2"
@@ -448,5 +498,58 @@ export default function Flashcard({
         </motion.div>
       </motion.div>
     </div>
+
+    {/* Rendered via portal — the drag/flip motion.divs above apply CSS transforms,
+        which would otherwise hijack position:fixed on any descendant and anchor
+        this modal to the card instead of the viewport. */}
+    {showMnemonic && typeof document !== "undefined" && createPortal(
+      <>
+        <div className="fixed inset-0 z-[300] bg-black/40" onClick={() => setShowMnemonic(false)} />
+        <div
+          className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[301] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm max-h-[80vh] overflow-y-auto"
+          style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+        >
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2">
+              <Lightbulb size={16} className="text-amber-500" />
+              <p className="text-slate-800 font-black text-sm uppercase tracking-tight">Remember this kanji</p>
+            </div>
+            <button onClick={() => setShowMnemonic(false)} className="text-slate-300 hover:text-slate-500 shrink-0">
+              <X size={18} />
+            </button>
+          </div>
+
+          {mnemonicLoading && (
+            <div className="flex items-center gap-2 text-sm text-slate-400 py-6 justify-center">
+              <Loader2 size={16} className="animate-spin" />
+              <span>Thinking of a way to remember it…</span>
+            </div>
+          )}
+
+          {!mnemonicLoading && mnemonicError && (
+            <p className="text-center text-rose-500 text-xs font-bold py-6">{mnemonicError}</p>
+          )}
+
+          {!mnemonicLoading && !mnemonicError && card.mnemonic && (
+            <div className="space-y-4">
+              {card.mnemonic.entries.map((entry, i) => (
+                <div key={i} className="bg-slate-50 rounded-2xl p-4">
+                  <p className="text-3xl font-black text-slate-800 mb-1">{entry.character}</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-1.5">
+                    {entry.radicals}
+                  </p>
+                  <p className="text-sm text-slate-600 leading-snug">{entry.story}</p>
+                </div>
+              ))}
+              {card.mnemonic.origin && (
+                <p className="text-xs text-slate-400 italic leading-snug pt-1">{card.mnemonic.origin}</p>
+              )}
+            </div>
+          )}
+        </div>
+      </>,
+      document.body,
+    )}
+    </>
   );
 }

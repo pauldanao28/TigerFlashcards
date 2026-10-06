@@ -738,6 +738,15 @@ export default function StudyView() {
     setCurrentCard((prev) => (prev ? applyPatch(prev) : prev));
   }, [user, cards]);
 
+  // Flashcard caches a freshly-generated mnemonic onto master_cards itself (shared
+  // across users), but local state needs the same patch so re-opening it on this
+  // card doesn't re-fetch, and so the fix carries over if the user flips back.
+  const handleMnemonicGenerated = useCallback((cardId: string, mnemonic: FlashcardData["mnemonic"]) => {
+    const applyPatch = (c: FlashcardData) => (c.id === cardId ? { ...c, mnemonic } : c);
+    setCards((prev) => prev.map(applyPatch));
+    setCurrentCard((prev) => (prev ? applyPatch(prev) : prev));
+  }, []);
+
   // --- 7. AI Sync Logic ---
   useEffect(() => {
     const syncAI = async () => {
@@ -1625,6 +1634,7 @@ export default function StudyView() {
                     audioPulse={audioPulse}
                     isPriority={!!currentCard.is_priority}
                     onTogglePriority={() => togglePriority(currentCard)}
+                    onMnemonicGenerated={handleMnemonicGenerated}
                   />
                 ) : !dataLoading && cards.length === 0 && hasLoadedOnce ? (
                   <div className="w-full h-full flex flex-col items-center justify-center bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 p-8 text-center">
