@@ -24,7 +24,7 @@ import ListeningQuiz from "@/components/ListeningQuiz";
 import AddWordsSheet from "@/components/AddWordsSheet";
 import { FlashcardData, KanjiMnemonic } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, History, Star, TrendingDown, Lightbulb, Loader2, X } from "lucide-react";
+import { Plus, History, Star, TrendingDown, Lightbulb, Loader2, X, Menu } from "lucide-react";
 const DAILY_GOAL = 10;
 const MASTERY_MIN_TRIES = 5;
 const PRIORITY_CAP = 30;
@@ -174,6 +174,7 @@ export default function StudyView() {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showWeakModal, setShowWeakModal] = useState(false);
+  const [showQuickMenu, setShowQuickMenu] = useState(false);
   // Mnemonic sheet nested inside the Weak Words modal — same generate/cache logic as
   // Flashcard.tsx's "Remember this kanji" button on the card back, just reachable
   // without having to find the word during study first.
@@ -1468,46 +1469,66 @@ export default function StudyView() {
                 </span>
               </button>
             </div>
-            {/* Split across two rows — four icon buttons in one row overflowed the
-                viewport on mobile (the FAB was getting clipped off the right edge). */}
-            <div className="flex flex-col gap-2 items-end">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowHistoryModal(true)}
-                  className="flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
-                  title="Recently Reviewed"
-                >
-                  <History size={18} className="text-slate-500" />
-                </button>
-                <button
-                  onClick={() => setShowPriorityModal(true)}
-                  className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
-                  title="Priority Words"
-                >
-                  <Star size={18} className="text-amber-500" fill={cards.some((c) => c.is_priority) ? "currentColor" : "none"} />
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowWeakModal(true)}
-                  className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
-                  title="Weak Words"
-                >
-                  <TrendingDown size={18} className="text-rose-500" />
-                </button>
-                <motion.button
-                  onClick={() => setIsQuickAddOpen(true)}
-                  whileTap={{ scale: 0.88 }}
-                  className="relative w-11 h-11 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300/50 flex items-center justify-center"
-                >
-                  <Plus size={20} strokeWidth={2.5} />
-                  {pendingWordCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
-                      {pendingWordCount}
-                    </span>
-                  )}
-                </motion.button>
-              </div>
+            {/* Collapsed behind a single trigger — tap to drop the 4 actions down
+                vertically instead of always showing all of them at once. */}
+            <div className="flex flex-col items-end gap-2">
+              <button
+                onClick={() => setShowQuickMenu((v) => !v)}
+                className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
+                title="More"
+              >
+                {showQuickMenu ? <X size={18} className="text-slate-500" /> : <Menu size={18} className="text-slate-500" />}
+                {!showQuickMenu && pendingWordCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                    {pendingWordCount}
+                  </span>
+                )}
+              </button>
+              <AnimatePresence>
+                {showQuickMenu && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex flex-col items-end gap-2 overflow-hidden"
+                  >
+                    <button
+                      onClick={() => { setShowHistoryModal(true); setShowQuickMenu(false); }}
+                      className="flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
+                      title="Recently Reviewed"
+                    >
+                      <History size={18} className="text-slate-500" />
+                    </button>
+                    <button
+                      onClick={() => { setShowPriorityModal(true); setShowQuickMenu(false); }}
+                      className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
+                      title="Priority Words"
+                    >
+                      <Star size={18} className="text-amber-500" fill={cards.some((c) => c.is_priority) ? "currentColor" : "none"} />
+                    </button>
+                    <button
+                      onClick={() => { setShowWeakModal(true); setShowQuickMenu(false); }}
+                      className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
+                      title="Weak Words"
+                    >
+                      <TrendingDown size={18} className="text-rose-500" />
+                    </button>
+                    <motion.button
+                      onClick={() => { setIsQuickAddOpen(true); setShowQuickMenu(false); }}
+                      whileTap={{ scale: 0.88 }}
+                      className="relative w-11 h-11 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300/50 flex items-center justify-center"
+                    >
+                      <Plus size={20} strokeWidth={2.5} />
+                      {pendingWordCount > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                          {pendingWordCount}
+                        </span>
+                      )}
+                    </motion.button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </div>
@@ -1540,40 +1561,64 @@ export default function StudyView() {
                 </span>
               </button>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col items-end gap-3">
               <button
-                onClick={() => setShowHistoryModal(true)}
-                className="flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
-                title="Recently Reviewed"
-              >
-                <History size={20} className="text-slate-500" />
-              </button>
-              <button
-                onClick={() => setShowPriorityModal(true)}
+                onClick={() => setShowQuickMenu((v) => !v)}
                 className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
-                title="Priority Words"
+                title="More"
               >
-                <Star size={20} className="text-amber-500" fill={cards.some((c) => c.is_priority) ? "currentColor" : "none"} />
-              </button>
-              <button
-                onClick={() => setShowWeakModal(true)}
-                className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
-                title="Weak Words"
-              >
-                <TrendingDown size={20} className="text-rose-500" />
-              </button>
-              <motion.button
-                onClick={() => setIsQuickAddOpen(true)}
-                whileTap={{ scale: 0.88 }}
-                className="relative w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300/50 flex items-center justify-center hover:scale-105 transition-all"
-              >
-                <Plus size={22} strokeWidth={2.5} />
-                {pendingWordCount > 0 && (
+                {showQuickMenu ? <X size={20} className="text-slate-500" /> : <Menu size={20} className="text-slate-500" />}
+                {!showQuickMenu && pendingWordCount > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
                     {pendingWordCount}
                   </span>
                 )}
-              </motion.button>
+              </button>
+              <AnimatePresence>
+                {showQuickMenu && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex flex-col items-end gap-3 overflow-hidden"
+                  >
+                    <button
+                      onClick={() => { setShowHistoryModal(true); setShowQuickMenu(false); }}
+                      className="flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+                      title="Recently Reviewed"
+                    >
+                      <History size={20} className="text-slate-500" />
+                    </button>
+                    <button
+                      onClick={() => { setShowPriorityModal(true); setShowQuickMenu(false); }}
+                      className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+                      title="Priority Words"
+                    >
+                      <Star size={20} className="text-amber-500" fill={cards.some((c) => c.is_priority) ? "currentColor" : "none"} />
+                    </button>
+                    <button
+                      onClick={() => { setShowWeakModal(true); setShowQuickMenu(false); }}
+                      className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+                      title="Weak Words"
+                    >
+                      <TrendingDown size={20} className="text-rose-500" />
+                    </button>
+                    <motion.button
+                      onClick={() => { setIsQuickAddOpen(true); setShowQuickMenu(false); }}
+                      whileTap={{ scale: 0.88 }}
+                      className="relative w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300/50 flex items-center justify-center hover:scale-105 transition-all"
+                    >
+                      <Plus size={22} strokeWidth={2.5} />
+                      {pendingWordCount > 0 && (
+                        <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                          {pendingWordCount}
+                        </span>
+                      )}
+                    </motion.button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
           <div className="flex items-center gap-6 h-14">
