@@ -3,6 +3,8 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAppAlert } from "@/context/AlertContext";
+import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
 
 interface OnboardingProps {
   userId: string;
@@ -15,6 +17,7 @@ export default function OnboardingModal({
   defaultName,
   onComplete,
 }: OnboardingProps) {
+  const { showAlert } = useAppAlert();
   const [step, setStep] = useState(1); // 1: Name, 2: Path Selection
   const [name, setName] = useState(defaultName || "");
   const [loading, setLoading] = useState(false);
@@ -87,7 +90,7 @@ export default function OnboardingModal({
       const { data, error: fetchError } = await supabase
         .from("profiles")
         .select("id")
-        .eq("full_name", trimmedName)
+        .ilike("full_name", trimmedName)
         .maybeSingle();
 
       if (fetchError) throw fetchError;
@@ -120,17 +123,40 @@ export default function OnboardingModal({
 
       const n5Words = pack.card_data as any[];
 
-      // Upsert cards and get IDs
-      const { data: uploadedCards, error: mErr } = await supabase
-        .from("master_cards")
-        .upsert(
-          n5Words.map((w) => ({ ...w, creator_id: userId })),
-          { onConflict: "japanese" },
-        )
-        .select("id");
+      // Reuse existing master_cards rows untouched (master_cards is a shared
+      // library — another user may have already added one of these words),
+      // only inserting genuinely new ones, normalized on the way in.
+      const CHUNK = 150;
+      const existingByJapanese = new Map<string, { id: string }>();
+      for (let i = 0; i < n5Words.length; i += CHUNK) {
+        const chunk = n5Words.slice(i, i + CHUNK).map((w) => w.japanese);
+        const { data: existing } = await supabase
+          .from("master_cards")
+          .select("id, japanese")
+          .in("japanese", chunk);
+        (existing ?? []).forEach((row) => existingByJapanese.set(row.japanese, row));
+      }
 
-      if (mErr || !uploadedCards) throw mErr;
-      const cardIds = uploadedCards.map((c) => c.id);
+      const newWords = n5Words.filter((w) => !existingByJapanese.has(w.japanese));
+      let insertedCards: { id: string }[] = [];
+      if (newWords.length > 0) {
+        const { data: inserted, error: mErr } = await supabase
+          .from("master_cards")
+          .insert(
+            newWords.map((w) => ({
+              ...w,
+              english: typeof w.english === "string" ? normalizeEnglish(w.english) : w.english,
+              reading: typeof w.reading === "string" ? stripParens(w.reading) : w.reading,
+              partOfSpeech: typeof w.partOfSpeech === "string" ? normalizePartOfSpeech(w.partOfSpeech) : w.partOfSpeech,
+              creator_id: userId,
+            })),
+          )
+          .select("id");
+        if (mErr || !inserted) throw mErr;
+        insertedCards = inserted;
+      }
+
+      const cardIds = [...existingByJapanese.values(), ...insertedCards].map((c) => c.id);
 
       // Create Default Deck
       const { data: deck, error: dErr } = await supabase
@@ -152,7 +178,10 @@ export default function OnboardingModal({
           cardIds.map((id) => ({
             user_id: userId,
             card_id: id,
-            scores_json: { jp_to_en: { percent: 0 }, en_to_jp: { percent: 0 } },
+            scores_json: {
+              jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
+              en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
+            },
           })),
         ),
       ]);
@@ -171,7 +200,7 @@ export default function OnboardingModal({
 
       onComplete(true);
     } catch (error: any) {
-      alert(error.message);
+      showAlert(error.message);
     } finally {
       setLoading(false);
     }
@@ -194,10 +223,10 @@ export default function OnboardingModal({
         })
         .eq("id", userId);
 
-      onComplete(false);
+      localStorage.setItem("show_first_timer_hint", "true");
       router.push("/stats");
     } catch (err) {
-      alert("Initialization failed.");
+      showAlert("Initialization failed.");
     } finally {
       setLoading(false);
     }

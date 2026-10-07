@@ -1,66 +1,273 @@
 "use client";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
-import { useLang } from "@/context/LanguageContext";
+import { translations } from "@/lib/languages";
 import { calculateGlobalStats } from "@/lib/stats";
 import { processReferral } from "@/lib/social";
+import { rollingAvg, vocabMastery, JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
+import { useFriends } from "@/hooks/useFriends";
+import { authedFetch } from "@/lib/authedFetch";
+import { useAppAlert } from "@/context/AlertContext";
 
 import Auth from "@/components/Auth";
 import Logo from "@/components/Logo";
 import Flashcard from "@/components/Flashcard";
-import LanguageToggle from "@/components/LanguageToggle";
 import OnboardingModal from "@/components/OnboardingModal";
 import LoadingScreen from "@/components/LoadingScreen";
 import CoachMarks from "@/components/CoachMarks";
 import { SocialDock } from "@/components/SocialDock";
-import { FlashcardData } from "@/lib/types";
+import SentenceQuiz from "@/components/SentenceQuiz";
+import ListeningQuiz from "@/components/ListeningQuiz";
+import AddWordsSheet from "@/components/AddWordsSheet";
+import { FlashcardData, KanjiMnemonic } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
+import { Plus, History, Star, TrendingDown, Lightbulb, Loader2, X, Menu } from "lucide-react";
 const DAILY_GOAL = 10;
+const MASTERY_MIN_TRIES = 5;
+const PRIORITY_CAP = 30;
+const MASTERED_GOAL = 20;
+const REVIEW_TARGET = 100;
+// Same regex as Flashcard.tsx's "Remember this kanji" gate — only kanji carry a
+// radical/origin story worth generating a mnemonic for.
+const KANJI_RE = /[一-鿿]/;
+
+const JLPT_BAR_COLOR: Record<"N5" | "N4" | "N3" | "N2" | "N1", string> = {
+  N5: "bg-emerald-500",
+  N4: "bg-teal-500",
+  N3: "bg-amber-500",
+  N2: "bg-orange-500",
+  N1: "bg-rose-500",
+};
+const JLPT_BAR_LIGHT_COLOR: Record<"N5" | "N4" | "N3" | "N2" | "N1", string> = {
+  N5: "bg-emerald-200",
+  N4: "bg-teal-200",
+  N3: "bg-amber-200",
+  N2: "bg-orange-200",
+  N1: "bg-rose-200",
+};
+const JLPT_BADGE_COLOR: Record<"N5" | "N4" | "N3" | "N2" | "N1", string> = {
+  N5: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  N4: "bg-teal-100 text-teal-700 border-teal-200",
+  N3: "bg-amber-100 text-amber-700 border-amber-200",
+  N2: "bg-orange-100 text-orange-700 border-orange-200",
+  N1: "bg-rose-100 text-rose-700 border-rose-200",
+};
+
+interface StudyCacheEntry {
+  userId: string;
+  cards: FlashcardData[];
+  deckId: string | null;
+  currentCard: FlashcardData | null;
+}
+let _studyCache: StudyCacheEntry | null = null;
+
+function getNextPriorityCard(
+  allCards: FlashcardData[],
+  lang: "jp" | "en",
+  lastCardId?: string,
+): FlashcardData | null {
+  if (allCards.length === 0) return null;
+  const mode = lang === "jp" ? "jp_to_en" : "en_to_jp";
+
+  const getScore = (c: FlashcardData) => c.scores?.[mode]?.percent || 0;
+  const getTries = (c: FlashcardData) => c.scores?.[mode]?.total || 0;
+
+  // Priority words get a strong (not absolute) pull toward the front of rotation,
+  // independent of their actual score — that's the whole point of starring one.
+  const priorityCards = allCards.filter((c) => c.is_priority && c.id !== lastCardId);
+  if (priorityCards.length > 0 && Math.random() < 0.4) {
+    return priorityCards[Math.floor(Math.random() * priorityCards.length)];
+  }
+
+  const sorted = [...allCards].sort((a, b) => getScore(a) - getScore(b));
+  const weakestCards = sorted.slice(0, 10);
+  const weakestIds = new Set(weakestCards.map((c) => c.id));
+
+  const easyCards = allCards.filter(
+    (c) => getScore(c) >= 80 && getTries(c) >= 5,
+  );
+  const easyIds = new Set(easyCards.map((c) => c.id));
+
+  const almostMasteredCards = allCards.filter(
+    (c) => !weakestIds.has(c.id) && !easyIds.has(c.id) && getScore(c) >= 60 && getTries(c) >= 3,
+  );
+  const almostIds = new Set(almostMasteredCards.map((c) => c.id));
+
+  const regularCards = allCards.filter(
+    (c) => !weakestIds.has(c.id) && !easyIds.has(c.id) && !almostIds.has(c.id),
+  );
+
+  // weights: 50% weakest, 20% almost mastered, 25% regular, 5% easy
+  // if almost mastered is empty, shift its 20% to weakest → 70/25/5
+  const almostThreshold = almostMasteredCards.length ? 0.70 : 0.50;
+  const roll = Math.random();
+  let pool =
+    roll < 0.50 && weakestCards.length
+      ? weakestCards
+      : roll < almostThreshold && almostMasteredCards.length
+        ? almostMasteredCards
+        : roll < 0.95 && regularCards.length
+          ? regularCards
+          : easyCards.length
+            ? easyCards
+            : allCards;
+
+  const filtered = pool.filter((c) => c.id !== lastCardId);
+  return filtered.length
+    ? filtered[Math.floor(Math.random() * filtered.length)]
+    : allCards[0];
+}
+
+// Combined pass-rate across both study directions, for a single at-a-glance score.
+function cardOverallPercent(c: FlashcardData): number {
+  const jp = c.scores?.jp_to_en;
+  const en = c.scores?.en_to_jp;
+  const pass = (jp?.pass || 0) + (en?.pass || 0);
+  const total = (jp?.total || 0) + (en?.total || 0);
+  return total > 0 ? Math.round((pass / total) * 100) : 0;
+}
 
 export default function StudyView() {
   const { user, loading } = useAuth();
+  const { showAlert, showConfirm } = useAppAlert();
+  const shownGenerateLimitAlertRef = useRef(false);
   // --- 1. State Management ---
   const [hasOnboarded, setHasOnboarded] = useState<boolean | null>(null);
 
-  const [cards, setCards] = useState<FlashcardData[]>([]);
-  const [currentCard, setCurrentCard] = useState<FlashcardData | null>(null);
-  const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
+  const cached = _studyCache?.userId === user?.id ? _studyCache : null;
+  const hasCachedData = !!cached && cached.cards.length > 0;
+  const [cards, setCards] = useState<FlashcardData[]>(() => cached?.cards ?? []);
+  const [currentCard, setCurrentCard] = useState<FlashcardData | null>(() => cached?.currentCard ?? null);
+  const [defaultDeckId, setDefaultDeckId] = useState<string | null>(() => cached?.deckId ?? null);
 
-  const [dataLoading, setDataLoading] = useState(true); // Cards loading
+  const [dataLoading, setDataLoading] = useState(!hasCachedData);
   const [aiLoading, setAiLoading] = useState(false); // AI Syncing
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(hasCachedData);
 
   const [language, setLanguage] = useState<"en" | "jp">("jp");
   const [streak, setStreak] = useState(0);
   const [sessionStreak, setSessionStreak] = useState(0);
-  const [dailyProgress, setDailyProgress] = useState(0);
+  const _today = new Date().toLocaleDateString("en-CA");
+  const _storedProgress = typeof window !== "undefined"
+    ? parseInt(localStorage.getItem("daily_progress_" + _today) ?? "0", 10) || 0
+    : 0;
+  const [dailyProgress, setDailyProgress] = useState(Math.min(_storedProgress, DAILY_GOAL));
+  // Mastered Today and Review Target both have a real server-side source of truth
+  // (user_mastery_counts / user_review_counts, written via RPC) — fetched on mount
+  // below and then bumped optimistically alongside each RPC call, so both survive
+  // reloads and stay roughly in sync across devices within the day. Unlike
+  // dailyProgress (still localStorage-only), there's no reconstructing either from
+  // current card state alone — only the live transition tells you a mastery (or
+  // review) happened "today".
+  const [masteredToday, setMasteredToday] = useState(0);
+  const [reviewsToday, setReviewsToday] = useState(0);
   const [profileName, setProfileName] = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isSocialOpen, setIsSocialOpen] = useState(false);
-  const [friends, setFriends] = useState<any[]>([]);
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [pendingWordCount, setPendingWordCount] = useState(0);
+  const [blocklist, setBlocklist] = useState<string[]>([]);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showPriorityModal, setShowPriorityModal] = useState(false);
+  const [showWeakModal, setShowWeakModal] = useState(false);
+  const [showQuickMenu, setShowQuickMenu] = useState(false);
+  // Mnemonic sheet nested inside the Weak Words modal — same generate/cache logic as
+  // Flashcard.tsx's "Remember this kanji" button on the card back, just reachable
+  // without having to find the word during study first.
+  const [weakMnemonicCard, setWeakMnemonicCard] = useState<FlashcardData | null>(null);
+  const [weakMnemonicLoading, setWeakMnemonicLoading] = useState(false);
+  const [weakMnemonicError, setWeakMnemonicError] = useState<string | null>(null);
+  const { friends, fetchFriends } = useFriends();
+  const [showStreakBanner, setShowStreakBanner] = useState(false);
+  const [goalStreak, setGoalStreak] = useState(0);
+  const [sessionCards, setSessionCards] = useState(0);
+  const [sessionPass, setSessionPass] = useState(0);
+  const [sessionNewMastered, setSessionNewMastered] = useState(0);
+  const [showRecap, setShowRecap] = useState(false);
+  const [recapAnimCards, setRecapAnimCards] = useState(0);
+  const [recapAnimAccuracy, setRecapAnimAccuracy] = useState(0);
+  const [recapAnimMastered, setRecapAnimMastered] = useState(0);
+  const [comboToast, setComboToast] = useState<string | null>(null);
+  const [milestoneToast, setMilestoneToast] = useState<{ label: string; count: number } | null>(null);
+  const [cardMasteryToast, setCardMasteryToast] = useState<{ word: string; level: string; levelMastered: number; direction: "up" | "down" } | null>(null);
+  const [jlptFilterToast, setJlptFilterToast] = useState<string | null>(null);
+  const [toastAnimCount, setToastAnimCount] = useState(0);
+  const [toastPhase, setToastPhase] = useState<"split" | "merged">("split");
 
+  useEffect(() => {
+    if (!cardMasteryToast) return;
+    const target = cardMasteryToast.levelMastered;
+    const isDown = cardMasteryToast.direction === "down";
+    setToastPhase("split");
+    setToastAnimCount(isDown ? target + 1 : Math.max(0, target - 1));
+    const t = setTimeout(() => {
+      setToastPhase("merged");
+      setToastAnimCount(target);
+    }, 650);
+    return () => clearTimeout(t);
+  }, [cardMasteryToast]);
+
+  const goalFired = useRef(_storedProgress >= DAILY_GOAL);
+  const maxComboRef = useRef(0); // all-time best consecutive-correct streak, from DB
+  const hasInteracted = useRef(false); // suppresses autoplay on first mount (tab switch)
+  const vocabScoreRef = useRef<number>(0);
+  const vocabSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentCardRef = useRef<FlashcardData | null>(null);
+  const jlptFilterInitialized = useRef(false);
+
+  // Animate recap stats from 0 when the modal opens
+  useEffect(() => {
+    if (!showRecap) return;
+    const accuracy = sessionCards > 0 ? Math.round((sessionPass / sessionCards) * 100) : 0;
+    const targets = [
+      { target: sessionCards, set: setRecapAnimCards },
+      { target: accuracy,     set: setRecapAnimAccuracy },
+      { target: sessionNewMastered, set: setRecapAnimMastered },
+    ];
+    const timers = targets.map(({ target, set }, i) => {
+      set(0);
+      let current = 0;
+      const step = Math.max(1, Math.ceil(target / 40));
+      return setTimeout(() => {
+        const id = setInterval(() => {
+          current = Math.min(current + step, target);
+          set(current);
+          if (current >= target) clearInterval(id);
+        }, 30);
+      }, i * 120); // stagger each stat by 120ms
+    });
+    return () => timers.forEach(clearTimeout);
+  }, [showRecap]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [showListeningQuiz, setShowListeningQuiz] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
   const [audioPulse, setAudioPulse] = useState(0);
   const [autoPlayJp, setAutoPlayJp] = useState(true);
   const [autoPlayEn, setAutoPlayEn] = useState(false);
   const [sfxEnabled, setSfxEnabled] = useState(true);
+  const [swipeOnly, setSwipeOnly] = useState(false);
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const [swipeFeedback, setSwipeFeedback] = useState<{
     percent: number;
     isPass: boolean;
   } | null>(null);
-  const { t, setLang } = useLang();
+  const [jlptFilter, setJlptFilter] = useState<"All" | "N5" | "N4" | "N3" | "N2" | "N1">("All");
+  const t = translations.en;
 
   useEffect(() => {
     const checkReferral = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      const refName = localStorage.getItem("tg_referrer");
+      const refCode = localStorage.getItem("tg_referrer");
 
-      if (user && refName) {
+      if (user && refCode) {
         // 1. Quick check: Are they already linked?
         const { data: alreadyReferred } = await supabase
           .from("referrals")
@@ -69,8 +276,8 @@ export default function StudyView() {
           .maybeSingle();
 
         if (!alreadyReferred) {
-          console.log("Found pending referral for:", refName);
-          await processReferral(user.id, refName);
+          console.log("Found pending referral for:", refCode);
+          await processReferral(user.id, refCode);
 
           // Optional: Trigger a refresh of your friends list
           // if you have a local state for it
@@ -91,7 +298,8 @@ export default function StudyView() {
 
     const fetchUserEnvironment = async () => {
       // Fetch Profile & Deck in parallel for speed
-      const [profileRes, deckRes] = await Promise.all([
+      const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+      const [profileRes, deckRes, reviewCountRes, masteryCountRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user?.id).maybeSingle(),
         supabase
           .from("decks")
@@ -99,15 +307,35 @@ export default function StudyView() {
           .eq("user_id", user?.id)
           .eq("is_default", true)
           .maybeSingle(),
+        supabase
+          .from("user_review_counts")
+          .select("count")
+          .eq("user_id", user?.id)
+          .eq("study_date", sgToday)
+          .maybeSingle(),
+        supabase
+          .from("user_mastery_counts")
+          .select("count")
+          .eq("user_id", user?.id)
+          .eq("mastery_date", sgToday)
+          .maybeSingle(),
       ]);
+      if (reviewCountRes.data) setReviewsToday(reviewCountRes.data.count);
+      if (masteryCountRes.data) setMasteredToday(masteryCountRes.data.count);
 
       if (profileRes.data) {
         const p = profileRes.data;
         setAutoPlayJp(p.auto_play_jp ?? true);
         setAutoPlayEn(p.auto_play_en ?? false);
         setSfxEnabled(p.sfx_enabled ?? true);
+        setSwipeOnly(p.swipe_only ?? false);
+        setPrefsLoaded(true);
         setHasOnboarded(p.has_onboarded);
         setProfileName(p.full_name);
+        setReferralCode(p.referral_code ?? null);
+        setIsAdmin(p.is_admin ?? false);
+        setBlocklist(p.blocked_words || []);
+        if (p.vocab_score != null) vocabScoreRef.current = p.vocab_score;
 
         // 1. Progress check
         const today = new Date().toLocaleDateString("en-CA");
@@ -117,6 +345,7 @@ export default function StudyView() {
         // We simply show whatever is in the DB.
         // We don't call .update() here anymore.
         setStreak(p.streak_count || 0);
+        maxComboRef.current = p.max_streak || 0;
 
         // Hint Logic
         if (
@@ -126,10 +355,9 @@ export default function StudyView() {
           setShowHints(true);
         }
 
-        if (p.preferred_language) {
-          setLang(p.preferred_language);
-        }
       }
+
+      if (!profileRes.data) setPrefsLoaded(true); // no profile row → defaults are fine
 
       if (deckRes.data) {
         setDefaultDeckId(deckRes.data.id);
@@ -154,17 +382,31 @@ export default function StudyView() {
       setDataLoading(true);
     }
 
-    const { data, error } = await supabase
-      .from("master_cards")
-      .select(
-        `
-        *,
-        deck_cards!inner (deck_id),
-        user_scores (scores_json)
-      `,
-      )
-      .eq("deck_cards.deck_id", defaultDeckId)
-      .eq("user_scores.user_id", user?.id);
+    const allData: any[] = [];
+    let error = null;
+    const PAGE_SIZE = 1000;
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data: page, error: pageErr } = await supabase
+        .from("master_cards")
+        .select(
+          `
+          *,
+          deck_cards!inner (deck_id),
+          user_scores (scores_json, is_priority, prioritized_at, updated_at)
+        `,
+        )
+        .eq("deck_cards.deck_id", defaultDeckId)
+        .eq("user_scores.user_id", user?.id)
+        // Required for .range() pagination to be reliable past one page — without a
+        // deterministic order, Postgres doesn't guarantee stable row order between
+        // separate paged queries, so rows can be skipped or duplicated across pages.
+        .order("id", { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
+      if (pageErr) { error = pageErr; break; }
+      if (page) allData.push(...page);
+      if (!page || page.length < PAGE_SIZE) break;
+    }
+    const data = allData;
 
     if (!error && data) {
       const flattened = data.map((card: any) => ({
@@ -173,197 +415,62 @@ export default function StudyView() {
           jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
           en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
         },
+        is_priority: card.user_scores?.[0]?.is_priority || false,
+        prioritized_at: card.user_scores?.[0]?.prioritized_at || null,
+        last_reviewed_at: card.user_scores?.[0]?.updated_at || null,
       }));
       setCards(flattened);
       if (flattened.length > 0) {
         // ✅ FIX: Only pick a new card if we don't already have one on screen.
         // This prevents the card from "jumping" when you return to the tab.
         setCurrentCard((prev) => {
-          if (prev) return prev; // Keep the card that was already there
-          return getNextPriorityCard(flattened);
+          if (prev) {
+            // Same card stays on screen (no jump), but refresh it from the just-fetched
+            // server data — otherwise a stale cached snapshot (e.g. restored from
+            // _studyCache with 0 attempts) lingers forever and the Already-Know button
+            // keeps thinking an already-studied word is brand new.
+            const fresh = flattened.find((c) => c.id === prev.id);
+            return fresh ?? prev;
+          }
+          return getNextPriorityCard(flattened, "jp");
         });
+        _studyCache = { userId: user.id, cards: flattened, deckId: defaultDeckId, currentCard: currentCardRef.current };
       }
     }
     setDataLoading(false);
     setHasLoadedOnce(true);
-  }, [user, defaultDeckId, language]);
+  }, [user, defaultDeckId]);
 
   useEffect(() => {
     fetchInitialData();
   }, [fetchInitialData]);
 
-  const fetchFriends = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // 1. Get today's date string
-    const today = new Date().toISOString().split("T")[0];
-
-    const { data, error } = await supabase
-      .from("friendships")
-      .select(
-        `
-    id,
-    status,
-    user_id,
-    friend_id,
-    sender:profiles!friendships_user_id_fkey (
-      *,
-      stats:user_review_counts(count) 
-    ),
-    receiver:profiles!friendships_friend_id_fkey (
-      *,
-      stats:user_review_counts(count)
-    )
-  `,
-      )
-      .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
-      // 2. Filter the sub-query so it only gets rows for TODAY
-      .eq("sender.stats.study_date", today)
-      .eq("receiver.stats.study_date", today);
-
-    if (data) {
-      const formatted = data
-        .map((row: any) => {
-          // --- CRITICAL LOGIC START ---
-          // A row's 'user_id' is ALWAYS the person who clicked "Add Friend"
-          const isSentByMe = row.user_id === user.id;
-          // If I sent it, my friend is the 'receiver'.
-          // If THEY sent it, my friend is the 'sender'.
-          const friendProfile = isSentByMe ? row.receiver : row.sender;
-          // --- CRITICAL LOGIC END ---
-
-          if (!friendProfile) return null;
-
-          return {
-            friendshipId: row.id,
-            id: friendProfile.id,
-            name: friendProfile.full_name,
-            avatar:
-              friendProfile.avatar_url ||
-              `https://api.dicebear.com/7.x/avataaars/svg?seed=${friendProfile.id}`,
-            status: row.status,
-            isSentByMe: isSentByMe,
-            // NEW LOGIC: Pull from the stats array we just joined
-            dailyProgress: friendProfile.stats?.[0]?.count || 0,
-            goal: friendProfile.daily_goal || 10,
-            streak: friendProfile.streak_count || 0,
-            isOnline: friendProfile.is_online,
-          };
-        })
-        .filter((f): f is any => f !== null)
-        // FINAL FILTER: If there's a duplicate ID, keep only the one we need
-        .filter(
-          (item, index, self) =>
-            index === self.findIndex((t) => t.id === item.id),
-        );
-
-      setFriends(formatted);
-    }
-  };
-
+  // When auth resolves, restore cached currentCard before fetchInitialData can pick a new one.
   useEffect(() => {
-    // 1. Initial Load
-    fetchFriends();
+    if (!user) return;
+    const c = _studyCache?.userId === user.id ? _studyCache : null;
+    if (c?.currentCard && !currentCardRef.current) {
+      setCurrentCard(c.currentCard);
+      currentCardRef.current = c.currentCard;
+    }
+  }, [user]);
 
-    // 2. REALTIME: Profile Updates (Online Status & Streaks)
-    const profileChannel = supabase
-      .channel("profile-updates")
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "profiles" },
-        (payload) => {
-          setFriends((current) =>
-            current.map((friend) =>
-              friend.id === payload.new.id
-                ? {
-                    ...friend,
-                    isOnline: payload.new.is_online,
-                    streak: payload.new.streak_count,
-                  }
-                : friend,
-            ),
-          );
-        },
-      )
-      .subscribe();
+  // Keep _studyCache.currentCard and currentCardRef in sync on every change.
+  useEffect(() => {
+    if (currentCard) {
+      currentCardRef.current = currentCard;
+    }
+    if (_studyCache && _studyCache.userId === user?.id && currentCard) {
+      _studyCache.currentCard = currentCard;
+    }
+  }, [currentCard, user?.id]);
 
-    // 3. REALTIME: Progress Updates (The New Table)
-    const progressChannel = supabase
-      .channel("progress-updates")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "user_review_counts",
-        },
-        () => {
-          // When someone's count changes, we re-fetch to get the new numbers
-          fetchFriends();
-        },
-      )
-      .subscribe();
-
-    // 4. REALTIME: Friendship Changes (New requests/Accepts)
-    const friendshipChannel = supabase
-      .channel("friendship-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "friendships" },
-        () => {
-          fetchFriends();
-        },
-      )
-      .subscribe();
-
-    // CLEANUP: Remove all three channels
-    return () => {
-      supabase.removeChannel(profileChannel);
-      supabase.removeChannel(progressChannel);
-      supabase.removeChannel(friendshipChannel);
-    };
-  }, []);
-
-  // --- 5. Spaced Repetition Logic ---
-  const getNextPriorityCard = (
-    allCards: FlashcardData[],
-    lastCardId?: string,
-  ) => {
-    if (allCards.length === 0) return null;
-    const mode = language === "jp" ? "jp_to_en" : "en_to_jp";
-
-    const getScore = (c: FlashcardData) => c.scores?.[mode]?.percent || 0;
-    const getTries = (c: FlashcardData) => c.scores?.[mode]?.total || 0;
-
-    const sorted = [...allCards].sort((a, b) => getScore(a) - getScore(b));
-    const hardCards = sorted.slice(0, 10);
-    const easyCards = allCards.filter(
-      (c) => getScore(c) >= 85 && getTries(c) >= 15,
-    );
-    const mediumCards = allCards.filter(
-      (c) =>
-        !hardCards.some((h) => h.id === c.id) &&
-        !easyCards.some((e) => e.id === c.id),
-    );
-
-    const roll = Math.random();
-    let pool =
-      roll < 0.7 && hardCards.length
-        ? hardCards
-        : roll < 0.9 && mediumCards.length
-          ? mediumCards
-          : easyCards.length
-            ? easyCards
-            : allCards;
-
-    const filtered = pool.filter((c) => c.id !== lastCardId);
-    return filtered.length
-      ? filtered[Math.floor(Math.random() * filtered.length)]
-      : allCards[0];
-  };
+  // Keep module-level cache in sync so re-mounting the component skips the loading spinner
+  useEffect(() => {
+    if (user?.id && cards.length > 0) {
+      _studyCache = { userId: user.id, cards, deckId: defaultDeckId, currentCard };
+    }
+  }, [user?.id, cards, currentCard, defaultDeckId]);
 
   // --- 6. Interaction Handlers ---
   const updateStreak = async () => {
@@ -391,6 +498,7 @@ export default function StudyView() {
       .eq("id", user?.id);
 
     setStreak(newStreak);
+    return newStreak;
   };
 
   const incrementStudyCount = async () => {
@@ -409,6 +517,14 @@ export default function StudyView() {
   const handleScore = useCallback(
     async (isPass: boolean) => {
       if (!currentCard || !user) return;
+      hasInteracted.current = true;
+
+      // Dismiss the swipe-tutorial overlay on the first graded card, regardless of
+      // whether it was graded by swipe, button, or keyboard shortcut.
+      if (showHints) {
+        setShowHints(false);
+        localStorage.removeItem("show_first_timer_hint");
+      }
 
       // 1. Calculate Score Updates
       const mode = language === "jp" ? "jp_to_en" : "en_to_jp";
@@ -429,7 +545,7 @@ export default function StudyView() {
       const updatedStats = {
         ...stats,
         pass: nextPass,
-        fail: !isPass ? stats.fail + 1 : stats.fail,
+        fail: !isPass ? (stats.fail || 0) + 1 : (stats.fail || 0),
         total: nextTotal,
         percent: nextPercent,
       };
@@ -444,10 +560,22 @@ export default function StudyView() {
       const newSessionStreak = isPass ? sessionStreak + 1 : 0;
       setSessionStreak(newSessionStreak);
       incrementStudyCount();
+      setReviewsToday((prev) => prev + 1);
 
-      // 4. Update Profile Max Streak (Only if current session breaks record)
-      if (isPass && newSessionStreak > streak) {
-        setStreak(newSessionStreak);
+      // Session stats
+      setSessionCards((prev) => prev + 1);
+      if (isPass) setSessionPass((prev) => prev + 1);
+
+      // Combo milestone toast
+      if (isPass && [5, 10, 20].includes(newSessionStreak)) {
+        setComboToast(`🔥 ${newSessionStreak} in a row!`);
+        navigator.vibrate?.([60, 30, 80, 30, 100]);
+        setTimeout(() => setComboToast(null), 3000);
+      }
+
+      // 4. Update Profile Max Streak (only when current combo beats all-time best)
+      if (isPass && newSessionStreak > maxComboRef.current) {
+        maxComboRef.current = newSessionStreak;
         await supabase
           .from("profiles")
           .update({ max_streak: newSessionStreak })
@@ -465,13 +593,34 @@ export default function StudyView() {
         { onConflict: "user_id,card_id" },
       );
 
+      // 5b. Update local card scores and recompute mastery from full deck
+      {
+        const updatedCards = cards.map((c) =>
+          c.id === currentCard.id ? { ...c, scores: newScores } : c
+        );
+        setCards(updatedCards);
+        const modeKey = language === "jp" ? "jp_to_en" : "en_to_jp";
+        const accuracies = updatedCards.map((c) => c.scores?.[modeKey]?.percent ?? 0);
+        const newVocabScore = vocabMastery(accuracies, updatedCards.length);
+        vocabScoreRef.current = newVocabScore;
+        if (vocabSaveTimerRef.current) clearTimeout(vocabSaveTimerRef.current);
+        vocabSaveTimerRef.current = setTimeout(() => {
+          supabase.from("profiles").update({ vocab_score: newVocabScore }).eq("id", user?.id);
+        }, 2000);
+      }
+
       // 6. Progress & Daily Goal
       if (isPass) {
         const prog = dailyProgress + 1;
         setDailyProgress(prog);
-        if (prog === DAILY_GOAL) {
-          updateStreak();
-          alert(t.daily_streak_extended); // Keep alert or use a toast
+        const todayKey = "daily_progress_" + new Date().toLocaleDateString("en-CA");
+        localStorage.setItem(todayKey, String(prog));
+        if (prog === DAILY_GOAL && !goalFired.current) {
+          goalFired.current = true;
+          const newStreak = await updateStreak();
+          setGoalStreak(newStreak ?? streak);
+          setShowRecap(true);
+          navigator.vibrate?.([100, 50, 100, 50, 200]);
         }
       }
 
@@ -485,7 +634,45 @@ export default function StudyView() {
       );
 
       setCards(updatedCards);
-      setCurrentCard(getNextPriorityCard(updatedCards, currentCard.id));
+
+      // Card mastery milestone toast
+      const cardMasteredCheck = (sc: { jp_to_en?: { pass?: number; total?: number; percent?: number }; en_to_jp?: { pass?: number; total?: number; percent?: number } } | undefined) => {
+        const jp = sc?.jp_to_en; const en = sc?.en_to_jp;
+        return ((jp?.pass ?? 0) >= MASTERY_MIN_TRIES && (jp?.percent ?? 0) >= 70) ||
+               ((en?.pass ?? 0) >= MASTERY_MIN_TRIES && (en?.percent ?? 0) >= 70);
+      };
+      const prevMastered = cards.filter(c => cardMasteredCheck(c.scores)).length;
+      const newMastered = updatedCards.filter(c => cardMasteredCheck(c.scores)).length;
+      const wasAlreadyMastered = cardMasteredCheck(currentCard.scores);
+      const isNowMastered = cardMasteredCheck(newScores);
+      if (!wasAlreadyMastered && isNowMastered) {
+        setSessionNewMastered((prev) => prev + 1);
+        setMasteredToday((prev) => prev + 1);
+        supabase.rpc("increment_mastery_count", { target_user_id: user.id })
+          .then(({ error }) => { if (error) console.error("Error incrementing mastery count:", error); });
+        const level = currentCard.jlpt_level ?? "N5";
+        const levelMastered = updatedCards.filter(c => c.jlpt_level === level && cardMasteredCheck(c.scores)).length;
+        setCardMasteryToast({ word: currentCard.japanese, level, levelMastered, direction: "up" });
+        navigator.vibrate?.([60, 40, 100]);
+        setTimeout(() => setCardMasteryToast(null), 2000);
+      } else if (wasAlreadyMastered && !isNowMastered) {
+        const level = currentCard.jlpt_level ?? "N5";
+        const levelMastered = updatedCards.filter(c => c.jlpt_level === level && cardMasteredCheck(c.scores)).length;
+        setCardMasteryToast({ word: currentCard.japanese, level, levelMastered, direction: "down" });
+        navigator.vibrate?.([40, 30, 60]);
+        setTimeout(() => setCardMasteryToast(null), 2000);
+      }
+      for (const m of [10, 25, 50, 100, 250, 500]) {
+        if (newMastered >= m && prevMastered < m) {
+          setMilestoneToast({ label: `${m} cards mastered!`, count: m });
+          navigator.vibrate?.([80, 40, 120]);
+          setTimeout(() => setMilestoneToast(null), 4000);
+          break;
+        }
+      }
+
+      const pool = jlptFilter === "All" ? updatedCards : updatedCards.filter(c => c.jlpt_level === jlptFilter);
+      setCurrentCard(getNextPriorityCard(pool.length > 0 ? pool : updatedCards, language, currentCard.id));
       setIsFlipped(false);
     },
     [
@@ -497,48 +684,216 @@ export default function StudyView() {
       streak,
       sessionStreak,
       t,
+      jlptFilter,
+      showHints,
     ],
   );
   // Add the dependencies used inside the function
 
+  // Fast-track for cards never reviewed before — skips the flip/grade ritual
+  // and immediately seeds a high-confidence score in both directions so it
+  // doesn't clutter the priority queue for words the user already knows.
+  const handleAlreadyKnow = useCallback(async () => {
+    if (!currentCard || !user) return;
+
+    // Refuse if the card has any prior attempts in either direction — scores
+    // may have been empty when the card first rendered (still loading) even
+    // though isNewCard looked true in the UI.
+    const existingJp = currentCard.scores?.jp_to_en?.total ?? 0;
+    const existingEn = currentCard.scores?.en_to_jp?.total ?? 0;
+    if (existingJp > 0 || existingEn > 0) return;
+
+    hasInteracted.current = true;
+
+    if (showHints) {
+      setShowHints(false);
+      localStorage.removeItem("show_first_timer_hint");
+    }
+
+    const knownStats = { pass: MASTERY_MIN_TRIES, fail: 0, total: MASTERY_MIN_TRIES, percent: 100 };
+    const newScores = { jp_to_en: knownStats, en_to_jp: knownStats };
+
+    await supabase.from("user_scores").upsert(
+      {
+        user_id: user.id,
+        card_id: currentCard.id,
+        scores_json: newScores,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,card_id" },
+    );
+
+    const updatedCards = cards.map((c) =>
+      c.id === currentCard.id ? { ...c, scores: newScores } : c,
+    );
+    setCards(updatedCards);
+    setSessionNewMastered((prev) => prev + 1);
+
+    const level = currentCard.jlpt_level ?? "N5";
+    const levelMastered = updatedCards.filter(c =>
+      c.jlpt_level === level &&
+      ((c.scores?.jp_to_en?.pass ?? 0) >= MASTERY_MIN_TRIES && (c.scores?.jp_to_en?.percent ?? 0) >= 70) ||
+      ((c.scores?.en_to_jp?.pass ?? 0) >= MASTERY_MIN_TRIES && (c.scores?.en_to_jp?.percent ?? 0) >= 70)
+    ).length;
+    setCardMasteryToast({ word: currentCard.japanese, level, levelMastered, direction: "up" });
+    navigator.vibrate?.([60, 40, 100]);
+    setTimeout(() => setCardMasteryToast(null), 2000);
+
+    const pool = jlptFilter === "All" ? updatedCards : updatedCards.filter(c => c.jlpt_level === jlptFilter);
+    setCurrentCard(getNextPriorityCard(pool.length > 0 ? pool : updatedCards, language, currentCard.id));
+    setIsFlipped(false);
+  }, [currentCard, user, cards, language, jlptFilter, showHints, setCardMasteryToast]);
+
+  // Rolling cap: starring a 31st word bumps whichever one has been starred longest,
+  // rather than blocking the action or requiring the user to manage the count by hand.
+  const togglePriority = useCallback(async (card: FlashcardData) => {
+    if (!user) return;
+    const turningOn = !card.is_priority;
+    let demotedId: string | null = null;
+
+    if (turningOn) {
+      const current = cards.filter((c) => c.is_priority);
+      if (current.length >= PRIORITY_CAP) {
+        const oldest = [...current].sort((a, b) =>
+          (a.prioritized_at || "").localeCompare(b.prioritized_at || ""),
+        )[0];
+        if (oldest) {
+          demotedId = oldest.id;
+          await supabase.from("user_scores")
+            .update({ is_priority: false, prioritized_at: null })
+            .eq("user_id", user.id).eq("card_id", oldest.id);
+        }
+      }
+    }
+
+    const prioritized_at = turningOn ? new Date().toISOString() : null;
+    await supabase.from("user_scores")
+      .update({ is_priority: turningOn, prioritized_at })
+      .eq("user_id", user.id).eq("card_id", card.id);
+
+    const applyPatch = (c: FlashcardData) => {
+      if (c.id === card.id) return { ...c, is_priority: turningOn, prioritized_at };
+      if (demotedId && c.id === demotedId) return { ...c, is_priority: false, prioritized_at: null };
+      return c;
+    };
+    setCards((prev) => prev.map(applyPatch));
+    setCurrentCard((prev) => (prev ? applyPatch(prev) : prev));
+  }, [user, cards]);
+
+  // Flashcard caches a freshly-generated mnemonic onto master_cards itself (shared
+  // across users), but local state needs the same patch so re-opening it on this
+  // card doesn't re-fetch, and so the fix carries over if the user flips back.
+  const handleMnemonicGenerated = useCallback((cardId: string, mnemonic: FlashcardData["mnemonic"]) => {
+    const applyPatch = (c: FlashcardData) => (c.id === cardId ? { ...c, mnemonic } : c);
+    setCards((prev) => prev.map(applyPatch));
+    setCurrentCard((prev) => (prev ? applyPatch(prev) : prev));
+  }, []);
+
+  // Opens the mnemonic sheet for a word from the Weak Words list — same cache-check,
+  // confirm-before-spending-AI, and generate flow as Flashcard.tsx's handleOpenMnemonic,
+  // just triggerable from the list instead of only from the card back during study.
+  const handleWeakWordMnemonic = async (card: FlashcardData) => {
+    setWeakMnemonicCard(card);
+    if (card.mnemonic || weakMnemonicLoading) return;
+
+    const confirmed = await showConfirm(
+      `Generate a memory aid for ${card.japanese}? This uses one of your daily AI lookups.`,
+      { title: "Remember this kanji?", confirmLabel: "Generate" },
+    );
+    if (!confirmed) {
+      setWeakMnemonicCard(null);
+      return;
+    }
+
+    setWeakMnemonicLoading(true);
+    setWeakMnemonicError(null);
+    try {
+      const res = await authedFetch("/api/mnemonic", {
+        method: "POST",
+        body: JSON.stringify({ japanese: card.japanese, reading: card.reading, english: card.english }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setWeakMnemonicError(data.error || "Couldn't generate a mnemonic right now.");
+        return;
+      }
+      const mnemonic: KanjiMnemonic = { entries: data.entries, origin: data.origin };
+      await supabase.from("master_cards").update({ mnemonic }).eq("id", card.id);
+      handleMnemonicGenerated(card.id, mnemonic);
+      setWeakMnemonicCard((prev) => (prev && prev.id === card.id ? { ...prev, mnemonic } : prev));
+    } catch {
+      setWeakMnemonicError("Couldn't generate a mnemonic right now.");
+    } finally {
+      setWeakMnemonicLoading(false);
+    }
+  };
+
+  // Tap-to-explain for the three goal chips — a hover title does nothing on mobile,
+  // so these are the actual way most users will learn what each number means.
+  const showReviewsHint = () => showAlert(
+    "Every card you grade today — right or wrong — counts toward this. Goal: 100/day, enough to make real progress clearing your backlog.",
+    { title: "🔁 Reviews Today" },
+  );
+  const showStillLearningHint = () => showAlert(
+    "Words that haven't hit Mastered yet. This is your backlog size, not a daily schedule — it only shrinks as words actually get mastered.",
+    { title: "📋 Still Learning" },
+  );
+  const showMasteredHint = () => showAlert(
+    "Words that crossed the Mastered bar today specifically — not just reviewed, actually mastered. Goal: 20/day to stay on pace.",
+    { title: "🎯 Mastered Today" },
+  );
+
   // --- 7. AI Sync Logic ---
   useEffect(() => {
     const syncAI = async () => {
-      if (currentCard?.english === "Pending AI Sync") {
-        setAiLoading(true);
-        try {
-          const res = await fetch("/api/generate", {
-            method: "POST",
-            body: JSON.stringify({ words: [currentCard.japanese] }),
-          });
-          const data = await res.json();
-          const fetched = Array.isArray(data) ? data[0] : data;
+      if (!currentCard) return;
+      // Full placeholder card (nothing real to show yet) — needs the whole row replaced,
+      // so block the card on a loading skeleton while it syncs.
+      const needsFullSync = currentCard.english === "Pending AI Sync";
+      // Otherwise-normal card that's just missing its example sentence (older cards from
+      // before exampleSentence was required, or a generation that returned it empty) —
+      // backfill quietly in the background without disturbing the card on screen.
+      const needsSentenceOnly = !needsFullSync && !currentCard.exampleSentence?.jp?.trim();
+      if (!needsFullSync && !needsSentenceOnly) return;
 
-          await supabase
-            .from("master_cards")
-            .update({ ...fetched })
-            .eq("id", currentCard.id);
-          const updated = { ...currentCard, ...fetched };
-          setCurrentCard(updated);
-          setCards((prev) =>
-            prev.map((c) => (c.id === currentCard.id ? updated : c)),
-          );
-        } catch (e) {
-          console.error(e);
-        } finally {
-          setAiLoading(false);
+      if (needsFullSync) setAiLoading(true);
+      try {
+        const res = await authedFetch("/api/generate", {
+          method: "POST",
+          body: JSON.stringify({ words: [currentCard.japanese] }),
+        });
+        if (!res.ok) {
+          if (res.status === 429 && !shownGenerateLimitAlertRef.current) {
+            shownGenerateLimitAlertRef.current = true;
+            showAlert("Daily word-generation limit reached — this keeps the app free for everyone. This card (and any others) will sync automatically once the limit resets tomorrow.");
+          }
+          return;
         }
+        const data = await res.json();
+        const fetched = Array.isArray(data) ? data[0] : data;
+        // Full sync replaces everything; sentence-only backfill only touches the one
+        // field, so it never silently overwrites english/reading the user already knows.
+        const patch = needsFullSync ? fetched : { exampleSentence: fetched.exampleSentence };
+
+        await supabase
+          .from("master_cards")
+          .update(patch)
+          .eq("id", currentCard.id);
+        const updated = { ...currentCard, ...patch };
+        setCurrentCard(updated);
+        setCards((prev) =>
+          prev.map((c) => (c.id === currentCard.id ? updated : c)),
+        );
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (needsFullSync) setAiLoading(false);
       }
     };
     syncAI();
   }, [currentCard?.id]);
 
   const onSwipe = (direction: "left" | "right") => {
-    if (showHints) {
-      setShowHints(false);
-      localStorage.removeItem("show_first_timer_hint");
-    }
-
     // 🔥 IMPORTANT: Reset the flip state so the NEXT card
     // starts on the front side, whether swiped by mouse or thumb.
     setIsFlipped(false);
@@ -603,21 +958,18 @@ export default function StudyView() {
   //       ? Math.round((currentMode.pass / currentMode.tries) * 100)
   //       : 0;
 
-  // 3. Diminishing Buffer Calculation
-  const accuracyPercent = useMemo(() => {
-    // If they haven't tried any cards, stay at 0%
-    if (currentMode.tries === 0) return 0;
-
-    // Buffer starts at 20 and shrinks as they play.
-    // It hits 0 once they have 20 tries.
-    const buffer = Math.max(0, 200 - currentMode.tries);
-
-    // Calculate percentage with the shrinking buffer
-    const raw = (currentMode.pass / (currentMode.tries + buffer)) * 100;
-
-    // Round it and cap at 100
-    return Math.min(100, Math.round(raw));
-  }, [currentMode.pass, currentMode.tries]);
+  // Grammar-style mastery per mode: each N-level contributes up to 20 pts
+  // (cards with ≥70% on the current side / JLPT increment × 20). Mirrors Dashboard.
+  const masteryPercent = useMemo(() => {
+    const mode = language === "jp" ? "jp_to_en" : "en_to_jp";
+    let raw = 0;
+    for (const lvl of ["N5", "N4", "N3", "N2", "N1"] as const) {
+      const lvlCards = cards.filter(c => c.jlpt_level === lvl);
+      const mastered = lvlCards.filter(c => (c.scores?.[mode]?.pass ?? 0) >= MASTERY_MIN_TRIES && (c.scores?.[mode]?.percent ?? 0) >= 70).length;
+      raw += Math.min(mastered / JLPT_VOCAB_INCREMENT[lvl], 1) * 20;
+    }
+    return Math.round(raw);
+  }, [cards, language]);
 
   // 4. Dynamic Colors based on mode
   const modeColorClass =
@@ -628,14 +980,143 @@ export default function StudyView() {
   // Get the first name from your profileName state, fallback to "Student" or "..."
   const displayName = profileName ? profileName.split(" ")[0] : "";
   const currentLevel = useMemo(
-    () => Math.floor(accuracyPercent / 10) + 1,
-    [accuracyPercent],
+    () => Math.floor(masteryPercent / 10) + 1,
+    [masteryPercent],
   );
+
+  const jlptDistribution = useMemo(() => {
+    const counts: Record<"N5" | "N4" | "N3" | "N2" | "N1", number> = {
+      N5: 0,
+      N4: 0,
+      N3: 0,
+      N2: 0,
+      N1: 0,
+    };
+    for (const c of cards) {
+      if (c.jlpt_level && c.jlpt_level in counts) counts[c.jlpt_level]++;
+    }
+    return counts;
+  }, [cards]);
+  const jlptTotal = cards.length;
+  const jlptTaggedTotal = (["N5", "N4", "N3", "N2", "N1"] as const).reduce(
+    (sum, l) => sum + jlptDistribution[l], 0
+  );
+  const dominantJlptLevel = useMemo(() => {
+    const levels = (["N5", "N4", "N3", "N2", "N1"] as const);
+    return levels.reduce((best, level) =>
+      jlptDistribution[level] > jlptDistribution[best] ? level : best, levels[0]);
+  }, [jlptDistribution]);
+  const [showJlptBreakdown, setShowJlptBreakdown] = useState(false);
+  const prevMasteryRef = useRef<{ percent: number; lang: "jp" | "en"; filter: string } | null>(null);
+  const [levelUpToast, setLevelUpToast] = useState<{ level: string; lang: "jp" | "en"; direction: "up" | "down"; filter?: string } | null>(null);
+
+  const filteredCards = useMemo(
+    () => jlptFilter === "All" ? cards : cards.filter(c => c.jlpt_level === jlptFilter),
+    [cards, jlptFilter],
+  );
+
+  // No real schedule to check against (no next_review_at tracking), so this isn't a
+  // literal SRS due-count — it's a heuristic: anything not yet Mastered (same
+  // pass>=5 && percent>=70-in-either-direction bar used everywhere else in the app,
+  // e.g. the Profile page's Mastered/Struggling split), whether that's a brand-new
+  // card or a weak one. "Still Learning" rather than "Due" since it's a static
+  // backlog size, not a day-to-day schedule.
+  const stillLearningCount = useMemo(() => {
+    return filteredCards.filter((c) => {
+      const jp = c.scores?.jp_to_en;
+      const en = c.scores?.en_to_jp;
+      const isMastered =
+        ((jp?.pass ?? 0) >= MASTERY_MIN_TRIES && (jp?.percent ?? 0) >= 70) ||
+        ((en?.pass ?? 0) >= MASTERY_MIN_TRIES && (en?.percent ?? 0) >= 70);
+      return !isMastered;
+    }).length;
+  }, [filteredCards]);
+
+  // Mastery % for the selected N-level (known cards ≥70% in current mode / total at that level)
+  const jlptLevelMastery = useMemo(() => {
+    if (jlptFilter === "All" || filteredCards.length === 0) return null;
+    const mode = language === "jp" ? "jp_to_en" : "en_to_jp";
+    const known = filteredCards.filter(c => (c.scores?.[mode]?.pass ?? 0) >= MASTERY_MIN_TRIES && (c.scores?.[mode]?.percent ?? 0) >= 70).length;
+    return Math.round((known / filteredCards.length) * 100);
+  }, [filteredCards, jlptFilter, language]);
+
+  // Rolling "recently reviewed" list — naturally deduped (one row per card) and
+  // naturally rolling (re-reviewing a card just moves it back to the top).
+  // Adding a word also touches user_scores (it creates the zeroed scores_json
+  // row), so last_reviewed_at alone isn't enough to mean "actually reviewed" —
+  // require at least one real pass/fail too, or brand-new words show up here.
+  const historyList = useMemo(() => {
+    return cards
+      .filter((c) => !!c.last_reviewed_at && ((c.scores?.jp_to_en?.total ?? 0) + (c.scores?.en_to_jp?.total ?? 0)) > 0)
+      .sort((a, b) => (b.last_reviewed_at || "").localeCompare(a.last_reviewed_at || ""))
+      .slice(0, 20);
+  }, [cards]);
+
+  const priorityList = useMemo(() => {
+    return cards
+      .filter((c) => c.is_priority)
+      .sort((a, b) => (b.prioritized_at || "").localeCompare(a.prioritized_at || ""));
+  }, [cards]);
+
+  // Words with enough reps to trust the number (10+) but still badly below mastery
+  // (<30%) — these are the ones worth deliberately drilling, not just drifting into
+  // via the weighted-random pool.
+  const weakWordsList = useMemo(() => {
+    return cards
+      .filter((c) => {
+        const jp = c.scores?.jp_to_en;
+        const en = c.scores?.en_to_jp;
+        const total = (jp?.total ?? 0) + (en?.total ?? 0);
+        return total >= 10 && cardOverallPercent(c) < 30;
+      })
+      .sort((a, b) => cardOverallPercent(a) - cardOverallPercent(b))
+      .slice(0, 20);
+  }, [cards]);
+
+  // Level-up detection: track whichever % is visible — per-N-level when filtered, overall when "All"
+  const trackedPercent = jlptFilter !== "All" ? (jlptLevelMastery ?? masteryPercent) : masteryPercent;
+  useEffect(() => {
+    const prev = prevMasteryRef.current;
+    // Always update ref silently on first run or context switch
+    if (prev === null || prev.lang !== language || prev.filter !== jlptFilter) {
+      prevMasteryRef.current = { percent: trackedPercent, lang: language, filter: jlptFilter };
+      return;
+    }
+    // Suppress toast if user hasn't actually scored a card yet this session
+    // (prevents false positives from background data refresh on tab switch)
+    if (!hasInteracted.current) {
+      prevMasteryRef.current = { percent: trackedPercent, lang: language, filter: jlptFilter };
+      return;
+    }
+    if (trackedPercent > prev.percent) {
+      setLevelUpToast({ level: `${trackedPercent}%`, lang: language, direction: "up", filter: jlptFilter !== "All" ? jlptFilter : undefined });
+      navigator.vibrate?.([60, 40, 100]);
+      setTimeout(() => setLevelUpToast(null), 4000);
+    }
+    prevMasteryRef.current = { percent: trackedPercent, lang: language, filter: jlptFilter };
+  }, [trackedPercent, language, jlptFilter]);
+
+  // Reset to a card from the new pool whenever the filter changes (skip initial mount).
+  useEffect(() => {
+    if (!jlptFilterInitialized.current) {
+      jlptFilterInitialized.current = true;
+      return;
+    }
+    if (filteredCards.length === 0) return;
+    setCurrentCard(getNextPriorityCard(filteredCards, language));
+    setIsFlipped(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jlptFilter]);
+
+  // Show full-screen loading until the first deck fetch completes
+  if (!hasLoadedOnce) {
+    return <LoadingScreen />;
+  }
 
   return (
     <>
       {/* 1. Add the opening fragment here */}
-      <main className="fixed inset-0 h-[100dvh] w-full bg-slate-50 flex flex-col items-center overflow-hidden touch-none font-sans select-none pb-safe">
+      <main className="fixed inset-0 md:left-56 h-[100dvh] w-full md:w-auto bg-slate-50 flex flex-col items-center overflow-hidden touch-none font-sans select-none pb-safe">
         {hasOnboarded === false && (
           <OnboardingModal
             defaultName={
@@ -648,9 +1129,233 @@ export default function StudyView() {
           />
         )}
 
+        {/* Level Toast (Up / Down) */}
+        <AnimatePresence>
+          {levelUpToast && (
+            <motion.div
+              initial={{ opacity: 0, y: 80, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 60, scale: 0.92 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-24 md:bottom-12 left-0 md:left-56 right-0 z-[200] flex justify-center pointer-events-none px-6"
+            >
+              <motion.div
+                animate={levelUpToast.direction === "up" ? {
+                  boxShadow: [
+                    "0 0 0 0px rgba(99,102,241,0)",
+                    "0 0 0 10px rgba(99,102,241,0.12)",
+                    "0 0 0 0px rgba(99,102,241,0)",
+                  ],
+                } : {}}
+                transition={{ duration: 1.4, repeat: 2, ease: "easeInOut" }}
+                className={`relative overflow-hidden bg-white rounded-3xl shadow-2xl border px-8 py-5 flex items-center gap-5 max-w-sm w-full ${
+                  levelUpToast.direction === "up"
+                    ? "border-indigo-100 shadow-indigo-200/50"
+                    : "border-amber-100 shadow-amber-200/40"
+                }`}
+              >
+                {/* Shimmer sweep on level up */}
+                {levelUpToast.direction === "up" && (
+                  <motion.div
+                    initial={{ x: "-100%" }}
+                    animate={{ x: "250%" }}
+                    transition={{ duration: 0.75, delay: 0.2, ease: "easeOut" }}
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/70 to-transparent pointer-events-none z-10"
+                  />
+                )}
+
+                {/* Icon */}
+                <motion.div
+                  initial={{ scale: 0, rotate: levelUpToast.direction === "up" ? -30 : 15 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: "spring", stiffness: 450, damping: 14, delay: 0.08 }}
+                  className={`shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center text-2xl ${
+                    levelUpToast.direction === "up" ? "bg-indigo-50" : "bg-amber-50"
+                  }`}
+                >
+                  {levelUpToast.direction === "up" ? "🎖️" : "📉"}
+                </motion.div>
+
+                {/* Text */}
+                <div className="flex flex-col gap-1 z-10">
+                  <motion.p
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.18 }}
+                    className="text-slate-800 font-black text-sm uppercase tracking-widest leading-none"
+                  >
+                    {levelUpToast.direction === "up" ? "Level Up!" : "Level Down"}
+                  </motion.p>
+                  <motion.p
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.28 }}
+                    className={`font-bold text-[11px] uppercase tracking-wider leading-none mt-1 ${
+                      levelUpToast.direction === "up" ? "text-indigo-500" : "text-amber-500"
+                    }`}
+                  >
+                    {levelUpToast.filter ? `${levelUpToast.filter} · ` : ""}
+                    {levelUpToast.lang === "jp" ? "🇯🇵 Recognition" : "🇺🇸 Recall"} is now{" "}
+                    <span className="font-black">{levelUpToast.level}</span>
+                  </motion.p>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Per-Card Mastery Toast */}
+        <AnimatePresence>
+          {cardMasteryToast && (
+            <motion.div
+              initial={{ opacity: 0, y: -40, scale: 0.92 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -30, scale: 0.94 }}
+              transition={{ type: "spring", stiffness: 340, damping: 26 }}
+              className="fixed top-[8.5rem] md:top-12 left-0 md:left-56 right-0 z-[200] flex justify-center pointer-events-none px-6"
+            >
+              <div className={`bg-white rounded-3xl shadow-2xl px-5 py-3.5 flex items-center gap-3 max-w-xs w-full border ${
+                cardMasteryToast.direction === "up"
+                  ? "shadow-emerald-100/60 border-emerald-100"
+                  : "shadow-rose-100/60 border-rose-100"
+              }`}>
+                <motion.div
+                  initial={{ scale: 0, rotate: cardMasteryToast.direction === "up" ? -30 : 30 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 14, delay: 0.05 }}
+                  className="text-2xl shrink-0"
+                >
+                  {cardMasteryToast.direction === "up" ? "⭐" : "💔"}
+                </motion.div>
+                <div className="min-w-0 flex-1">
+                  <p className={`font-black text-[10px] uppercase tracking-widest leading-none ${
+                    cardMasteryToast.direction === "up" ? "text-emerald-600" : "text-rose-500"
+                  }`}>
+                    {cardMasteryToast.direction === "up" ? "Mastered" : "Lost"}
+                  </p>
+                  <p className="text-slate-800 font-black text-base leading-tight truncate mt-0.5">{cardMasteryToast.word}</p>
+                </div>
+                <div className="shrink-0 text-right flex flex-col items-end gap-1.5">
+                  <span className={`inline-block font-black text-xs uppercase tracking-wider px-3 py-1 rounded-full leading-none border ${JLPT_BADGE_COLOR[cardMasteryToast.level as "N5" | "N4" | "N3" | "N2" | "N1"] ?? "bg-slate-100 text-slate-700 border-slate-200"}`}>
+                    {cardMasteryToast.level}
+                  </span>
+                  <div className="flex items-baseline gap-1 justify-end">
+                    <motion.span
+                      key={toastAnimCount}
+                      initial={{ scale: 1.45, color: cardMasteryToast.direction === "up" ? "#10b981" : "#f43f5e" }}
+                      animate={{ scale: 1, color: "#334155" }}
+                      transition={{ type: "spring", stiffness: 380, damping: 14 }}
+                      className="font-black text-2xl tabular-nums leading-none inline-block"
+                    >
+                      {toastAnimCount}
+                    </motion.span>
+                    <AnimatePresence>
+                      {toastPhase === "split" && (
+                        <motion.span
+                          key="delta"
+                          initial={{ x: 8, opacity: 0 }}
+                          animate={{ x: 0, opacity: 1 }}
+                          exit={{ x: -10, opacity: 0, scale: 0.5 }}
+                          transition={{ type: "spring", stiffness: 420, damping: 18 }}
+                          className={`font-black text-xl tabular-nums leading-none ${
+                            cardMasteryToast.direction === "up" ? "text-emerald-500" : "text-rose-500"
+                          }`}
+                        >
+                          {cardMasteryToast.direction === "up" ? "+1" : "-1"}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                  <span className="text-slate-400 text-[10px] font-bold leading-none">mastered</span>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Combo Milestone Toast */}
+        <AnimatePresence>
+          {comboToast && (
+            <motion.div
+              initial={{ opacity: 0, y: 80, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 60, scale: 0.92 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-24 md:bottom-12 left-0 md:left-56 right-0 z-[200] flex justify-center pointer-events-none px-6"
+            >
+              <div className="bg-white rounded-3xl shadow-2xl shadow-orange-100/60 border border-orange-100 px-8 py-5 flex items-center gap-4 max-w-sm w-full">
+                <motion.div
+                  animate={{ rotate: [0, -15, 15, -10, 10, 0] }}
+                  transition={{ duration: 0.6, delay: 0.1 }}
+                  className="text-3xl shrink-0"
+                >
+                  🔥
+                </motion.div>
+                <p className="text-slate-800 font-black text-sm uppercase tracking-widest leading-none">
+                  {comboToast}
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* JLPT Filter Applied Toast — confirms the filter actually changed, since the
+            breakdown modal closes silently otherwise and the effect isn't obvious. */}
+        <AnimatePresence>
+          {jlptFilterToast && (
+            <motion.div
+              initial={{ opacity: 0, y: 80, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 60, scale: 0.92 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-24 md:bottom-12 left-0 md:left-56 right-0 z-[200] flex justify-center pointer-events-none px-6"
+            >
+              <div className="bg-white rounded-3xl shadow-2xl shadow-indigo-100/60 border border-indigo-100 px-6 py-3.5 flex items-center gap-3 max-w-sm w-full">
+                <span className="text-xl shrink-0">🎯</span>
+                <p className="text-slate-800 font-black text-xs uppercase tracking-widest leading-none">
+                  {jlptFilterToast}
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Card Milestone Toast */}
+        <AnimatePresence>
+          {milestoneToast && (
+            <motion.div
+              initial={{ opacity: 0, y: 80, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 60, scale: 0.92 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-24 md:bottom-12 left-0 md:left-56 right-0 z-[200] flex justify-center pointer-events-none px-6"
+            >
+              <div className="bg-white rounded-3xl shadow-2xl shadow-amber-100/60 border border-amber-100 px-8 py-5 flex items-center gap-4 max-w-sm w-full">
+                <motion.div
+                  initial={{ scale: 0, rotate: -20 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: "spring", stiffness: 450, damping: 14, delay: 0.08 }}
+                  className="text-3xl shrink-0"
+                >
+                  🏅
+                </motion.div>
+                <div>
+                  <p className="text-slate-800 font-black text-sm uppercase tracking-widest leading-none">
+                    {milestoneToast.label}
+                  </p>
+                  <p className="text-amber-500 font-bold text-[11px] uppercase tracking-wider mt-1">
+                    Keep it up!
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* --- 1. MOBILE NAVIGATION --- */}
         <div className="md:hidden sticky top-0 w-full z-50 px-4 py-4 flex justify-between items-start bg-slate-50/80 backdrop-blur-md">
-          <div className="flex items-center gap-3 pointer-events-auto">
+          <div className="flex flex-col gap-2 pointer-events-auto">
+            <div className="flex items-center gap-3">
             <Link href="/" className="active:scale-95 transition-transform">
               <Logo className="w-10 h-12" />
             </Link>
@@ -667,150 +1372,377 @@ export default function StudyView() {
                 <div className="relative flex-1 h-1.5 bg-slate-200/50 rounded-full overflow-hidden">
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${accuracyPercent}%` }}
+                    animate={{ width: `${masteryPercent}%` }}
                     className={`h-full transition-all duration-1000 ${language === "jp" ? "bg-indigo-500" : "bg-orange-500"}`}
                   />
                 </div>
-                <span className="text-[9px] font-black text-slate-500 min-w-[28px] text-right">
-                  {accuracyPercent}%
-                </span>
+                <motion.span
+                  key={masteryPercent}
+                  initial={{ scale: 1.3 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 18 }}
+                  className="text-[9px] font-black text-slate-500 min-w-[28px] text-right tabular-nums"
+                >
+                  {masteryPercent}%
+                </motion.span>
               </div>
+              {jlptTotal > 0 && (
+                <div className="flex items-center gap-1 mt-0.5">
+                  <button
+                    onClick={() => setShowJlptBreakdown(true)}
+                    className="flex flex-1 items-center gap-2 active:scale-95 transition-transform"
+                  >
+                    <div className="flex-1 h-1.5 rounded-full overflow-hidden flex bg-slate-200">
+                      {jlptFilter !== "All" ? (
+                        <>
+                          <div className={`h-full ${JLPT_BAR_COLOR[jlptFilter]}`} style={{ width: `${jlptLevelMastery ?? 0}%` }} />
+                          <div className={`h-full ${JLPT_BAR_LIGHT_COLOR[jlptFilter]}`} style={{ width: `${100 - (jlptLevelMastery ?? 0)}%` }} />
+                        </>
+                      ) : (["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
+                        const pct = jlptTaggedTotal > 0 ? (jlptDistribution[level] / jlptTaggedTotal) * 100 : 0;
+                        if (pct === 0) return null;
+                        return <div key={level} className={JLPT_BAR_COLOR[level]} style={{ width: `${pct}%` }} />;
+                      })}
+                    </div>
+                    <span className={`text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${jlptFilter !== "All" ? JLPT_BADGE_COLOR[jlptFilter].split(" ")[1] : "text-slate-500"}`}>
+                      {jlptFilter !== "All"
+                        ? `${jlptFilter} ${jlptLevelMastery ?? 0}%`
+                        : `${dominantJlptLevel} ${jlptTaggedTotal > 0 ? Math.round((jlptDistribution[dominantJlptLevel] / jlptTaggedTotal) * 100) : 0}%`}
+                      <span className="opacity-40 font-normal"> ›</span>
+                    </span>
+                  </button>
+                  {jlptFilter !== "All" && (
+                    <button
+                      onClick={() => setJlptFilter("All")}
+                      className={`shrink-0 text-[10px] font-black leading-none px-1 py-0.5 rounded active:scale-95 transition-all ${JLPT_BADGE_COLOR[jlptFilter]}`}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
             </div>
           </div>
-          {/* --- THE FIX: Change this div --- */}
-          <div className="absolute top-4 right-4 flex flex-col items-end gap-2 pointer-events-auto">
-            {/* Using 'absolute' here prevents this stack from "pushing" the header 
-        height down. This keeps the header thin and the cards high.
-    */}
-            <div className="h-9 w-32">
-              <LanguageToggle language={language} setLanguage={setLanguage} />
+          {/* Top-right controls — Study Circle + Mode toggle */}
+          <div className="flex flex-col items-end gap-2 pointer-events-auto">
+            <div className="relative flex items-center gap-2">
+              <button
+                onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
+                className={`flex flex-col items-center justify-center gap-0.5 w-[84px] py-2 rounded-2xl border font-black transition-all active:scale-95 ${
+                  language === "jp"
+                    ? "bg-indigo-50 border-indigo-100 text-indigo-600"
+                    : "bg-orange-50 border-orange-100 text-orange-600"
+                }`}
+              >
+                <span className="text-base leading-none">{language === "jp" ? "🇯🇵" : "🇺🇸"}</span>
+                <span className="text-[8px] uppercase tracking-widest leading-none whitespace-nowrap">
+                  {language === "jp" ? t.recognition : t.recall}
+                </span>
+              </button>
+              {/* Collapsed behind a single trigger — the dropdown below is absolutely
+                  positioned so opening it never pushes the card/content down. */}
+              <button
+                onClick={() => setShowQuickMenu((v) => !v)}
+                className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
+                title="More"
+              >
+                {showQuickMenu ? <X size={18} className="text-slate-500" /> : <Menu size={18} className="text-slate-500" />}
+                {!showQuickMenu && (pendingWordCount > 0 || friends.some((f) => f.status === "pending" && !f.isSentByMe)) && (
+                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                    {pendingWordCount > 0 ? pendingWordCount : ""}
+                  </span>
+                )}
+              </button>
+              <AnimatePresence>
+                {showQuickMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full right-0 mt-2 flex flex-col items-end gap-2 z-[60]"
+                  >
+                    <button
+                      onClick={() => { setIsSocialOpen(true); setShowQuickMenu(false); }}
+                      className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
+                    >
+                      <span className="text-lg">👥</span>
+                      {friends.some((f) => f.status === "pending" && !f.isSentByMe) && (
+                        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-white" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => { setShowHistoryModal(true); setShowQuickMenu(false); }}
+                      className="flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
+                      title="Recently Reviewed"
+                    >
+                      <History size={18} className="text-slate-500" />
+                    </button>
+                    <button
+                      onClick={() => { setShowPriorityModal(true); setShowQuickMenu(false); }}
+                      className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
+                      title="Priority Words"
+                    >
+                      <Star size={18} className="text-amber-500" fill={cards.some((c) => c.is_priority) ? "currentColor" : "none"} />
+                    </button>
+                    <button
+                      onClick={() => { setShowWeakModal(true); setShowQuickMenu(false); }}
+                      className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
+                      title="Weak Words"
+                    >
+                      <TrendingDown size={18} className="text-rose-500" />
+                    </button>
+                    <motion.button
+                      onClick={() => { setIsQuickAddOpen(true); setShowQuickMenu(false); }}
+                      whileTap={{ scale: 0.88 }}
+                      className="relative w-11 h-11 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300/50 flex items-center justify-center"
+                    >
+                      <Plus size={20} strokeWidth={2.5} />
+                      {pendingWordCount > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                          {pendingWordCount}
+                        </span>
+                      )}
+                    </motion.button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-            <Link
-              href="/stats"
-              className="bg-white h-9 w-32 rounded-full shadow-sm border border-slate-200 flex items-center justify-center gap-1.5 active:scale-95 transition-all"
-            >
-              <span className="text-xs">📊</span>
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">
-                {t.stats}
-              </span>
-            </Link>
-            <button
-              onClick={() => setIsSocialOpen(!isSocialOpen)}
-              className="bg-white h-9 w-9 rounded-full shadow-sm border border-slate-200 flex items-center justify-center hover:border-black transition-all active:scale-95 shadow-indigo-100/50"
-            >
-              <span className="text-sm">👥</span>
-            </button>
+            {/* Goal chips — plain text, no box, right-aligned at the same row level as
+                the TIGER card's N-level bar underneath it (moved out of that card so it
+                doesn't have to grow a 3rd row to fit them). */}
+            {!dataLoading && cards.length > 0 && (
+              <div className="flex items-center gap-2.5 pr-1">
+                <button onClick={showReviewsHint} className="flex items-center gap-0.5 text-[9px] font-black text-slate-400 tabular-nums active:scale-95 transition-transform">
+                  🔁 {reviewsToday}/{REVIEW_TARGET}
+                </button>
+                <button onClick={showStillLearningHint} className="flex items-center gap-0.5 text-[9px] font-black text-slate-400 tabular-nums active:scale-95 transition-transform">
+                  📋 {stillLearningCount}
+                </button>
+                <button
+                  onClick={showMasteredHint}
+                  className={`flex items-center gap-0.5 text-[9px] font-black tabular-nums active:scale-95 transition-transform ${masteredToday >= MASTERED_GOAL ? "text-emerald-500" : "text-slate-400"}`}
+                >
+                  🎯 {masteredToday}/{MASTERED_GOAL}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
         {/* --- 2. DESKTOP NAVIGATION --- */}
         <div className="hidden md:flex relative top-0 w-full z-50 px-8 py-8 items-center justify-between pointer-events-auto">
-          <div className="flex items-center gap-6 h-14">
-            <Link
-              href="/"
-              className="flex items-center gap-5 hover:opacity-80 transition-opacity"
-            >
-              <Logo className="w-12 h-14" />
-              <div className="flex items-center gap-5 bg-white px-6 py-4 rounded-[2rem] border-2 border-slate-50 shadow-xl shadow-slate-200/50 backdrop-blur-md">
-                <div className="flex flex-col gap-2 min-w-[220px]">
-                  <div className="flex justify-between items-center px-1">
-                    <span className="text-base font-black uppercase tracking-tighter text-slate-900 italic">
-                      {profileName || ""}
-                    </span>
-                    <div
-                      className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest ${language === "jp" ? "bg-indigo-50 border-indigo-100 text-indigo-600" : "bg-orange-50 border-orange-100 text-orange-600"}`}
-                    >
-                      <span>{t.mastery}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="relative flex-1 h-3 bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${accuracyPercent}%` }}
-                        className={`h-full shadow-[0_0_12px_rgba(0,0,0,0.1)] transition-all duration-1000 ${language === "jp" ? "bg-indigo-500" : "bg-orange-500"}`}
-                      />
-                    </div>
-                    <div className="flex flex-col items-end min-w-[45px]">
-                      <span
-                        className={`text-sm font-black leading-none ${language === "jp" ? "text-indigo-600" : "text-orange-600"}`}
-                      >
-                        {accuracyPercent}%
+          {/* Top-right controls — Study Circle + Mode toggle */}
+          <div className="absolute right-8 top-8 flex flex-col items-end gap-2">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
+                className={`flex flex-col items-center justify-center gap-1 w-[104px] py-2.5 rounded-2xl border font-black transition-all hover:scale-105 active:scale-95 shadow-sm ${
+                  language === "jp"
+                    ? "bg-indigo-50 border-indigo-100 text-indigo-600"
+                    : "bg-orange-50 border-orange-100 text-orange-600"
+                }`}
+              >
+                <span className="text-lg leading-none">{language === "jp" ? "🇯🇵" : "🇺🇸"}</span>
+                <span className="text-[9px] uppercase tracking-widest leading-none whitespace-nowrap">
+                  {language === "jp" ? t.recognition : t.recall}
+                </span>
+              </button>
+              <button
+                onClick={() => setShowQuickMenu((v) => !v)}
+                className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+                title="More"
+              >
+                {showQuickMenu ? <X size={20} className="text-slate-500" /> : <Menu size={20} className="text-slate-500" />}
+                {!showQuickMenu && (pendingWordCount > 0 || friends.some((f) => f.status === "pending" && !f.isSentByMe)) && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                    {pendingWordCount > 0 ? pendingWordCount : ""}
+                  </span>
+                )}
+              </button>
+            </div>
+            <AnimatePresence>
+              {showQuickMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.15 }}
+                  className="flex flex-col items-end gap-3"
+                >
+                  <button
+                    onClick={() => { setIsSocialOpen(true); setShowQuickMenu(false); }}
+                    className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+                  >
+                    <span className="text-xl">👥</span>
+                    {friends.some((f) => f.status === "pending" && !f.isSentByMe) && (
+                      <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white" />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => { setShowHistoryModal(true); setShowQuickMenu(false); }}
+                    className="flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+                    title="Recently Reviewed"
+                  >
+                    <History size={20} className="text-slate-500" />
+                  </button>
+                  <button
+                    onClick={() => { setShowPriorityModal(true); setShowQuickMenu(false); }}
+                    className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+                    title="Priority Words"
+                  >
+                    <Star size={20} className="text-amber-500" fill={cards.some((c) => c.is_priority) ? "currentColor" : "none"} />
+                  </button>
+                  <button
+                    onClick={() => { setShowWeakModal(true); setShowQuickMenu(false); }}
+                    className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+                    title="Weak Words"
+                  >
+                    <TrendingDown size={20} className="text-rose-500" />
+                  </button>
+                  <motion.button
+                    onClick={() => { setIsQuickAddOpen(true); setShowQuickMenu(false); }}
+                    whileTap={{ scale: 0.88 }}
+                    className="relative w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300/50 flex items-center justify-center hover:scale-105 transition-all"
+                  >
+                    <Plus size={22} strokeWidth={2.5} />
+                    {pendingWordCount > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                        {pendingWordCount}
                       </span>
-                    </div>
+                    )}
+                  </motion.button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            {/* Goal chips — plain text, no box, same row level as the N-level bar in
+                the TIGER card to the left (moved out of that card to avoid a 3rd row). */}
+            {!dataLoading && cards.length > 0 && (
+              <div className="flex items-center gap-3 pr-1">
+                <button onClick={showReviewsHint} className="flex items-center gap-1 text-[10px] font-black text-slate-400 tabular-nums hover:text-slate-600 active:scale-95 transition-all">
+                  🔁 {reviewsToday}/{REVIEW_TARGET}
+                </button>
+                <button onClick={showStillLearningHint} className="flex items-center gap-1 text-[10px] font-black text-slate-400 tabular-nums hover:text-slate-600 active:scale-95 transition-all">
+                  📋 {stillLearningCount}
+                </button>
+                <button
+                  onClick={showMasteredHint}
+                  className={`flex items-center gap-1 text-[10px] font-black tabular-nums active:scale-95 transition-all ${masteredToday >= MASTERED_GOAL ? "text-emerald-500 hover:text-emerald-600" : "text-slate-400 hover:text-slate-600"}`}
+                >
+                  🎯 {masteredToday}/{MASTERED_GOAL}
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-6 h-14">
+            <Link href="/" className="hover:opacity-80 transition-opacity">
+              <Logo className="w-12 h-14" />
+            </Link>
+            <div className="flex items-center gap-5 bg-white px-6 py-4 rounded-[2rem] border-2 border-slate-50 shadow-xl shadow-slate-200/50 backdrop-blur-md">
+              <div className="flex flex-col gap-2 min-w-[220px]">
+                <div className="flex justify-between items-center px-1">
+                  <span className="text-base font-black uppercase tracking-tighter text-slate-900 italic">
+                    {profileName || ""}
+                  </span>
+                  <div
+                    className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest ${language === "jp" ? "bg-indigo-50 border-indigo-100 text-indigo-600" : "bg-orange-50 border-orange-100 text-orange-600"}`}
+                  >
+                    <span>{t.mastery}</span>
                   </div>
                 </div>
+                <div className="flex items-center gap-4">
+                  <div className="relative flex-1 h-3 bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${masteryPercent}%` }}
+                      className={`h-full shadow-[0_0_12px_rgba(0,0,0,0.1)] transition-all duration-1000 ${language === "jp" ? "bg-indigo-500" : "bg-orange-500"}`}
+                    />
+                  </div>
+                  <div className="flex flex-col items-end min-w-[45px]">
+                    <span
+                      className={`text-sm font-black leading-none ${language === "jp" ? "text-indigo-600" : "text-orange-600"}`}
+                    >
+                      {masteryPercent}%
+                    </span>
+                  </div>
+                </div>
+                {jlptTotal > 0 && (
+                  <div className="flex items-center gap-1.5 -mt-0.5">
+                    <button
+                      onClick={() => setShowJlptBreakdown(true)}
+                      className="flex flex-1 items-center gap-2.5 hover:opacity-80 active:scale-95 transition-all"
+                    >
+                      <div className="flex-1 h-2 rounded-full overflow-hidden flex bg-slate-200">
+                        {jlptFilter !== "All" ? (
+                          <>
+                            <div className={`h-full ${JLPT_BAR_COLOR[jlptFilter]}`} style={{ width: `${jlptLevelMastery ?? 0}%` }} />
+                            <div className={`h-full ${JLPT_BAR_LIGHT_COLOR[jlptFilter]}`} style={{ width: `${100 - (jlptLevelMastery ?? 0)}%` }} />
+                          </>
+                        ) : (["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
+                          const pct = jlptTaggedTotal > 0 ? (jlptDistribution[level] / jlptTaggedTotal) * 100 : 0;
+                          if (pct === 0) return null;
+                          return <div key={level} className={JLPT_BAR_COLOR[level]} style={{ width: `${pct}%` }} />;
+                        })}
+                      </div>
+                      <span className={`text-[10px] font-black uppercase tracking-widest whitespace-nowrap ${jlptFilter !== "All" ? JLPT_BADGE_COLOR[jlptFilter].split(" ")[1] : "text-slate-500"}`}>
+                        {jlptFilter !== "All"
+                          ? `${jlptFilter} ${jlptLevelMastery ?? 0}%`
+                          : `${dominantJlptLevel} ${jlptTaggedTotal > 0 ? Math.round((jlptDistribution[dominantJlptLevel] / jlptTaggedTotal) * 100) : 0}%`}
+                        <span className="opacity-40 font-normal"> ›</span>
+                      </span>
+                    </button>
+                    {jlptFilter !== "All" && (
+                      <button
+                        onClick={() => setJlptFilter("All")}
+                        className={`shrink-0 text-[10px] font-black leading-none px-1.5 py-0.5 rounded active:scale-95 transition-all ${JLPT_BADGE_COLOR[jlptFilter]}`}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-            </Link>
-          </div>
-          <div className="flex items-center gap-6">
-            <div className="h-11 flex items-center min-w-[200px]">
-              <LanguageToggle language={language} setLanguage={setLanguage} />
             </div>
-            <Link
-              href="/stats"
-              className="bg-white h-11 px-8 rounded-full shadow-sm border border-slate-100 flex items-center gap-3 hover:border-slate-300 transition-all active:scale-95"
-            >
-              <span className="text-xl leading-none">📊</span>
-              <span className="text-sm font-black uppercase tracking-[0.2em] text-slate-700">
-                {t.stats}
-              </span>
-            </Link>
-            {/* NEW: Social Toggle */}
-            <button
-              onClick={() => setIsSocialOpen(!isSocialOpen)}
-              className="bg-white h-9 w-9 md:h-11 md:w-11 rounded-full shadow-sm border border-slate-200 flex items-center justify-center hover:border-black transition-all active:scale-95"
-            >
-              <span className="text-sm md:text-lg">👥</span>
-            </button>
           </div>
         </div>
         {/* --- 3. MAIN STUDY AREA (PULLED UP FOR MOBILE) --- */}
-        <div className="flex-1 w-full flex flex-col items-center justify-start md:justify-center min-h-0 px-4 pt-10 md:pt-0 gap-2 md:gap-12">
+        <div className="flex-1 w-full flex flex-col items-center justify-start md:justify-center min-h-0 px-4 pt-3 md:pt-0 gap-2 md:gap-12">
           {/* pt-20: This provides a safe "buffer" for the absolute streak 
             on mobile so it doesn't hide under the header. 
         */}
           {/* HUD & ACCURACY STACK - MUST BE RELATIVE */}
           <div className="relative z-10 flex flex-col items-center gap-2 mb-2 md:mb-6 w-full animate-in fade-in slide-in-from-top-2 duration-700">
-            {/* --- 1. SESSION STREAK (FIXED PROPERTY NAME) --- */}
-            {sessionStreak >= 3 && (
-              <div className="absolute -top-8 left-0 right-0 flex justify-center pointer-events-none">
+            {/* --- 1. SESSION STREAK --- */}
+            <AnimatePresence>
+              {sessionStreak >= 3 && (
                 <motion.div
-                  initial={{ scale: 0.9, opacity: 0, y: 10 }}
+                  initial={{ scale: 0.9, opacity: 0, y: -6 }}
                   animate={{
                     scale: 1,
                     opacity: 1,
-                    y: [0, -6, 0],
+                    y: [0, -4, 0],
                     boxShadow: [
-                      // <--- Changed from shadow to boxShadow
                       "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)",
                       "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
                       "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)",
                     ],
                   }}
+                  exit={{ scale: 0.9, opacity: 0, y: -6 }}
                   transition={{
-                    y: {
-                      duration: 3.5,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                    },
-                    boxShadow: {
-                      // <--- Changed from shadow to boxShadow
-                      duration: 3.5,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                    },
-                    default: { duration: 0.7 },
+                    y: { duration: 3.5, repeat: Infinity, ease: "easeInOut" },
+                    boxShadow: { duration: 3.5, repeat: Infinity, ease: "easeInOut" },
+                    default: { duration: 0.4 },
                   }}
-                  className="flex items-center gap-2 bg-white/70 backdrop-blur-sm px-4 py-1.5 rounded-full border border-orange-100 mb-1"
+                  className="flex items-center gap-2 bg-white/70 backdrop-blur-sm px-4 py-1.5 rounded-full border border-orange-100"
                 >
                   <span className="text-lg">🔥</span>
                   <span className="font-black text-slate-800 tracking-tight text-[11px] uppercase">
                     {sessionStreak} {t.in_a_row}
                   </span>
                 </motion.div>
-              </div>
-            )}
+              )}
+            </AnimatePresence>
 
             {/* Daily Goal / Goal Met (Simple, No Background) */}
             <div className="flex flex-col items-center min-h-[32px] justify-center">
@@ -826,7 +1758,17 @@ export default function StudyView() {
                     />
                   </div>
                   <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">
-                    {t.goal}: {dailyProgress}/{DAILY_GOAL}
+                    {t.goal}:{" "}
+                    <motion.span
+                      key={dailyProgress}
+                      initial={{ scale: 1.4, color: "#10b981" }}
+                      animate={{ scale: 1, color: "#94a3b8" }}
+                      transition={{ duration: 0.3 }}
+                      className="inline-block tabular-nums"
+                    >
+                      {dailyProgress}
+                    </motion.span>
+                    /{DAILY_GOAL}
                   </p>
                 </div>
               ) : (
@@ -850,15 +1792,13 @@ export default function StudyView() {
               )}
             </div>
 
-            {/* Accuracy Label (Directly above the card) */}
+            {/* Accuracy info */}
             {!dataLoading && cards.length > 0 && currentCard && (
               <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] text-center">
-                {language === "jp" ? `🇯🇵 ${t.recognition}` : `🇺🇸 ${t.recall}`} |{" "}
+                {language === "jp" ? `🇯🇵 ${t.recognition}` : `🇺🇸 ${t.recall}`}
+                {" | "}
                 <span className="font-black text-slate-300">
-                  {currentCard.scores?.[
-                    language === "jp" ? "jp_to_en" : "en_to_jp"
-                  ]?.percent || 0}
-                  % {t.accuracy}
+                  {currentCard.scores?.[language === "jp" ? "jp_to_en" : "en_to_jp"]?.percent || 0}% {t.accuracy}
                 </span>
               </span>
             )}
@@ -872,7 +1812,7 @@ export default function StudyView() {
         2. 'overflow-hidden' + 'rounded-[2.5rem]' is the "Cookie Cutter" that 
            clips the CoachMarks so they can't be longer than the card.
     */}
-              <div className="relative isolate bg-transparent w-full max-w-[80vw] sm:max-w-[360px] aspect-[3/4] rounded-[2.5rem]">
+              <div className="relative isolate bg-transparent w-full max-w-[80vw] sm:max-w-[360px] aspect-[3/4] max-h-[min(380px,calc(100dvh-360px))] rounded-[2.5rem]">
                 {/* --- COACHMARKS OVERLAY --- */}
                 <AnimatePresence>
                   {showHints && !dataLoading && <CoachMarks />}
@@ -901,11 +1841,29 @@ export default function StudyView() {
                 {/* Flashcard Logic */}
                 {(dataLoading && !hasLoadedOnce && cards.length === 0) ||
                 aiLoading ? (
-                  <div className="w-full h-full aspect-[3/4] bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 flex flex-col items-center justify-center animate-pulse">
-                    <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3" />
-                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">
-                      {t.syncing_deck}
-                    </p>
+                  <div className="relative w-full h-full">
+                    {/* Card stack depth */}
+                    <div className="absolute inset-0 rounded-[2.5rem] bg-indigo-100/50 translate-y-3 scale-[0.96]" />
+                    <div className="absolute inset-0 rounded-[2.5rem] bg-indigo-50/80 translate-y-1.5 scale-[0.98]" />
+                    {/* Main card */}
+                    <div className="relative w-full h-full bg-white rounded-[2.5rem] overflow-hidden flex flex-col items-center justify-center gap-5 shadow-sm">
+                      {/* Shimmer sweep */}
+                      <motion.div
+                        className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-50/80 to-transparent pointer-events-none"
+                        animate={{ x: ["-100%", "200%"] }}
+                        transition={{ duration: 1.6, repeat: Infinity, ease: "linear", repeatDelay: 0.4 }}
+                      />
+                      {/* Skeleton character block */}
+                      <div className="w-24 h-24 rounded-3xl bg-slate-100" />
+                      {/* Skeleton label lines */}
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-20 h-3 rounded-full bg-slate-100" />
+                        <div className="w-14 h-2 rounded-full bg-slate-100/70" />
+                      </div>
+                      <p className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-300 mt-2 z-10">
+                        {aiLoading ? "Syncing card" : "Loading deck"}
+                      </p>
+                    </div>
                   </div>
                 ) : cards.length > 0 && currentCard ? (
                   <Flashcard
@@ -914,12 +1872,15 @@ export default function StudyView() {
                     language={language}
                     userId={user?.id || ""}
                     onSwipe={onSwipe}
-                    autoPlayJp={autoPlayJp}
-                    autoPlayEn={autoPlayEn}
+                    autoPlayJp={autoPlayJp && hasInteracted.current}
+                    autoPlayEn={autoPlayEn && hasInteracted.current}
                     sfxEnabled={sfxEnabled}
                     isFlipped={isFlipped}
                     onFlip={setIsFlipped}
                     audioPulse={audioPulse}
+                    isPriority={!!currentCard.is_priority}
+                    onTogglePriority={() => togglePriority(currentCard)}
+                    onMnemonicGenerated={handleMnemonicGenerated}
                   />
                 ) : !dataLoading && cards.length === 0 && hasLoadedOnce ? (
                   <div className="w-full h-full flex flex-col items-center justify-center bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 p-8 text-center">
@@ -948,28 +1909,51 @@ export default function StudyView() {
         </div>
 
         {/* --- 4. BOTTOM BUTTONS (LOWERED) --- */}
-        {!dataLoading && cards.length > 0 && currentCard && (
-          <div className="w-full flex justify-center pt-4 pb-12 md:pb-16 lg:pb-24">
-            {/* pb-12: Pushes buttons UP on mobile to clear the home bar/keyboard.
-              md:pb-16: Standard desktop height.
+        {/* Wrapper always renders when there's a card so the card anchor above never shifts. */}
+        {!dataLoading && prefsLoaded && cards.length > 0 && currentCard && (() => {
+          const isNewCard = (currentCard.scores?.jp_to_en?.total ?? 0) === 0 && (currentCard.scores?.en_to_jp?.total ?? 0) === 0;
+          const showButtons = !swipeOnly || isNewCard;
+          return (
+          <div className="w-full flex justify-center pt-4 pb-24 md:pb-16 lg:pb-24">
+            {/* pb-28: Clears fixed BottomNav (h-14) + home bar on mobile.
+              md:pb-16: Standard desktop height (BottomNav is hidden on md+).
               lg:pb-24: Extra breathing room for larger MacBook screens.
+              The outer div always reserves this space so the card stays centered
+              regardless of whether buttons are visible.
           */}
-            <div className="w-full max-w-md flex gap-4 px-6 mb-safe">
+            {showButtons && (
+            <div className="w-full max-w-md flex flex-col gap-3 px-6 mb-safe">
+            {isNewCard && (
               <button
+                onClick={handleAlreadyKnow}
+                className="w-full py-2.5 bg-transparent text-slate-400 rounded-xl font-bold uppercase text-[9px] tracking-widest border border-dashed border-slate-200 active:scale-95 transition-all"
+              >
+                {t.already_know}
+              </button>
+            )}
+            {!swipeOnly && (
+            <div className="flex gap-4">
+              <button
+                onTouchStart={() => navigator.vibrate?.([30, 60, 30])}
                 onClick={() => handleScore(false)}
                 className="flex-1 py-4 md:py-5 bg-rose-50 text-rose-600 rounded-2xl font-black border-b-4 border-rose-200 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] tracking-widest"
               >
                 ✕ {t.fail}
               </button>
               <button
+                onTouchStart={() => navigator.vibrate?.([80])}
                 onClick={() => handleScore(true)}
                 className="flex-1 py-4 md:py-5 bg-emerald-500 text-white rounded-2xl font-black border-b-4 border-emerald-700 active:border-b-0 active:translate-y-1 transition-all uppercase text-[10px] tracking-widest"
               >
                 ✓ {t.pass}
               </button>
             </div>
+            )}
+            </div>
+            )}
           </div>
-        )}
+          );
+        })()}
 
         {/* Keyboard Legend */}
         <div className="hidden md:flex fixed bottom-8 w-full justify-center pointer-events-none z-0">
@@ -987,7 +1971,7 @@ export default function StudyView() {
                 </kbd>
               </div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                {t.flip}
+                {t.flip_control}
               </span>
             </div>
             <div className="w-[1px] h-3 bg-slate-200" />
@@ -1022,10 +2006,479 @@ export default function StudyView() {
           <SocialDock
             userId={user.id}
             username={profileName}
+            referralCode={referralCode}
             friends={friends}
             onClose={() => setIsSocialOpen(false)}
             fetchFriends={fetchFriends}
           />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showQuiz && user?.id && (
+          <SentenceQuiz userId={user.id} isAdmin={isAdmin} onClose={() => setShowQuiz(false)} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showListeningQuiz && user?.id && (
+          <ListeningQuiz userId={user.id} isAdmin={isAdmin} onClose={() => setShowListeningQuiz(false)} />
+        )}
+      </AnimatePresence>
+      {user?.id && defaultDeckId && (
+        <AddWordsSheet
+          userId={user.id}
+          deckId={defaultDeckId}
+          isAdmin={isAdmin}
+          blocklist={blocklist}
+          open={isQuickAddOpen}
+          onClose={() => setIsQuickAddOpen(false)}
+          onAdded={fetchInitialData}
+          onQueueCountChange={setPendingWordCount}
+        />
+      )}
+
+      {/* Session Recap Modal */}
+      <AnimatePresence>
+        {showRecap && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] bg-slate-900/95 backdrop-blur-md flex flex-col items-center justify-center p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0, y: 40 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 26 }}
+              className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 flex flex-col items-center gap-6 shadow-2xl"
+            >
+              <motion.div
+                initial={{ scale: 0, rotate: -30 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: "spring", stiffness: 400, damping: 14, delay: 0.15 }}
+                className="text-6xl"
+              >
+                🎯
+              </motion.div>
+
+              <div className="text-center">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Daily Goal Complete!</p>
+                <p className="text-3xl font-black text-slate-900 mt-1 italic">
+                  {goalStreak > 0 ? `${goalStreak} Day Streak 🔥` : "Great Work!"}
+                </p>
+              </div>
+
+              <div className="w-full grid grid-cols-3 gap-3">
+                <div className="bg-slate-50 rounded-2xl p-3 text-center">
+                  <p className="text-2xl font-black text-indigo-600 tabular-nums">{recapAnimCards}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Cards</p>
+                </div>
+                <div className="bg-slate-50 rounded-2xl p-3 text-center">
+                  <p className="text-2xl font-black text-emerald-600 tabular-nums">{recapAnimAccuracy}%</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Accuracy</p>
+                </div>
+                <div className="bg-slate-50 rounded-2xl p-3 text-center">
+                  <p className="text-2xl font-black text-amber-500 tabular-nums">{recapAnimMastered}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Mastered</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowRecap(false)}
+                className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
+              >
+                Keep Going →
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showJlptBreakdown && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[210] bg-black/20"
+              onClick={() => setShowJlptBreakdown(false)}
+            />
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[211] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm"
+              style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-slate-800 font-black text-sm uppercase tracking-tight">{t.by_level}</p>
+                <button onClick={() => setShowJlptBreakdown(false)} className="text-slate-300 hover:text-slate-500">✕</button>
+              </div>
+              <p className="text-[10px] font-bold text-slate-400 mb-4 leading-relaxed">
+                Tap a level to filter what you study. Percentages below show each level&apos;s share of your deck, not mastery.
+              </p>
+              {/* Filter chips */}
+              <div className="flex gap-2 mb-5 flex-wrap">
+                {(["All", "N5", "N4", "N3", "N2", "N1"] as const).map((lvl) => {
+                  const isActive = jlptFilter === lvl;
+                  const isAll = lvl === "All";
+                  return (
+                    <button
+                      key={lvl}
+                      onClick={() => {
+                        setJlptFilter(lvl);
+                        setShowJlptBreakdown(false);
+                        setJlptFilterToast(lvl === "All" ? "Studying all levels" : `Now studying ${lvl} only`);
+                        setTimeout(() => setJlptFilterToast(null), 2200);
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                        isActive
+                          ? isAll
+                            ? "bg-slate-800 text-white border-slate-800"
+                            : `${JLPT_BAR_COLOR[lvl]} text-white border-transparent`
+                          : isAll
+                            ? "bg-slate-50 text-slate-500 border-slate-200"
+                            : JLPT_BADGE_COLOR[lvl]
+                      }`}
+                    >
+                      {lvl}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="space-y-3">
+                {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
+                  const count = jlptDistribution[level];
+                  const pct = jlptTotal > 0 ? Math.round((count / jlptTotal) * 100) : 0;
+                  return (
+                    <div key={level} className="flex items-center gap-3">
+                      <span className={`shrink-0 w-9 text-[10px] px-1.5 py-0.5 rounded-md border font-black text-center uppercase tracking-tighter ${JLPT_BADGE_COLOR[level]}`}>
+                        {level}
+                      </span>
+                      <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${JLPT_BAR_COLOR[level]}`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="shrink-0 w-20 text-right text-xs font-black text-slate-600">
+                        {count} <span className="text-slate-400 font-bold">· {pct}%</span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* History Modal — last 20 reviewed words, rolling + deduped by construction */}
+      <AnimatePresence>
+        {showHistoryModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[220] bg-black/20"
+              onClick={() => setShowHistoryModal(false)}
+            />
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[221] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm max-h-[80vh] flex flex-col"
+              style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+            >
+              <div className="flex items-center justify-between mb-4 shrink-0">
+                <div className="flex items-center gap-2">
+                  <History size={16} className="text-slate-400" />
+                  <p className="text-slate-800 font-black text-sm uppercase tracking-tight">Recently Reviewed</p>
+                </div>
+                <button onClick={() => setShowHistoryModal(false)} className="text-slate-300 hover:text-slate-500">✕</button>
+              </div>
+              <div className="flex-1 overflow-y-auto space-y-2 -mx-1 px-1">
+                {historyList.length === 0 ? (
+                  <p className="text-center text-slate-400 text-xs font-bold py-8">
+                    No reviews yet — flip a few cards first!
+                  </p>
+                ) : (
+                  historyList.map((c) => {
+                    const pct = cardOverallPercent(c);
+                    return (
+                      <div
+                        key={c.id}
+                        className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-black text-slate-800 text-sm truncate">{c.japanese}</p>
+                            {c.jlpt_level && (
+                              <span className={`shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-md border uppercase tracking-tighter ${JLPT_BADGE_COLOR[c.jlpt_level]}`}>
+                                {c.jlpt_level}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-slate-400 text-[11px] font-medium truncate">
+                            {c.reading} • {c.english}
+                          </p>
+                        </div>
+                        <div className="shrink-0 flex items-center gap-2">
+                          <span
+                            className={`text-[10px] font-black px-2 py-1 rounded-full ${
+                              pct >= 70
+                                ? "bg-emerald-100 text-emerald-700"
+                                : pct >= 40
+                                  ? "bg-amber-100 text-amber-700"
+                                  : "bg-rose-100 text-rose-700"
+                            }`}
+                          >
+                            {pct}%
+                          </span>
+                          <button
+                            onClick={() => togglePriority(c)}
+                            className="p-1.5 rounded-full hover:bg-amber-100 active:scale-90 transition-all"
+                            title={c.is_priority ? "Remove from Priority" : "Add to Priority"}
+                          >
+                            <Star
+                              size={16}
+                              className={c.is_priority ? "text-amber-500" : "text-slate-300"}
+                              fill={c.is_priority ? "currentColor" : "none"}
+                            />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Priority Words Modal — rolling cap of 30, prioritize/unprioritize */}
+      <AnimatePresence>
+        {showPriorityModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[220] bg-black/20"
+              onClick={() => setShowPriorityModal(false)}
+            />
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[221] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm max-h-[80vh] flex flex-col"
+              style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+            >
+              <div className="flex items-center justify-between mb-4 shrink-0">
+                <div className="flex items-center gap-2">
+                  <Star size={16} className="text-amber-500" fill="currentColor" />
+                  <p className="text-slate-800 font-black text-sm uppercase tracking-tight">Priority Words</p>
+                </div>
+                <button onClick={() => setShowPriorityModal(false)} className="text-slate-300 hover:text-slate-500">✕</button>
+              </div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3 shrink-0">
+                {priorityList.length}/{PRIORITY_CAP} starred — tap ★ on a card to add more
+              </p>
+              <div className="flex-1 overflow-y-auto space-y-2 -mx-1 px-1">
+                {priorityList.length === 0 ? (
+                  <p className="text-center text-slate-400 text-xs font-bold py-8">
+                    No priority words yet — star a card during study to pull it into rotation more often.
+                  </p>
+                ) : (
+                  priorityList.map((c) => (
+                    <div
+                      key={c.id}
+                      className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-black text-slate-800 text-sm truncate">{c.japanese}</p>
+                          {c.jlpt_level && (
+                            <span className={`shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-md border uppercase tracking-tighter ${JLPT_BADGE_COLOR[c.jlpt_level]}`}>
+                              {c.jlpt_level}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-slate-400 text-[11px] font-medium truncate">
+                          {c.reading} • {c.english}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => togglePriority(c)}
+                        className="shrink-0 p-2 rounded-full hover:bg-amber-100 active:scale-90 transition-all"
+                        title="Remove from Priority"
+                      >
+                        <Star size={18} className="text-amber-500" fill="currentColor" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Weak Words Modal — 10+ tries but still under 30% combined accuracy; a
+          deliberate "drill these" list, separate from the algorithm's own weighted pull
+          toward weak cards (which can take a while to actually surface a given word). */}
+      <AnimatePresence>
+        {showWeakModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[220] bg-black/20"
+              onClick={() => setShowWeakModal(false)}
+            />
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[221] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm max-h-[80vh] flex flex-col"
+              style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+            >
+              <div className="flex items-center justify-between mb-4 shrink-0">
+                <div className="flex items-center gap-2">
+                  <TrendingDown size={16} className="text-rose-500" />
+                  <p className="text-slate-800 font-black text-sm uppercase tracking-tight">Weak Words</p>
+                </div>
+                <button onClick={() => setShowWeakModal(false)} className="text-slate-300 hover:text-slate-500">✕</button>
+              </div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3 shrink-0">
+                Under 30% accuracy with 10+ tries
+              </p>
+              <div className="flex-1 overflow-y-auto space-y-2 -mx-1 px-1">
+                {weakWordsList.length === 0 ? (
+                  <p className="text-center text-slate-400 text-xs font-bold py-8">
+                    No words this weak with enough tries yet — that&apos;s a good thing.
+                  </p>
+                ) : (
+                  weakWordsList.map((c) => {
+                    const pct = cardOverallPercent(c);
+                    return (
+                      <div
+                        key={c.id}
+                        className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-black text-slate-800 text-sm truncate">{c.japanese}</p>
+                            {c.jlpt_level && (
+                              <span className={`shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-md border uppercase tracking-tighter ${JLPT_BADGE_COLOR[c.jlpt_level]}`}>
+                                {c.jlpt_level}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-slate-400 text-[11px] font-medium truncate">
+                            {c.reading} • {c.english}
+                          </p>
+                        </div>
+                        <div className="shrink-0 flex items-center gap-2">
+                          <span className="text-[10px] font-black px-2 py-1 rounded-full bg-rose-100 text-rose-700">
+                            {pct}%
+                          </span>
+                          {KANJI_RE.test(c.japanese) && (
+                            <button
+                              onClick={() => handleWeakWordMnemonic(c)}
+                              className="p-1.5 rounded-full hover:bg-amber-100 active:scale-90 transition-all"
+                              title="Remember this kanji"
+                            >
+                              <Lightbulb size={16} className={c.mnemonic ? "text-amber-500" : "text-slate-300"} />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => togglePriority(c)}
+                            className="p-1.5 rounded-full hover:bg-amber-100 active:scale-90 transition-all"
+                            title={c.is_priority ? "Remove from Priority" : "Add to Priority"}
+                          >
+                            <Star
+                              size={16}
+                              className={c.is_priority ? "text-amber-500" : "text-slate-300"}
+                              fill={c.is_priority ? "currentColor" : "none"}
+                            />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Mnemonic sheet for a Weak Words entry — sits above the Weak Words modal
+          (z-[220]/[221]) with the same content/style as Flashcard.tsx's own sheet. */}
+      <AnimatePresence>
+        {weakMnemonicCard && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[300] bg-black/40"
+              onClick={() => setWeakMnemonicCard(null)}
+            />
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[301] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm max-h-[80vh] overflow-y-auto"
+              style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+            >
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <Lightbulb size={16} className="text-amber-500" />
+                  <p className="text-slate-800 font-black text-sm uppercase tracking-tight">
+                    Remember {weakMnemonicCard.japanese}
+                  </p>
+                </div>
+                <button onClick={() => setWeakMnemonicCard(null)} className="text-slate-300 hover:text-slate-500 shrink-0">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {weakMnemonicLoading && (
+                <div className="flex items-center gap-2 text-sm text-slate-400 py-6 justify-center">
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>Thinking of a way to remember it…</span>
+                </div>
+              )}
+
+              {!weakMnemonicLoading && weakMnemonicError && (
+                <p className="text-center text-rose-500 text-xs font-bold py-6">{weakMnemonicError}</p>
+              )}
+
+              {!weakMnemonicLoading && !weakMnemonicError && weakMnemonicCard.mnemonic && (
+                <div className="space-y-4">
+                  {weakMnemonicCard.mnemonic.entries.map((entry, i) => (
+                    <div key={i} className="bg-slate-50 rounded-2xl p-4">
+                      <p className="text-3xl font-black text-slate-800 mb-1">{entry.character}</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-1.5">
+                        {entry.radicals}
+                      </p>
+                      <p className="text-sm text-slate-600 leading-snug">{entry.story}</p>
+                    </div>
+                  ))}
+                  {weakMnemonicCard.mnemonic.origin && (
+                    <p className="text-xs text-slate-400 italic leading-snug pt-1">{weakMnemonicCard.mnemonic.origin}</p>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </>

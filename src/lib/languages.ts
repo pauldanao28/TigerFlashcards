@@ -6,6 +6,7 @@ export const translations = {
     pass: "Pass",
     fail_caps: "FAIL",
     pass_caps: "PASS",
+    already_know: "I already know this",
     empty_deck: "Empty Deck",
     recall: "Recall",
     recognition: "Recognition",
@@ -16,7 +17,6 @@ export const translations = {
     syncing_deck: "Syncing Deck...",
     days: "Days",
     back: "Back",
-    back_to_study: "Back to Study",
     signout: "Sign Out",
     active_collection: "Active Collection",
     save: "Save",
@@ -26,6 +26,7 @@ export const translations = {
     vocabulary: "Vocabulary",
     mastered: "Mastered",
     struggling: "Struggling",
+    by_level: "Vocabulary by Level",
     settings: "Settings",
     close: "Close",
     close_settings: "Close Settings",
@@ -40,6 +41,7 @@ export const translations = {
     format_list: "1. List: word, meaning (one per line)",
     format_lyrics: "2. Lyrics: Paste a whole song or text. I'll pick out the new words for you!",
     add_new_word: "Add New Word...",
+    quick_add: "Add Words",
     success_added: "Successfully added {{count}} words!",
     in_a_row: "in a row",
     loading: "LOADING...",
@@ -155,6 +157,8 @@ export const translations = {
   delete_btn: "Delete Forever",
   sfx_title: "Sound Effects",
     sfx_desc: "Play sound on pass/fail",
+    swipe_only_title: "Swipe Only",
+    swipe_only_desc: "Hide the Fail/Pass buttons, grade cards by swiping only",
     update_password: "Update Password",
     change_password: "Change Password",
     account_security: "Account Security",
@@ -191,6 +195,7 @@ export const translations = {
     pass: "わかった",
     fail_caps: "わからない",
     pass_caps: "わかった",
+    already_know: "もう知っている",
     empty_deck: "デッキが空です",
     recall: "想起", 
     recognition: "認識", 
@@ -201,7 +206,6 @@ export const translations = {
     syncing_deck: "デッキを同期中...", // Dekki o dōkichū...
     days: "日", // Hi/Nichi
     back: "戻る",
-    back_to_study: "学習に戻る", // Gakushū ni modoru (Return to learning)
     signout: "ログアウト", // Log-out (Standard katakana)
     active_collection: "現在のコレクション", // Genzai no korekushon (Current Collection)
     save: "保存する", // Hozon suru (To Save/Preserve)
@@ -211,6 +215,7 @@ export const translations = {
     vocabulary: "語彙力", // Goiryoku (or simply ボキャブラリー)
     mastered: "習得済み", // Shūtoku-zumi (Completed/Learned)
     struggling: "要復習", // Yō-fukushū (Needs Review - sounds better than "failing")
+    by_level: "レベル別語彙", // Reberu-betsu goi (Vocabulary by level)
     settings: "設定", // Settei
     close: "閉じる",
     close_settings: "設定を閉じる", // Settei o tojiru
@@ -225,6 +230,7 @@ export const translations = {
     format_list: "1. リスト形式: 単語, 意味 (1行に1項目)", // Risto keishiki: Tango, imi (1 item per line)
     format_lyrics: "2. 歌詞・長文: 歌詞や文章を貼り付けると、AIが新しい単語を抽出します！", // Kashi/Chōbun... (Paste lyrics/text and AI will extract words!)
     add_new_word: "単語を追加...", // Tango o tsuika
+    quick_add: "単語を追加", // Tango o tsuika (nav button)
     success_added: "{{count}}語を追加しました！", // {{count}}-go o tsuika shimashita!
     in_a_row: "連続",           // Renzoku (Consecutive)
     loading: "読み込み中...",       // "Yomikomi-chū"
@@ -340,6 +346,8 @@ export const translations = {
   delete_btn: "永久に削除する",
   sfx_title: "効果音",
     sfx_desc: "正解・不正解時に音を鳴らす",
+    swipe_only_title: "スワイプのみ",
+    swipe_only_desc: "「わかった」「わからない」ボタンを隠し、スワイプのみで判定する",
     update_password: "パスワード更新",
     change_password: "パスワード変更",
     account_security: "アカウントセキュリティ",

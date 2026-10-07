@@ -6,15 +6,27 @@ export interface MasterCard {
   reading: string;
   english: string;
   level?: number;
-  partOfSpeech?: 'verb' | 'noun' | 'adjective' | 'particle' | string;
+  jlpt_level?: 'N5' | 'N4' | 'N3' | 'N2' | 'N1' | null;
+  partOfSpeech?: 'noun' | 'verb' | 'adjective' | 'adverb' | 'particle' | 'pronoun' | 'conjunction' | 'number' | 'phrase' | string;
   exampleSentence?: {
     jp: string;
     en: string;
   };
   alternatives?: string[];
-  contextNote?: string;
   is_public: boolean;
   created_at: string;
+  mnemonic?: KanjiMnemonic | null;
+}
+
+export interface KanjiMnemonicEntry {
+  character: string;
+  radicals: string;
+  story: string;
+}
+
+export interface KanjiMnemonic {
+  entries: KanjiMnemonicEntry[];
+  origin?: string;
 }
 
 // 2. The Personal Progress (from user_scores table)
@@ -44,6 +56,9 @@ export type FlashcardData = MasterCard & {
   scores: UserScore['scores_json'];
   next_review_at: string;
   added_to_deck_at?: string | null;
+  is_priority?: boolean;
+  prioritized_at?: string | null;
+  last_reviewed_at?: string | null;
 };
 
 export type StudyMode = 'recognition' | 'production';

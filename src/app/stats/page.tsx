@@ -1,32 +1,125 @@
 "use client";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FlashcardData } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
-import { useLang } from "@/context/LanguageContext";
-import { motion } from "framer-motion";
+import { translations } from "@/lib/languages";
+import { useUploadGuard } from "@/context/UploadGuardContext";
+import { useAppAlert } from "@/context/AlertContext";
+import { motion, useAnimationControls } from "framer-motion";
 import Logo from "@/components/Logo";
 import { calculateGlobalStats } from "@/lib/stats";
 import LoadingScreen from "@/components/LoadingScreen";
+import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
+import AddWordsSheet from "@/components/AddWordsSheet";
+import { List, Plus, Star } from "lucide-react";
+import { AVATAR_PRESETS } from "@/lib/avatars";
+import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
+
+interface StatsCardsCache { userId: string; cards: FlashcardData[]; deckId: string; }
+let _statsCardsCache: StatsCardsCache | null = null;
+
+// Keep in sync with StudyView.tsx's rolling priority cap.
+const PRIORITY_CAP = 30;
+
+interface QuickStats {
+  total: number;
+  mastered: number;
+  struggling: number;
+  jp: { tries: number; pass: number; fail: number };
+  en: { tries: number; pass: number; fail: number };
+}
+
+function computeQuickStats(rows: { user_scores?: { scores_json?: any }[] }[]): QuickStats {
+  let total = 0, mastered = 0, struggling = 0;
+  let jpTries = 0, jpPass = 0, jpFail = 0, enTries = 0, enPass = 0, enFail = 0;
+  for (const row of rows) {
+    const s = row.user_scores?.[0]?.scores_json;
+    const jp = s?.jp_to_en ?? {};
+    const en = s?.en_to_jp ?? {};
+    total++;
+    const jpPass5 = (jp.pass ?? 0) >= 5 && (jp.percent ?? 0) >= 70;
+    const enPass5 = (en.pass ?? 0) >= 5 && (en.percent ?? 0) >= 70;
+    if (jpPass5 || enPass5) mastered++;
+    const totalAttempts = (jp.total ?? 0) + (en.total ?? 0);
+    if (totalAttempts > 0 && ((jp.percent ?? 0) + (en.percent ?? 0)) / 2 < 40) struggling++;
+    jpTries += jp.total ?? 0; jpPass += jp.pass ?? 0; jpFail += jp.fail ?? 0;
+    enTries += en.total ?? 0; enPass += en.pass ?? 0; enFail += en.fail ?? 0;
+  }
+  return { total, mastered, struggling, jp: { tries: jpTries, pass: jpPass, fail: jpFail }, en: { tries: enTries, pass: enPass, fail: enFail } };
+}
+
+function SparkLine({ values, color }: { values: (number | null)[]; color: string }) {
+  const W = 64, H = 28;
+  const pts = values
+    .map((v, i) => ({ v, i }))
+    .filter((p): p is { v: number; i: number } => p.v !== null);
+  if (pts.length === 0) return (
+    <div style={{ width: W, height: H }} className="flex items-center">
+      <div className="w-full h-px bg-slate-100" />
+    </div>
+  );
+  if (pts.length === 1) {
+    const cx = ((pts[0].i / Math.max(values.length - 1, 1)) * W).toFixed(1);
+    const cy = (H / 2).toFixed(1);
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
+        <line x1="0" y1={cy} x2={W} y2={cy} stroke={color} strokeWidth="1" strokeOpacity="0.2" strokeDasharray="3,3" />
+        <circle cx={cx} cy={cy} r="2.5" fill={color} />
+      </svg>
+    );
+  }
+  const min = Math.min(...pts.map((p) => p.v));
+  const max = Math.max(...pts.map((p) => p.v), min + 1);
+  const x = (i: number) => (i / (values.length - 1)) * W;
+  const y = (v: number) => H - 2 - ((v - min) / (max - min)) * (H - 6);
+  const line = pts.map((p) => `${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ");
+  const area = `${x(pts[0].i).toFixed(1)},${H} ${pts.map((p) => `${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ")} ${x(pts[pts.length - 1].i).toFixed(1)},${H}`;
+  const last = pts[pts.length - 1];
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
+      <polygon points={area} fill={color} fillOpacity="0.15" />
+      <polyline points={line} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={x(last.i).toFixed(1)} cy={y(last.v).toFixed(1)} r="2.5" fill={color} />
+    </svg>
+  );
+}
+
+const CONFETTI_PARTICLES = [
+  { color: "#6366f1", left: 8,  delay: 0,    drift: -40, h: 10, w: 10, round: true  },
+  { color: "#f59e0b", left: 18, delay: 0.1,  drift: 35,  h: 6,  w: 12, round: false },
+  { color: "#10b981", left: 28, delay: 0.25, drift: -20, h: 8,  w: 8,  round: true  },
+  { color: "#f43f5e", left: 38, delay: 0.05, drift: 50,  h: 6,  w: 10, round: false },
+  { color: "#3b82f6", left: 50, delay: 0.2,  drift: -55, h: 10, w: 6,  round: false },
+  { color: "#8b5cf6", left: 60, delay: 0.15, drift: 25,  h: 6,  w: 8,  round: true  },
+  { color: "#f59e0b", left: 70, delay: 0.3,  drift: -30, h: 8,  w: 8,  round: false },
+  { color: "#6366f1", left: 80, delay: 0.1,  drift: 45,  h: 6,  w: 6,  round: true  },
+  { color: "#10b981", left: 90, delay: 0.2,  drift: -50, h: 10, w: 6,  round: true  },
+  { color: "#f43f5e", left: 13, delay: 0.35, drift: 60,  h: 6,  w: 10, round: false },
+  { color: "#3b82f6", left: 33, delay: 0.08, drift: -65, h: 8,  w: 8,  round: true  },
+  { color: "#8b5cf6", left: 55, delay: 0.22, drift: 30,  h: 6,  w: 6,  round: false },
+  { color: "#f43f5e", left: 43, delay: 0.18, drift: -45, h: 8,  w: 6,  round: true  },
+  { color: "#6366f1", left: 75, delay: 0.28, drift: 55,  h: 6,  w: 10, round: false },
+];
 
 export default function StatsPage() {
   const router = useRouter();
-  const { t, setLang, lang } = useLang();
+  const t = translations.en;
+  const { isBusy: uploadBusy, setIsBusy: setUploadBusy } = useUploadGuard();
+  const { showAlert, showConfirm } = useAppAlert();
   const [cards, setCards] = useState<FlashcardData[]>([]);
-  const [input, setInput] = useState("");
-  const [batchInput, setBatchInput] = useState("");
-  const [showBatch, setShowBatch] = useState(false);
   const [loading, setLoading] = useState(false);
   const [initLoading, setInitLoading] = useState(false);
+  const [cardsLoading, setCardsLoading] = useState(false);
+  const [quickStats, setQuickStats] = useState<QuickStats | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [userBlocklist, setUserBlocklist] = useState<string[]>([]);
   const [showSettings, setShowSettings] = useState(false);
   const [newBlockWord, setNewBlockWord] = useState("");
   const [autoPlayJp, setAutoPlayJp] = useState(true);
   const [autoPlayEn, setAutoPlayEn] = useState(false);
-  const [streak, setStreak] = useState(0);
   const [maxStreak, setMaxStreak] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [displayLimit, setDisplayLimit] = useState(50);
@@ -36,8 +129,14 @@ export default function StatsPage() {
   const [tempTitle, setTempTitle] = useState("");
   const [starterPacks, setStarterPacks] = useState<any[]>([]);
   const [ownedPacks, setOwnedPacks] = useState<string[]>([]);
+  const [triage, setTriage] = useState<{ packName: string; cards: TriageCard[] } | null>(null);
+  const [swipeOnly, setSwipeOnly] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [statsVisible, setStatsVisible] = useState(true);
   const [feedbackForm, setFeedbackForm] = useState({
     type: "feedback",
     subject: "",
@@ -51,12 +150,31 @@ export default function StatsPage() {
   const [dailyHistory, setDailyHistory] = useState<
     { study_date: string; count: number }[]
   >([]);
+  const [quizHistory, setQuizHistory] = useState<
+    { study_date: string; reading: number | null; listening: number | null; grammar: number | null }[]
+  >([]);
+  const [historyTab, setHistoryTab] = useState<"flashcards" | "quizzes">("flashcards");
   const [showHistory, setShowHistory] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [showMasteredCelebration, setShowMasteredCelebration] = useState(false);
+  const [showStrugglingCelebration, setShowStrugglingCelebration] = useState(false);
   const [reviewsToday, setReviewsToday] = useState(0);
   const [previewPack, setPreviewPack] = useState<any | null>(null);
-  const [addedWordsSummary, setAddedWordsSummary] = useState<any[]>([]);
-  const [showSummaryOverlay, setShowSummaryOverlay] = useState(false);
   const [sfxEnabled, setSfxEnabled] = useState(true);
+  const [showAddSheet, setShowAddSheet] = useState(false);
+  const [pendingWordCount, setPendingWordCount] = useState(0);
+  const skipNextCardFetch = useRef(false);
+  // Safety net: don't let the nav-guard get stuck "busy" forever if this page unmounts
+  // some other way (browser back/forward) while a batch upload was mid-flight.
+  useEffect(() => () => setUploadBusy(false), [setUploadBusy]);
+
+  // Block browser-level navigation (tab close, URL bar, browser back/forward) during upload.
+  useEffect(() => {
+    if (!uploadBusy) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [uploadBusy]);
 
   useEffect(() => {
     const fetchTodayCount = async () => {
@@ -91,18 +209,51 @@ export default function StatsPage() {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { data } = await supabase
-      .from("user_review_counts")
-      .select("study_date, count")
-      .eq("user_id", user.id)
-      .order("study_date", { ascending: false })
-      .limit(14);
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 13);
+    const since = fourteenDaysAgo.toLocaleDateString("en-CA");
 
-    setDailyHistory(data || []);
+    const [{ data: reviewData }, { data: quizData }] = await Promise.all([
+      supabase
+        .from("user_review_counts")
+        .select("study_date, count")
+        .eq("user_id", user.id)
+        .gte("study_date", since)
+        .order("study_date", { ascending: false }),
+      supabase
+        .from("quiz_daily_stats")
+        .select("study_date, quiz_type, correct, total")
+        .eq("user_id", user.id)
+        .gte("study_date", since)
+        .order("study_date", { ascending: false }),
+    ]);
+
+    // Build full 14-day grid (newest first: index 0 = today)
+    const days: string[] = [];
+    for (let i = 0; i < 14; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      days.push(d.toLocaleDateString("en-CA"));
+    }
+
+    // Pad vocab to full 14 days (0 for days with no reviews)
+    const vocabMap = new Map((reviewData ?? []).map(r => [r.study_date, r.count]));
+    setDailyHistory(days.map(date => ({ study_date: date, count: vocabMap.get(date) ?? 0 })));
+    const acc: Record<string, Record<string, { correct: number; total: number }>> = {};
+    for (const row of quizData ?? []) {
+      if (!acc[row.study_date]) acc[row.study_date] = {};
+      const prev = acc[row.study_date][row.quiz_type] ?? { correct: 0, total: 0 };
+      acc[row.study_date][row.quiz_type] = { correct: prev.correct + row.correct, total: prev.total + row.total };
+    }
+    setQuizHistory(days.map(date => {
+      const d = acc[date] ?? {};
+      const pct = (type: string) => d[type]?.total ? Math.round((d[type].correct / d[type].total) * 100) : null;
+      return { study_date: date, reading: pct("reading"), listening: pct("listening"), grammar: pct("grammar") };
+    }));
   };
 
   const fetchStarterPacks = async () => {
-    const { data, error } = await supabase.from("starter_packs").select("*"); // Fetches id, name, description, card_data, etc.
+    const { data, error } = await supabase.from("starter_packs").select("*").order("created_at"); // Fetches id, name, description, card_data, etc.
     if (data) setStarterPacks(data);
   };
 
@@ -164,8 +315,15 @@ export default function StatsPage() {
     const initData = async () => {
       if (user) {
         try {
-          // Promise.all waits for all functions to finish
-          // Note: Make sure your fetch functions are "async" and return the supabase promise!
+          // Cache hit: populate cards instantly so the page renders without waiting for the big fetch
+          const cached = _statsCardsCache?.userId === user.id ? _statsCardsCache : null;
+          if (cached) {
+            setCards(cached.cards);
+            setDefaultDeckId(cached.deckId);
+            skipNextCardFetch.current = true;
+            setInitLoading(false);
+          }
+
           await Promise.all([
             fetchProfile(),
             fetchDefaultDeck(),
@@ -174,7 +332,7 @@ export default function StatsPage() {
         } catch (error) {
           console.error("Error loading stats:", error);
         } finally {
-          setInitLoading(false); // Only turn off once everything is done
+          setInitLoading(false);
         }
       }
     };
@@ -184,30 +342,37 @@ export default function StatsPage() {
 
   // 2. ONLY fetch cards once we have a valid Deck ID
   useEffect(() => {
-    if (user && defaultDeckId) {
-      fetchCards();
+    if (!user || !defaultDeckId) return;
+    if (skipNextCardFetch.current) {
+      skipNextCardFetch.current = false;
+      return;
     }
-  }, [user, defaultDeckId]); // <--- Adding defaultDeckId to the dependency array is key
+    fetchCards();
+  }, [user, defaultDeckId]);
 
   const fetchProfile = async () => {
     const { data } = await supabase
       .from("profiles")
       .select(
-        "full_name, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, sfx_enabled, imported_packs, is_admin",
+        "full_name, avatar_url, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, sfx_enabled, swipe_only, imported_packs, is_admin, is_premium, referral_code, stats_visible_to_friends",
       )
       .eq("id", user?.id)
       .single();
 
     if (data) {
-      setStreak(data.streak_count);
       setMaxStreak(data.max_streak || 0);
       setUserBlocklist(data.blocked_words || []);
       setAutoPlayJp(data.auto_play_jp);
       setAutoPlayEn(data.auto_play_en);
       setSfxEnabled(data.sfx_enabled);
+      setSwipeOnly(data.swipe_only ?? false);
       setOwnedPacks(data.imported_packs);
       setIsAdmin(data.is_admin);
+      setIsPremium(data.is_premium ?? false);
       setProfileName(data.full_name);
+      setAvatarUrl(data.avatar_url ?? null);
+      setReferralCode(data.referral_code ?? null);
+      setStatsVisible(data.stats_visible_to_friends ?? true);
     }
   };
 
@@ -235,7 +400,7 @@ export default function StatsPage() {
       .eq("id", defaultDeckId);
 
     if (error) {
-      alert("Failed to update deck name");
+      showAlert("Failed to update deck name");
     } else {
       setDeckTitle(tempTitle.trim());
       setIsEditingTitle(false);
@@ -261,73 +426,86 @@ export default function StatsPage() {
     });
 
     if (error) {
-      alert("Failed to send report.");
+      showAlert("Failed to send report.");
     } else {
-      alert(t.report_sent);
+      showAlert(t.report_sent);
     }
   };
 
-  // --- 2. Update processWords to save to Supabase ---
   const fetchCards = async () => {
-    if (!user || !defaultDeckId) {
-      //console.warn("fetchCards aborted: User or Deck ID missing");
-      return;
-    }
+    if (!user || !defaultDeckId) return;
 
+    setCardsLoading(true);
     try {
-      // 1. We query master_cards, but we use !inner on the join to filter the results
-      const { data, error } = await supabase
-        .from("master_cards")
-        .select(
-          `
-      *,
-      deck_cards!inner (
-        deck_id, added_at
-      ),
-      user_scores (
-        scores_json
-      )
-    `,
-        )
-        // 2. This filters the master_cards to ONLY ones in YOUR deck
-        .eq("deck_cards.deck_id", defaultDeckId)
-        // 3. This ensures you only get YOUR scores (not someone else's)
-        .eq("user_scores.user_id", user.id)
-        .order("added_at", { foreignTable: "deck_cards", ascending: false });
+      // Phase 1 — lean: fetch only scores_json (no text columns) to show stat numbers fast
+      const leanAll: any[] = [];
+      const LEAN_PAGE = 1000;
+      for (let from = 0; ; from += LEAN_PAGE) {
+        const { data: page } = await supabase
+          .from("master_cards")
+          .select("id, deck_cards!inner(deck_id), user_scores(scores_json)")
+          .eq("deck_cards.deck_id", defaultDeckId)
+          .eq("user_scores.user_id", user.id)
+          // Required for .range() pagination to be reliable past one page — see the
+          // full-fetch query below for why.
+          .order("id", { ascending: true })
+          .range(from, from + LEAN_PAGE - 1);
+        if (page) leanAll.push(...page);
+        if (!page || page.length < LEAN_PAGE) break;
+      }
+      if (leanAll.length) setQuickStats(computeQuickStats(leanAll));
+      setInitLoading(false); // page is now visible with stat numbers
 
-      if (error) {
-        console.error("Fetch Error:", error.message);
-        return;
+      // Phase 2 — full: fetch all card content for the card list (background)
+      const allData: any[] = [];
+      let error = null;
+      const PAGE_SIZE = 1000;
+      for (let from = 0; ; from += PAGE_SIZE) {
+        const { data: page, error: pageErr } = await supabase
+          .from("master_cards")
+          .select(`*, deck_cards!inner(deck_id, added_at), user_scores(scores_json, is_priority, prioritized_at)`)
+          .eq("deck_cards.deck_id", defaultDeckId)
+          .eq("user_scores.user_id", user.id)
+          .order("added_at", { foreignTable: "deck_cards", ascending: false })
+          // Tiebreaker for cards added in the same batch (identical added_at) — without
+          // a unique secondary key, .range() pagination can skip or duplicate rows among
+          // ties once the deck crosses one page.
+          .order("id", { ascending: true })
+          .range(from, from + PAGE_SIZE - 1);
+        if (pageErr) { error = pageErr; break; }
+        if (page) allData.push(...page);
+        if (!page || page.length < PAGE_SIZE) break;
       }
 
-      if (data) {
-        const flattened = data.map((card: any) => {
-          // user_scores is still an array from the join
-          const userStats = card.user_scores?.[0];
+      if (error) { console.error("Fetch Error:", (error as any).message); return; }
 
-          return {
-            ...card,
-            added_to_deck_at: card.deck_cards?.[0]?.added_at,
-            scores: userStats?.scores_json || {
-              jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
-              en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
-            },
-          };
-        });
+      const flattened = allData.map((card: any) => ({
+        ...card,
+        added_to_deck_at: card.deck_cards?.[0]?.added_at,
+        scores: card.user_scores?.[0]?.scores_json || {
+          jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
+          en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
+        },
+        is_priority: card.user_scores?.[0]?.is_priority || false,
+        prioritized_at: card.user_scores?.[0]?.prioritized_at || null,
+      }));
 
-        setCards(flattened);
+      setCards(flattened);
+      if (user && defaultDeckId) {
+        _statsCardsCache = { userId: user.id, cards: flattened, deckId: defaultDeckId };
       }
     } catch (err) {
       console.error("Unexpected Fetch Error:", err);
     } finally {
-      // 2. FINISH: Always turn off loading at the end
+      setCardsLoading(false);
       setInitLoading(false);
     }
   };
 
   const handleDeleteAccount = async () => {
     try {
-      if (!confirm(t.delete_confirm)) return;
+      const ok = await showConfirm(t.delete_confirm, { title: t.delete_account, confirmLabel: t.delete_btn, danger: true });
+      if (!ok) return;
 
       // Call the Postgres function we just created
       const { error } = await supabase.rpc("delete_user_forever");
@@ -344,240 +522,13 @@ export default function StatsPage() {
       window.location.href = "/";
     } catch (error) {
       console.error("Error deleting account:", error);
-      alert("Failed to delete account. Please try logging in again first.");
+      showAlert("Failed to delete account. Please try logging in again first.");
     }
   };
 
-  const processWords = async (inputList: string[]) => {
-    if (!user || !defaultDeckId)
-      return alert("Please log in and ensure deck is initialized.");
+  const deleteCard = async (id: string) => {
+    if (!(await showConfirm("Remove this card from your collection?"))) return;
 
-    const rawInput = inputList.join("\n").normalize("NFKC").trim();
-    if (!rawInput) return;
-
-    // --- 1. Tokenization Logic ---
-    let wordsToProcess: string[] = [];
-    const isEnglishInput = /^[A-Za-z0-9\s.,!?-]+$/.test(rawInput);
-
-    // NEW: Single Add Bypass
-    // If only one item is provided, we treat it as a deliberate single add
-    // and do NOT chop the kanji/words.
-    if (inputList.length === 1 && inputList[0].trim().length > 0) {
-      wordsToProcess = [inputList[0].trim()];
-    }
-    // Batch Add Logic
-    else if (isEnglishInput) {
-      wordsToProcess = inputList
-        .map((w) => w.trim())
-        .filter((w) => w.length > 0);
-    } else if (rawInput.includes(",") || rawInput.includes("-")) {
-      wordsToProcess = inputList.map((line) => line.split(/[,-]/)[0].trim());
-    } else {
-      // Only use the "Chopper" (Segmenter) if it's a batch add/sentence
-      const segmenter = new Intl.Segmenter("ja-JP", { granularity: "word" });
-      const segments = segmenter.segment(rawInput);
-      wordsToProcess = Array.from(segments)
-        .map((s) => s.segment.trim())
-        .filter((w) => {
-          const isJapanese = /[\u3040-\u30ff\u4e00-\u9faf]/.test(w);
-          const isNotBlocked = !userBlocklist.includes(w);
-          const isMeaningful = w.length > 1 || /[\u4e00-\u9faf]/.test(w);
-          return isJapanese && isNotBlocked && isMeaningful;
-        });
-    }
-
-    const uniqueInputWords = [...new Set(wordsToProcess)];
-    if (uniqueInputWords.length === 0) return;
-
-    setLoading(true);
-
-    /* --- NEW: PARTIAL DAILY LIMIT LOGIC --- */
-    let wordsToActuallyProcess = uniqueInputWords;
-    const DAILY_LIMIT = 50;
-
-    try {
-      const { data: performance } = await supabase
-        .from("admin_user_performance_master")
-        .select("cards_added_today")
-        .eq("id", user.id)
-        .single();
-
-      const currentToday = performance?.cards_added_today || 0;
-
-      if (currentToday >= DAILY_LIMIT) {
-        setLoading(false);
-        setInput("");
-        setBatchInput("");
-        return alert(
-          t.limit_reached_msg
-            .replace("{{current}}", currentToday.toString())
-            .replace("{{limit}}", DAILY_LIMIT.toString()),
-        );
-      }
-
-      if (currentToday + uniqueInputWords.length > DAILY_LIMIT) {
-        const allowedCount = DAILY_LIMIT - currentToday;
-        // Slice the array to only include what fits in the remaining quota
-        wordsToActuallyProcess = uniqueInputWords.slice(0, allowedCount);
-
-        // Optional: Inform the user we are only doing a partial add
-        alert(
-          t.partial_limit_msg.replace("{{count}}", allowedCount.toString()),
-        );
-      }
-    } catch (limitErr) {
-      console.error("Limit check failed, proceeding anyway:", limitErr);
-    }
-    /* --- END OF PARTIAL LIMIT LOGIC --- */
-
-    // Helper inside the function to handle the DB linking
-    const performLinking = async (cardIds: string[]) => {
-      const currentCardIds = new Set(cards.map((c) => c.id));
-      const idsToLink = cardIds.filter((id) => !currentCardIds.has(id));
-
-      if (idsToLink.length > 0) {
-        const [deckRes, scoreRes] = await Promise.all([
-          supabase.from("deck_cards").upsert(
-            idsToLink.map((id) => ({ deck_id: defaultDeckId, card_id: id })),
-            { onConflict: "deck_id,card_id" },
-          ),
-          supabase.from("user_scores").upsert(
-            idsToLink.map((id) => ({
-              user_id: user.id,
-              card_id: id,
-              scores_json: {
-                jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
-                en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
-              },
-            })),
-            { onConflict: "user_id,card_id" },
-          ),
-        ]);
-        if (deckRes.error) throw deckRes.error;
-        if (scoreRes.error) throw scoreRes.error;
-      }
-    };
-
-    let allProcessedCards: any[] = [];
-
-    try {
-      // --- 2. Step 1: Handle Existing Cards (Instant) ---
-      const { data: existingCards, error: searchErr } = await supabase
-        .from("master_cards")
-        .select("*")
-        .in("japanese", wordsToActuallyProcess);
-
-      if (searchErr) throw searchErr;
-
-      if (existingCards) {
-        allProcessedCards = [...existingCards];
-        const foundIds = existingCards.map((c) => c.id);
-        if (foundIds.length > 0) await performLinking(foundIds);
-      }
-
-      const existingMap = new Map(
-        existingCards?.map((c) => [c.japanese, c.id]) || [],
-      );
-      const wordsForAI = wordsToActuallyProcess.filter(
-        (w) => !existingMap.has(w),
-      );
-
-      // --- 3. Step 2: Handle New Words (AI) ---
-      if (wordsForAI.length > 0) {
-        try {
-          const res = await fetch("/api/generate", {
-            method: "POST",
-            body: JSON.stringify({ words: wordsForAI }),
-          });
-
-          if (!res.ok)
-            throw new Error(
-              res.status === 429 ? "AI Limit Reached" : "AI Error",
-            );
-
-          const items = await res.json();
-          const itemsArray = Array.isArray(items) ? items : [items];
-
-          // --- CRITICAL FIX: DE-DUPLICATE BY KANJI BEFORE UPSERT ---
-          const seen = new Set();
-          const deduplicatedItems = itemsArray
-            .map((item) => ({
-              japanese: String(item.japanese).trim(),
-              reading: String(item.reading || "").replace(/[a-zA-Z\s]/g, ""),
-              english: String(item.english || "").trim(),
-              partOfSpeech: String(item.partOfSpeech || "noun")
-                .trim()
-                .toLowerCase(),
-              exampleSentence: item.exampleSentence || { jp: "", en: "" },
-              creator_id: user.id,
-            }))
-            .filter((item) => {
-              if (seen.has(item.japanese)) return false;
-              seen.add(item.japanese);
-              return true;
-            });
-
-          // const { data: newCards, error: mErr } = await supabase
-          //   .from("master_cards")
-          //   .upsert(
-          //     itemsArray.map((item) => ({
-          //       japanese: String(item.japanese).trim(),
-          //       reading: String(item.reading || "").replace(/[a-zA-Z\s]/g, ""),
-          //       english: String(item.english || "").trim(),
-          //       partOfSpeech: String(item.partOfSpeech || "noun")
-          //         .trim()
-          //         .toLowerCase(),
-          //       exampleSentence: item.exampleSentence || { jp: "", en: "" },
-          //       creator_id: user.id,
-          //     })),
-          //     { onConflict: "japanese" },
-          //   )
-          //   .select("*");
-
-          const { data: newCards, error: mErr } = await supabase
-            .from("master_cards")
-            .upsert(deduplicatedItems, { onConflict: "japanese" }) // Japanese is the unique constraint
-            .select("*");
-
-          if (mErr) throw mErr;
-          if (newCards) {
-            allProcessedCards = [...allProcessedCards, ...newCards];
-            await performLinking(newCards.map((c) => c.id));
-          }
-        } catch (aiErr: any) {
-          console.error("AI Step Failed:", aiErr.message);
-          alert(`AI processing failed: ${aiErr.message}`);
-        }
-      }
-
-      // --- 3.5 Show Overlay ---
-      if (allProcessedCards.length > 0) {
-        const finalSummary = Array.from(
-          new Map(allProcessedCards.map((c) => [c.japanese, c])).values(),
-        );
-        setAddedWordsSummary(finalSummary);
-        setShowSummaryOverlay(true);
-        fetchCards();
-      }
-
-      // --- 4. Cleanup UI ---
-      setInput("");
-      setBatchInput("");
-      setShowBatch(false);
-    } catch (e: any) {
-      console.error("ProcessWords Error:", e);
-      alert(`Major Error: ${e.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const deleteCard = async (id: string, isFromSummary = false) => {
-    // Only show the browser confirm if it's NOT from the quick-summary overlay
-    if (!isFromSummary && !confirm("Remove this card from your collection?"))
-      return;
-
-    // 1. Database Cleanup (Linking & Scores)
     const { error: linkErr } = await supabase
       .from("deck_cards")
       .delete()
@@ -591,24 +542,56 @@ export default function StatsPage() {
       .eq("user_id", user?.id);
 
     if (linkErr || scoreErr) {
-      alert(`Could not delete: ${linkErr?.message || scoreErr?.message}`);
+      showAlert(`Could not delete: ${linkErr?.message || scoreErr?.message}`);
       return;
     }
 
-    // 2. Update Main List UI
     setCards((prev) => prev.filter((c) => c.id !== id));
-
-    // 3. Update Overlay UI (If applicable)
-    if (isFromSummary) {
-      setAddedWordsSummary((prev) => prev.filter((c) => c.id !== id));
-    }
   };
 
-  // 1. Aggregating Global Totals
-  const totalCards = cards.length;
+  // Rolling cap: starring a 31st word bumps whichever one has been starred longest,
+  // same rule as the Study tab's star toggle (they share the same user_scores columns).
+  const toggleCardPriority = async (card: FlashcardData) => {
+    if (!user) return;
+    const turningOn = !card.is_priority;
+    let demotedId: string | null = null;
 
-  // 1. Global Totals (Tries, Pass, Fail)
-  const globalStats = useMemo(() => calculateGlobalStats(cards), [cards]);
+    if (turningOn) {
+      const current = cards.filter((c) => c.is_priority);
+      if (current.length >= PRIORITY_CAP) {
+        const oldest = [...current].sort((a, b) =>
+          (a.prioritized_at || "").localeCompare(b.prioritized_at || ""),
+        )[0];
+        if (oldest) {
+          demotedId = oldest.id;
+          await supabase.from("user_scores")
+            .update({ is_priority: false, prioritized_at: null })
+            .eq("user_id", user.id).eq("card_id", oldest.id);
+        }
+      }
+    }
+
+    const prioritized_at = turningOn ? new Date().toISOString() : null;
+    await supabase.from("user_scores")
+      .update({ is_priority: turningOn, prioritized_at })
+      .eq("user_id", user.id).eq("card_id", card.id);
+
+    setCards((prev) => prev.map((c) => {
+      if (c.id === card.id) return { ...c, is_priority: turningOn, prioritized_at };
+      if (demotedId && c.id === demotedId) return { ...c, is_priority: false, prioritized_at: null };
+      return c;
+    }));
+  };
+
+  // Prefer quickStats (loaded fast) for number display; fall back to full cards once loaded.
+  const totalCards = quickStats?.total ?? cards.length;
+  const globalStats = useMemo(() => {
+    if (quickStats && cards.length === 0) {
+      return { jp: quickStats.jp, en: quickStats.en };
+    }
+    return calculateGlobalStats(cards);
+  }, [cards, quickStats]);
+
   // 1. Global Totals (Tries, Pass, Fail)
   // Separate Global Totals for both directions
   // const globalStats = useMemo(() => {
@@ -638,17 +621,12 @@ export default function StatsPage() {
   //   );
   // }, [cards]);
 
-  // 2. Mastered (Avg Accuracy > 80% and has been attempted)
-  // 1. Get the lists of objects
+  // Mastered = max(jp_to_en, en_to_jp) ≥ 70% with at least one attempt
   const masteredList = useMemo(() => {
     return cards.filter((c) => {
       const s = c.scores;
-      const totalAttempts =
-        (s?.jp_to_en?.total || 0) + (s?.en_to_jp?.total || 0);
-      const avgAccuracy =
-        ((s?.jp_to_en?.percent || 0) + (s?.en_to_jp?.percent || 0)) / 2;
-
-      return totalAttempts > 0 && avgAccuracy >= 80;
+      return ((s?.jp_to_en?.pass || 0) >= 5 && (s?.jp_to_en?.percent || 0) >= 70) ||
+             ((s?.en_to_jp?.pass || 0) >= 5 && (s?.en_to_jp?.percent || 0) >= 70);
     });
   }, [cards]);
 
@@ -664,9 +642,8 @@ export default function StatsPage() {
     });
   }, [cards]);
 
-  // 2. Derive the counts for your StatCards
-  const masteredCount = masteredList.length;
-  const strugglingCount = strugglingList.length;
+  const masteredCount = (quickStats && cards.length === 0) ? quickStats.mastered : masteredList.length;
+  const strugglingCount = (quickStats && cards.length === 0) ? quickStats.struggling : strugglingList.length;
 
   const filteredCards = useMemo(() => {
     const query = searchQuery.toLowerCase();
@@ -686,6 +663,14 @@ export default function StatsPage() {
 
   const visibleCards = filteredCards.slice(0, displayLimit);
 
+  // Keeps big tries counts (19,095 reviews deep into a word) from blowing out
+  // the fixed-width stat tiles — "19.1K" reads fine at the same size "19095" doesn't.
+  const formatCount = (n: number) => {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+    return String(n);
+  };
+
   const getPosColor = (pos: string) => {
     const p = pos?.toLowerCase() || "";
     if (p.includes("noun")) return "bg-blue-100 text-blue-700 border-blue-200";
@@ -696,6 +681,30 @@ export default function StatsPage() {
     return "bg-slate-100 text-slate-600 border-slate-200";
   };
 
+  const getJlptColor = (level: string) => {
+    switch (level) {
+      case "N5": return "bg-emerald-100 text-emerald-700 border-emerald-200";
+      case "N4": return "bg-teal-100 text-teal-700 border-teal-200";
+      case "N3": return "bg-amber-100 text-amber-700 border-amber-200";
+      case "N2": return "bg-orange-100 text-orange-700 border-orange-200";
+      case "N1": return "bg-rose-100 text-rose-700 border-rose-200";
+      default: return "bg-slate-100 text-slate-600 border-slate-200";
+    }
+  };
+
+  const updateAvatar = async (url: string) => {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ avatar_url: url })
+      .eq("id", user?.id);
+
+    if (!error) {
+      setAvatarUrl(url);
+    } else {
+      showAlert("Failed to update avatar");
+    }
+  };
+
   const updateBlocklist = async (newList: string[]) => {
     const { error } = await supabase
       .from("profiles")
@@ -704,7 +713,7 @@ export default function StatsPage() {
 
     if (!error) {
       setUserBlocklist(newList);
-      alert("Blocklist updated!");
+      showAlert("Blocklist updated!");
     }
   };
 
@@ -720,6 +729,8 @@ export default function StatsPage() {
       if (column === "auto_play_en") setAutoPlayEn(value);
       // Add this line:
       if (column === "sfx_enabled") setSfxEnabled(value);
+      if (column === "swipe_only") setSwipeOnly(value);
+      if (column === "stats_visible_to_friends") setStatsVisible(value);
     } else {
       console.error("Error updating setting:", error.message);
     }
@@ -727,7 +738,7 @@ export default function StatsPage() {
 
   const importPack = async (pack: any) => {
     if (!defaultDeckId) {
-      alert(
+      showAlert(
         "Deck ID is missing. Still loading your profile... please try again in 1 second.",
       );
       fetchDecks(); // Manually trigger a refresh
@@ -743,35 +754,78 @@ export default function StatsPage() {
     try {
       const nWords = pack.card_data as any[];
 
-      // 2. Upsert words (Standard logic)
-      const { data: uploadedCards, error: mErr } = await supabase
-        .from("master_cards")
-        .upsert(
-          nWords.map((w) => ({ ...w, creator_id: user.id })),
-          { onConflict: "japanese" },
-        )
-        .select("id");
+      // 2. Reuse existing master_cards rows untouched (never overwrite a
+      // shared card's data just because a pack happens to include the same
+      // word) — only insert genuinely new words, normalized on the way in.
+      const CARD_CHUNK = 150;
+      const existingByJapanese = new Map<string, { id: string; japanese: string; english: string }>();
+      for (let i = 0; i < nWords.length; i += CARD_CHUNK) {
+        const chunk = nWords.slice(i, i + CARD_CHUNK).map((w) => w.japanese);
+        const { data: existing } = await supabase
+          .from("master_cards")
+          .select("id, japanese, english")
+          .in("japanese", chunk);
+        (existing ?? []).forEach((row) => existingByJapanese.set(row.japanese, row));
+      }
 
-      if (mErr || !uploadedCards) throw mErr;
+      const newWords = nWords.filter((w) => !existingByJapanese.has(w.japanese));
+      let insertedCards: { id: string; japanese: string; english: string }[] = [];
+      if (newWords.length > 0) {
+        const { data: inserted, error: mErr } = await supabase
+          .from("master_cards")
+          .insert(
+            newWords.map((w) => ({
+              ...w,
+              english: typeof w.english === "string" ? normalizeEnglish(w.english) : w.english,
+              reading: typeof w.reading === "string" ? stripParens(w.reading) : w.reading,
+              partOfSpeech: typeof w.partOfSpeech === "string" ? normalizePartOfSpeech(w.partOfSpeech) : w.partOfSpeech,
+              creator_id: user.id,
+            })),
+          )
+          .select("id, japanese, english");
+        if (mErr || !inserted) throw mErr;
+        insertedCards = inserted;
+      }
+
+      const uploadedCards = [...existingByJapanese.values(), ...insertedCards];
       const cardIds = uploadedCards.map((c) => c.id);
 
-      // 3. Link and Score Initialization
+      // 3. Find which of these cards you're already studying (e.g. an
+      // overlapping word from another pack, or one you added manually) —
+      // a starter pack import must never touch an existing score row.
+      // Chunked to stay well under URL length limits for large packs.
+      const CHUNK = 150;
+      const existingScoreIds = new Set<string>();
+      for (let i = 0; i < cardIds.length; i += CHUNK) {
+        const chunk = cardIds.slice(i, i + CHUNK);
+        const { data: existing } = await supabase
+          .from("user_scores")
+          .select("card_id")
+          .eq("user_id", user.id)
+          .in("card_id", chunk);
+        (existing ?? []).forEach((row) => existingScoreIds.add(row.card_id));
+      }
+      const newCardIds = cardIds.filter((id) => !existingScoreIds.has(id));
+
+      // 4. Link to deck (safe to upsert — no mutable progress here) and
+      // initialize scores ONLY for genuinely new cards.
       await Promise.all([
         supabase.from("deck_cards").upsert(
           cardIds.map((id) => ({ deck_id: defaultDeckId, card_id: id })),
           { onConflict: "deck_id,card_id" },
         ),
-        supabase.from("user_scores").upsert(
-          cardIds.map((id) => ({
-            user_id: user.id,
-            card_id: id,
-            scores_json: {
-              jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
-              en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
-            },
-          })),
-          { onConflict: "user_id,card_id" },
-        ),
+        newCardIds.length > 0
+          ? supabase.from("user_scores").insert(
+              newCardIds.map((id) => ({
+                user_id: user.id,
+                card_id: id,
+                scores_json: {
+                  jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
+                  en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
+                },
+              })),
+            )
+          : Promise.resolve(),
       ]);
 
       // 4. Update Profile with the ID ONLY
@@ -787,9 +841,10 @@ export default function StatsPage() {
       // 5. Update local state
       setOwnedPacks(updatedPacks);
       fetchCards();
+      setTriage({ packName: pack.name, cards: uploadedCards.map((c) => ({ id: c.id, japanese: c.japanese, english: c.english })) });
     } catch (error: any) {
       console.error(error);
-      alert("Error: " + error.message);
+      showAlert("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -822,7 +877,7 @@ export default function StatsPage() {
   if (initLoading) return <LoadingScreen />;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 pb-20 md:pb-0">
       {/* Single Parent Wrapper */}
       {/* 1. STICKY HEADER: Edge-to-Edge */}
       <header className="sticky top-0 z-50 w-full bg-slate-50/80 backdrop-blur-md border-b border-slate-200 px-4 py-4 md:px-8">
@@ -841,103 +896,202 @@ export default function StatsPage() {
                 {profileName || user?.user_metadata?.full_name || ""}
               </h1>
 
-              <div className="flex items-center mt-1.5">
+              <div className="flex items-center gap-1.5 mt-1.5">
                 <span className="px-2.5 py-0.5 bg-slate-800 text-white rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-sm">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                   {t.status_online}
                 </span>
+                {isPremium && (
+                  <span className="px-2.5 py-0.5 bg-gradient-to-r from-amber-400 to-yellow-500 text-white rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm">
+                    ✨ Premium
+                  </span>
+                )}
               </div>
             </div>
           </div>
 
-          {/* RIGHT: Back to Study (Settings-Style) */}
-          <div className="flex-shrink-0">
-            <Link
-              href="/"
+          {/* RIGHT: Settings */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => setShowSettings(true)}
               className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 font-black text-slate-600 transition-all active:scale-95 h-10 uppercase tracking-widest text-[10px]"
             >
-              <span>←</span> {t.back_to_study}
-            </Link>
+              <span>⚙️</span> {t.settings}
+            </button>
           </div>
         </div>
       </header>
       <main className="min-h-screen bg-slate-50 p-8">
         <div className="max-w-5xl mx-auto">
-          {/* Management Toolbar */}
-          <div className="flex flex-col md:flex-row gap-4 mb-8">
-            <div className="flex-1 bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex gap-2">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={t.add_new_word}
-                className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold"
-              />
-              <button
-                onClick={() => {
-                  if (!input.trim()) return;
-                  const lines = input.split("\n").filter((l) => l.trim());
-                  processWords(lines);
-                }}
-                disabled={loading}
-                className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-700 transition-all active:scale-95"
-              >
-                {loading ? "..." : t.ai_add}
-              </button>
-            </div>
 
-            <button
-              onClick={() => setShowBatch(!showBatch)}
-              className="px-6 py-2 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 transition-colors"
-            >
-              {showBatch ? t.close : t.batch_upload}
-            </button>
-          </div>
-
-          {/* Batch Area */}
-          {showBatch && (
-            <div className="mb-8 p-6 bg-indigo-50 rounded-3xl border-2 border-dashed border-indigo-200">
-              <textarea
-                value={batchInput}
-                onChange={(e) => setBatchInput(e.target.value)}
-                className="w-full h-48 p-4 rounded-xl border-none outline-none mb-3 text-sm font-mono shadow-inner"
-                placeholder={
-                  lang === "jp"
-                    ? `入力形式の選択:
-1. リスト形式: 単語（1行につき1単語/漢字）
-2. 歌詞・長文: 歌詞や文章を貼り付けると、AIが新しい単語を抽出します！`
-                    : `FORMAT OPTIONS:
-1. List: words (1 kanji/english word per line)
-2. Lyrics: Paste a whole song or text. I'll pick out the new words for you!`
-                }
-              />
-              <button
-                onClick={() => processWords([batchInput])}
-                disabled={loading}
-                className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-transform"
-              >
-                {loading ? t.ai_processing : `${t.batch_upload} (BETA)`}
-              </button>
-            </div>
-          )}
-
-          {/* Settings Toggle */}
-          <div className="flex justify-end mb-4">
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 font-bold text-slate-600 transition-all active:scale-95"
-            >
-              <span>{showSettings ? "✕" : "⚙️"}</span>
-              {/* Use t.close_settings or t.settings */}
-              <span className="text-sm">
-                {showSettings ? t.close_settings : t.settings}
-              </span>
-            </button>
-          </div>
-
-          {/* Settings Panel */}
+          {/* Settings — full-screen overlay, same pattern as the quiz components */}
           {showSettings && (
-            <div className="mb-8 p-6 bg-white rounded-3xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-top-4">
+            <div className="fixed inset-0 z-[300] bg-slate-50 flex flex-col">
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100 bg-white shrink-0">
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="flex items-center gap-0.5 text-slate-400 hover:text-slate-700 active:scale-90 transition-all"
+                >
+                  <span>←</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest">{t.back}</span>
+                </button>
+                <span className="font-black text-[11px] uppercase tracking-widest text-slate-700">{t.settings}</span>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 max-w-3xl w-full mx-auto">
+              {/* ===== GROUP: ACCOUNT ===== */}
+              <div className="flex items-center gap-2.5 mb-6">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                <h2 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.3em]">Account</h2>
+                <div className="flex-1 h-px bg-slate-100" />
+              </div>
+
+              {/* AVATAR PICKER */}
+              <div className="mb-8">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span>🖼️</span> Avatar
+                </h3>
+                <div className="grid grid-cols-5 gap-3">
+                  {AVATAR_PRESETS.map((url) => (
+                    <button
+                      key={url}
+                      onClick={() => updateAvatar(url)}
+                      className={`relative aspect-square rounded-full overflow-hidden border-2 bg-slate-50 transition-all active:scale-95 ${
+                        avatarUrl === url
+                          ? "border-indigo-600 ring-2 ring-indigo-200"
+                          : "border-slate-100 hover:border-slate-300"
+                      }`}
+                    >
+                      <img src={url} alt="Avatar option" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="h-px bg-slate-100 w-full mb-8" />
+
+              {/* INVITE FRIENDS — referral code + one-tap share */}
+              <div className="mb-8">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span>🎁</span> Invite Friends
+                </h3>
+                <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-[10px] text-slate-400 font-medium leading-tight mb-3">
+                    Share your link — new friends who sign up through it are added to your circle automatically.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 px-4 py-3 bg-white rounded-xl border border-slate-200 font-black text-sm text-slate-700 tracking-widest truncate">
+                      {referralCode ? `flashkado.com/join/${referralCode}` : "…"}
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!referralCode) return;
+                        const shareUrl = `https://flashkado.com/join/${referralCode}`;
+                        const shareMessage = `Join me on FlashKado! I'm learning Japanese with AI-powered flashcards 🇯🇵 ${shareUrl}`;
+                        if (navigator.share) {
+                          try {
+                            await navigator.share({ text: shareMessage, url: shareUrl });
+                          } catch {
+                            // cancelled — no-op
+                          }
+                          return;
+                        }
+                        try {
+                          await navigator.clipboard.writeText(shareMessage);
+                          showAlert("Invite message copied to clipboard!");
+                        } catch {
+                          showAlert("Failed to copy link.");
+                        }
+                      }}
+                      disabled={!referralCode}
+                      className="px-5 py-3 bg-slate-800 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-95 disabled:opacity-40 shrink-0"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="h-px bg-slate-100 w-full mb-8" />
+
+              {/* ACCOUNT SECURITY SECTION */}
+              <div className="mb-8">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <span>🔒</span> {t.account_security || "Account Security"}
+                </h3>
+
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 gap-4">
+                  <div className="max-w-[250px]">
+                    <p className="text-sm font-bold text-slate-700 leading-tight">
+                      {t.update_password || "Update Password"}
+                    </p>
+                    <p className="text-[9px] text-slate-400 font-medium mt-0.5 leading-relaxed">
+                      {user?.app_metadata?.provider === "email"
+                        ? t.update_password_desc ||
+                          "Change your login password to keep your account secure."
+                        : t.social_login_msg ||
+                          "Your account is managed via Google/Facebook."}
+                    </p>
+                  </div>
+
+                  {user?.app_metadata?.provider === "email" ? (
+                    <button
+                      onClick={() => router.push("/update-password")}
+                      className="w-full sm:w-auto px-6 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-indigo-600 hover:text-indigo-600 transition-all active:scale-95 shadow-sm flex items-center justify-center gap-2"
+                    >
+                      <span>🔄</span> {t.change_btn || "Change"}
+                    </button>
+                  ) : (
+                    <div className="px-4 py-2 bg-slate-100 rounded-lg text-[9px] font-black text-slate-400 uppercase tracking-widest border border-slate-200">
+                      Social Auth
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="h-px bg-slate-100 w-full mb-8" />
+
+              {/* SIGN OUT — separated from the danger zone */}
+              <div className="mb-8">
+                <button
+                  onClick={handleLogout}
+                  className="w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-slate-800 text-white hover:bg-slate-700 transition-all active:scale-95 shadow-sm"
+                >
+                  {t.signout}
+                </button>
+              </div>
+
+              {/* DANGER ZONE — intentionally far from sign out */}
+              <div className="mt-16 pt-8 border-t-2 border-red-100">
+                <h3 className="text-[10px] font-black text-red-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                  <span>⚠️</span> {t.danger_zone}
+                </h3>
+
+                <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="max-w-[250px]">
+                    <p className="text-sm font-bold text-red-700 leading-tight">
+                      {t.delete_account}
+                    </p>
+                    <p className="text-[9px] text-red-400 font-medium mt-0.5 leading-relaxed">
+                      {t.delete_account_desc}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleDeleteAccount}
+                    className="w-full sm:w-auto px-6 py-2.5 bg-white border border-red-200 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white hover:border-red-600 transition-all active:scale-95 shadow-sm"
+                  >
+                    {t.delete_btn}
+                  </button>
+                </div>
+              </div>
+
+              {/* ===== GROUP: PREFERENCES ===== */}
+              <div className="flex items-center gap-2.5 mb-6 mt-16">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                <h2 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.3em]">Preferences</h2>
+                <div className="flex-1 h-px bg-slate-100" />
+              </div>
+
               <div className="mb-8">
                 {/* Header Section */}
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -1011,49 +1165,48 @@ export default function StatsPage() {
                       />
                     </button>
                   </div>
-                </div>
-              </div>
 
-              <div className="h-px bg-slate-100 w-full mb-8" />
-
-              {/* Language Preference - NEW SECTION */}
-              {/* Language Preference - RESPONSIVE FIX */}
-              <div className="mb-8">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                  <span>🌐</span> {t.interface_language}
-                </h3>
-
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 gap-4">
-                  <div className="max-w-[200px]">
-                    <p className="text-sm font-bold text-slate-700 leading-tight">
-                      {t.app_language}
-                    </p>
-                    <p className="text-[9px] text-slate-400 font-medium mt-0.5 leading-relaxed">
-                      {t.app_language_desc}
-                    </p>
+                  {/* Swipe Only Toggle */}
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
+                    <div>
+                      <p className="text-sm font-bold text-slate-700">
+                        {t.swipe_only_title}
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-medium leading-tight">
+                        {t.swipe_only_desc}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        updateAudioSetting("swipe_only", !swipeOnly)
+                      }
+                      className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${swipeOnly ? "bg-indigo-600" : "bg-slate-300"}`}
+                    >
+                      <div
+                        className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${swipeOnly ? "left-7" : "left-1"}`}
+                      />
+                    </button>
                   </div>
 
-                  {/* Buttons: Forced to fit on one line or stacked based on width */}
-                  <div className="flex bg-white rounded-xl p-1 border border-slate-200 shadow-sm w-full sm:w-auto">
+                  {/* Stats Visible to Friends Toggle */}
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
+                    <div>
+                      <p className="text-sm font-bold text-slate-700">
+                        Show my stats to friends
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-medium leading-tight">
+                        Friends can always see your name, streak, and overall level. Turn this off to hide your detailed score breakdown from them.
+                      </p>
+                    </div>
                     <button
-                      onClick={() => setLang("en")}
-                      className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[10px] font-black transition-all ${
-                        lang === "en"
-                          ? "bg-indigo-600 text-white shadow-md"
-                          : "text-slate-400 hover:text-slate-600"
-                      }`}
+                      onClick={() =>
+                        updateAudioSetting("stats_visible_to_friends", !statsVisible)
+                      }
+                      className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${statsVisible ? "bg-indigo-600" : "bg-slate-300"}`}
                     >
-                      ENGLISH
-                    </button>
-                    <button
-                      onClick={() => setLang("jp")}
-                      className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[10px] font-black transition-all ${
-                        lang === "jp"
-                          ? "bg-indigo-600 text-white shadow-md"
-                          : "text-slate-400 hover:text-slate-600"
-                      }`}
-                    >
-                      日本語
+                      <div
+                        className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${statsVisible ? "left-7" : "left-1"}`}
+                      />
                     </button>
                   </div>
                 </div>
@@ -1102,7 +1255,12 @@ export default function StatsPage() {
                 </div>
               </div>
 
-              <div className="h-px bg-slate-100 w-full mb-8" />
+              {/* ===== GROUP: FEEDBACK ===== */}
+              <div className="flex items-center gap-2.5 mb-6 mt-16">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                <h2 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.3em]">Feedback</h2>
+                <div className="flex-1 h-px bg-slate-100" />
+              </div>
 
               {/* BUG & FEEDBACK SECTION - NEW */}
               <div className="mb-4">
@@ -1197,72 +1355,6 @@ export default function StatsPage() {
                 )}
               </div>
 
-              {/* ... after Feedback Section and before Danger Zone ... */}
-
-              <div className="h-px bg-slate-100 w-full mb-8" />
-
-              {/* ACCOUNT SECURITY SECTION */}
-              <div className="mb-8">
-                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span>🔒</span> {t.account_security || "Account Security"}
-                </h3>
-
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 gap-4">
-                  <div className="max-w-[250px]">
-                    <p className="text-sm font-bold text-slate-700 leading-tight">
-                      {t.update_password || "Update Password"}
-                    </p>
-                    <p className="text-[9px] text-slate-400 font-medium mt-0.5 leading-relaxed">
-                      {user?.app_metadata?.provider === "email"
-                        ? t.update_password_desc ||
-                          "Change your login password to keep your account secure."
-                        : t.social_login_msg ||
-                          "Your account is managed via Google/Facebook."}
-                    </p>
-                  </div>
-
-                  {user?.app_metadata?.provider === "email" ? (
-                    <button
-                      onClick={() => router.push("/update-password")}
-                      className="w-full sm:w-auto px-6 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-indigo-600 hover:text-indigo-600 transition-all active:scale-95 shadow-sm flex items-center justify-center gap-2"
-                    >
-                      <span>🔄</span> {t.change_btn || "Change"}
-                    </button>
-                  ) : (
-                    <div className="px-4 py-2 bg-slate-100 rounded-lg text-[9px] font-black text-slate-400 uppercase tracking-widest border border-slate-200">
-                      Social Auth
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-12 pt-8 border-t border-slate-100">
-                <h3 className="text-[10px] font-black text-red-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                  <span>⚠️</span> {t.danger_zone}
-                </h3>
-
-                {/* DELETE ACCOUNT SECTION */}
-                <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="max-w-[250px]">
-                    <p className="text-sm font-bold text-red-700 leading-tight">
-                      {t.delete_account}
-                    </p>
-                    <p className="text-[9px] text-red-400 font-medium mt-0.5 leading-relaxed">
-                      {t.delete_account_desc}
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      if (confirm(t.delete_confirm)) {
-                        handleDeleteAccount();
-                      }
-                    }}
-                    className="w-full sm:w-auto px-6 py-2.5 bg-white border border-red-200 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white hover:border-red-600 transition-all active:scale-95 shadow-sm"
-                  >
-                    {t.delete_btn}
-                  </button>
-                </div>
               </div>
             </div>
           )}
@@ -1328,10 +1420,20 @@ export default function StatsPage() {
 
             {/* Right Side: Navigation Buttons */}
             <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto md:ml-auto">
-              {/* ADMIN ROW: Stacked on mobile, side-by-side on desktop */}
+              {/* UTILITY ROW: Study & Logout */}
+              <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+                <Link
+                  href="/minigames"
+                  className="flex-1 md:flex-none md:px-5 bg-indigo-50 py-3 rounded-2xl shadow-sm font-bold text-indigo-700 border border-indigo-100 hover:bg-indigo-100 transition-all text-sm whitespace-nowrap flex items-center justify-center gap-2"
+                >
+                  <span className="text-lg">🎮</span> {t.mini_games}
+                </Link>
+
+              </div>
+
+              {/* ADMIN ROW */}
               {isAdmin && (
                 <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                  {/* Admin Reports */}
                   <Link
                     href="/admin"
                     className="w-full md:w-auto bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2"
@@ -1339,7 +1441,6 @@ export default function StatsPage() {
                     <span className="text-sm">🚩</span> {t.admin_title}
                   </Link>
 
-                  {/* Admin Users Performance */}
                   <Link
                     href="/admin/users"
                     className="w-full md:w-auto bg-indigo-600 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
@@ -1348,33 +1449,6 @@ export default function StatsPage() {
                   </Link>
                 </div>
               )}
-
-              {/* UTILITY ROW: Study & Logout - Shared row on mobile */}
-              <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-                {/* NEW: Study Kana Button */}
-                <Link
-                  href="/study/kana" // Ensure this matches your actual route
-                  className="flex-1 md:flex-none md:px-5 bg-emerald-50 py-3 rounded-2xl shadow-sm font-bold text-emerald-700 border border-emerald-100 hover:bg-emerald-100 transition-all text-sm whitespace-nowrap flex items-center justify-center gap-2"
-                >
-                  <span className="text-lg">あ</span> {t.study_kana}
-                </Link>
-
-                {/* Mini Games Button */}
-                <Link
-                  href="/minigames/focus"
-                  className="flex-1 md:flex-none md:px-5 bg-indigo-50 py-3 rounded-2xl shadow-sm font-bold text-indigo-700 border border-indigo-100 hover:bg-indigo-100 transition-all text-sm whitespace-nowrap flex items-center justify-center gap-2"
-                >
-                  <span className="text-lg">🎮</span> {t.mini_games}
-                </Link>
-
-                {/* Signout (Now sitting next to Games) */}
-                <button
-                  onClick={handleLogout}
-                  className="flex-1 md:flex-none md:px-5 bg-rose-50 py-3 rounded-2xl shadow-sm font-bold text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all text-sm whitespace-nowrap flex items-center justify-center"
-                >
-                  {t.signout}
-                </button>
-              </div>
             </div>
           </div>
 
@@ -1389,75 +1463,24 @@ export default function StatsPage() {
               label={t.mastered}
               value={masteredCount}
               color="bg-emerald-500"
-              onClick={() => setViewMode("mastered")} // Add onClick to your StatCard component
+              onClick={() => setShowMasteredCelebration(true)}
             />
             <StatCard
               label={t.struggling}
               value={strugglingCount}
               color="bg-rose-500"
-              onClick={() => setViewMode("struggling")}
+              onClick={() => setShowStrugglingCelebration(true)}
             />
 
             <StatCard
               label={t.daily_progress}
-              value={reviewsToday} // The count for today
+              value={reviewsToday}
               color="bg-amber-400"
               onClick={() => {
-                fetchHistory(); // Fetch fresh data
-                setShowHistory(true); // Open overlay
+                fetchHistory();
+                setShowCelebration(true);
               }}
             />
-
-            {/* --- THE STREAK CARD --- */}
-            <div className="col-span-2 md:col-span-1 bg-gradient-to-br from-orange-500 to-red-600 p-5 rounded-[2rem] shadow-lg flex items-center text-white overflow-hidden">
-              {/* The Container: justify-around spreads them out on mobile, gap-6 pulls them together on desktop */}
-              <div className="flex flex-1 items-center justify-around sm:justify-start sm:gap-8">
-                {/* DAILY LOGIN STREAK */}
-                <div className="flex flex-col items-center sm:items-start">
-                  <p className="text-white/70 text-[9px] sm:text-[10px] font-black uppercase tracking-widest mb-1 whitespace-nowrap">
-                    {t.daily_streak}
-                  </p>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-2xl sm:text-xl font-black leading-none">
-                      {streak}
-                    </span>
-                    <span className="text-[10px] uppercase opacity-80 font-bold">
-                      {t.days}
-                    </span>
-                  </div>
-                </div>
-
-                {/* --- THE DIVIDER: Visible on BOTH Mobile and Desktop --- */}
-                {/* On mobile, it's taller (h-10) to fill the row height. On desktop, it's shorter (h-8). */}
-                <div className="w-px h-10 sm:h-8 bg-white/30 rounded-full shadow-[0_0_8px_rgba(255,255,255,0.2)]" />
-
-                {/* BEST SESSION STREAK */}
-                <div className="flex flex-col items-center sm:items-start">
-                  <p className="text-white/70 text-[9px] sm:text-[10px] font-black uppercase tracking-widest mb-1 whitespace-nowrap">
-                    {t.best_streak}
-                  </p>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-2xl sm:text-xl font-black italic leading-none">
-                      {maxStreak}
-                    </span>
-                    <span className="text-[10px] not-italic uppercase opacity-80 font-bold">
-                      {t.passes}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Section: Icon */}
-              <motion.div
-                className="ml-2 sm:ml-4 flex-shrink-0 cursor-pointer select-none"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.8, rotate: -10 }}
-              >
-                <span className="inline-block text-4xl sm:text-3xl animate-fire">
-                  🔥
-                </span>
-              </motion.div>
-            </div>
 
             {/* Directional Comparison Dashboard */}
             <div className="col-span-2 md:col-span-3 bg-slate-800 rounded-[2.5rem] p-6 text-white shadow-xl border border-slate-700 relative overflow-hidden">
@@ -1479,7 +1502,7 @@ export default function StatsPage() {
                         {t.tries}
                       </p>
                       <p className="text-xl font-black">
-                        {globalStats.jp.tries}
+                        {formatCount(globalStats.jp.tries)}
                       </p>
                     </div>
                     <div>
@@ -1501,7 +1524,7 @@ export default function StatsPage() {
                         {t.pass}
                       </p>
                       <p className="text-xl font-black text-emerald-400">
-                        {globalStats.jp.pass}
+                        {formatCount(globalStats.jp.pass)}
                       </p>
                     </div>
                   </div>
@@ -1524,7 +1547,7 @@ export default function StatsPage() {
                         {t.tries}
                       </p>
                       <p className="text-xl font-black">
-                        {globalStats.en.tries}
+                        {formatCount(globalStats.en.tries)}
                       </p>
                     </div>
                     <div>
@@ -1546,19 +1569,127 @@ export default function StatsPage() {
                         {t.pass}
                       </p>
                       <p className="text-xl font-black text-emerald-400">
-                        {globalStats.en.pass}
+                        {formatCount(globalStats.en.pass)}
                       </p>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
+
+          </div>
+
+          {/* Advanced Stats — separate page, all live-computed (no AI except the
+              admin-only Analyze button inside it). */}
+          <div className="mb-10">
+            <Link
+              href="/stats/insights"
+              className="w-full flex items-center justify-between bg-white px-6 py-4 rounded-2xl shadow-sm border border-slate-100 font-black text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.99]"
+            >
+              <span className="flex items-center gap-2 text-sm">
+                <span className="text-lg">📈</span> Advanced Stats
+              </span>
+              <span className="text-slate-400 text-xs">View →</span>
+            </Link>
+          </div>
+
+          {/* Starter Packs Section */}
+          <div className="mb-10">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                {t.starter_collections}
+              </h3>
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-tighter">
+                {starterPacks.length} {t.available}
+              </span>
+            </div>
+
+            <div className="flex gap-4 overflow-x-auto pb-6 no-scrollbar -mx-2 px-2">
+              {starterPacks.map((pack) => {
+                // Pure ID comparison
+                const isOwned = ownedPacks?.includes(pack.id);
+
+                return (
+                  <div
+                    key={pack.id}
+                    className={`flex-none w-64 p-6 rounded-[2rem] border-2 flex flex-col justify-between transition-all ${
+                      isOwned
+                        ? "bg-slate-100 border-slate-200"
+                        : "bg-white border-indigo-50 shadow-sm"
+                    }`}
+                  >
+                    {/* Top Section: Icon and Status */}
+                    <div
+                      className="cursor-pointer group/card"
+                      onClick={() => setPreviewPack(pack)}
+                    >
+                      <div className="flex justify-between items-start mb-4">
+                        <div
+                          className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-inner ${
+                            isOwned ? "bg-slate-200" : "bg-indigo-50"
+                          }`}
+                        >
+                          {pack.icon || "📦"}
+                        </div>
+                        {isOwned ? (
+                          <span className="text-[10px] font-black text-emerald-600 bg-emerald-100/50 px-2.5 py-1 rounded-full uppercase tracking-widest border border-emerald-200">
+                            {t.added}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full uppercase tracking-widest border border-indigo-100">
+                            {t.free}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Middle Section: Content */}
+                      <h4 className="font-black text-slate-800 text-lg mb-1">
+                        {pack.name}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 leading-relaxed mb-6 line-clamp-2 min-h-[32px]">
+                        {pack.description ||
+                          `${pack.card_data?.length || 0} essential words to kickstart your journey.`}
+                      </p>
+                    </div>
+
+                    {/* Bottom Section: Action */}
+                    <button
+                      onClick={async () => {
+                        const count = pack.card_data?.length || 0;
+                        const ok = await showConfirm(
+                          `Add "${pack.name}" (${count} words) to your deck? This can't be undone.`,
+                          { title: "Add to Deck", confirmLabel: "Add" }
+                        );
+                        if (ok) importPack(pack);
+                      }}
+                      disabled={loading || isOwned}
+                      className={`w-full py-3 rounded-xl text-xs font-bold transition-all ${
+                        isOwned
+                          ? "bg-slate-200 text-slate-400"
+                          : "bg-indigo-600 text-white hover:bg-indigo-700"
+                      }`}
+                    >
+                      {isOwned ? t.already_in_deck : t.add_to_deck}
+                    </button>
+                  </div>
+                );
+              })}
+
+              {/* Empty State */}
+              {starterPacks.length === 0 && (
+                <div className="flex-none w-full p-8 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center">
+                  <p className="text-sm text-slate-400 font-bold italic">
+                    {t.looking_collections}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           {viewMode !== "none" && (
             /* 1. Backdrop Overlay */
             <div
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+              className="fixed inset-0 z-[220] flex items-center justify-center p-4 sm:p-6"
               onClick={() => setViewMode("none")} // Click backdrop to close
             >
               {/* 2. Blurred background */}
@@ -1659,9 +1790,221 @@ export default function StatsPage() {
             </div>
           )}
 
+          {/* --- Celebration Modal --- */}
+          {showCelebration && (() => {
+            const msg = reviewsToday === 0
+              ? { emoji: "📚", line1: "No reviews yet today,", line2: "let's change that!" }
+              : reviewsToday >= 20
+              ? { emoji: "🔥", line1: `${reviewsToday} words practiced`, line2: "You're on fire today!" }
+              : { emoji: "🎉", line1: `${reviewsToday} ${reviewsToday === 1 ? "word" : "words"} practiced`, line2: "today — great work!" };
+            return (
+              <div className="fixed inset-0 z-[225] flex items-center justify-center p-4">
+                {/* Confetti particles */}
+                {CONFETTI_PARTICLES.map((c, i) => (
+                  <motion.div
+                    key={i}
+                    className="absolute pointer-events-none"
+                    style={{
+                      backgroundColor: c.color,
+                      width: c.w,
+                      height: c.h,
+                      borderRadius: c.round ? "50%" : "2px",
+                      left: `${c.left}%`,
+                      top: -16,
+                    }}
+                    initial={{ y: -16, opacity: 1, rotate: 0 }}
+                    animate={{ y: "105vh", x: c.drift, opacity: [1, 1, 0.6, 0], rotate: 400 }}
+                    transition={{ duration: 2, delay: c.delay, ease: [0.2, 0.8, 0.6, 1] }}
+                  />
+                ))}
+                {/* Backdrop */}
+                <motion.div
+                  className="absolute inset-0 bg-indigo-950/70 backdrop-blur-lg"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.25 }}
+                  onClick={() => { setShowCelebration(false); setShowHistory(true); }}
+                />
+                {/* Card */}
+                <motion.div
+                  className="relative z-10 bg-white rounded-[3rem] p-10 text-center max-w-xs w-full shadow-2xl overflow-hidden"
+                  initial={{ scale: 0.6, opacity: 0, y: 30 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  transition={{ type: "spring", stiffness: 360, damping: 24, delay: 0.05 }}
+                >
+                  {/* Background glow */}
+                  <div className="absolute inset-0 bg-gradient-to-b from-indigo-50/60 to-transparent pointer-events-none" />
+                  {/* Emoji */}
+                  <motion.div
+                    className="text-6xl mb-5 select-none"
+                    initial={{ scale: 0, rotate: -15 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 20, delay: 0.15 }}
+                  >
+                    {msg.emoji}
+                  </motion.div>
+                  {/* Count */}
+                  <motion.p
+                    className="text-5xl font-black text-indigo-600 tracking-tight leading-none mb-3"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.22, duration: 0.35 }}
+                  >
+                    {msg.line1}
+                  </motion.p>
+                  <motion.p
+                    className="text-base font-bold text-slate-500 mb-8"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.32, duration: 0.3 }}
+                  >
+                    {msg.line2}
+                  </motion.p>
+                  {/* CTA */}
+                  <motion.button
+                    onClick={() => { setShowCelebration(false); setShowHistory(true); }}
+                    className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-200"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4, duration: 0.3 }}
+                    whileTap={{ scale: 0.96 }}
+                  >
+                    See Full Progress →
+                  </motion.button>
+                </motion.div>
+              </div>
+            );
+          })()}
+
+          {/* --- Mastered Celebration Modal --- */}
+          {showMasteredCelebration && (() => {
+            const msg = masteredCount === 0
+              ? { emoji: "🌱", line1: "No mastered cards yet", line2: "Keep studying — you'll get there!" }
+              : masteredCount >= 10
+              ? { emoji: "🌟", line1: `${masteredCount} cards mastered!`, line2: "That's incredible progress!" }
+              : { emoji: "🏆", line1: `${masteredCount} ${masteredCount === 1 ? "card" : "cards"} mastered!`, line2: "Well done — keep it up!" };
+            return (
+              <div className="fixed inset-0 z-[225] flex items-center justify-center p-4">
+                {CONFETTI_PARTICLES.map((c, i) => (
+                  <motion.div
+                    key={i}
+                    className="absolute pointer-events-none"
+                    style={{ backgroundColor: c.color, width: c.w, height: c.h, borderRadius: c.round ? "50%" : "2px", left: `${c.left}%`, top: -16 }}
+                    initial={{ y: -16, opacity: 1, rotate: 0 }}
+                    animate={{ y: "105vh", x: c.drift, opacity: [1, 1, 0.6, 0], rotate: 400 }}
+                    transition={{ duration: 2, delay: c.delay, ease: [0.2, 0.8, 0.6, 1] }}
+                  />
+                ))}
+                <motion.div
+                  className="absolute inset-0 bg-emerald-950/70 backdrop-blur-lg"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.25 }}
+                  onClick={() => { setShowMasteredCelebration(false); setViewMode("mastered"); }}
+                />
+                <motion.div
+                  className="relative z-10 bg-white rounded-[3rem] p-10 text-center max-w-xs w-full shadow-2xl overflow-hidden"
+                  initial={{ scale: 0.6, opacity: 0, y: 30 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  transition={{ type: "spring", stiffness: 360, damping: 24, delay: 0.05 }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-b from-emerald-50/60 to-transparent pointer-events-none" />
+                  <motion.div
+                    className="text-6xl mb-5 select-none"
+                    initial={{ scale: 0, rotate: -15 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 20, delay: 0.15 }}
+                  >{msg.emoji}</motion.div>
+                  <motion.p
+                    className="text-4xl font-black text-emerald-600 tracking-tight leading-none mb-3"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.22, duration: 0.35 }}
+                  >{msg.line1}</motion.p>
+                  <motion.p
+                    className="text-base font-bold text-slate-500 mb-8"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.32, duration: 0.3 }}
+                  >{msg.line2}</motion.p>
+                  <motion.button
+                    onClick={() => { setShowMasteredCelebration(false); setViewMode("mastered"); }}
+                    className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-700 transition-all active:scale-95 shadow-lg shadow-emerald-200"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4, duration: 0.3 }}
+                    whileTap={{ scale: 0.96 }}
+                  >See Mastered Cards →</motion.button>
+                </motion.div>
+              </div>
+            );
+          })()}
+
+          {/* --- Struggling Celebration Modal --- */}
+          {showStrugglingCelebration && (() => {
+            const msg = strugglingCount === 0
+              ? { emoji: "🎯", line1: "Nothing holding you back!", line2: "Zero cards struggling — you're crushing it!" }
+              : { emoji: "💪", line1: `${strugglingCount} ${strugglingCount === 1 ? "card" : "cards"} to level up`, line2: "You've got this — let's tackle them!" };
+            return (
+              <div className="fixed inset-0 z-[225] flex items-center justify-center p-4">
+                {CONFETTI_PARTICLES.map((c, i) => (
+                  <motion.div
+                    key={i}
+                    className="absolute pointer-events-none"
+                    style={{ backgroundColor: c.color, width: c.w, height: c.h, borderRadius: c.round ? "50%" : "2px", left: `${c.left}%`, top: -16 }}
+                    initial={{ y: -16, opacity: 1, rotate: 0 }}
+                    animate={{ y: "105vh", x: c.drift, opacity: [1, 1, 0.6, 0], rotate: 400 }}
+                    transition={{ duration: 2, delay: c.delay, ease: [0.2, 0.8, 0.6, 1] }}
+                  />
+                ))}
+                <motion.div
+                  className="absolute inset-0 bg-violet-950/70 backdrop-blur-lg"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.25 }}
+                  onClick={() => { setShowStrugglingCelebration(false); setViewMode("struggling"); }}
+                />
+                <motion.div
+                  className="relative z-10 bg-white rounded-[3rem] p-10 text-center max-w-xs w-full shadow-2xl overflow-hidden"
+                  initial={{ scale: 0.6, opacity: 0, y: 30 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  transition={{ type: "spring", stiffness: 360, damping: 24, delay: 0.05 }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-b from-violet-50/60 to-transparent pointer-events-none" />
+                  <motion.div
+                    className="text-6xl mb-5 select-none"
+                    initial={{ scale: 0, rotate: -15 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 20, delay: 0.15 }}
+                  >{msg.emoji}</motion.div>
+                  <motion.p
+                    className="text-4xl font-black text-violet-600 tracking-tight leading-none mb-3"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.22, duration: 0.35 }}
+                  >{msg.line1}</motion.p>
+                  <motion.p
+                    className="text-base font-bold text-slate-500 mb-8"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.32, duration: 0.3 }}
+                  >{msg.line2}</motion.p>
+                  <motion.button
+                    onClick={() => { setShowStrugglingCelebration(false); setViewMode("struggling"); }}
+                    className="w-full bg-violet-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-violet-700 transition-all active:scale-95 shadow-lg shadow-violet-200"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4, duration: 0.3 }}
+                    whileTap={{ scale: 0.96 }}
+                  >See Cards to Level Up →</motion.button>
+                </motion.div>
+              </div>
+            );
+          })()}
+
           {/* --- Daily Activity Overlay --- */}
           {showHistory && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+            <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 sm:p-6">
               {/* Backdrop */}
               <div
                 className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-300"
@@ -1670,153 +2013,233 @@ export default function StatsPage() {
 
               <div className="relative w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
                 {/* Header */}
-                <div className="p-8 border-b border-slate-50 flex justify-between items-end bg-gradient-to-b from-slate-50/50 to-transparent">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
+                <div className="p-6 border-b border-slate-50 flex justify-between items-start bg-gradient-to-b from-slate-50/50 to-transparent">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-3">
                       <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
                       <h3 className="text-2xl font-black text-slate-800 uppercase italic tracking-tight">
                         {t.activity_log}
                       </h3>
                     </div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-4">
-                      {t.progress_tracking} • {t.last_14_days}
-                    </p>
+                    {/* Tabs */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setHistoryTab("flashcards")}
+                        className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${historyTab === "flashcards" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
+                      >
+                        🃏 Flashcards
+                      </button>
+                      <button
+                        onClick={() => setHistoryTab("quizzes")}
+                        className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${historyTab === "quizzes" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
+                      >
+                        📊 Quizzes
+                      </button>
+                    </div>
                   </div>
                   <button
                     onClick={() => setShowHistory(false)}
-                    className="h-12 w-12 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-800 hover:shadow-sm transition-all active:scale-90"
+                    className="h-10 w-10 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-800 hover:shadow-sm transition-all active:scale-90 shrink-0 ml-3"
                   >
                     ✕
                   </button>
                 </div>
 
                 <div className="p-8 md:p-10 overflow-y-auto custom-scrollbar">
-                  {/* The Visual Chart Area */}
-                  <div className="relative bg-slate-50/50 rounded-[2.5rem] p-6 border border-slate-100 mb-8">
-                    {/* Subtle Grid Lines Background */}
-                    <div className="absolute inset-0 grid grid-rows-4 px-6 py-6 opacity-[0.03] pointer-events-none">
-                      {[...Array(4)].map((_, i) => (
-                        <div key={i} className="border-t border-black w-full" />
-                      ))}
-                    </div>
+                  {historyTab === "flashcards" && (
+                    <>
+                      {/* The Visual Chart Area */}
+                      <div className="relative bg-slate-50/50 rounded-[2.5rem] p-6 border border-slate-100 mb-8">
+                        {/* Subtle Grid Lines Background */}
+                        <div className="absolute inset-0 grid grid-rows-4 px-6 py-6 opacity-[0.03] pointer-events-none">
+                          {[...Array(4)].map((_, i) => (
+                            <div key={i} className="border-t border-black w-full" />
+                          ))}
+                        </div>
 
-                    <div className="relative flex items-end justify-between gap-1.5 md:gap-3 h-56">
-                      {dailyHistory.map((day, i) => {
-                        const maxCount = Math.max(
-                          ...dailyHistory.map((d) => d.count),
-                          1,
-                        );
-                        const heightPercentage = Math.max(
-                          (day.count / maxCount) * 100,
-                          4,
-                        ); // Min 4% height so 0s are visible
-                        const isToday = i === 0;
+                        <div className="relative flex items-end justify-between gap-1.5 md:gap-3 h-56">
+                          {[...dailyHistory].reverse().map((day, i) => {
+                            const maxCount = Math.max(
+                              ...dailyHistory.map((d) => d.count),
+                              1,
+                            );
+                            const heightPercentage = Math.max(
+                              (day.count / maxCount) * 100,
+                              4,
+                            );
+                            const isToday = i === dailyHistory.length - 1;
 
-                        return (
-                          <div
-                            key={day.study_date}
-                            className="flex-1 flex flex-col items-center group h-full justify-end"
-                          >
-                            {/* The Bar */}
-                            <div className="relative w-full flex flex-col justify-end h-full">
-                              {/* Tooltip */}
-                              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-black px-2.5 py-1.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100 pointer-events-none z-10 shadow-xl">
-                                {day.count}{" "}
-                                <span className="text-slate-400 font-bold ml-0.5">
-                                  pts
-                                </span>
-                              </div>
-
+                            return (
                               <div
-                                style={{ height: `${heightPercentage}%` }}
-                                className={`w-full rounded-t-2xl transition-all duration-700 ease-out cursor-default
-                        ${
-                          isToday
-                            ? "bg-gradient-to-t from-indigo-600 to-indigo-400 shadow-lg shadow-indigo-100"
-                            : "bg-slate-200 group-hover:bg-slate-300 group-hover:shadow-md"
-                        }`}
-                              />
-                            </div>
-                            {/* Label */}
-                            <div className="mt-4 flex flex-col items-center">
-                              <span
-                                className={`text-[8px] font-black uppercase tracking-tighter ${isToday ? "text-indigo-600" : "text-slate-400"}`}
+                                key={day.study_date}
+                                className="flex-1 flex flex-col items-center group h-full justify-end"
                               >
-                                {new Date(day.study_date).toLocaleDateString(
-                                  "en-SG",
-                                  { weekday: "short" },
-                                )}
-                              </span>
-                              <span className="text-[7px] font-bold text-slate-300 mt-0.5">
-                                {new Date(day.study_date).getDate()}
-                              </span>
+                                <div className="relative w-full flex flex-col justify-end h-full">
+                                  <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-black px-2.5 py-1.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100 pointer-events-none z-10 shadow-xl">
+                                    {day.count}{" "}
+                                    <span className="text-slate-400 font-bold ml-0.5">
+                                      pts
+                                    </span>
+                                  </div>
+
+                                  <div
+                                    style={{ height: `${heightPercentage}%` }}
+                                    className={`w-full rounded-t-2xl transition-all duration-700 ease-out cursor-default
+                            ${
+                              isToday
+                                ? "bg-gradient-to-t from-indigo-600 to-indigo-400 shadow-lg shadow-indigo-100"
+                                : "bg-slate-200 group-hover:bg-slate-300 group-hover:shadow-md"
+                            }`}
+                                  />
+                                </div>
+                                <div className="mt-4 flex flex-col items-center">
+                                  <span
+                                    className={`text-[8px] font-black uppercase tracking-tighter ${isToday ? "text-indigo-600" : "text-slate-400"}`}
+                                  >
+                                    {new Date(day.study_date).toLocaleDateString(
+                                      "en-SG",
+                                      { weekday: "short" },
+                                    )}
+                                  </span>
+                                  <span className="text-[7px] font-bold text-slate-300 mt-0.5">
+                                    {new Date(day.study_date).getDate()}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Stats Summary Cards */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-indigo-100 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-500">
+                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                                </svg>
+                              </div>
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                {t.total}
+                              </p>
                             </div>
+                            <SparkLine values={[...dailyHistory].reverse().map((d) => d.count)} color="#6366f1" />
+                          </div>
+                          <p className="text-3xl font-black text-slate-800 tracking-tight">
+                            {dailyHistory.reduce((acc, curr) => acc + curr.count, 0)}
+                            <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">
+                              {t.reviews}
+                            </span>
+                          </p>
+                        </div>
+
+                        <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-emerald-100 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-500">
+                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                {t.average}
+                              </p>
+                            </div>
+                            <SparkLine values={[...dailyHistory].reverse().map((d) => d.count)} color="#10b981" />
+                          </div>
+                          <p className="text-3xl font-black text-slate-800 tracking-tight">
+                            {Math.round(dailyHistory.reduce((acc, curr) => acc + curr.count, 0) / (dailyHistory.length || 1))}
+                            <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">
+                              {t.daily}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {historyTab === "quizzes" && (
+                    <div>
+                      {/* Sparkline summary tiles */}
+                      {(() => {
+                        const vocabVals = [...dailyHistory].reverse().map((d) => d.count);
+                        const readVals = [...quizHistory].reverse().map((d) => d.reading);
+                        const listenVals = [...quizHistory].reverse().map((d) => d.listening);
+                        const grammarVals = [...quizHistory].reverse().map((d) => d.grammar);
+                        const tiles = [
+                          { key: "vocab",   label: "🃏 Vocab",   color: "#6366f1", values: vocabVals,   today: dailyHistory[0]?.count ?? 0,      unit: "" },
+                          { key: "read",    label: "📖 Read",    color: "#4f46e5", values: readVals,    today: quizHistory[0]?.reading,           unit: "%" },
+                          { key: "listen",  label: "🎧 Listen",  color: "#7c3aed", values: listenVals,  today: quizHistory[0]?.listening,         unit: "%" },
+                          { key: "grammar", label: "📝 Grammar", color: "#d97706", values: grammarVals, today: quizHistory[0]?.grammar,           unit: "%" },
+                        ];
+                        return (
+                          <div className="grid grid-cols-2 gap-3 mb-6">
+                            {tiles.map((tile) => (
+                              <div key={tile.key} className="bg-white rounded-2xl border border-slate-100 px-3 pt-3 pb-2.5 flex flex-col gap-1">
+                                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: tile.color }}>{tile.label}</p>
+                                <SparkLine values={tile.values} color={tile.color} />
+                                <p className="text-sm font-black text-slate-700 leading-none">
+                                  {tile.today !== null && tile.today !== undefined
+                                    ? <>{tile.today}{tile.unit}</>
+                                    : <span className="text-slate-300 text-xs font-bold">—</span>}
+                                  {tile.unit === "" && <span className="text-[9px] font-bold text-slate-300 ml-1">today</span>}
+                                </p>
+                              </div>
+                            ))}
                           </div>
                         );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Stats Summary Cards */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-indigo-100 transition-colors">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-500">
-                          <svg
-                            className="w-3 h-3"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-                          </svg>
-                        </div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                          {t.total}
-                        </p>
-                      </div>
-                      <p className="text-3xl font-black text-slate-800 tracking-tight">
-                        {dailyHistory.reduce(
-                          (acc, curr) => acc + curr.count,
-                          0,
-                        )}
-                        <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">
-                          {t.reviews}
-                        </span>
+                      })()}
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">
+                        Last 7 Days
                       </p>
-                    </div>
-
-                    <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-emerald-100 transition-colors">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-500">
-                          <svg
-                            className="w-3 h-3"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        </div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                          {t.average}
-                        </p>
+                      {/* Column headers */}
+                      <div className="flex items-center gap-3 mb-1 px-2">
+                        <span className="w-20 shrink-0" />
+                        <span className="flex-1 text-center text-[10px] font-black text-indigo-400">📖</span>
+                        <span className="flex-1 text-center text-[10px] font-black text-violet-400">🎧</span>
+                        <span className="flex-1 text-center text-[10px] font-black text-amber-400">📝</span>
                       </div>
-                      <p className="text-3xl font-black text-slate-800 tracking-tight">
-                        {Math.round(
-                          dailyHistory.reduce(
-                            (acc, curr) => acc + curr.count,
-                            0,
-                          ) / (dailyHistory.length || 1),
-                        )}
-                        <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">
-                          {t.daily}
-                        </span>
-                      </p>
+                      {/* Rows */}
+                      <div className="space-y-0.5">
+                        {quizHistory.slice(0, 7).map((row, i) => {
+                          const isToday = i === 0;
+                          const dot = (pct: number | null) => {
+                            if (pct === null) return <span className="text-slate-200 text-lg leading-none">·</span>;
+                            const color = pct >= 80 ? "text-emerald-400" : pct >= 60 ? "text-amber-400" : "text-rose-400";
+                            return (
+                              <span className={`text-base leading-none ${color}`} title={`${pct}%`}>●</span>
+                            );
+                          };
+                          return (
+                            <div
+                              key={row.study_date}
+                              className={`flex items-center gap-3 py-2 px-2 rounded-xl ${isToday ? "bg-indigo-50" : ""}`}
+                            >
+                              <div className="w-20 shrink-0 flex items-center gap-1.5">
+                                <span className={`text-[10px] font-black ${isToday ? "text-indigo-600" : "text-slate-500"}`}>
+                                  {new Date(row.study_date + "T00:00:00").toLocaleDateString("en-SG", { month: "short", day: "numeric" })}
+                                </span>
+                                {isToday && <span className="text-[8px] font-black text-indigo-300 uppercase tracking-widest">now</span>}
+                              </div>
+                              <span className="flex-1 flex justify-center">{dot(row.reading)}</span>
+                              <span className="flex-1 flex justify-center">{dot(row.listening)}</span>
+                              <span className="flex-1 flex justify-center">{dot(row.grammar)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Legend */}
+                      <div className="flex items-center gap-4 mt-5 px-2">
+                        <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Key</span>
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400"><span className="text-emerald-400">●</span> ≥80%</span>
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400"><span className="text-amber-400">●</span> ≥60%</span>
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400"><span className="text-rose-400">●</span> &lt;60%</span>
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400"><span className="text-slate-200 text-sm">·</span> none</span>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <div className="p-6 bg-slate-50/50 text-center mt-auto border-t border-slate-50">
@@ -1828,95 +2251,10 @@ export default function StatsPage() {
             </div>
           )}
 
-          {/* Starter Packs Section */}
-          <div className="mb-10">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">
-                {t.starter_collections}
-              </h3>
-              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-tighter">
-                {starterPacks.length} {t.available}
-              </span>
-            </div>
-
-            <div className="flex gap-4 overflow-x-auto pb-6 no-scrollbar -mx-2 px-2">
-              {starterPacks.map((pack) => {
-                // Pure ID comparison
-                const isOwned = ownedPacks?.includes(pack.id);
-
-                return (
-                  <div
-                    key={pack.id}
-                    className={`flex-none w-64 p-6 rounded-[2rem] border-2 flex flex-col justify-between transition-all ${
-                      isOwned
-                        ? "bg-slate-100 border-slate-200"
-                        : "bg-white border-indigo-50 shadow-sm"
-                    }`}
-                  >
-                    {/* Top Section: Icon and Status */}
-                    <div
-                      className="cursor-pointer group/card"
-                      onClick={() => setPreviewPack(pack)}
-                    >
-                      <div className="flex justify-between items-start mb-4">
-                        <div
-                          className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-inner ${
-                            isOwned ? "bg-slate-200" : "bg-indigo-50"
-                          }`}
-                        >
-                          {pack.icon || "📦"}
-                        </div>
-                        {isOwned ? (
-                          <span className="text-[10px] font-black text-emerald-600 bg-emerald-100/50 px-2.5 py-1 rounded-full uppercase tracking-widest border border-emerald-200">
-                            {t.added}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full uppercase tracking-widest border border-indigo-100">
-                            {t.free}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Middle Section: Content */}
-                      <h4 className="font-black text-slate-800 text-lg mb-1">
-                        {pack.name}
-                      </h4>
-                      <p className="text-[11px] text-slate-500 leading-relaxed mb-6 line-clamp-2 min-h-[32px]">
-                        {pack.description ||
-                          `${pack.card_data?.length || 0} essential words to kickstart your journey.`}
-                      </p>
-                    </div>
-
-                    {/* Bottom Section: Action */}
-                    <button
-                      onClick={() => importPack(pack)}
-                      disabled={loading || isOwned}
-                      className={`w-full py-3 rounded-xl text-xs font-bold transition-all ${
-                        isOwned
-                          ? "bg-slate-200 text-slate-400"
-                          : "bg-indigo-600 text-white hover:bg-indigo-700"
-                      }`}
-                    >
-                      {isOwned ? t.already_in_deck : t.add_to_deck}
-                    </button>
-                  </div>
-                );
-              })}
-
-              {/* Empty State */}
-              {starterPacks.length === 0 && (
-                <div className="flex-none w-full p-8 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center">
-                  <p className="text-sm text-slate-400 font-bold italic">
-                    {t.looking_collections}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
 
           {/* --- Starter Pack Preview Overlay --- */}
           {previewPack && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+            <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 sm:p-6">
               {/* Backdrop */}
               <div
                 className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-300"
@@ -1937,7 +2275,7 @@ export default function StatsPage() {
                     </div>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">
                       {previewPack.card_data?.length} {t.cards} •{" "}
-                      {t.starter_collection}
+                      {t.starter_collections}
                     </p>
                   </div>
                   <button
@@ -1953,10 +2291,10 @@ export default function StatsPage() {
                   {/* Description Card */}
                   <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 mb-6 shadow-sm">
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
-                      {t.description}
+                      Description
                     </p>
                     <p className="text-slate-600 text-sm leading-relaxed font-medium">
-                      {previewPack.description || t.default_pack_desc}
+                      {previewPack.description || "A curated starter collection."}
                     </p>
                   </div>
 
@@ -1989,11 +2327,20 @@ export default function StatsPage() {
                 {/* Subtle Bottom Branding */}
                 <div className="pb-6 bg-white text-center">
                   <p className="text-[8px] font-black text-slate-300 uppercase tracking-[0.5em] opacity-60">
-                    {t.mastery_awaits}
+                    {"Mastery Awaits"}
                   </p>
                 </div>
               </div>
             </div>
+          )}
+
+          {triage && user && (
+            <KnownWordsTriage
+              userId={user.id}
+              packName={triage.packName}
+              cards={triage.cards}
+              onDone={() => setTriage(null)}
+            />
           )}
 
           {/* Search */}
@@ -2013,6 +2360,18 @@ export default function StatsPage() {
             />
           </div>
 
+          {/* Card list skeleton while full content loads */}
+          {cardsLoading && cards.length === 0 && (
+            <div className="space-y-3 mb-6">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="bg-white rounded-[2rem] border border-slate-100 p-6 animate-pulse">
+                  <div className="h-5 bg-slate-100 rounded-full w-1/3 mb-3" />
+                  <div className="h-3 bg-slate-100 rounded-full w-1/2" />
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* List Views (Mobile & Desktop) */}
           <div className="md:hidden space-y-4">
             {visibleCards.map((card) => {
@@ -2027,8 +2386,20 @@ export default function StatsPage() {
                   className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden"
                 >
                   {/* ACTION BUTTONS (Top Right) */}
-                  {/* ACTION BUTTONS (Perfectly Aligned) */}
                   <div className="absolute top-4 right-4 flex items-center gap-1">
+                    {/* PRIORITY STAR */}
+                    <button
+                      onClick={() => toggleCardPriority(card)}
+                      className="w-8 h-8 flex items-center justify-center active:scale-90 transition-all"
+                      title={card.is_priority ? "Remove from Priority" : "Add to Priority"}
+                    >
+                      <Star
+                        size={16}
+                        className={card.is_priority ? "text-amber-500" : "text-slate-300"}
+                        fill={card.is_priority ? "currentColor" : "none"}
+                      />
+                    </button>
+
                     {/* REPORT BUTTON */}
                     <button
                       onClick={() => handleReport(card.id, card.english)}
@@ -2078,6 +2449,13 @@ export default function StatsPage() {
                         className={`text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(card.partOfSpeech)}`}
                       >
                         {card.partOfSpeech}
+                      </span>
+                    )}
+                    {card.jlpt_level && (
+                      <span
+                        className={`ml-1.5 text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getJlptColor(card.jlpt_level)}`}
+                      >
+                        {card.jlpt_level}
                       </span>
                     )}
                     <div className="text-sm font-bold text-indigo-500">
@@ -2173,6 +2551,13 @@ export default function StatsPage() {
                             {card.partOfSpeech}
                           </span>
                         )}
+                        {card.jlpt_level && (
+                          <span
+                            className={`ml-1.5 text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getJlptColor(card.jlpt_level)}`}
+                          >
+                            {card.jlpt_level}
+                          </span>
+                        )}
                         <div className="text-xs text-indigo-500 font-medium">
                           {card.reading}
                         </div>
@@ -2208,6 +2593,19 @@ export default function StatsPage() {
                       </td>
                       <td className="px-4 py-4 text-right">
                         <div className="flex justify-end gap-2">
+                          {/* PRIORITY STAR */}
+                          <button
+                            onClick={() => toggleCardPriority(card)}
+                            className="p-2 hover:bg-amber-50 rounded-lg transition-colors"
+                            title={card.is_priority ? "Remove from Priority" : "Add to Priority"}
+                          >
+                            <Star
+                              size={18}
+                              className={card.is_priority ? "text-amber-500" : "text-slate-300"}
+                              fill={card.is_priority ? "currentColor" : "none"}
+                            />
+                          </button>
+
                           {/* REPORT BUTTON */}
                           <button
                             onClick={() => handleReport(card.id, card.english)}
@@ -2248,7 +2646,7 @@ export default function StatsPage() {
           {filteredCards.length > displayLimit && (
             <div className="mt-8 mb-12 flex justify-center">
               <button
-                onClick={() => setDisplayLimit((prev) => prev + 50)}
+                onClick={() => setDisplayLimit((prev) => prev + 200)}
                 className="bg-white border border-slate-200 px-8 py-3 rounded-2xl font-bold text-slate-600 hover:bg-slate-50"
               >
                 {t.load_more} ({filteredCards.length - displayLimit}{" "}
@@ -2258,114 +2656,30 @@ export default function StatsPage() {
           )}
         </div>
 
-        {showSummaryOverlay && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 flex flex-col max-h-[80vh] overflow-hidden">
-              {/* Header */}
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                <div>
-                  <h2 className="text-xl font-black text-slate-800 uppercase italic tracking-tighter">
-                    {t.words_added}
-                  </h2>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                    {addedWordsSummary.length} {t.new_entries}
-                  </p>
-
-                  {/* NEW: Conditional Limit Badge */}
-                  {addedWordsSummary.length >= 50 && (
-                    <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-black border border-amber-200 animate-pulse">
-                      {t.limit_notice}
-                    </span>
-                  )}
-                </div>
-                <button
-                  onClick={() => setShowSummaryOverlay(false)}
-                  className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-slate-200 transition-colors text-slate-400"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* List content */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/30">
-                {addedWordsSummary.map((word, i) => (
-                  <div
-                    key={i}
-                    className="group bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-start gap-4 hover:border-indigo-100 transition-all"
-                  >
-                    {/* 1. LEFT: THE COLORFUL KANJI AVATAR (Restored Colors) */}
-                    <div className="flex-shrink-0 w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100 shadow-sm">
-                      <span className="text-indigo-600 font-black text-xl">
-                        {word.japanese[0]}
-                      </span>
-                    </div>
-
-                    {/* 2. CENTER: Content Info */}
-                    <div className="flex-1 flex flex-col text-left">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-lg font-black text-slate-800">
-                          {word.japanese}
-                        </span>
-                        <span className="text-xs font-bold text-rose-500 uppercase tracking-tighter">
-                          {word.reading}
-                        </span>
-                      </div>
-
-                      <p className="text-sm text-slate-600 font-medium mt-0.5 leading-tight pr-10">
-                        {word.english}
-                      </p>
-
-                      {/* Meta Tags */}
-                      <div className="mt-2 flex gap-2">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
-                          {word.partOfSpeech}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* 3. TOP RIGHT: THE DELETE BUTTON (Trash Can Style) */}
-                    <div className="flex-shrink-0 -mt-1 -mr-1">
-                      <button
-                        onClick={() => deleteCard(word.id, true)}
-                        className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all active:scale-90"
-                        title={t.delete}
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Footer */}
-              <div className="p-4 border-t border-slate-100">
-                <button
-                  onClick={() => setShowSummaryOverlay(false)}
-                  className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-[0.98] shadow-lg"
-                >
-                  {t.got_it}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {loading && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex flex-col items-center justify-center text-white">
-            <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-lg font-bold animate-pulse">{t.ai_building}</p>
-          </div>
+        {/* ── Add Cards FAB ── */}
+        <motion.button
+          onClick={() => setShowAddSheet(true)}
+          whileTap={{ scale: 0.88 }}
+          className="fixed bottom-24 right-5 z-[205] w-14 h-14 bg-indigo-600 text-white rounded-full shadow-xl shadow-indigo-300/50 flex items-center justify-center"
+        >
+          <Plus size={26} strokeWidth={2.5} />
+          {pendingWordCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center">
+              {pendingWordCount}
+            </span>
+          )}
+        </motion.button>
+        {user?.id && defaultDeckId && (
+          <AddWordsSheet
+            userId={user.id}
+            deckId={defaultDeckId}
+            isAdmin={isAdmin}
+            blocklist={userBlocklist}
+            open={showAddSheet}
+            onClose={() => setShowAddSheet(false)}
+            onAdded={fetchCards}
+            onQueueCountChange={setPendingWordCount}
+          />
         )}
       </main>
     </div>
@@ -2375,34 +2689,49 @@ function StatCard({
   label,
   value,
   color,
-  onClick, // 1. Add the prop here
+  onClick,
 }: {
   label: string;
   value: number;
   color: string;
-  onClick?: () => void; // 2. Define the type (optional)
+  onClick?: () => void;
 }) {
+  const controls = useAnimationControls();
+
+  const handleClick = () => {
+    if (onClick) {
+      onClick();
+    } else {
+      controls.start({
+        x: [-8, 8, -6, 6, -3, 3, 0],
+        transition: { duration: 0.4, ease: "easeInOut" },
+      });
+    }
+  };
+
   return (
-    <div
-      onClick={onClick}
-      className={`bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex justify-between items-center transition-all ${
+    <motion.div
+      animate={controls}
+      onClick={handleClick}
+      className={`bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex justify-between items-center transition-all cursor-pointer ${
         onClick
-          ? "cursor-pointer hover:border-slate-300 hover:scale-[1.02] active:scale-95"
-          : ""
+          ? "hover:border-slate-300 hover:scale-[1.02] active:scale-95"
+          : "active:scale-95"
       }`}
     >
       <div>
         <p className="text-slate-400 text-[10px] font-black uppercase tracking-tighter">
           {label}
         </p>
-        <p className="text-4xl font-black text-slate-800">{value || 0}</p>
+        <p className={`font-black text-slate-800 ${String(value || 0).length >= 6 ? "text-2xl" : String(value || 0).length >= 5 ? "text-3xl" : "text-4xl"}`}>
+          {value || 0}
+        </p>
       </div>
 
       {/* Visual Icon Box */}
       <div
         className={`w-12 h-12 rounded-2xl ${color} opacity-20 flex items-center justify-center`}
       >
-        {/* Optional: Add a small chevron if it's clickable */}
         {onClick && (
           <span
             className={`text-xl font-black ${color.replace("bg-", "text-")} opacity-100`}
@@ -2411,6 +2740,6 @@ function StatCard({
           </span>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }

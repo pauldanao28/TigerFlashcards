@@ -1,22 +1,28 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { useLang } from "@/context/LanguageContext";
+import { translations } from "@/lib/languages";
 import LoadingScreen from "@/components/LoadingScreen";
 import Link from "next/link";
+import { useAppAlert } from "@/context/AlertContext";
+import { authedFetch } from "@/lib/authedFetch";
+import AdminAnalytics from "@/components/AdminAnalytics";
 
 export default function AdminDashboard() {
-  const { t, lang } = useLang();
+  const t = translations.en;
+  const { showAlert, showConfirm } = useAppAlert();
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [activeTab, setActiveTab] = useState<"cards" | "system">("cards");
+  const [activeTab, setActiveTab] = useState<"cards" | "system" | "analytics">("cards");
   const [view, setView] = useState<"pending" | "resolved" | "ignored">(
     "pending",
   );
   const [systemFeedbacks, setSystemFeedbacks] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
   const [editForm, setEditForm] = useState({
+    japanese: "",
     english: "",
     reading: "",
     partOfSpeech: "",
@@ -24,6 +30,7 @@ export default function AdminDashboard() {
   });
 
   const fetchData = useCallback(async () => {
+    if (activeTab === "analytics") return;
     setLoading(true);
 
     if (activeTab === "cards") {
@@ -133,7 +140,7 @@ export default function AdminDashboard() {
 
     if (error) {
       console.error("Update failed:", error.message);
-      alert(`Failed to update: ${error.message}`);
+      showAlert(`Failed to update: ${error.message}`);
     } else {
       fetchData();
     }
@@ -143,11 +150,38 @@ export default function AdminDashboard() {
   const startManualEdit = (report: any) => {
     setEditingId(report.id);
     setEditForm({
+      japanese: report.master_cards.japanese || "",
       english: report.master_cards.english || "",
       reading: report.master_cards.reading || "",
       partOfSpeech: report.master_cards.partOfSpeech || "noun",
       exampleJp: report.master_cards.exampleSentence?.jp || "",
     });
+  };
+
+  const handleRegenerate = async () => {
+    if (!editForm.japanese.trim()) return;
+    setRegenerating(true);
+    try {
+      const res = await authedFetch("/api/generate", {
+        method: "POST",
+        body: JSON.stringify({ words: [editForm.japanese.trim()] }),
+      });
+      if (!res.ok) throw new Error("API error");
+      const data = await res.json();
+      const card = Array.isArray(data) ? data[0] : data;
+      setEditForm((f) => ({
+        ...f,
+        japanese: card.japanese || f.japanese,
+        english: card.english || "",
+        reading: card.reading || "",
+        partOfSpeech: card.partOfSpeech || "noun",
+        exampleJp: card.exampleSentence?.jp || "",
+      }));
+    } catch {
+      showAlert("Regeneration failed. Try again.");
+    } finally {
+      setRegenerating(false);
+    }
   };
 
   const handleManualSave = async (reportId: string, cardId: string) => {
@@ -160,14 +194,15 @@ export default function AdminDashboard() {
     const { error: cardError } = await supabase
       .from("master_cards")
       .update({
+        japanese: editForm.japanese,
         english: editForm.english,
         reading: editForm.reading,
         partOfSpeech: editForm.partOfSpeech,
-        exampleSentence: { jp: editForm.exampleJp, en: "" }, // Keeps original structure
+        exampleSentence: { jp: editForm.exampleJp, en: "" },
       })
       .eq("id", cardId);
 
-    if (cardError) return alert("Update failed: " + cardError.message);
+    if (cardError) { showAlert("Update failed: " + cardError.message); return; }
 
     // 3. Mark as resolved AND track WHO did it
     await supabase
@@ -191,13 +226,30 @@ export default function AdminDashboard() {
     if (!error) setReports((prev) => prev.filter((r) => r.id !== reportId));
   };
 
+  const handleDeleteCard = async (reportId: string, cardId: string, japanese: string) => {
+    const confirmed = await showConfirm(`Delete "${japanese}" from the card library? This cannot be undone.`, {
+      title: "Delete Card",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!confirmed) return;
+
+    const { error } = await supabase.from("master_cards").delete().eq("id", cardId);
+    if (error) {
+      showAlert("Delete failed: " + error.message);
+      return;
+    }
+    setReports((prev) => prev.filter((r) => r.id !== reportId));
+    setEditingId(null);
+  };
+
   if (loading) return <LoadingScreen />;
 
   return (
-    <main className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
+    <main className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans overflow-x-hidden">
       <div className="max-w-4xl mx-auto">
         {/* TOP LEVEL NAVIGATION (Cards vs System) */}
-        <div className="flex bg-slate-200/50 p-1.5 rounded-2xl w-fit mb-8 border border-slate-200">
+        <div className="flex flex-wrap gap-1.5 bg-slate-200/50 p-1.5 rounded-2xl w-fit max-w-full mb-8 border border-slate-200">
           <button
             onClick={() => setActiveTab("cards")}
             className={`px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${activeTab === "cards" ? "bg-slate-900 text-white shadow-lg" : "text-slate-500 hover:text-slate-700"}`}
@@ -210,41 +262,52 @@ export default function AdminDashboard() {
           >
             💬 System Feedback
           </button>
+          <button
+            onClick={() => setActiveTab("analytics")}
+            className={`px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${activeTab === "analytics" ? "bg-slate-900 text-white shadow-lg" : "text-slate-500 hover:text-slate-700"}`}
+          >
+            📊 Analytics
+          </button>
         </div>
 
         {/* HEADER SECTION */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
           <div>
             <h1 className="text-3xl font-black text-slate-800 flex items-center gap-3">
-              🚩 {activeTab === "cards" ? t.admin_title : "General Feedback"}
-              <span className="text-sm bg-indigo-100 text-indigo-600 px-3 py-1 rounded-full font-bold">
-                {activeTab === "cards"
-                  ? reports.length
-                  : systemFeedbacks.length}
-              </span>
+              {activeTab === "analytics" ? "📊" : "🚩"}{" "}
+              {activeTab === "cards" ? t.admin_title : activeTab === "system" ? "General Feedback" : "Analytics"}
+              {activeTab !== "analytics" && (
+                <span className="text-sm bg-indigo-100 text-indigo-600 px-3 py-1 rounded-full font-bold">
+                  {activeTab === "cards"
+                    ? reports.length
+                    : systemFeedbacks.length}
+                </span>
+              )}
             </h1>
 
             {/* STATUS TOGGLE TABS */}
-            <div className="flex gap-1 bg-slate-200/50 p-1 rounded-xl mt-4 w-fit border border-slate-200">
-              <button
-                onClick={() => setView("pending")}
-                className={`px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${view === "pending" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-              >
-                Pending
-              </button>
-              <button
-                onClick={() => setView("resolved")}
-                className={`px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${view === "resolved" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-              >
-                Resolved
-              </button>
-              <button
-                onClick={() => setView("ignored")}
-                className={`px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${view === "ignored" ? "bg-white text-rose-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-              >
-                Ignored
-              </button>
-            </div>
+            {activeTab !== "analytics" && (
+              <div className="flex gap-1 bg-slate-200/50 p-1 rounded-xl mt-4 w-fit border border-slate-200">
+                <button
+                  onClick={() => setView("pending")}
+                  className={`px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${view === "pending" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  Pending
+                </button>
+                <button
+                  onClick={() => setView("resolved")}
+                  className={`px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${view === "resolved" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  Resolved
+                </button>
+                <button
+                  onClick={() => setView("ignored")}
+                  className={`px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${view === "ignored" ? "bg-white text-rose-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  Ignored
+                </button>
+              </div>
+            )}
           </div>
 
           <Link
@@ -255,7 +318,10 @@ export default function AdminDashboard() {
           </Link>
         </div>
 
+        {activeTab === "analytics" && <AdminAnalytics />}
+
         {/* REPORTS LIST */}
+        {activeTab !== "analytics" && (
         <div className="grid gap-6">
           {activeTab === "cards" ? (
             /* EXISTING CARD REPORTS MAPPING */
@@ -334,18 +400,31 @@ export default function AdminDashboard() {
                   {editingId === report.id ? (
                     /* MANUAL EDIT FORM */
                     <div className="bg-slate-50 p-6 rounded-[2rem] grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-4">
+                      {/* Kanji field — full width with regenerate button below */}
+                      <div className="md:col-span-2 space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
+                          Kanji / Japanese
+                        </label>
+                        <input
+                          value={editForm.japanese}
+                          onChange={(e) => setEditForm({ ...editForm, japanese: e.target.value })}
+                          className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <button
+                          onClick={handleRegenerate}
+                          disabled={regenerating || !editForm.japanese.trim()}
+                          className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all disabled:opacity-50"
+                        >
+                          {regenerating ? "..." : "↺ Regenerate"}
+                        </button>
+                      </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
                           Meaning (English)
                         </label>
                         <input
                           value={editForm.english}
-                          onChange={(e) =>
-                            setEditForm({
-                              ...editForm,
-                              english: e.target.value,
-                            })
-                          }
+                          onChange={(e) => setEditForm({ ...editForm, english: e.target.value })}
                           className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       </div>
@@ -355,12 +434,7 @@ export default function AdminDashboard() {
                         </label>
                         <input
                           value={editForm.reading}
-                          onChange={(e) =>
-                            setEditForm({
-                              ...editForm,
-                              reading: e.target.value,
-                            })
-                          }
+                          onChange={(e) => setEditForm({ ...editForm, reading: e.target.value })}
                           className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       </div>
@@ -370,12 +444,7 @@ export default function AdminDashboard() {
                         </label>
                         <input
                           value={editForm.partOfSpeech}
-                          onChange={(e) =>
-                            setEditForm({
-                              ...editForm,
-                              reading: e.target.value,
-                            })
-                          }
+                          onChange={(e) => setEditForm({ ...editForm, partOfSpeech: e.target.value })}
                           className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       </div>
@@ -385,23 +454,22 @@ export default function AdminDashboard() {
                         </label>
                         <input
                           value={editForm.exampleJp}
-                          onChange={(e) =>
-                            setEditForm({
-                              ...editForm,
-                              exampleJp: e.target.value,
-                            })
-                          }
+                          onChange={(e) => setEditForm({ ...editForm, exampleJp: e.target.value })}
                           className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       </div>
                       <div className="md:col-span-2 flex gap-3 pt-4">
                         <button
-                          onClick={() =>
-                            handleManualSave(report.id, report.master_cards.id)
-                          }
+                          onClick={() => handleManualSave(report.id, report.master_cards.id)}
                           className="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-indigo-100 active:scale-95 transition-all"
                         >
                           Save & Resolve
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCard(report.id, report.master_cards.id, report.master_cards.japanese)}
+                          className="px-5 py-4 bg-rose-50 text-rose-600 border border-rose-100 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-rose-100 active:scale-95 transition-all"
+                        >
+                          🗑 Delete
                         </button>
                         <button
                           onClick={() => setEditingId(null)}
@@ -441,8 +509,14 @@ export default function AdminDashboard() {
                             Edit Manually
                           </button>
                           <button
+                            onClick={() => handleDeleteCard(report.id, report.master_cards.id, report.master_cards.japanese)}
+                            className="px-5 py-4 text-rose-400 font-bold text-[10px] uppercase tracking-widest hover:text-rose-600 hover:bg-rose-50 rounded-2xl transition-all"
+                          >
+                            🗑 Delete
+                          </button>
+                          <button
                             onClick={() => handleIgnore(report.id)}
-                            className="px-5 py-4 text-slate-400 font-bold text-[10px] uppercase tracking-widest hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all"
+                            className="px-5 py-4 text-slate-400 font-bold text-[10px] uppercase tracking-widest hover:text-slate-600 hover:bg-slate-50 rounded-2xl transition-all"
                           >
                             Ignore
                           </button>
@@ -557,6 +631,7 @@ export default function AdminDashboard() {
             ))
           )}
         </div>
+        )}
       </div>
     </main>
   );

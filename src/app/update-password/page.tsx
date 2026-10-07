@@ -3,11 +3,13 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-import { useLang } from "@/context/LanguageContext";
+import { translations } from "@/lib/languages";
+import { useAppAlert } from "@/context/AlertContext";
 
 export default function UpdatePassword() {
   const router = useRouter();
-  const { t } = useLang();
+  const t = translations.en;
+  const { showAlert } = useAppAlert();
 
   // States
   const [currentPassword, setCurrentPassword] = useState("");
@@ -64,7 +66,7 @@ export default function UpdatePassword() {
       });
 
       if (signInError) {
-        alert(t.wrong_password);
+        await showAlert(t.wrong_password);
         setLoading(false);
         return;
       }
@@ -76,9 +78,9 @@ export default function UpdatePassword() {
     });
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message);
     } else {
-      alert(t.password_updated_success);
+      await showAlert(t.password_updated_success);
       router.push("/");
     }
     setLoading(false);

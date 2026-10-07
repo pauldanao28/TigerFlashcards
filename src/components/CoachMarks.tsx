@@ -1,16 +1,16 @@
 "use client";
-import { useLang } from "@/context/LanguageContext";
+import { translations } from "@/lib/languages";
 
 export default function CoachMarks() {
   // Removed onDismiss prop if not used here
-  const { t } = useLang();
+  const t = translations.en;
 
   return (
     <div
       /* This container now just HOLDS the labels. 
          Everything inside is pointer-events-none so it's a total "ghost" overlay.
       */
-      className="absolute inset-0 z-40 flex flex-col justify-between p-8 pointer-events-none animate-in fade-in duration-300 overflow-hidden"
+      className="absolute inset-0 z-[60] flex flex-col justify-between p-8 pointer-events-none animate-in fade-in duration-300 overflow-hidden"
     >
       {/* ❌ REMOVED the absolute invisible div with pointer-events-auto */}
 

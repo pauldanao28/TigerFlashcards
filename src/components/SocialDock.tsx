@@ -3,28 +3,37 @@ import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import {
-  addFriendByUsername,
+  addFriend,
+  addFriendById,
   cancelFriendRequest,
   handleAcceptRequest,
   handleIgnoreRequest,
+  type FriendCandidate,
 } from "@/lib/social";
+import { useAppAlert } from "@/context/AlertContext";
+import { FriendProfileModal } from "@/components/FriendProfileModal";
 
 export const SocialDock = ({
   userId, // Added your unique ID
   username,
+  referralCode,
   friends,
   onClose,
   fetchFriends,
 }: {
   userId: string;
   username: string; // Add this prop
+  referralCode: string | null;
   friends: any[];
   onClose: () => void;
   fetchFriends?: () => Promise<void>;
 }) => {
+  const { showAlert } = useAppAlert();
   const [newFriend, setNewFriend] = useState("");
   const [activeTab, setActiveTab] = useState<"friends" | "pending">("friends");
+  const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
+  const [candidates, setCandidates] = useState<FriendCandidate[] | null>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -67,35 +76,67 @@ export const SocialDock = ({
     e.preventDefault();
     if (!newFriend.trim()) return;
 
-    const result = await addFriendByUsername(newFriend);
+    setCandidates(null);
+    const result = await addFriend(newFriend);
 
+    if (result.needsDisambiguation) {
+      setCandidates(result.matches);
+      return;
+    }
     if (result.success) {
-      alert(`Success! Request sent to ${result.name}`);
+      showAlert(`Success! Request sent to ${result.name}`);
       if (typeof fetchFriends === "function") {
         await fetchFriends();
       }
       setNewFriend(""); // Clear input
     } else if (result.error) {
       // This will show "Already in your circle" or "User not found"
-      alert(result.error);
+      showAlert(result.error);
+    }
+  };
+
+  const handlePickCandidate = async (candidate: FriendCandidate) => {
+    const result = await addFriendById(candidate);
+    if (result.success) {
+      showAlert(`Success! Request sent to ${result.name}`);
+      if (typeof fetchFriends === "function") {
+        await fetchFriends();
+      }
+      setNewFriend("");
+      setCandidates(null);
+    } else if (result.error) {
+      showAlert(result.error);
     }
   };
 
   // The logic for sharing or connecting
   const handleSocialAction = async () => {
-    // 1. Safety check: stop if we don't have a name
-    if (!username) {
-      alert("Error getting username. Please wait a moment.");
+    // 1. Safety check: stop if we don't have a code yet
+    if (!referralCode) {
+      showAlert("Error getting your referral code. Please wait a moment.");
       return; // Stop the function here
     }
 
-    const shareUrl = `https://flashkado.app/join/${encodeURIComponent(username)}`;
+    const shareUrl = `https://flashkado.com/join/${referralCode}`;
+    const shareMessage = `Join me on FlashKado! I'm learning Japanese with AI-powered flashcards 🇯🇵 ${shareUrl}`;
+
+    // Prefer the native share sheet (lets them pick Messages/WhatsApp/etc
+    // directly) — fall back to clipboard copy where it's unavailable.
+    if (navigator.share) {
+      try {
+        await navigator.share({ text: shareMessage, url: shareUrl });
+        return;
+      } catch {
+        // User cancelled the share sheet — not an error, just stop.
+        return;
+      }
+    }
 
     try {
-      await navigator.clipboard.writeText(shareUrl);
-      alert("Link copied to clipboard!");
+      await navigator.clipboard.writeText(shareMessage);
+      showAlert("Invite message copied to clipboard!");
     } catch (err) {
-      alert("Failed to copy link.");
+      showAlert("Failed to copy link.");
     }
     //}
   };
@@ -111,7 +152,7 @@ export const SocialDock = ({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[90] cursor-pointer"
+        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[240] cursor-pointer"
       />
 
       {/* 2. THE DOCK (Responsive: Bottom Sheet on Mobile, Sidebar on Desktop) */}
@@ -124,7 +165,7 @@ export const SocialDock = ({
         }}
         exit={{ y: "100%" }} // Slide down on close
         // Desktop Overrides:
-        className="fixed bottom-0 left-0 right-0 h-[70vh] w-full bg-white z-[100] p-6 rounded-t-[32px] shadow-2xl flex flex-col
+        className="fixed bottom-0 left-0 right-0 h-[70vh] w-full bg-white z-[241] p-6 rounded-t-[32px] shadow-2xl flex flex-col
                    md:top-0 md:right-0 md:left-auto md:bottom-auto md:h-full md:w-80 md:rounded-none md:translate-y-0"
       >
         {/* Mobile "Handle" - Visual cue that you can swipe down */}
@@ -143,12 +184,12 @@ export const SocialDock = ({
           </button>
         </div>
 
-        <form onSubmit={handleQuickAdd} className="mb-6 group">
+        <form onSubmit={handleQuickAdd} className="mb-2 group">
           <div className="relative">
             <input
               value={newFriend}
-              onChange={(e) => setNewFriend(e.target.value)}
-              placeholder="ADD BY USERNAME..."
+              onChange={(e) => { setNewFriend(e.target.value); setCandidates(null); }}
+              placeholder="ADD BY NAME OR CODE..."
               className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-4 text-[10px] font-black uppercase tracking-[0.2em] focus:bg-white focus:border-black outline-none transition-all placeholder:text-slate-300"
             />
             <button
@@ -159,6 +200,24 @@ export const SocialDock = ({
             </button>
           </div>
         </form>
+
+        {candidates && (
+          <div className="mb-6 p-2 bg-slate-50 rounded-2xl border border-slate-100 space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
+            <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 px-2 pt-1">
+              Multiple people named &ldquo;{newFriend.trim()}&rdquo; — who did you mean?
+            </p>
+            {candidates.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => handlePickCandidate(c)}
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-white hover:bg-indigo-50 border border-slate-100 hover:border-indigo-200 transition-all active:scale-[0.98]"
+              >
+                <span className="text-[11px] font-black text-slate-700">{c.full_name}</span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500">Add</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="flex gap-2 mb-6 p-1 bg-slate-50 rounded-2xl">
           <button
@@ -209,7 +268,8 @@ export const SocialDock = ({
             displayFriends.map((friend) => (
               <div
                 key={`${friend.id}-${friend.status}`}
-                className="flex items-center gap-4 animate-in fade-in slide-in-from-bottom-2"
+                onClick={() => { if (activeTab === "friends") setSelectedFriendId(friend.id); }}
+                className={`flex items-center gap-4 animate-in fade-in slide-in-from-bottom-2 ${activeTab === "friends" ? "cursor-pointer active:opacity-70" : ""}`}
               >
                 <div className="relative">
                   <div className="w-12 h-12 rounded-full border-2 border-slate-100 overflow-hidden bg-slate-50">
@@ -235,6 +295,11 @@ export const SocialDock = ({
                       <p className="text-[12px] font-black uppercase text-black italic leading-none">
                         {friend.name}
                       </p>
+                      {friend.nLevel && activeTab === "friends" && (
+                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-600">
+                          {friend.nLevel}
+                        </span>
+                      )}
                       {friend.streak > 0 && activeTab === "friends" && (
                         <span className="text-[10px] flex items-center gap-0.5 font-bold text-orange-500">
                           🔥{friend.streak}
@@ -284,7 +349,7 @@ export const SocialDock = ({
                             e.preventDefault();
                             const result = await cancelFriendRequest(friend.id);
                             if (result?.error)
-                              alert("Failed to cancel: " + result.error);
+                              showAlert("Failed to cancel: " + result.error);
                           }}
                         >
                           Cancel Request
@@ -297,7 +362,7 @@ export const SocialDock = ({
                               const { error } = await handleAcceptRequest(
                                 friend.id,
                               );
-                              if (error) alert("Could not accept");
+                              if (error) showAlert("Could not accept");
                             }}
                             className="flex-1 py-1.5 bg-black text-white text-[9px] font-black uppercase rounded-lg hover:opacity-80 transition-opacity"
                           >
@@ -308,7 +373,7 @@ export const SocialDock = ({
                               const { error } = await handleIgnoreRequest(
                                 friend.id,
                               );
-                              if (error) alert("Could not ignore");
+                              if (error) showAlert("Could not ignore");
                             }}
                             className="flex-1 py-1.5 bg-slate-100 text-slate-400 text-[9px] font-black uppercase rounded-lg hover:bg-red-50 hover:text-red-500 transition-all"
                           >
@@ -344,6 +409,10 @@ export const SocialDock = ({
           + Refer a Friend
         </button>
       </motion.div>
+
+      {selectedFriendId && (
+        <FriendProfileModal friendId={selectedFriendId} onClose={() => setSelectedFriendId(null)} />
+      )}
     </>
   );
 };
