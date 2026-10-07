@@ -22,14 +22,17 @@ import { SocialDock } from "@/components/SocialDock";
 import SentenceQuiz from "@/components/SentenceQuiz";
 import ListeningQuiz from "@/components/ListeningQuiz";
 import AddWordsSheet from "@/components/AddWordsSheet";
-import { FlashcardData } from "@/lib/types";
+import { FlashcardData, KanjiMnemonic } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, History, Star, TrendingDown } from "lucide-react";
+import { Plus, History, Star, TrendingDown, Lightbulb, Loader2, X } from "lucide-react";
 const DAILY_GOAL = 10;
 const MASTERY_MIN_TRIES = 5;
 const PRIORITY_CAP = 30;
 const MASTERED_GOAL = 20;
 const REVIEW_TARGET = 100;
+// Same regex as Flashcard.tsx's "Remember this kanji" gate — only kanji carry a
+// radical/origin story worth generating a mnemonic for.
+const KANJI_RE = /[一-鿿]/;
 
 const JLPT_BAR_COLOR: Record<"N5" | "N4" | "N3" | "N2" | "N1", string> = {
   N5: "bg-emerald-500",
@@ -129,7 +132,7 @@ function cardOverallPercent(c: FlashcardData): number {
 
 export default function StudyView() {
   const { user, loading } = useAuth();
-  const { showAlert } = useAppAlert();
+  const { showAlert, showConfirm } = useAppAlert();
   const shownGenerateLimitAlertRef = useRef(false);
   // --- 1. State Management ---
   const [hasOnboarded, setHasOnboarded] = useState<boolean | null>(null);
@@ -171,6 +174,12 @@ export default function StudyView() {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showWeakModal, setShowWeakModal] = useState(false);
+  // Mnemonic sheet nested inside the Weak Words modal — same generate/cache logic as
+  // Flashcard.tsx's "Remember this kanji" button on the card back, just reachable
+  // without having to find the word during study first.
+  const [weakMnemonicCard, setWeakMnemonicCard] = useState<FlashcardData | null>(null);
+  const [weakMnemonicLoading, setWeakMnemonicLoading] = useState(false);
+  const [weakMnemonicError, setWeakMnemonicError] = useState<string | null>(null);
   const { friends, fetchFriends } = useFriends();
   const [showStreakBanner, setShowStreakBanner] = useState(false);
   const [goalStreak, setGoalStreak] = useState(0);
@@ -778,6 +787,45 @@ export default function StudyView() {
     setCards((prev) => prev.map(applyPatch));
     setCurrentCard((prev) => (prev ? applyPatch(prev) : prev));
   }, []);
+
+  // Opens the mnemonic sheet for a word from the Weak Words list — same cache-check,
+  // confirm-before-spending-AI, and generate flow as Flashcard.tsx's handleOpenMnemonic,
+  // just triggerable from the list instead of only from the card back during study.
+  const handleWeakWordMnemonic = async (card: FlashcardData) => {
+    setWeakMnemonicCard(card);
+    if (card.mnemonic || weakMnemonicLoading) return;
+
+    const confirmed = await showConfirm(
+      `Generate a memory aid for ${card.japanese}? This uses one of your daily AI lookups.`,
+      { title: "Remember this kanji?", confirmLabel: "Generate" },
+    );
+    if (!confirmed) {
+      setWeakMnemonicCard(null);
+      return;
+    }
+
+    setWeakMnemonicLoading(true);
+    setWeakMnemonicError(null);
+    try {
+      const res = await authedFetch("/api/mnemonic", {
+        method: "POST",
+        body: JSON.stringify({ japanese: card.japanese, reading: card.reading, english: card.english }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setWeakMnemonicError(data.error || "Couldn't generate a mnemonic right now.");
+        return;
+      }
+      const mnemonic: KanjiMnemonic = { entries: data.entries, origin: data.origin };
+      await supabase.from("master_cards").update({ mnemonic }).eq("id", card.id);
+      handleMnemonicGenerated(card.id, mnemonic);
+      setWeakMnemonicCard((prev) => (prev && prev.id === card.id ? { ...prev, mnemonic } : prev));
+    } catch {
+      setWeakMnemonicError("Couldn't generate a mnemonic right now.");
+    } finally {
+      setWeakMnemonicLoading(false);
+    }
+  };
 
   // Tap-to-explain for the three goal chips — a hover title does nothing on mobile,
   // so these are the actual way most users will learn what each number means.
@@ -1420,40 +1468,46 @@ export default function StudyView() {
                 </span>
               </button>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowHistoryModal(true)}
-                className="flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
-                title="Recently Reviewed"
-              >
-                <History size={18} className="text-slate-500" />
-              </button>
-              <button
-                onClick={() => setShowPriorityModal(true)}
-                className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
-                title="Priority Words"
-              >
-                <Star size={18} className="text-amber-500" fill={cards.some((c) => c.is_priority) ? "currentColor" : "none"} />
-              </button>
-              <button
-                onClick={() => setShowWeakModal(true)}
-                className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
-                title="Weak Words"
-              >
-                <TrendingDown size={18} className="text-rose-500" />
-              </button>
-              <motion.button
-                onClick={() => setIsQuickAddOpen(true)}
-                whileTap={{ scale: 0.88 }}
-                className="relative w-11 h-11 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300/50 flex items-center justify-center"
-              >
-                <Plus size={20} strokeWidth={2.5} />
-                {pendingWordCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
-                    {pendingWordCount}
-                  </span>
-                )}
-              </motion.button>
+            {/* Split across two rows — four icon buttons in one row overflowed the
+                viewport on mobile (the FAB was getting clipped off the right edge). */}
+            <div className="flex flex-col gap-2 items-end">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowHistoryModal(true)}
+                  className="flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
+                  title="Recently Reviewed"
+                >
+                  <History size={18} className="text-slate-500" />
+                </button>
+                <button
+                  onClick={() => setShowPriorityModal(true)}
+                  className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
+                  title="Priority Words"
+                >
+                  <Star size={18} className="text-amber-500" fill={cards.some((c) => c.is_priority) ? "currentColor" : "none"} />
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowWeakModal(true)}
+                  className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
+                  title="Weak Words"
+                >
+                  <TrendingDown size={18} className="text-rose-500" />
+                </button>
+                <motion.button
+                  onClick={() => setIsQuickAddOpen(true)}
+                  whileTap={{ scale: 0.88 }}
+                  className="relative w-11 h-11 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300/50 flex items-center justify-center"
+                >
+                  <Plus size={20} strokeWidth={2.5} />
+                  {pendingWordCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                      {pendingWordCount}
+                    </span>
+                  )}
+                </motion.button>
+              </div>
             </div>
           </div>
         </div>
@@ -2291,6 +2345,15 @@ export default function StudyView() {
                           <span className="text-[10px] font-black px-2 py-1 rounded-full bg-rose-100 text-rose-700">
                             {pct}%
                           </span>
+                          {KANJI_RE.test(c.japanese) && (
+                            <button
+                              onClick={() => handleWeakWordMnemonic(c)}
+                              className="p-1.5 rounded-full hover:bg-amber-100 active:scale-90 transition-all"
+                              title="Remember this kanji"
+                            >
+                              <Lightbulb size={16} className={c.mnemonic ? "text-amber-500" : "text-slate-300"} />
+                            </button>
+                          )}
                           <button
                             onClick={() => togglePriority(c)}
                             className="p-1.5 rounded-full hover:bg-amber-100 active:scale-90 transition-all"
@@ -2308,6 +2371,70 @@ export default function StudyView() {
                   })
                 )}
               </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Mnemonic sheet for a Weak Words entry — sits above the Weak Words modal
+          (z-[220]/[221]) with the same content/style as Flashcard.tsx's own sheet. */}
+      <AnimatePresence>
+        {weakMnemonicCard && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[300] bg-black/40"
+              onClick={() => setWeakMnemonicCard(null)}
+            />
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[301] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm max-h-[80vh] overflow-y-auto"
+              style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+            >
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <Lightbulb size={16} className="text-amber-500" />
+                  <p className="text-slate-800 font-black text-sm uppercase tracking-tight">
+                    Remember {weakMnemonicCard.japanese}
+                  </p>
+                </div>
+                <button onClick={() => setWeakMnemonicCard(null)} className="text-slate-300 hover:text-slate-500 shrink-0">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {weakMnemonicLoading && (
+                <div className="flex items-center gap-2 text-sm text-slate-400 py-6 justify-center">
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>Thinking of a way to remember it…</span>
+                </div>
+              )}
+
+              {!weakMnemonicLoading && weakMnemonicError && (
+                <p className="text-center text-rose-500 text-xs font-bold py-6">{weakMnemonicError}</p>
+              )}
+
+              {!weakMnemonicLoading && !weakMnemonicError && weakMnemonicCard.mnemonic && (
+                <div className="space-y-4">
+                  {weakMnemonicCard.mnemonic.entries.map((entry, i) => (
+                    <div key={i} className="bg-slate-50 rounded-2xl p-4">
+                      <p className="text-3xl font-black text-slate-800 mb-1">{entry.character}</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-1.5">
+                        {entry.radicals}
+                      </p>
+                      <p className="text-sm text-slate-600 leading-snug">{entry.story}</p>
+                    </div>
+                  ))}
+                  {weakMnemonicCard.mnemonic.origin && (
+                    <p className="text-xs text-slate-400 italic leading-snug pt-1">{weakMnemonicCard.mnemonic.origin}</p>
+                  )}
+                </div>
+              )}
             </motion.div>
           </>
         )}
