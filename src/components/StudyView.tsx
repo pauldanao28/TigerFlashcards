@@ -786,7 +786,7 @@ export default function StudyView() {
     { title: "🔁 Reviews Today" },
   );
   const showStillLearningHint = () => showAlert(
-    "Words that haven't hit Mastered yet (5+ correct passes at 70%+ accuracy). This is your backlog size, not a daily schedule — it only shrinks as words actually get mastered.",
+    "Words that haven't hit Mastered yet. This is your backlog size, not a daily schedule — it only shrinks as words actually get mastered.",
     { title: "📋 Still Learning" },
   );
   const showMasteredHint = () => showAlert(
