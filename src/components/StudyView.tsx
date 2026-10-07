@@ -1444,17 +1444,8 @@ export default function StudyView() {
             </div>
           </div>
           {/* Top-right controls — Study Circle + Mode toggle */}
-          <div className="flex flex-col items-end gap-2 pointer-events-auto">
+          <div className="relative flex flex-col items-end gap-2 pointer-events-auto">
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsSocialOpen(true)}
-                className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
-              >
-                <span className="text-lg">👥</span>
-                {friends.some((f) => f.status === "pending" && !f.isSentByMe) && (
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-white" />
-                )}
-              </button>
               <button
                 onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
                 className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-2xl border font-black transition-all active:scale-95 ${
@@ -1468,68 +1459,75 @@ export default function StudyView() {
                   {language === "jp" ? t.recognition : t.recall}
                 </span>
               </button>
-            </div>
-            {/* Collapsed behind a single trigger — tap to drop the 4 actions down
-                vertically instead of always showing all of them at once. */}
-            <div className="flex flex-col items-end gap-2">
+              {/* Collapsed behind a single trigger — the dropdown below is absolutely
+                  positioned so opening it never pushes the card/content down. */}
               <button
                 onClick={() => setShowQuickMenu((v) => !v)}
                 className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
                 title="More"
               >
                 {showQuickMenu ? <X size={18} className="text-slate-500" /> : <Menu size={18} className="text-slate-500" />}
-                {!showQuickMenu && pendingWordCount > 0 && (
+                {!showQuickMenu && (pendingWordCount > 0 || friends.some((f) => f.status === "pending" && !f.isSentByMe)) && (
                   <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
-                    {pendingWordCount}
+                    {pendingWordCount > 0 ? pendingWordCount : ""}
                   </span>
                 )}
               </button>
-              <AnimatePresence>
-                {showQuickMenu && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="flex flex-col items-end gap-2 overflow-hidden"
-                  >
-                    <button
-                      onClick={() => { setShowHistoryModal(true); setShowQuickMenu(false); }}
-                      className="flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
-                      title="Recently Reviewed"
-                    >
-                      <History size={18} className="text-slate-500" />
-                    </button>
-                    <button
-                      onClick={() => { setShowPriorityModal(true); setShowQuickMenu(false); }}
-                      className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
-                      title="Priority Words"
-                    >
-                      <Star size={18} className="text-amber-500" fill={cards.some((c) => c.is_priority) ? "currentColor" : "none"} />
-                    </button>
-                    <button
-                      onClick={() => { setShowWeakModal(true); setShowQuickMenu(false); }}
-                      className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
-                      title="Weak Words"
-                    >
-                      <TrendingDown size={18} className="text-rose-500" />
-                    </button>
-                    <motion.button
-                      onClick={() => { setIsQuickAddOpen(true); setShowQuickMenu(false); }}
-                      whileTap={{ scale: 0.88 }}
-                      className="relative w-11 h-11 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300/50 flex items-center justify-center"
-                    >
-                      <Plus size={20} strokeWidth={2.5} />
-                      {pendingWordCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
-                          {pendingWordCount}
-                        </span>
-                      )}
-                    </motion.button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
+            <AnimatePresence>
+              {showQuickMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute top-full right-0 mt-2 flex flex-col items-end gap-2 z-[60]"
+                >
+                  <button
+                    onClick={() => { setIsSocialOpen(true); setShowQuickMenu(false); }}
+                    className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white shadow-sm active:scale-95 transition-all"
+                  >
+                    <span className="text-lg">👥</span>
+                    {friends.some((f) => f.status === "pending" && !f.isSentByMe) && (
+                      <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-white" />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => { setShowHistoryModal(true); setShowQuickMenu(false); }}
+                    className="flex items-center justify-center w-11 h-11 rounded-2xl border bg-white shadow-sm active:scale-95 transition-all"
+                    title="Recently Reviewed"
+                  >
+                    <History size={18} className="text-slate-500" />
+                  </button>
+                  <button
+                    onClick={() => { setShowPriorityModal(true); setShowQuickMenu(false); }}
+                    className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white shadow-sm active:scale-95 transition-all"
+                    title="Priority Words"
+                  >
+                    <Star size={18} className="text-amber-500" fill={cards.some((c) => c.is_priority) ? "currentColor" : "none"} />
+                  </button>
+                  <button
+                    onClick={() => { setShowWeakModal(true); setShowQuickMenu(false); }}
+                    className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white shadow-sm active:scale-95 transition-all"
+                    title="Weak Words"
+                  >
+                    <TrendingDown size={18} className="text-rose-500" />
+                  </button>
+                  <motion.button
+                    onClick={() => { setIsQuickAddOpen(true); setShowQuickMenu(false); }}
+                    whileTap={{ scale: 0.88 }}
+                    className="relative w-11 h-11 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300/50 flex items-center justify-center"
+                  >
+                    <Plus size={20} strokeWidth={2.5} />
+                    {pendingWordCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                        {pendingWordCount}
+                      </span>
+                    )}
+                  </motion.button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
 
@@ -1538,15 +1536,6 @@ export default function StudyView() {
           {/* Top-right controls — Study Circle + Mode toggle */}
           <div className="absolute right-8 top-8 flex flex-col items-end gap-2">
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => setIsSocialOpen(true)}
-                className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
-              >
-                <span className="text-xl">👥</span>
-                {friends.some((f) => f.status === "pending" && !f.isSentByMe) && (
-                  <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white" />
-                )}
-              </button>
               <button
                 onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
                 className={`flex flex-col items-center gap-1 px-4 py-2.5 rounded-2xl border font-black transition-all hover:scale-105 active:scale-95 shadow-sm ${
@@ -1560,66 +1549,73 @@ export default function StudyView() {
                   {language === "jp" ? t.recognition : t.recall}
                 </span>
               </button>
-            </div>
-            <div className="flex flex-col items-end gap-3">
               <button
                 onClick={() => setShowQuickMenu((v) => !v)}
                 className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
                 title="More"
               >
                 {showQuickMenu ? <X size={20} className="text-slate-500" /> : <Menu size={20} className="text-slate-500" />}
-                {!showQuickMenu && pendingWordCount > 0 && (
+                {!showQuickMenu && (pendingWordCount > 0 || friends.some((f) => f.status === "pending" && !f.isSentByMe)) && (
                   <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
-                    {pendingWordCount}
+                    {pendingWordCount > 0 ? pendingWordCount : ""}
                   </span>
                 )}
               </button>
-              <AnimatePresence>
-                {showQuickMenu && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="flex flex-col items-end gap-3 overflow-hidden"
-                  >
-                    <button
-                      onClick={() => { setShowHistoryModal(true); setShowQuickMenu(false); }}
-                      className="flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
-                      title="Recently Reviewed"
-                    >
-                      <History size={20} className="text-slate-500" />
-                    </button>
-                    <button
-                      onClick={() => { setShowPriorityModal(true); setShowQuickMenu(false); }}
-                      className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
-                      title="Priority Words"
-                    >
-                      <Star size={20} className="text-amber-500" fill={cards.some((c) => c.is_priority) ? "currentColor" : "none"} />
-                    </button>
-                    <button
-                      onClick={() => { setShowWeakModal(true); setShowQuickMenu(false); }}
-                      className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
-                      title="Weak Words"
-                    >
-                      <TrendingDown size={20} className="text-rose-500" />
-                    </button>
-                    <motion.button
-                      onClick={() => { setIsQuickAddOpen(true); setShowQuickMenu(false); }}
-                      whileTap={{ scale: 0.88 }}
-                      className="relative w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300/50 flex items-center justify-center hover:scale-105 transition-all"
-                    >
-                      <Plus size={22} strokeWidth={2.5} />
-                      {pendingWordCount > 0 && (
-                        <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
-                          {pendingWordCount}
-                        </span>
-                      )}
-                    </motion.button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
+            <AnimatePresence>
+              {showQuickMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.15 }}
+                  className="flex flex-col items-end gap-3"
+                >
+                  <button
+                    onClick={() => { setIsSocialOpen(true); setShowQuickMenu(false); }}
+                    className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+                  >
+                    <span className="text-xl">👥</span>
+                    {friends.some((f) => f.status === "pending" && !f.isSentByMe) && (
+                      <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white" />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => { setShowHistoryModal(true); setShowQuickMenu(false); }}
+                    className="flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+                    title="Recently Reviewed"
+                  >
+                    <History size={20} className="text-slate-500" />
+                  </button>
+                  <button
+                    onClick={() => { setShowPriorityModal(true); setShowQuickMenu(false); }}
+                    className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+                    title="Priority Words"
+                  >
+                    <Star size={20} className="text-amber-500" fill={cards.some((c) => c.is_priority) ? "currentColor" : "none"} />
+                  </button>
+                  <button
+                    onClick={() => { setShowWeakModal(true); setShowQuickMenu(false); }}
+                    className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+                    title="Weak Words"
+                  >
+                    <TrendingDown size={20} className="text-rose-500" />
+                  </button>
+                  <motion.button
+                    onClick={() => { setIsQuickAddOpen(true); setShowQuickMenu(false); }}
+                    whileTap={{ scale: 0.88 }}
+                    className="relative w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300/50 flex items-center justify-center hover:scale-105 transition-all"
+                  >
+                    <Plus size={22} strokeWidth={2.5} />
+                    {pendingWordCount > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                        {pendingWordCount}
+                      </span>
+                    )}
+                  </motion.button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
           <div className="flex items-center gap-6 h-14">
             <Link href="/" className="hover:opacity-80 transition-opacity">
