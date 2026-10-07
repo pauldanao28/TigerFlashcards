@@ -152,7 +152,7 @@ export const SocialDock = ({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[90] cursor-pointer"
+        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[240] cursor-pointer"
       />
 
       {/* 2. THE DOCK (Responsive: Bottom Sheet on Mobile, Sidebar on Desktop) */}
@@ -165,7 +165,7 @@ export const SocialDock = ({
         }}
         exit={{ y: "100%" }} // Slide down on close
         // Desktop Overrides:
-        className="fixed bottom-0 left-0 right-0 h-[70vh] w-full bg-white z-[100] p-6 rounded-t-[32px] shadow-2xl flex flex-col
+        className="fixed bottom-0 left-0 right-0 h-[70vh] w-full bg-white z-[241] p-6 rounded-t-[32px] shadow-2xl flex flex-col
                    md:top-0 md:right-0 md:left-auto md:bottom-auto md:h-full md:w-80 md:rounded-none md:translate-y-0"
       >
         {/* Mobile "Handle" - Visual cue that you can swipe down */}
