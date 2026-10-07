@@ -1485,7 +1485,7 @@ export default function StudyView() {
                 >
                   <button
                     onClick={() => { setIsSocialOpen(true); setShowQuickMenu(false); }}
-                    className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white shadow-sm active:scale-95 transition-all"
+                    className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
                   >
                     <span className="text-lg">👥</span>
                     {friends.some((f) => f.status === "pending" && !f.isSentByMe) && (
@@ -1494,21 +1494,21 @@ export default function StudyView() {
                   </button>
                   <button
                     onClick={() => { setShowHistoryModal(true); setShowQuickMenu(false); }}
-                    className="flex items-center justify-center w-11 h-11 rounded-2xl border bg-white shadow-sm active:scale-95 transition-all"
+                    className="flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
                     title="Recently Reviewed"
                   >
                     <History size={18} className="text-slate-500" />
                   </button>
                   <button
                     onClick={() => { setShowPriorityModal(true); setShowQuickMenu(false); }}
-                    className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white shadow-sm active:scale-95 transition-all"
+                    className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
                     title="Priority Words"
                   >
                     <Star size={18} className="text-amber-500" fill={cards.some((c) => c.is_priority) ? "currentColor" : "none"} />
                   </button>
                   <button
                     onClick={() => { setShowWeakModal(true); setShowQuickMenu(false); }}
-                    className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white shadow-sm active:scale-95 transition-all"
+                    className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
                     title="Weak Words"
                   >
                     <TrendingDown size={18} className="text-rose-500" />
