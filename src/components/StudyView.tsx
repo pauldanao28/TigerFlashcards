@@ -1429,14 +1429,14 @@ export default function StudyView() {
             <div className="relative flex items-center gap-2">
               <button
                 onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
-                className={`flex flex-col items-center gap-0.5 px-3 py-2 min-w-[76px] rounded-2xl border font-black transition-all active:scale-95 ${
+                className={`flex flex-col items-center justify-center gap-0.5 w-[84px] py-2 rounded-2xl border font-black transition-all active:scale-95 ${
                   language === "jp"
                     ? "bg-indigo-50 border-indigo-100 text-indigo-600"
                     : "bg-orange-50 border-orange-100 text-orange-600"
                 }`}
               >
                 <span className="text-base leading-none">{language === "jp" ? "🇯🇵" : "🇺🇸"}</span>
-                <span className="text-[8px] uppercase tracking-widest leading-none">
+                <span className="text-[8px] uppercase tracking-widest leading-none whitespace-nowrap">
                   {language === "jp" ? t.recognition : t.recall}
                 </span>
               </button>
@@ -1538,14 +1538,14 @@ export default function StudyView() {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
-                className={`flex flex-col items-center gap-1 px-4 py-2.5 min-w-[92px] rounded-2xl border font-black transition-all hover:scale-105 active:scale-95 shadow-sm ${
+                className={`flex flex-col items-center justify-center gap-1 w-[104px] py-2.5 rounded-2xl border font-black transition-all hover:scale-105 active:scale-95 shadow-sm ${
                   language === "jp"
                     ? "bg-indigo-50 border-indigo-100 text-indigo-600"
                     : "bg-orange-50 border-orange-100 text-orange-600"
                 }`}
               >
                 <span className="text-lg leading-none">{language === "jp" ? "🇯🇵" : "🇺🇸"}</span>
-                <span className="text-[9px] uppercase tracking-widest leading-none">
+                <span className="text-[9px] uppercase tracking-widest leading-none whitespace-nowrap">
                   {language === "jp" ? t.recognition : t.recall}
                 </span>
               </button>
