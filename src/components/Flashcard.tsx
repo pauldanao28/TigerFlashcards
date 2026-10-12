@@ -397,10 +397,14 @@ export default function Flashcard({
           }}
           // Ensure this handler is using the prop function
           onClick={() => onFlip(!isFlipped)}
-          className="relative w-full h-full [transform-style:preserve-3d]"
+          className="relative w-full h-full"
+          style={{ transformStyle: "preserve-3d", WebkitTransformStyle: "preserve-3d" } as React.CSSProperties}
         >
           {/* FRONT SIDE */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white rounded-3xl border-4 border-white shadow-2xl [backface-visibility:hidden] p-8 text-center overflow-hidden">
+          <div
+            className="absolute inset-0 flex flex-col items-center justify-center bg-white rounded-3xl border-4 border-white shadow-2xl p-8 text-center overflow-hidden"
+            style={{ backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "translateZ(0)", WebkitTransform: "translateZ(0)" } as React.CSSProperties}
+          >
             {onTogglePriority && (
               <button
                 onClick={(e) => { e.stopPropagation(); onTogglePriority(); }}
@@ -432,7 +436,15 @@ export default function Flashcard({
           </div>
 
           {/* BACK SIDE */}
-          <div className="absolute inset-0 flex flex-col bg-indigo-600 text-white rounded-3xl shadow-2xl [transform:rotateY(180deg)] [backface-visibility:hidden] p-8 text-center overflow-hidden">
+          <div
+            className="absolute inset-0 flex flex-col bg-indigo-600 text-white rounded-3xl shadow-2xl p-8 text-center overflow-hidden"
+            style={{
+              transform: "rotateY(180deg) translateZ(0)",
+              WebkitTransform: "rotateY(180deg) translateZ(0)",
+              backfaceVisibility: "hidden",
+              WebkitBackfaceVisibility: "hidden",
+            } as React.CSSProperties}
+          >
             {card?.jlpt_level && (
               <div className="absolute top-4 left-4 z-10">
                 <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${JLPT_BADGE_COLOR[card.jlpt_level] ?? "bg-white/20 text-white border-white/10"}`}>
