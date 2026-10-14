@@ -55,6 +55,8 @@ export default function SurvivalGame() {
   const [cardKey, setCardKey] = useState(0);
   const [feedback, setFeedback] = useState<"correct" | "wrong" | "miss" | null>(null);
   const [answered, setAnswered] = useState(false);
+  const [combo, setCombo] = useState(0);
+  const [correctCount, setCorrectCount] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
   const [bestScore, setBestScore] = useState(0);
   const [isNewBest, setIsNewBest] = useState(false);
@@ -63,12 +65,15 @@ export default function SurvivalGame() {
   const answeredRef = useRef(false);
   const livesRef = useRef(MAX_LIVES);
   const scoreRef = useRef(0);
+  const comboRef = useRef(0);
+  const correctCountRef = useRef(0);
   const cardsRef = useRef<Card[]>([]);
   const queueRef = useRef<Card[]>([]);
   const gameStateRef = useRef<"idle" | "playing" | "over">("idle");
 
   useEffect(() => { livesRef.current = lives; }, [lives]);
   useEffect(() => { scoreRef.current = score; }, [score]);
+  useEffect(() => { correctCountRef.current = correctCount; }, [correctCount]);
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
 
   useEffect(() => {
@@ -109,9 +114,13 @@ export default function SurvivalGame() {
   const startGame = useCallback(() => {
     livesRef.current = MAX_LIVES;
     scoreRef.current = 0;
+    comboRef.current = 0;
+    correctCountRef.current = 0;
     queueRef.current = shuffle(cardsRef.current);
     setLives(MAX_LIVES);
     setScore(0);
+    setCombo(0);
+    setCorrectCount(0);
     setFeedback(null);
     setAnswered(false);
     answeredRef.current = false;
@@ -132,7 +141,7 @@ export default function SurvivalGame() {
   // Start falling animation when a new card spawns
   useEffect(() => {
     if (gameStateRef.current !== "playing" || !current) return;
-    const speed = getSpeed(scoreRef.current);
+    const speed = getSpeed(correctCountRef.current);
 
     controls
       .start({ y: "62vh", transition: { duration: speed, ease: "linear" } })
@@ -141,6 +150,8 @@ export default function SurvivalGame() {
         // Miss
         answeredRef.current = true;
         setFeedback("miss");
+        comboRef.current = 0;
+        setCombo(0);
         const nextLives = livesRef.current - 1;
         livesRef.current = nextLives;
         setLives(nextLives);
@@ -165,11 +176,20 @@ export default function SurvivalGame() {
     setFeedback(correct ? "correct" : "wrong");
 
     if (correct) {
-      const next = scoreRef.current + 1;
+      const nextCorrect = correctCountRef.current + 1;
+      correctCountRef.current = nextCorrect;
+      setCorrectCount(nextCorrect);
+      const nextCombo = comboRef.current + 1;
+      comboRef.current = nextCombo;
+      setCombo(nextCombo);
+      const gained = 1 + Math.floor(nextCombo / 3);
+      const next = scoreRef.current + gained;
       scoreRef.current = next;
       setScore(next);
       setTimeout(spawnCard, 600);
     } else {
+      comboRef.current = 0;
+      setCombo(0);
       const nextLives = livesRef.current - 1;
       livesRef.current = nextLives;
       setLives(nextLives);
@@ -214,7 +234,7 @@ export default function SurvivalGame() {
               <div className="text-7xl mb-5">💀</div>
               <h1 className="text-white font-black text-2xl mb-2">Survival</h1>
               <p className="text-slate-400 text-sm leading-relaxed mb-8">
-                Cards fall from above showing an English meaning. Pick the correct Japanese word before it hits the ground. 3 lives — gets faster as you score.
+                Cards fall from above showing an English meaning. Pick the correct Japanese word before it hits the ground. 3 lives — gets faster as you score. Build combos for bonus points.
               </p>
               {bestScore > 0 && (
                 <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-5">
@@ -254,8 +274,21 @@ export default function SurvivalGame() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-slate-600 text-[10px] font-black uppercase tracking-widest">
-                  speed {getSpeed(score).toFixed(1)}s
+                  speed {getSpeed(correctCount).toFixed(1)}s
                 </span>
+                <AnimatePresence>
+                  {combo >= 3 && (
+                    <motion.span
+                      key={combo}
+                      initial={{ scale: 0.7, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="text-rose-400 text-xs font-black"
+                    >
+                      🔥 ×{combo}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
                 <span className="text-white font-black text-xl tabular-nums">{score}</span>
               </div>
             </div>
@@ -333,7 +366,7 @@ export default function SurvivalGame() {
               className="text-center max-w-xs w-full"
             >
               <div className="text-7xl mb-4">
-                {score >= 20 ? "🏆" : score >= 10 ? "💪" : "💀"}
+                {correctCount >= 20 ? "🏆" : correctCount >= 10 ? "💪" : "💀"}
               </div>
               <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">Score</p>
               <p className="text-white font-black text-5xl mb-2 tabular-nums">{score}</p>
@@ -341,7 +374,7 @@ export default function SurvivalGame() {
                 <p className="text-rose-400 text-sm font-black mb-10">✨ New Personal Best!</p>
               ) : (
                 <p className="text-slate-500 text-sm mb-10">
-                  words survived · best <span className="text-rose-400 font-bold">{bestScore}</span>
+                  {correctCount} words survived · best <span className="text-rose-400 font-bold">{bestScore}</span>
                 </p>
               )}
               <div className="flex gap-3">

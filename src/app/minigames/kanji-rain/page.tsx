@@ -68,6 +68,7 @@ export default function KanjiRainGame() {
   const [gameState, setGameState] = useState<"idle" | "playing" | "over">("idle");
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
+  const [correctCount, setCorrectCount] = useState(0);
   const [timeLeft, setTimeLeft] = useState(DURATION);
   const [tiles, setTiles] = useState<Tile[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
@@ -79,11 +80,13 @@ export default function KanjiRainGame() {
   const cardsRef = useRef<Card[]>([]);
   const tilesRef = useRef<Tile[]>([]);
   const scoreRef = useRef(0);
+  const correctCountRef = useRef(0);
   const selectedRef = useRef<string | null>(null);
   const gameStateRef = useRef<"idle" | "playing" | "over">("idle");
   const pendingPartnerRef = useRef<Map<string, PendingPartner>>(new Map());
 
   useEffect(() => { tilesRef.current = tiles; }, [tiles]);
+  useEffect(() => { correctCountRef.current = correctCount; }, [correctCount]);
   useEffect(() => { scoreRef.current = score; }, [score]);
   useEffect(() => { selectedRef.current = selectedTileId; }, [selectedTileId]);
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
@@ -115,7 +118,7 @@ export default function KanjiRainGame() {
       const card = cardsRef.current.find((c) => c.id === cardId);
       if (!card) { pendingPartnerRef.current.delete(cardId); continue; }
       const lane = freeLanes[Math.floor(Math.random() * freeLanes.length)];
-      const duration = getFallDuration(scoreRef.current);
+      const duration = getFallDuration(correctCountRef.current);
       pendingPartnerRef.current.delete(cardId);
       setTiles((prev) => [
         ...prev,
@@ -142,7 +145,7 @@ export default function KanjiRainGame() {
     const firstSide: Side = Math.random() > 0.5 ? "jp" : "en";
     const secondSide: Side = firstSide === "jp" ? "en" : "jp";
     const lane = freeLanes[Math.floor(Math.random() * freeLanes.length)];
-    const duration = getFallDuration(scoreRef.current);
+    const duration = getFallDuration(correctCountRef.current);
     pendingPartnerRef.current.set(card.id, {
       side: secondSide,
       readyAt: now + PARTNER_DELAY_MIN_MS + Math.random() * (PARTNER_DELAY_MAX_MS - PARTNER_DELAY_MIN_MS),
@@ -201,8 +204,12 @@ export default function KanjiRainGame() {
 
     if (selTile.cardId === tile.cardId) {
       setFlash((f) => ({ ...f, [tileId]: "correct", [selId]: "correct" }));
-      setScore((s) => s + 1);
-      setCombo((c) => c + 1);
+      setCorrectCount((n) => n + 1);
+      setCombo((c) => {
+        const next = c + 1;
+        setScore((s) => s + 1 + Math.floor(next / 3));
+        return next;
+      });
       setTimeout(() => {
         setTiles((prev) => prev.filter((t) => t.tileId !== tileId && t.tileId !== selId));
         setFlash((f) => {
@@ -230,6 +237,7 @@ export default function KanjiRainGame() {
     pendingPartnerRef.current.clear();
     setScore(0);
     setCombo(0);
+    setCorrectCount(0);
     setTimeLeft(DURATION);
     setTiles([]);
     setFlash({});
@@ -307,7 +315,7 @@ export default function KanjiRainGame() {
               <div className="text-7xl mb-5">🌧️</div>
               <h1 className="text-white font-black text-2xl mb-2">Kanji Rain</h1>
               <p className="text-slate-400 text-sm leading-relaxed mb-8 max-w-xs mx-auto">
-                Japanese words and English meanings fall together, mixed and scattered. Tap a word, then tap its matching meaning — before either one hits the ground. 60 seconds.
+                Japanese words and English meanings fall together, mixed and scattered. Tap a word, then tap its matching meaning — before either one hits the ground. 60 seconds. Build combos for bonus points.
               </p>
               {bestScore > 0 && (
                 <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-5">
@@ -395,7 +403,7 @@ export default function KanjiRainGame() {
               <p className="text-sky-400 text-sm font-black mb-10">✨ New Personal Best!</p>
             ) : (
               <p className="text-slate-500 text-sm mb-10">
-                matches in 60 seconds · best <span className="text-sky-400 font-bold">{bestScore}</span>
+                points in 60 seconds · best <span className="text-sky-400 font-bold">{bestScore}</span>
               </p>
             )}
             <div className="flex gap-3 w-full">

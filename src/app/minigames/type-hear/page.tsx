@@ -43,6 +43,7 @@ export default function TypeHearGame() {
   const [loading, setLoading] = useState(true);
   const [gameState, setGameState] = useState<"idle" | "playing" | "over">("idle");
   const [score, setScore] = useState(0);
+  const [combo, setCombo] = useState(0);
   const [timeLeft, setTimeLeft] = useState(DURATION);
   const [current, setCurrent] = useState<Card | null>(null);
   const [choices, setChoices] = useState<string[]>([]);
@@ -82,6 +83,7 @@ export default function TypeHearGame() {
   const startGame = useCallback(() => {
     queueRef.current = shuffle(cardsRef.current);
     setScore(0);
+    setCombo(0);
     setTimeLeft(DURATION);
     setSelected(null);
     setIsNewBest(false);
@@ -108,7 +110,15 @@ export default function TypeHearGame() {
   const handleChoice = (choice: string) => {
     if (selected || !current || gameState !== "playing") return;
     setSelected(choice);
-    if (choice === current.english) setScore((s) => s + 1);
+    if (choice === current.english) {
+      setCombo((c) => {
+        const next = c + 1;
+        setScore((s) => s + 1 + Math.floor(next / 3));
+        return next;
+      });
+    } else {
+      setCombo(0);
+    }
     setTimeout(spawnCard, 650);
   };
 
@@ -147,7 +157,7 @@ export default function TypeHearGame() {
             <div className="text-7xl mb-5">👂</div>
             <h1 className="text-white font-black text-2xl mb-2">Listen & Pick</h1>
             <p className="text-slate-400 text-sm leading-relaxed mb-8 max-w-xs mx-auto">
-              A Japanese word plays automatically. Pick the correct English meaning. 60 seconds.
+              A Japanese word plays automatically. Pick the correct English meaning. 60 seconds. Build combos for bonus points.
             </p>
             {bestScore > 0 && (
               <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-5">
@@ -178,7 +188,22 @@ export default function TypeHearGame() {
             </div>
             <div className="flex items-center justify-between w-full">
               <span className="text-slate-500 text-xs font-bold tabular-nums">{timeLeft}s</span>
-              <span className="text-white font-black text-lg tabular-nums">{score}</span>
+              <div className="flex items-center gap-2">
+                <AnimatePresence>
+                  {combo >= 3 && (
+                    <motion.span
+                      key={combo}
+                      initial={{ scale: 0.7, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="text-emerald-400 text-xs font-black"
+                    >
+                      🔥 ×{combo}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+                <span className="text-white font-black text-lg tabular-nums">{score}</span>
+              </div>
             </div>
 
             <AnimatePresence mode="wait">
@@ -235,7 +260,7 @@ export default function TypeHearGame() {
               <p className="text-emerald-400 text-sm font-black mb-10">✨ New Personal Best!</p>
             ) : (
               <p className="text-slate-500 text-sm mb-10">
-                correct in 60 seconds · best <span className="text-emerald-400 font-bold">{bestScore}</span>
+                points in 60 seconds · best <span className="text-emerald-400 font-bold">{bestScore}</span>
               </p>
             )}
             <div className="flex gap-3">
