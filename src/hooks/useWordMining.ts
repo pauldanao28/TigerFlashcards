@@ -7,20 +7,12 @@ import { kanjiRe, getSegmenter, type WordStatus } from "@/components/TappableTex
 import { WEAK_THRESHOLD } from "@/hooks/useWordLookup";
 import type { ExtractedWord } from "@/lib/japaneseTokenizer";
 
-const hiraganaOnlyRe = /^[ぁ-ゖゝゞー]+$/;
-const katakanaOnlyRe = /^[ァ-ヺヽヾー・]+$/;
-
-// Kana filter for the "Not in your deck" list — a per-viewer preference, so browser
-// storage is fine (and every access is guarded, since it can be unavailable).
-const KANA_FILTER_KEY = "flashkado-newwords-kana-filter";
-type KanaFilter = { hideHiragana: boolean; hideKatakana: boolean };
-function loadKanaFilter(): KanaFilter {
-  try {
-    const v = JSON.parse(localStorage.getItem(KANA_FILTER_KEY) ?? "null");
-    return { hideHiragana: !!v?.hideHiragana, hideKatakana: !!v?.hideKatakana };
-  } catch {
-    return { hideHiragana: false, hideKatakana: false };
-  }
+// "Kanji words only" filter for the "Not in your deck" list — hides words with no kanji
+// at all (ちょっと, ラーメン); kanji words keep their okurigana (食べる). A per-viewer
+// preference, so browser storage is fine (every access guarded — it can be unavailable).
+const KANJI_ONLY_KEY = "flashkado-newwords-kanji-only";
+function loadKanjiOnly(): boolean {
+  try { return localStorage.getItem(KANJI_ONLY_KEY) === "1"; } catch { return false; }
 }
 
 type ScoresJson = { jp_to_en?: { total?: number; percent?: number }; en_to_jp?: { total?: number; percent?: number } };
@@ -122,21 +114,16 @@ export function useWordMining(userId: string) {
   const [newWordsError, setNewWordsError] = useState(false);
   const [newWordsLoading, setNewWordsLoading] = useState(false);
 
-  const [kanaFilter, setKanaFilter] = useState<KanaFilter>({ hideHiragana: false, hideKatakana: false });
-  useEffect(() => { setKanaFilter(loadKanaFilter()); }, []);
-  const toggleKanaFilter = (key: keyof KanaFilter) =>
-    setKanaFilter((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      try { localStorage.setItem(KANA_FILTER_KEY, JSON.stringify(next)); } catch { /* ignore */ }
-      return next;
+  const [kanjiOnly, setKanjiOnly] = useState(false);
+  useEffect(() => { setKanjiOnly(loadKanjiOnly()); }, []);
+  const toggleKanjiOnly = () =>
+    setKanjiOnly((prev) => {
+      try { localStorage.setItem(KANJI_ONLY_KEY, prev ? "0" : "1"); } catch { /* ignore */ }
+      return !prev;
     });
 
-  // What the list shows (and what "Select all" / "Add" act on) after the kana filter.
-  const visibleNewWords = newWords.filter(
-    (w) =>
-      !(kanaFilter.hideHiragana && hiraganaOnlyRe.test(w.word)) &&
-      !(kanaFilter.hideKatakana && katakanaOnlyRe.test(w.word)),
-  );
+  // What the list shows (and what "Select all" / "Add" act on) after the filter.
+  const visibleNewWords = kanjiOnly ? newWords.filter((w) => kanjiRe.test(w.word)) : newWords;
   const visibleSelectedCount = visibleNewWords.filter((w) => selectedNew.has(w.word)).length;
 
   const lastTextRef = useRef("");
@@ -223,8 +210,8 @@ export function useWordMining(userId: string) {
     newWords,
     visibleNewWords,
     visibleSelectedCount,
-    kanaFilter,
-    toggleKanaFilter,
+    kanjiOnly,
+    toggleKanjiOnly,
     selectedNew,
     newWordsError,
     newWordsLoading,

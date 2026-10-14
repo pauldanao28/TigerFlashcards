@@ -17,7 +17,7 @@ export default function NewWordsPanel({
   onWordTap: (word: string, e: React.MouseEvent) => void;
   className?: string;
 }) {
-  const { newWords, visibleNewWords, visibleSelectedCount, kanaFilter, selectedNew, newWordsError, newWordsLoading, addLoading } = mining;
+  const { newWords, visibleNewWords, visibleSelectedCount, kanjiOnly, selectedNew, newWordsError, newWordsLoading, addLoading } = mining;
   const hiddenCount = newWords.length - visibleNewWords.length;
 
   return (
@@ -36,26 +36,16 @@ export default function NewWordsPanel({
         )}
       </div>
 
-      {/* Kana-only words (ちょっと, ラーメン) can be hidden — they're often ones you know or don't want to mine */}
-      <div className="flex items-center gap-1.5 flex-wrap mb-3">
-        <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 mr-0.5">Show</span>
-        {([
-          ["hideHiragana", "Hiragana-only"],
-          ["hideKatakana", "Katakana-only"],
-        ] as const).map(([key, label]) => {
-          const shown = !kanaFilter[key];
-          return (
-            <button
-              key={key}
-              onClick={() => mining.toggleKanaFilter(key)}
-              aria-pressed={shown}
-              className={`text-[10px] font-black px-2.5 py-1 rounded-full border transition-colors active:scale-95 ${shown ? "bg-indigo-50 text-indigo-600 border-indigo-200" : "bg-white text-slate-400 border-slate-200 line-through"}`}
-            >
-              {label}
-            </button>
-          );
-        })}
-        {hiddenCount > 0 && <span className="text-[10px] font-bold text-slate-300">· {hiddenCount} hidden</span>}
+      {/* Optionally hide words with no kanji at all (ちょっと, ラーメン) — kanji words keep their okurigana */}
+      <div className="flex items-center gap-2 mb-3">
+        <button
+          onClick={mining.toggleKanjiOnly}
+          aria-pressed={kanjiOnly}
+          className={`flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-full border transition-colors active:scale-95 ${kanjiOnly ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-500 border-slate-200"}`}
+        >
+          {kanjiOnly && <Check size={10} strokeWidth={3} />} Kanji words only
+        </button>
+        {hiddenCount > 0 && <span className="text-[10px] font-bold text-slate-300">{hiddenCount} kana-only hidden</span>}
       </div>
 
       {newWordsLoading ? (
@@ -67,7 +57,7 @@ export default function NewWordsPanel({
       ) : newWords.length === 0 ? (
         <p className="text-xs font-bold text-slate-400">Every word here is already in your deck. 🎉</p>
       ) : visibleNewWords.length === 0 ? (
-        <p className="text-xs font-bold text-slate-400">Only kana words left — turn them back on above to see them.</p>
+        <p className="text-xs font-bold text-slate-400">Only kana words left — turn off “Kanji words only” to see them.</p>
       ) : (
         <>
           <div className="flex flex-col divide-y divide-slate-50">
