@@ -124,24 +124,40 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
     return idx;
   }, [lines, currentTime]);
 
-  // ── Start ──
+  const TRANSCRIPT_ERROR = "Couldn't find timestamps in the transcript. Copy it from YouTube's “Show transcript” panel with timestamps on.";
+
+  // Parses the transcript and loads its deck highlights. Returns false if it has no timestamps.
+  const applyTranscript = (raw: string): boolean => {
+    const parsedLines = parseTranscript(raw);
+    if (parsedLines.length === 0) return false;
+    setLines(parsedLines);
+    mining.loadWordStatus(parsedLines.map((l) => l.text).join("\n"));
+    return true;
+  };
+
+  // ── Start ── (the transcript is optional — without one it's just the player + clip controls)
   const handleStart = () => {
     setInputError(null);
     const parsedUrl = parseYouTubeUrl(urlInput);
     if (!parsedUrl) { setInputError("Paste a YouTube link, e.g. https://www.youtube.com/watch?v=…"); return; }
-    const parsedLines = parseTranscript(transcriptInput);
-    if (parsedLines.length === 0) {
-      setInputError("Couldn't find timestamps in the transcript. Copy it from YouTube's “Show transcript” panel with timestamps on.");
-      return;
+    if (transcriptInput.trim()) {
+      if (!applyTranscript(transcriptInput)) { setInputError(TRANSCRIPT_ERROR); return; }
+    } else {
+      setLines([]);
     }
     if (parsedUrl.start !== null && !startInput) setStartInput(formatTime(parsedUrl.start));
     setVideoId(parsedUrl.id);
-    setLines(parsedLines);
     setPlayerError(null);
     setCurrentTime(0);
     setTab("captions");
     setPhase("watching");
-    mining.loadWordStatus(parsedLines.map((l) => l.text).join("\n"));
+  };
+
+  // Transcript pasted after starting (from the captions side)
+  const [lateTranscriptError, setLateTranscriptError] = useState<string | null>(null);
+  const handleAddTranscript = () => {
+    setLateTranscriptError(null);
+    if (!applyTranscript(transcriptInput)) setLateTranscriptError(TRANSCRIPT_ERROR);
   };
 
   // Persist the session whenever the inputs that define it change.
@@ -256,6 +272,49 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
     setPhase("input");
   };
 
+  // Start + End/Length fields. Shown before starting and under the video ("Now" buttons
+  // only make sense once the player exists).
+  const renderClipFields = (withNow: boolean) => (
+    <>
+      <div className="grid grid-cols-2 gap-2">
+        <TimeField
+          label="Start"
+          value={startInput}
+          placeholder="0:00"
+          onChange={setStartInput}
+          onSetNow={withNow ? () => setStartInput(formatTime(currentTime)) : undefined}
+        />
+        {endMode === "end" ? (
+          <TimeField
+            label={<EndModeToggle mode={endMode} onChange={switchEndMode} />}
+            value={endInput}
+            placeholder="end of video"
+            onChange={setEndInput}
+            onSetNow={withNow ? () => setEndInput(formatTime(currentTime)) : undefined}
+            onClear={endInput ? () => setEndInput("") : undefined}
+          />
+        ) : (
+          <TimeField
+            label={<EndModeToggle mode={endMode} onChange={switchEndMode} />}
+            value={lengthInput}
+            placeholder="minutes, e.g. 3"
+            onChange={setLengthInput}
+            onClear={lengthInput ? () => setLengthInput("") : undefined}
+            isValid={(v) => parseDuration(v) !== null}
+          />
+        )}
+      </div>
+      {endMode === "end" && endParsed !== null && endParsed <= start && (
+        <p className="text-[10px] font-bold text-rose-500 -mt-1">End must be after start — playing to the end of the video.</p>
+      )}
+      {endMode === "length" && end !== null && (
+        <p className="text-[10px] font-bold text-slate-400 -mt-1">
+          Plays {formatTime(start)} → {formatTime(end)} ({formatDuration(end - start)} min)
+        </p>
+      )}
+    </>
+  );
+
   return (
     <div className="fixed inset-0 z-[300] bg-slate-50 flex flex-col">
       {/* Header */}
@@ -279,9 +338,9 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
       {/* INPUT PHASE */}
       {phase === "input" && (
         <div className="flex-1 overflow-y-auto px-5 py-6 max-w-xl mx-auto w-full">
-          <h2 className="text-xl font-black text-slate-900 mb-1">Watch with Japanese captions</h2>
+          <h2 className="text-xl font-black text-slate-900 mb-1">Watch YouTube in Japanese</h2>
           <p className="text-slate-500 text-sm font-medium mb-4 leading-relaxed">
-            Captions play beside the video. Tap any word to look it up, and pick out the ones you don&apos;t have yet.
+            Pick the part you want to watch. Add the transcript and captions play beside the video — tap any word to look it up, and pick out the ones you don&apos;t have yet.
           </p>
 
           <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">YouTube link</label>
@@ -293,7 +352,14 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
             className="mt-1 w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
           />
 
-          <label className="block mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Transcript (with timestamps)</label>
+          <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-3">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Part to watch <span className="text-slate-300">· optional</span></p>
+            {renderClipFields(false)}
+          </div>
+
+          <label className="block mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
+            Transcript with timestamps <span className="text-slate-300">· optional</span>
+          </label>
           <textarea
             value={transcriptInput}
             onChange={(e) => setTranscriptInput(e.target.value)}
@@ -309,14 +375,14 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
               <li>Click <b>Show transcript</b> and choose <b>Japanese</b> at the bottom of the panel.</li>
               <li>Select all the lines (timestamps included), copy, and paste here.</li>
             </ol>
-            <p className="mt-1.5 text-slate-400">No “Show transcript”? The video has no captions, so it can&apos;t be used here.</p>
+            <p className="mt-1.5 text-slate-400">Skip it to just watch — you can paste a transcript later. No “Show transcript” on YouTube means the video has no captions.</p>
           </div>
 
           {inputError && <p className="text-rose-500 font-bold text-xs mt-3">{inputError}</p>}
 
           <button
             onClick={handleStart}
-            disabled={!urlInput.trim() || !transcriptInput.trim()}
+            disabled={!urlInput.trim()}
             className="w-full mt-4 py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
           >
             <Play size={16} /> Start Watching
@@ -364,46 +430,36 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
                 <span className="ml-auto font-mono text-xs font-bold text-slate-400">{formatTime(currentTime)}</span>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <TimeField
-                  label="Start"
-                  value={startInput}
-                  placeholder="0:00"
-                  onChange={setStartInput}
-                  onSetNow={() => setStartInput(formatTime(currentTime))}
-                />
-                {endMode === "end" ? (
-                  <TimeField
-                    label={<EndModeToggle mode={endMode} onChange={switchEndMode} />}
-                    value={endInput}
-                    placeholder="end of video"
-                    onChange={setEndInput}
-                    onSetNow={() => setEndInput(formatTime(currentTime))}
-                    onClear={endInput ? () => setEndInput("") : undefined}
-                  />
-                ) : (
-                  <TimeField
-                    label={<EndModeToggle mode={endMode} onChange={switchEndMode} />}
-                    value={lengthInput}
-                    placeholder="minutes, e.g. 3"
-                    onChange={setLengthInput}
-                    onClear={lengthInput ? () => setLengthInput("") : undefined}
-                    isValid={(v) => parseDuration(v) !== null}
-                  />
-                )}
-              </div>
-              {endMode === "end" && endParsed !== null && endParsed <= start && (
-                <p className="text-[10px] font-bold text-rose-500 -mt-1">End must be after start — playing to the end of the video.</p>
-              )}
-              {endMode === "length" && end !== null && (
-                <p className="text-[10px] font-bold text-slate-400 -mt-1">
-                  Plays {formatTime(start)} → {formatTime(end)} ({formatDuration(end - start)} min)
-                </p>
-              )}
+              {renderClipFields(true)}
             </div>
           </div>
 
           {/* Captions / new words */}
+          {lines.length === 0 ? (
+            <div className="flex-1 min-h-0 overflow-y-auto p-4">
+              <div className="bg-white border border-slate-100 rounded-3xl shadow-sm p-5 max-w-xl mx-auto">
+                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-1">No captions yet</p>
+                <p className="text-xs text-slate-500 leading-relaxed mb-3">
+                  Paste the transcript from YouTube&apos;s <b>Show transcript</b> (timestamps included) to get synced captions, tap-to-lookup and the words you don&apos;t have.
+                </p>
+                <textarea
+                  value={transcriptInput}
+                  onChange={(e) => setTranscriptInput(e.target.value)}
+                  rows={7}
+                  placeholder={"0:00\n今日はいい天気ですね\n0:04\nどこに行きたい？\n…"}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none font-mono leading-relaxed"
+                />
+                {lateTranscriptError && <p className="text-rose-500 font-bold text-xs mt-2">{lateTranscriptError}</p>}
+                <button
+                  onClick={handleAddTranscript}
+                  disabled={!transcriptInput.trim()}
+                  className="w-full mt-3 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40"
+                >
+                  Add Captions
+                </button>
+              </div>
+            </div>
+          ) : (
           <div className="flex-1 min-h-0 flex flex-col">
             <div className="shrink-0 flex gap-1 p-2 border-b border-slate-100 bg-white">
               {(["captions", "words"] as const).map((key) => (
@@ -457,6 +513,7 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
               </div>
             )}
           </div>
+          )}
         </div>
       )}
 
