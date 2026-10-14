@@ -8,6 +8,15 @@ import { useAddWords } from "@/hooks/useAddWords";
 
 const t = translations.en;
 
+const JLPT_LEVELS = ["N5", "N4", "N3", "N2", "N1"] as const;
+const JLPT_BADGE_COLOR: Record<(typeof JLPT_LEVELS)[number], string> = {
+  N5: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  N4: "bg-teal-100 text-teal-700 border-teal-200",
+  N3: "bg-amber-100 text-amber-700 border-amber-200",
+  N2: "bg-orange-100 text-orange-700 border-orange-200",
+  N1: "bg-rose-100 text-rose-700 border-rose-200",
+};
+
 /**
  * The same add-word bottom sheet (Word / Paste / Queue tabs, AI generation,
  * added-words summary) used by the stats page's Add Sheet — extracted so the
@@ -320,6 +329,28 @@ export default function AddWordsSheet({
                     <span className="text-teal-500 whitespace-nowrap">· {addedWordsSummary.filter((w) => w.alreadyInDeck).length} already in deck</span>
                   )}
                 </p>
+                {(() => {
+                  const levelCounts = addedWordsSummary
+                    .filter((w) => !w.alreadyInDeck && w.jlpt_level)
+                    .reduce<Record<string, number>>((acc, w) => {
+                      acc[w.jlpt_level as string] = (acc[w.jlpt_level as string] || 0) + 1;
+                      return acc;
+                    }, {});
+                  const levelsPresent = JLPT_LEVELS.filter((lvl) => levelCounts[lvl]);
+                  if (levelsPresent.length === 0) return null;
+                  return (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {levelsPresent.map((lvl) => (
+                        <span
+                          key={lvl}
+                          className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border whitespace-nowrap ${JLPT_BADGE_COLOR[lvl]}`}
+                        >
+                          {lvl} · {levelCounts[lvl]}
+                        </span>
+                      ))}
+                    </div>
+                  );
+                })()}
                 {addedWordsSummary.length >= 50 && (
                   <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-black border border-amber-200 animate-pulse">
                     {t.limit_notice}
@@ -361,6 +392,13 @@ export default function AddWordsSheet({
                     </p>
 
                     <div className="mt-2 flex gap-1.5 flex-wrap">
+                      {word.jlpt_level && (
+                        <span
+                          className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border whitespace-nowrap ${JLPT_BADGE_COLOR[word.jlpt_level]}`}
+                        >
+                          {word.jlpt_level}
+                        </span>
+                      )}
                       <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md whitespace-nowrap">
                         {word.partOfSpeech}
                       </span>

@@ -15,6 +15,7 @@ export interface AddedWordSummary {
   reading: string;
   english: string;
   partOfSpeech?: string;
+  jlpt_level?: "N5" | "N4" | "N3" | "N2" | "N1" | null;
   alreadyInDeck: boolean;
 }
 
