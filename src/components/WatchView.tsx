@@ -229,8 +229,10 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
     const el = lineRefs.current[activeIndex];
     const box = captionsRef.current;
     if (!el || !box) return;
-    const top = el.offsetTop - box.offsetTop - box.clientHeight / 3;
-    box.scrollTo({ top, behavior: "smooth" });
+    // Measure on screen rather than via offsetTop — offsetTop depends on which ancestor is
+    // positioned, and subtracting the box's own offset scrolled too far up.
+    const lineTop = el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+    box.scrollTo({ top: lineTop - box.clientHeight / 3, behavior: "smooth" });
   }, [activeIndex, lookup]);
 
   // ── Controls ──
