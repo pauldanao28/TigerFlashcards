@@ -1,8 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
-import { useAddWords } from "@/hooks/useAddWords";
+import { useAddWords, type AddedWordSummary } from "@/hooks/useAddWords";
 import { kanjiRe, getSegmenter, type WordStatus } from "@/components/TappableText";
 import { WEAK_THRESHOLD } from "@/hooks/useWordLookup";
 import type { ExtractedWord } from "@/lib/japaneseTokenizer";
@@ -35,7 +35,14 @@ export function useWordMining(userId: string) {
     });
   }, [userId]);
 
-  const { loading: addLoading, processWords } = useAddWords({
+  const {
+    loading: addLoading,
+    processWords,
+    addedWordsSummary,
+    showSummary,
+    setShowSummary,
+    deleteFromSummary,
+  } = useAddWords({
     userId,
     deckId: deckId ?? "",
     isAdmin,
@@ -99,7 +106,10 @@ export function useWordMining(userId: string) {
   const [newWordsError, setNewWordsError] = useState(false);
   const [newWordsLoading, setNewWordsLoading] = useState(false);
 
+  const lastTextRef = useRef("");
+
   const loadNewWords = async (text: string) => {
+    lastTextRef.current = text;
     setNewWordsError(false);
     setNewWordsLoading(true);
     try {
@@ -150,7 +160,23 @@ export function useWordMining(userId: string) {
     markKnown([word]);
   };
 
+  /** Undo from the "Words added" summary: remove from the deck, un-highlight, and put it back in the list. */
+  const removeAdded = async (word: AddedWordSummary) => {
+    await deleteFromSummary(word.id);
+    setAddedWords((prev) => {
+      const next = new Set(prev);
+      next.delete(word.japanese);
+      return next;
+    });
+    setWordStatus((prev) => new Map(prev).set(word.japanese, { status: "new" }));
+    if (lastTextRef.current) loadNewWords(lastTextRef.current);
+  };
+
   return {
+    addedWordsSummary,
+    showSummary,
+    closeSummary: () => setShowSummary(false),
+    removeAdded,
     addLoading,
     addedWords,
     addWord,

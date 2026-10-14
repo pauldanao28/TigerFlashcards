@@ -5,6 +5,7 @@ import { ChevronLeft, Sparkles, Send, Loader2, Plus, BookOpen, NotebookText, X }
 import { authedFetch } from "@/lib/authedFetch";
 import TappableText from "@/components/TappableText";
 import NewWordsPanel from "@/components/NewWordsPanel";
+import AddedWordsSummary from "@/components/AddedWordsSummary";
 import WordLookupSheet from "@/components/WordLookupSheet";
 import { useWordLookup } from "@/hooks/useWordLookup";
 import { useWordMining } from "@/hooks/useWordMining";
@@ -335,6 +336,16 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
           addLabel="Add to Deck"
           addIcon={<Plus size={11} />}
           layerClassName={{ backdrop: "z-[310]", sheet: "z-[320] bottom-0 left-0 right-0" }}
+        />
+      )}
+
+      {/* Same "Words added" summary as the Add sheet (Study / Profile) */}
+      {mining.showSummary && (
+        <AddedWordsSummary
+          words={mining.addedWordsSummary}
+          onClose={mining.closeSummary}
+          onDelete={mining.removeAdded}
+          zClassName="z-[330]"
         />
       )}
     </div>
