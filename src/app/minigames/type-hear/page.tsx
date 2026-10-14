@@ -5,6 +5,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { speak } from "@/lib/tts";
+import { fetchBestScore, updateBestScore } from "@/lib/minigameScores";
+
+const BEST_SCORE_COLUMN = "minigame_type_hear_best";
 
 type Card = { id: string; japanese: string; reading: string; english: string };
 
@@ -44,15 +47,23 @@ export default function TypeHearGame() {
   const [current, setCurrent] = useState<Card | null>(null);
   const [choices, setChoices] = useState<string[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [bestScore, setBestScore] = useState(0);
+  const [isNewBest, setIsNewBest] = useState(false);
   const queueRef = useRef<Card[]>([]);
   const cardsRef = useRef<Card[]>([]);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) return;
-      const loaded = await loadDeckCards(session.user.id);
+      setUserId(session.user.id);
+      const [loaded, best] = await Promise.all([
+        loadDeckCards(session.user.id),
+        fetchBestScore(session.user.id, BEST_SCORE_COLUMN),
+      ]);
       setCards(loaded);
       cardsRef.current = loaded;
+      setBestScore(best);
       setLoading(false);
     });
   }, []);
@@ -73,6 +84,7 @@ export default function TypeHearGame() {
     setScore(0);
     setTimeLeft(DURATION);
     setSelected(null);
+    setIsNewBest(false);
     setGameState("playing");
     spawnCard();
   }, [spawnCard]);
@@ -83,6 +95,15 @@ export default function TypeHearGame() {
     const t = setTimeout(() => setTimeLeft((p) => p - 1), 1000);
     return () => clearTimeout(t);
   }, [gameState, timeLeft]);
+
+  useEffect(() => {
+    if (gameState !== "over" || !userId) return;
+    if (score > bestScore) {
+      setIsNewBest(true);
+      updateBestScore(userId, BEST_SCORE_COLUMN, score).then(() => setBestScore(score));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState]);
 
   const handleChoice = (choice: string) => {
     if (selected || !current || gameState !== "playing") return;
@@ -128,6 +149,11 @@ export default function TypeHearGame() {
             <p className="text-slate-400 text-sm leading-relaxed mb-8 max-w-xs mx-auto">
               A Japanese word plays automatically. Pick the correct English meaning. 60 seconds.
             </p>
+            {bestScore > 0 && (
+              <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-5">
+                Best <span className="text-emerald-400">{bestScore}</span>
+              </p>
+            )}
             {cards.length < 4 ? (
               <p className="text-rose-400 text-sm">Add at least 4 cards to your deck to play.</p>
             ) : (
@@ -205,7 +231,13 @@ export default function TypeHearGame() {
             <div className="text-7xl mb-4">🎯</div>
             <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">Score</p>
             <p className="text-white font-black text-5xl mb-2 tabular-nums">{score}</p>
-            <p className="text-slate-500 text-sm mb-10">correct in 60 seconds</p>
+            {isNewBest ? (
+              <p className="text-emerald-400 text-sm font-black mb-10">✨ New Personal Best!</p>
+            ) : (
+              <p className="text-slate-500 text-sm mb-10">
+                correct in 60 seconds · best <span className="text-emerald-400 font-bold">{bestScore}</span>
+              </p>
+            )}
             <div className="flex gap-3">
               <button
                 onClick={startGame}

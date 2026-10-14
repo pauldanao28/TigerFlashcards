@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { fetchBestScore, updateBestScore } from "@/lib/minigameScores";
+
+const BEST_SCORE_COLUMN = "minigame_speed_match_best";
 
 type Card = { id: string; japanese: string; english: string };
 
@@ -35,6 +38,9 @@ export default function SpeedMatchGame() {
   const [gameState, setGameState] = useState<"idle" | "playing" | "over">("idle");
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [bestScore, setBestScore] = useState(0);
+  const [isNewBest, setIsNewBest] = useState(false);
   const [timeLeft, setTimeLeft] = useState(DURATION);
   const [current, setCurrent] = useState<Card | null>(null);
   const [shownEnglish, setShownEnglish] = useState("");
@@ -46,9 +52,14 @@ export default function SpeedMatchGame() {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) return;
-      const loaded = await loadDeckCards(session.user.id);
+      setUserId(session.user.id);
+      const [loaded, best] = await Promise.all([
+        loadDeckCards(session.user.id),
+        fetchBestScore(session.user.id, BEST_SCORE_COLUMN),
+      ]);
       setCards(loaded);
       cardsRef.current = loaded;
+      setBestScore(best);
       setLoading(false);
     });
   }, []);
@@ -71,6 +82,7 @@ export default function SpeedMatchGame() {
     setScore(0);
     setCombo(0);
     setTimeLeft(DURATION);
+    setIsNewBest(false);
     setGameState("playing");
     spawnPair();
   }, [spawnPair]);
@@ -81,6 +93,15 @@ export default function SpeedMatchGame() {
     const t = setTimeout(() => setTimeLeft((p) => p - 1), 1000);
     return () => clearTimeout(t);
   }, [gameState, timeLeft]);
+
+  useEffect(() => {
+    if (gameState !== "over" || !userId) return;
+    if (score > bestScore) {
+      setIsNewBest(true);
+      updateBestScore(userId, BEST_SCORE_COLUMN, score).then(() => setBestScore(score));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState]);
 
   const handleAnswer = (userSaysMatch: boolean) => {
     if (processingRef.current || gameState !== "playing") return;
@@ -138,6 +159,11 @@ export default function SpeedMatchGame() {
             <p className="text-slate-400 text-sm leading-relaxed mb-8 max-w-xs mx-auto">
               A Japanese word and an English meaning appear. Do they match? Tap fast — 60 seconds. Build combos for bonus points.
             </p>
+            {bestScore > 0 && (
+              <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-5">
+                Best <span className="text-amber-400">{bestScore}</span>
+              </p>
+            )}
             {cards.length < 4 ? (
               <p className="text-rose-400 text-sm">Add at least 4 cards to your deck to play.</p>
             ) : (
@@ -230,7 +256,13 @@ export default function SpeedMatchGame() {
             <div className="text-7xl mb-4">⚡</div>
             <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">Score</p>
             <p className="text-white font-black text-5xl mb-2 tabular-nums">{score}</p>
-            <p className="text-slate-500 text-sm mb-10">points in 60 seconds</p>
+            {isNewBest ? (
+              <p className="text-amber-400 text-sm font-black mb-10">✨ New Personal Best!</p>
+            ) : (
+              <p className="text-slate-500 text-sm mb-10">
+                points in 60 seconds · best <span className="text-amber-400 font-bold">{bestScore}</span>
+              </p>
+            )}
             <div className="flex gap-3">
               <button
                 onClick={startGame}

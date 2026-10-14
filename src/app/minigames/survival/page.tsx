@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { fetchBestScore, updateBestScore } from "@/lib/minigameScores";
+
+const BEST_SCORE_COLUMN = "minigame_survival_best";
 
 type Card = { id: string; japanese: string; reading: string; english: string };
 
@@ -52,6 +55,9 @@ export default function SurvivalGame() {
   const [cardKey, setCardKey] = useState(0);
   const [feedback, setFeedback] = useState<"correct" | "wrong" | "miss" | null>(null);
   const [answered, setAnswered] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [bestScore, setBestScore] = useState(0);
+  const [isNewBest, setIsNewBest] = useState(false);
 
   const controls = useAnimation();
   const answeredRef = useRef(false);
@@ -68,9 +74,14 @@ export default function SurvivalGame() {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) return;
-      const loaded = await loadDeckCards(session.user.id);
+      setUserId(session.user.id);
+      const [loaded, best] = await Promise.all([
+        loadDeckCards(session.user.id),
+        fetchBestScore(session.user.id, BEST_SCORE_COLUMN),
+      ]);
       setCards(loaded);
       cardsRef.current = loaded;
+      setBestScore(best);
       setLoading(false);
     });
   }, []);
@@ -104,9 +115,19 @@ export default function SurvivalGame() {
     setFeedback(null);
     setAnswered(false);
     answeredRef.current = false;
+    setIsNewBest(false);
     setGameState("playing");
     spawnCard();
   }, [spawnCard]);
+
+  useEffect(() => {
+    if (gameState !== "over" || !userId) return;
+    if (score > bestScore) {
+      setIsNewBest(true);
+      updateBestScore(userId, BEST_SCORE_COLUMN, score).then(() => setBestScore(score));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState]);
 
   // Start falling animation when a new card spawns
   useEffect(() => {
@@ -195,6 +216,11 @@ export default function SurvivalGame() {
               <p className="text-slate-400 text-sm leading-relaxed mb-8">
                 Cards fall from above showing an English meaning. Pick the correct Japanese word before it hits the ground. 3 lives — gets faster as you score.
               </p>
+              {bestScore > 0 && (
+                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-5">
+                  Best <span className="text-rose-400">{bestScore}</span>
+                </p>
+              )}
               {cards.length < 4 ? (
                 <p className="text-rose-400 text-sm">Add at least 4 cards to your deck to play.</p>
               ) : (
@@ -311,7 +337,13 @@ export default function SurvivalGame() {
               </div>
               <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">Score</p>
               <p className="text-white font-black text-5xl mb-2 tabular-nums">{score}</p>
-              <p className="text-slate-500 text-sm mb-10">words survived</p>
+              {isNewBest ? (
+                <p className="text-rose-400 text-sm font-black mb-10">✨ New Personal Best!</p>
+              ) : (
+                <p className="text-slate-500 text-sm mb-10">
+                  words survived · best <span className="text-rose-400 font-bold">{bestScore}</span>
+                </p>
+              )}
               <div className="flex gap-3">
                 <button
                   onClick={startGame}
