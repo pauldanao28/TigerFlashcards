@@ -257,7 +257,20 @@ export default function StudyView() {
     percent: number;
     isPass: boolean;
   } | null>(null);
-  const [jlptFilter, setJlptFilter] = useState<"All" | "N5" | "N4" | "N3" | "N2" | "N1">("All");
+  // Empty array = "All" (no filter). Ordered by difficulty (N5 easiest → N1 hardest),
+  // not insertion order, so the compact label/toast text always reads consistently.
+  const [jlptFilters, setJlptFilters] = useState<("N5" | "N4" | "N3" | "N2" | "N1")[]>([]);
+  const selectedJlptLevels = useMemo(
+    () => (["N5", "N4", "N3", "N2", "N1"] as const).filter((l) => jlptFilters.includes(l)),
+    [jlptFilters],
+  );
+  const jlptFilterKey = selectedJlptLevels.join(",");
+  const jlptFilterLabel =
+    selectedJlptLevels.length === 0
+      ? undefined
+      : selectedJlptLevels.length === 1
+        ? selectedJlptLevels[0]
+        : selectedJlptLevels.join("+");
   const t = translations.en;
 
   useEffect(() => {
@@ -671,7 +684,7 @@ export default function StudyView() {
         }
       }
 
-      const pool = jlptFilter === "All" ? updatedCards : updatedCards.filter(c => c.jlpt_level === jlptFilter);
+      const pool = jlptFilters.length === 0 ? updatedCards : updatedCards.filter(c => jlptFilters.includes(c.jlpt_level as "N5" | "N4" | "N3" | "N2" | "N1"));
       setCurrentCard(getNextPriorityCard(pool.length > 0 ? pool : updatedCards, language, currentCard.id));
       setIsFlipped(false);
     },
@@ -684,7 +697,7 @@ export default function StudyView() {
       streak,
       sessionStreak,
       t,
-      jlptFilter,
+      jlptFilters,
       showHints,
     ],
   );
@@ -739,10 +752,10 @@ export default function StudyView() {
     navigator.vibrate?.([60, 40, 100]);
     setTimeout(() => setCardMasteryToast(null), 2000);
 
-    const pool = jlptFilter === "All" ? updatedCards : updatedCards.filter(c => c.jlpt_level === jlptFilter);
+    const pool = jlptFilters.length === 0 ? updatedCards : updatedCards.filter(c => jlptFilters.includes(c.jlpt_level as "N5" | "N4" | "N3" | "N2" | "N1"));
     setCurrentCard(getNextPriorityCard(pool.length > 0 ? pool : updatedCards, language, currentCard.id));
     setIsFlipped(false);
-  }, [currentCard, user, cards, language, jlptFilter, showHints, setCardMasteryToast]);
+  }, [currentCard, user, cards, language, jlptFilters, showHints, setCardMasteryToast]);
 
   // Rolling cap: starring a 31st word bumps whichever one has been starred longest,
   // rather than blocking the action or requiring the user to manage the count by hand.
@@ -1011,8 +1024,8 @@ export default function StudyView() {
   const [levelUpToast, setLevelUpToast] = useState<{ level: string; lang: "jp" | "en"; direction: "up" | "down"; filter?: string } | null>(null);
 
   const filteredCards = useMemo(
-    () => jlptFilter === "All" ? cards : cards.filter(c => c.jlpt_level === jlptFilter),
-    [cards, jlptFilter],
+    () => jlptFilters.length === 0 ? cards : cards.filter(c => jlptFilters.includes(c.jlpt_level as "N5" | "N4" | "N3" | "N2" | "N1")),
+    [cards, jlptFilters],
   );
 
   // No real schedule to check against (no next_review_at tracking), so this isn't a
@@ -1032,13 +1045,13 @@ export default function StudyView() {
     }).length;
   }, [filteredCards]);
 
-  // Mastery % for the selected N-level (known cards ≥70% in current mode / total at that level)
+  // Mastery % for the selected N-level(s) (known cards ≥70% in current mode / total selected)
   const jlptLevelMastery = useMemo(() => {
-    if (jlptFilter === "All" || filteredCards.length === 0) return null;
+    if (jlptFilters.length === 0 || filteredCards.length === 0) return null;
     const mode = language === "jp" ? "jp_to_en" : "en_to_jp";
     const known = filteredCards.filter(c => (c.scores?.[mode]?.pass ?? 0) >= MASTERY_MIN_TRIES && (c.scores?.[mode]?.percent ?? 0) >= 70).length;
     return Math.round((known / filteredCards.length) * 100);
-  }, [filteredCards, jlptFilter, language]);
+  }, [filteredCards, jlptFilters, language]);
 
   // Rolling "recently reviewed" list — naturally deduped (one row per card) and
   // naturally rolling (re-reviewing a card just moves it back to the top).
@@ -1073,28 +1086,28 @@ export default function StudyView() {
       .slice(0, 20);
   }, [cards]);
 
-  // Level-up detection: track whichever % is visible — per-N-level when filtered, overall when "All"
-  const trackedPercent = jlptFilter !== "All" ? (jlptLevelMastery ?? masteryPercent) : masteryPercent;
+  // Level-up detection: track whichever % is visible — per-N-level(s) when filtered, overall when "All"
+  const trackedPercent = jlptFilters.length > 0 ? (jlptLevelMastery ?? masteryPercent) : masteryPercent;
   useEffect(() => {
     const prev = prevMasteryRef.current;
     // Always update ref silently on first run or context switch
-    if (prev === null || prev.lang !== language || prev.filter !== jlptFilter) {
-      prevMasteryRef.current = { percent: trackedPercent, lang: language, filter: jlptFilter };
+    if (prev === null || prev.lang !== language || prev.filter !== jlptFilterKey) {
+      prevMasteryRef.current = { percent: trackedPercent, lang: language, filter: jlptFilterKey };
       return;
     }
     // Suppress toast if user hasn't actually scored a card yet this session
     // (prevents false positives from background data refresh on tab switch)
     if (!hasInteracted.current) {
-      prevMasteryRef.current = { percent: trackedPercent, lang: language, filter: jlptFilter };
+      prevMasteryRef.current = { percent: trackedPercent, lang: language, filter: jlptFilterKey };
       return;
     }
     if (trackedPercent > prev.percent) {
-      setLevelUpToast({ level: `${trackedPercent}%`, lang: language, direction: "up", filter: jlptFilter !== "All" ? jlptFilter : undefined });
+      setLevelUpToast({ level: `${trackedPercent}%`, lang: language, direction: "up", filter: jlptFilterLabel });
       navigator.vibrate?.([60, 40, 100]);
       setTimeout(() => setLevelUpToast(null), 4000);
     }
-    prevMasteryRef.current = { percent: trackedPercent, lang: language, filter: jlptFilter };
-  }, [trackedPercent, language, jlptFilter]);
+    prevMasteryRef.current = { percent: trackedPercent, lang: language, filter: jlptFilterKey };
+  }, [trackedPercent, language, jlptFilterKey, jlptFilterLabel]);
 
   // Reset to a card from the new pool whenever the filter changes (skip initial mount).
   useEffect(() => {
@@ -1106,7 +1119,7 @@ export default function StudyView() {
     setCurrentCard(getNextPriorityCard(filteredCards, language));
     setIsFlipped(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jlptFilter]);
+  }, [jlptFilterKey]);
 
   // Show full-screen loading until the first deck fetch completes
   if (!hasLoadedOnce) {
@@ -1393,10 +1406,10 @@ export default function StudyView() {
                     className="flex flex-1 items-center gap-2 active:scale-95 transition-transform"
                   >
                     <div className="flex-1 h-1.5 rounded-full overflow-hidden flex bg-slate-200">
-                      {jlptFilter !== "All" ? (
+                      {selectedJlptLevels.length > 0 ? (
                         <>
-                          <div className={`h-full ${JLPT_BAR_COLOR[jlptFilter]}`} style={{ width: `${jlptLevelMastery ?? 0}%` }} />
-                          <div className={`h-full ${JLPT_BAR_LIGHT_COLOR[jlptFilter]}`} style={{ width: `${100 - (jlptLevelMastery ?? 0)}%` }} />
+                          <div className={`h-full ${JLPT_BAR_COLOR[selectedJlptLevels[0]]}`} style={{ width: `${jlptLevelMastery ?? 0}%` }} />
+                          <div className={`h-full ${JLPT_BAR_LIGHT_COLOR[selectedJlptLevels[0]]}`} style={{ width: `${100 - (jlptLevelMastery ?? 0)}%` }} />
                         </>
                       ) : (["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
                         const pct = jlptTaggedTotal > 0 ? (jlptDistribution[level] / jlptTaggedTotal) * 100 : 0;
@@ -1404,17 +1417,17 @@ export default function StudyView() {
                         return <div key={level} className={JLPT_BAR_COLOR[level]} style={{ width: `${pct}%` }} />;
                       })}
                     </div>
-                    <span className={`text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${jlptFilter !== "All" ? JLPT_BADGE_COLOR[jlptFilter].split(" ")[1] : "text-slate-500"}`}>
-                      {jlptFilter !== "All"
-                        ? `${jlptFilter} ${jlptLevelMastery ?? 0}%`
+                    <span className={`text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${selectedJlptLevels.length === 1 ? JLPT_BADGE_COLOR[selectedJlptLevels[0]].split(" ")[1] : selectedJlptLevels.length > 1 ? "text-indigo-600" : "text-slate-500"}`}>
+                      {jlptFilterLabel
+                        ? `${jlptFilterLabel} ${jlptLevelMastery ?? 0}%`
                         : `${dominantJlptLevel} ${jlptTaggedTotal > 0 ? Math.round((jlptDistribution[dominantJlptLevel] / jlptTaggedTotal) * 100) : 0}%`}
                       <span className="opacity-40 font-normal"> ›</span>
                     </span>
                   </button>
-                  {jlptFilter !== "All" && (
+                  {selectedJlptLevels.length > 0 && (
                     <button
-                      onClick={() => setJlptFilter("All")}
-                      className={`shrink-0 text-[10px] font-black leading-none px-1 py-0.5 rounded active:scale-95 transition-all ${JLPT_BADGE_COLOR[jlptFilter]}`}
+                      onClick={() => setJlptFilters([])}
+                      className="shrink-0 text-[10px] font-black leading-none px-1 py-0.5 rounded active:scale-95 transition-all bg-slate-800 text-white"
                     >
                       ×
                     </button>
@@ -1674,10 +1687,10 @@ export default function StudyView() {
                       className="flex flex-1 items-center gap-2.5 hover:opacity-80 active:scale-95 transition-all"
                     >
                       <div className="flex-1 h-2 rounded-full overflow-hidden flex bg-slate-200">
-                        {jlptFilter !== "All" ? (
+                        {selectedJlptLevels.length > 0 ? (
                           <>
-                            <div className={`h-full ${JLPT_BAR_COLOR[jlptFilter]}`} style={{ width: `${jlptLevelMastery ?? 0}%` }} />
-                            <div className={`h-full ${JLPT_BAR_LIGHT_COLOR[jlptFilter]}`} style={{ width: `${100 - (jlptLevelMastery ?? 0)}%` }} />
+                            <div className={`h-full ${JLPT_BAR_COLOR[selectedJlptLevels[0]]}`} style={{ width: `${jlptLevelMastery ?? 0}%` }} />
+                            <div className={`h-full ${JLPT_BAR_LIGHT_COLOR[selectedJlptLevels[0]]}`} style={{ width: `${100 - (jlptLevelMastery ?? 0)}%` }} />
                           </>
                         ) : (["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
                           const pct = jlptTaggedTotal > 0 ? (jlptDistribution[level] / jlptTaggedTotal) * 100 : 0;
@@ -1685,17 +1698,17 @@ export default function StudyView() {
                           return <div key={level} className={JLPT_BAR_COLOR[level]} style={{ width: `${pct}%` }} />;
                         })}
                       </div>
-                      <span className={`text-[10px] font-black uppercase tracking-widest whitespace-nowrap ${jlptFilter !== "All" ? JLPT_BADGE_COLOR[jlptFilter].split(" ")[1] : "text-slate-500"}`}>
-                        {jlptFilter !== "All"
-                          ? `${jlptFilter} ${jlptLevelMastery ?? 0}%`
+                      <span className={`text-[10px] font-black uppercase tracking-widest whitespace-nowrap ${selectedJlptLevels.length === 1 ? JLPT_BADGE_COLOR[selectedJlptLevels[0]].split(" ")[1] : selectedJlptLevels.length > 1 ? "text-indigo-600" : "text-slate-500"}`}>
+                        {jlptFilterLabel
+                          ? `${jlptFilterLabel} ${jlptLevelMastery ?? 0}%`
                           : `${dominantJlptLevel} ${jlptTaggedTotal > 0 ? Math.round((jlptDistribution[dominantJlptLevel] / jlptTaggedTotal) * 100) : 0}%`}
                         <span className="opacity-40 font-normal"> ›</span>
                       </span>
                     </button>
-                    {jlptFilter !== "All" && (
+                    {selectedJlptLevels.length > 0 && (
                       <button
-                        onClick={() => setJlptFilter("All")}
-                        className={`shrink-0 text-[10px] font-black leading-none px-1.5 py-0.5 rounded active:scale-95 transition-all ${JLPT_BADGE_COLOR[jlptFilter]}`}
+                        onClick={() => setJlptFilters([])}
+                        className="shrink-0 text-[10px] font-black leading-none px-1.5 py-0.5 rounded active:scale-95 transition-all bg-slate-800 text-white"
                       >
                         ×
                       </button>
@@ -2116,21 +2129,27 @@ export default function StudyView() {
                 <button onClick={() => setShowJlptBreakdown(false)} className="text-slate-300 hover:text-slate-500">✕</button>
               </div>
               <p className="text-[10px] font-bold text-slate-400 mb-4 leading-relaxed">
-                Tap a level to filter what you study. Percentages below show each level&apos;s share of your deck, not mastery.
+                Tap levels to filter what you study — pick as many as you like. Percentages below show each level&apos;s share of your deck, not mastery.
               </p>
               {/* Filter chips */}
               <div className="flex gap-2 mb-5 flex-wrap">
                 {(["All", "N5", "N4", "N3", "N2", "N1"] as const).map((lvl) => {
-                  const isActive = jlptFilter === lvl;
                   const isAll = lvl === "All";
+                  const isActive = isAll ? selectedJlptLevels.length === 0 : jlptFilters.includes(lvl);
                   return (
                     <button
                       key={lvl}
                       onClick={() => {
-                        setJlptFilter(lvl);
-                        setShowJlptBreakdown(false);
-                        setJlptFilterToast(lvl === "All" ? "Studying all levels" : `Now studying ${lvl} only`);
-                        setTimeout(() => setJlptFilterToast(null), 2200);
+                        if (isAll) {
+                          setJlptFilters([]);
+                          setShowJlptBreakdown(false);
+                          setJlptFilterToast("Studying all levels");
+                          setTimeout(() => setJlptFilterToast(null), 2200);
+                          return;
+                        }
+                        setJlptFilters((prev) =>
+                          prev.includes(lvl) ? prev.filter((l) => l !== lvl) : [...prev, lvl],
+                        );
                       }}
                       className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
                         isActive
@@ -2147,7 +2166,7 @@ export default function StudyView() {
                   );
                 })}
               </div>
-              <div className="space-y-3">
+              <div className="space-y-3 mb-5">
                 {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
                   const count = jlptDistribution[level];
                   const pct = jlptTotal > 0 ? Math.round((count / jlptTotal) * 100) : 0;
@@ -2166,6 +2185,20 @@ export default function StudyView() {
                   );
                 })}
               </div>
+              <button
+                onClick={() => {
+                  setShowJlptBreakdown(false);
+                  setJlptFilterToast(
+                    selectedJlptLevels.length === 0
+                      ? "Studying all levels"
+                      : `Now studying ${selectedJlptLevels.join(", ")}`,
+                  );
+                  setTimeout(() => setJlptFilterToast(null), 2200);
+                }}
+                className="w-full bg-indigo-600 text-white py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
+              >
+                Done
+              </button>
             </motion.div>
           </>
         )}
