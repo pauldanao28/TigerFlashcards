@@ -23,6 +23,24 @@ export function parseTime(value: string): number | null {
   return (m[1] ? parseInt(m[1]) * 3600 : 0) + parseInt(m[2]) * 60 + parseInt(m[3]);
 }
 
+/** A watch length in minutes: "3" → 180, "1.5" → 90, "2:30" → 150. Null if invalid or zero. */
+export function parseDuration(value: string): number | null {
+  const v = value.trim();
+  if (!v) return null;
+  if (/^\d+(\.\d+)?$/.test(v)) {
+    const secs = Math.round(parseFloat(v) * 60);
+    return secs > 0 ? secs : null;
+  }
+  const secs = parseTime(v);
+  return secs && secs > 0 ? secs : null;
+}
+
+/** 180 → "3", 150 → "2:30" — the inverse of parseDuration, for prefilling the field. */
+export function formatDuration(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  return s % 60 === 0 ? String(s / 60) : formatTime(s);
+}
+
 /** 83 → "1:23", 3723 → "1:02:03" */
 export function formatTime(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));

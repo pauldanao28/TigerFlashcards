@@ -6,7 +6,7 @@ import NewWordsPanel from "@/components/NewWordsPanel";
 import WordLookupSheet from "@/components/WordLookupSheet";
 import { useWordLookup } from "@/hooks/useWordLookup";
 import { useWordMining } from "@/hooks/useWordMining";
-import { formatTime, parseTime, parseTranscript, parseYouTubeUrl, type CaptionLine } from "@/lib/transcript";
+import { formatDuration, formatTime, parseDuration, parseTime, parseTranscript, parseYouTubeUrl, type CaptionLine } from "@/lib/transcript";
 
 // YouTube player states (YT.PlayerState)
 const PLAYING = 1;
@@ -39,7 +39,10 @@ const PLAYER_ERRORS: Record<number, string> = {
 // Last video per user, so reopening Watch picks up where you left off. Convenience only —
 // browser storage can be unavailable, so every access is guarded.
 const storageKey = (userId: string) => `flashkado-watch-last-${userId}`;
-interface SavedSession { url: string; transcript: string; start: string; end: string }
+interface SavedSession { url: string; transcript: string; start: string; end: string; endMode?: EndMode; length?: string }
+
+// The clip ends either at a fixed time ("end") or a number of minutes after the start ("length").
+type EndMode = "end" | "length";
 function loadSaved(userId: string): SavedSession | null {
   try { return JSON.parse(localStorage.getItem(storageKey(userId)) ?? "null"); } catch { return null; }
 }
@@ -67,6 +70,8 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
   const [lines, setLines] = useState<CaptionLine[]>([]);
   const [startInput, setStartInput] = useState("");
   const [endInput, setEndInput] = useState("");
+  const [endMode, setEndMode] = useState<EndMode>("end");
+  const [lengthInput, setLengthInput] = useState("");
   const [loop, setLoop] = useState(false);
   const [tab, setTab] = useState<"captions" | "words">("captions");
 
@@ -87,11 +92,24 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
     setTranscriptInput(saved.transcript);
     setStartInput(saved.start);
     setEndInput(saved.end);
+    setEndMode(saved.endMode ?? "end");
+    setLengthInput(saved.length ?? "");
   }, [userId]);
 
   const start = parseTime(startInput) ?? 0;
   const endParsed = parseTime(endInput);
-  const end = endParsed !== null && endParsed > start ? endParsed : null;
+  const lengthParsed = parseDuration(lengthInput);
+  const end = endMode === "length"
+    ? (lengthParsed !== null ? start + lengthParsed : null)
+    : (endParsed !== null && endParsed > start ? endParsed : null);
+
+  // Carry the current clip over when switching, so End 3:00 ⇄ Length 2 (from 1:00) stay in step.
+  const switchEndMode = (mode: EndMode) => {
+    if (mode === endMode) return;
+    if (mode === "length") setLengthInput(end !== null ? formatDuration(end - start) : "");
+    else setEndInput(end !== null ? formatTime(end) : "");
+    setEndMode(mode);
+  };
 
   const inClip = useCallback((t: number) => t >= start && (end === null || t < end), [start, end]);
 
@@ -129,8 +147,8 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
   // Persist the session whenever the inputs that define it change.
   useEffect(() => {
     if (phase !== "watching") return;
-    saveSession(userId, { url: urlInput, transcript: transcriptInput, start: startInput, end: endInput });
-  }, [phase, userId, urlInput, transcriptInput, startInput, endInput]);
+    saveSession(userId, { url: urlInput, transcript: transcriptInput, start: startInput, end: endInput, endMode, length: lengthInput });
+  }, [phase, userId, urlInput, transcriptInput, startInput, endInput, endMode, lengthInput]);
 
   // Rebuild the word list when the clip range changes (debounced — no AI, just the tokenizer).
   useEffect(() => {
@@ -354,17 +372,33 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
                   onChange={setStartInput}
                   onSetNow={() => setStartInput(formatTime(currentTime))}
                 />
-                <TimeField
-                  label="End"
-                  value={endInput}
-                  placeholder="end of video"
-                  onChange={setEndInput}
-                  onSetNow={() => setEndInput(formatTime(currentTime))}
-                  onClear={endInput ? () => setEndInput("") : undefined}
-                />
+                {endMode === "end" ? (
+                  <TimeField
+                    label={<EndModeToggle mode={endMode} onChange={switchEndMode} />}
+                    value={endInput}
+                    placeholder="end of video"
+                    onChange={setEndInput}
+                    onSetNow={() => setEndInput(formatTime(currentTime))}
+                    onClear={endInput ? () => setEndInput("") : undefined}
+                  />
+                ) : (
+                  <TimeField
+                    label={<EndModeToggle mode={endMode} onChange={switchEndMode} />}
+                    value={lengthInput}
+                    placeholder="minutes, e.g. 3"
+                    onChange={setLengthInput}
+                    onClear={lengthInput ? () => setLengthInput("") : undefined}
+                    isValid={(v) => parseDuration(v) !== null}
+                  />
+                )}
               </div>
-              {endParsed !== null && endParsed <= start && (
+              {endMode === "end" && endParsed !== null && endParsed <= start && (
                 <p className="text-[10px] font-bold text-rose-500 -mt-1">End must be after start — playing to the end of the video.</p>
+              )}
+              {endMode === "length" && end !== null && (
+                <p className="text-[10px] font-bold text-slate-400 -mt-1">
+                  Plays {formatTime(start)} → {formatTime(end)} ({formatDuration(end - start)} min)
+                </p>
               )}
             </div>
           </div>
@@ -443,6 +477,23 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
   );
 }
 
+function EndModeToggle({ mode, onChange }: { mode: EndMode; onChange: (m: EndMode) => void }) {
+  return (
+    <span className="inline-flex gap-0.5 bg-slate-100 rounded-md p-0.5">
+      {(["end", "length"] as const).map((m) => (
+        <button
+          key={m}
+          onClick={() => onChange(m)}
+          aria-pressed={mode === m}
+          className={`px-1.5 rounded text-[9px] font-black uppercase tracking-widest transition-colors ${mode === m ? "bg-white text-indigo-600 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+        >
+          {m === "end" ? "End" : "Length"}
+        </button>
+      ))}
+    </span>
+  );
+}
+
 function TimeField({
   label,
   value,
@@ -450,18 +501,20 @@ function TimeField({
   onChange,
   onSetNow,
   onClear,
+  isValid = (v) => parseTime(v) !== null,
 }: {
-  label: string;
+  label: React.ReactNode;
   value: string;
   placeholder: string;
   onChange: (v: string) => void;
-  onSetNow: () => void;
+  onSetNow?: () => void;
   onClear?: () => void;
+  isValid?: (v: string) => boolean;
 }) {
-  const invalid = value.trim() !== "" && parseTime(value) === null;
+  const invalid = value.trim() !== "" && !isValid(value);
   return (
     <div>
-      <label className="text-[9px] font-black uppercase tracking-widest text-slate-400">{label}</label>
+      <div className="h-5 flex items-center text-[9px] font-black uppercase tracking-widest text-slate-400">{label}</div>
       <div className="mt-1 flex items-center gap-1">
         <div className="relative flex-1 min-w-0">
           <input
@@ -473,17 +526,19 @@ function TimeField({
             className={`w-full bg-slate-50 border rounded-xl px-3 py-2 text-sm font-mono font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-100 transition-all ${invalid ? "border-rose-300" : "border-slate-200 focus:border-indigo-400"}`}
           />
           {onClear && (
-            <button onClick={onClear} aria-label={`Clear ${label}`} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500">
+            <button onClick={onClear} aria-label="Clear" className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500">
               <X size={12} />
             </button>
           )}
         </div>
-        <button
-          onClick={onSetNow}
-          className="shrink-0 px-2.5 py-2 rounded-xl bg-slate-100 text-slate-500 text-[9px] font-black uppercase tracking-widest hover:bg-indigo-50 hover:text-indigo-600 active:scale-95 transition-all"
-        >
-          Now
-        </button>
+        {onSetNow && (
+          <button
+            onClick={onSetNow}
+            className="shrink-0 px-2.5 py-2 rounded-xl bg-slate-100 text-slate-500 text-[9px] font-black uppercase tracking-widest hover:bg-indigo-50 hover:text-indigo-600 active:scale-95 transition-all"
+          >
+            Now
+          </button>
+        )}
       </div>
     </div>
   );
