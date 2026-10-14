@@ -32,12 +32,12 @@ export type WordStatus = "new" | "weak" | "known";
 // Background tints the whole word (continuous, via the wrapping span); decoration colors
 // only the dotted underline under each kanji character.
 const STATUS_BG: Record<WordStatus, string> = {
-  new: "bg-amber-100/70", // not in the deck yet
+  new: "bg-violet-100", // not in the deck yet — its own hue, not a difficulty/JLPT color
   weak: "bg-rose-100/70", // in the deck but struggling — same color as the stats page's Struggling list
   known: "",
 };
 const STATUS_DECORATION: Record<WordStatus, string> = {
-  new: "decoration-amber-500",
+  new: "decoration-violet-500",
   weak: "decoration-rose-500",
   known: "decoration-indigo-400",
 };

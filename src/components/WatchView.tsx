@@ -58,7 +58,7 @@ function saveSession(userId: string, s: SavedSession) {
  * Watch a YouTube video with its Japanese captions beside it (below it on phones).
  * Captions come from the transcript the user pastes (YouTube's "Show transcript"),
  * stay in sync with playback, and use the Reader's tap-to-lookup text: dotted
- * underline, Jisho lookup, amber = not in deck, rose = weak. Optional start/end
+ * underline, Jisho lookup, violet = not in deck, rose = weak. Optional start/end
  * times limit playback (and the "Not in your deck" list) to one part of the video.
  */
 export default function WatchView({ userId, onClose }: { userId: string; onClose: () => void }) {
@@ -525,13 +525,21 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
                   onClick={() => setTab(key)}
                   className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${tab === key ? "bg-indigo-600 text-white" : "text-slate-400 hover:bg-slate-100"}`}
                 >
-                  {key === "captions" ? "Captions" : `Not in deck · ${mining.newWords.length}`}
+                  {key === "captions" ? "Captions" : `Not in deck · ${mining.visibleNewWords.length}`}
                 </button>
               ))}
             </div>
 
             {tab === "captions" ? (
               <div ref={captionsRef} className="relative flex-1 min-h-0 overflow-y-auto px-3 py-3">
+                <div className="flex items-center gap-4 mb-2 px-3">
+                  <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-violet-600">
+                    <span className="w-2.5 h-2.5 rounded-sm bg-violet-100 border border-violet-400" /> Not in deck
+                  </span>
+                  <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-rose-600">
+                    <span className="w-2.5 h-2.5 rounded-sm bg-rose-100/70 border border-rose-400" /> Weak
+                  </span>
+                </div>
                 {lines.map((line, i) => {
                   const active = i === activeIndex;
                   return (

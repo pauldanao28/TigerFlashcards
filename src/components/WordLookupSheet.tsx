@@ -69,7 +69,7 @@ export default function WordLookupSheet({
                 ✓ in your deck
               </div>
             ) : lookup.deckStatus === "new" ? (
-              <div className="mt-1 inline-flex items-center gap-1 bg-amber-50 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full">
+              <div className="mt-1 inline-flex items-center gap-1 bg-violet-50 text-violet-700 text-xs font-bold px-2 py-0.5 rounded-full">
                 Not in your deck yet
               </div>
             ) : null}

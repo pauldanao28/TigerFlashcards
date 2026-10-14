@@ -251,8 +251,8 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-xl mx-auto w-full px-5 py-6">
               <div className="flex items-center gap-4 mb-3 px-1">
-                <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-600">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-amber-100/70 border border-amber-400" /> New
+                <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-violet-600">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-violet-100 border border-violet-400" /> Not in deck
                 </span>
                 <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-rose-600">
                   <span className="w-2.5 h-2.5 rounded-sm bg-rose-100/70 border border-rose-400" /> Weak

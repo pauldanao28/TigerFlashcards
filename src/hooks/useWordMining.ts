@@ -7,6 +7,22 @@ import { kanjiRe, getSegmenter, type WordStatus } from "@/components/TappableTex
 import { WEAK_THRESHOLD } from "@/hooks/useWordLookup";
 import type { ExtractedWord } from "@/lib/japaneseTokenizer";
 
+const hiraganaOnlyRe = /^[ぁ-ゖゝゞー]+$/;
+const katakanaOnlyRe = /^[ァ-ヺヽヾー・]+$/;
+
+// Kana filter for the "Not in your deck" list — a per-viewer preference, so browser
+// storage is fine (and every access is guarded, since it can be unavailable).
+const KANA_FILTER_KEY = "flashkado-newwords-kana-filter";
+type KanaFilter = { hideHiragana: boolean; hideKatakana: boolean };
+function loadKanaFilter(): KanaFilter {
+  try {
+    const v = JSON.parse(localStorage.getItem(KANA_FILTER_KEY) ?? "null");
+    return { hideHiragana: !!v?.hideHiragana, hideKatakana: !!v?.hideKatakana };
+  } catch {
+    return { hideHiragana: false, hideKatakana: false };
+  }
+}
+
 type ScoresJson = { jp_to_en?: { total?: number; percent?: number }; en_to_jp?: { total?: number; percent?: number } };
 
 /**
@@ -106,6 +122,23 @@ export function useWordMining(userId: string) {
   const [newWordsError, setNewWordsError] = useState(false);
   const [newWordsLoading, setNewWordsLoading] = useState(false);
 
+  const [kanaFilter, setKanaFilter] = useState<KanaFilter>({ hideHiragana: false, hideKatakana: false });
+  useEffect(() => { setKanaFilter(loadKanaFilter()); }, []);
+  const toggleKanaFilter = (key: keyof KanaFilter) =>
+    setKanaFilter((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      try { localStorage.setItem(KANA_FILTER_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+
+  // What the list shows (and what "Select all" / "Add" act on) after the kana filter.
+  const visibleNewWords = newWords.filter(
+    (w) =>
+      !(kanaFilter.hideHiragana && hiraganaOnlyRe.test(w.word)) &&
+      !(kanaFilter.hideKatakana && katakanaOnlyRe.test(w.word)),
+  );
+  const visibleSelectedCount = visibleNewWords.filter((w) => selectedNew.has(w.word)).length;
+
   const lastTextRef = useRef("");
 
   const loadNewWords = async (text: string) => {
@@ -142,10 +175,15 @@ export function useWordMining(userId: string) {
     });
 
   const toggleAllNewWords = () =>
-    setSelectedNew((prev) => (prev.size === newWords.length ? new Set() : new Set(newWords.map((w) => w.word))));
+    setSelectedNew((prev) => {
+      const next = new Set(prev);
+      const allOn = visibleSelectedCount === visibleNewWords.length;
+      visibleNewWords.forEach((w) => (allOn ? next.delete(w.word) : next.add(w.word)));
+      return next;
+    });
 
   const addSelectedNewWords = async () => {
-    const words = newWords.filter((w) => selectedNew.has(w.word)).map((w) => w.word);
+    const words = visibleNewWords.filter((w) => selectedNew.has(w.word)).map((w) => w.word);
     if (words.length === 0) return;
     const added = await processWords(words);
     if (added.size === 0) return;
@@ -183,6 +221,10 @@ export function useWordMining(userId: string) {
     getWordStatus,
     loadWordStatus,
     newWords,
+    visibleNewWords,
+    visibleSelectedCount,
+    kanaFilter,
+    toggleKanaFilter,
     selectedNew,
     newWordsError,
     newWordsLoading,

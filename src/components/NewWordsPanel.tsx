@@ -17,22 +17,45 @@ export default function NewWordsPanel({
   onWordTap: (word: string, e: React.MouseEvent) => void;
   className?: string;
 }) {
-  const { newWords, selectedNew, newWordsError, newWordsLoading, addLoading } = mining;
+  const { newWords, visibleNewWords, visibleSelectedCount, kanaFilter, selectedNew, newWordsError, newWordsLoading, addLoading } = mining;
+  const hiddenCount = newWords.length - visibleNewWords.length;
 
   return (
     <div className={`bg-white rounded-3xl border border-slate-100 shadow-sm p-5 ${className}`}>
       <div className="flex items-center justify-between gap-3 mb-3">
-        <p className="text-[10px] font-black uppercase tracking-widest text-amber-600">
-          Not in your deck · {newWords.length}
+        <p className="text-[10px] font-black uppercase tracking-widest text-violet-600">
+          Not in your deck · {visibleNewWords.length}
         </p>
-        {newWords.length > 0 && (
+        {visibleNewWords.length > 0 && (
           <button
             onClick={mining.toggleAllNewWords}
             className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-indigo-600 transition-colors"
           >
-            {selectedNew.size === newWords.length ? "Select none" : "Select all"}
+            {visibleSelectedCount === visibleNewWords.length ? "Select none" : "Select all"}
           </button>
         )}
+      </div>
+
+      {/* Kana-only words (ちょっと, ラーメン) can be hidden — they're often ones you know or don't want to mine */}
+      <div className="flex items-center gap-1.5 flex-wrap mb-3">
+        <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 mr-0.5">Show</span>
+        {([
+          ["hideHiragana", "Hiragana-only"],
+          ["hideKatakana", "Katakana-only"],
+        ] as const).map(([key, label]) => {
+          const shown = !kanaFilter[key];
+          return (
+            <button
+              key={key}
+              onClick={() => mining.toggleKanaFilter(key)}
+              aria-pressed={shown}
+              className={`text-[10px] font-black px-2.5 py-1 rounded-full border transition-colors active:scale-95 ${shown ? "bg-indigo-50 text-indigo-600 border-indigo-200" : "bg-white text-slate-400 border-slate-200 line-through"}`}
+            >
+              {label}
+            </button>
+          );
+        })}
+        {hiddenCount > 0 && <span className="text-[10px] font-bold text-slate-300">· {hiddenCount} hidden</span>}
       </div>
 
       {newWordsLoading ? (
@@ -43,10 +66,12 @@ export default function NewWordsPanel({
         <p className="text-xs font-bold text-rose-500">Couldn&apos;t build the word list — tapping words still works.</p>
       ) : newWords.length === 0 ? (
         <p className="text-xs font-bold text-slate-400">Every word here is already in your deck. 🎉</p>
+      ) : visibleNewWords.length === 0 ? (
+        <p className="text-xs font-bold text-slate-400">Only kana words left — turn them back on above to see them.</p>
       ) : (
         <>
           <div className="flex flex-col divide-y divide-slate-50">
-            {newWords.map((w) => {
+            {visibleNewWords.map((w) => {
               const checked = selectedNew.has(w.word);
               return (
                 <div key={w.word} className="flex items-center gap-3 py-2">
@@ -70,13 +95,13 @@ export default function NewWordsPanel({
           </div>
           <button
             onClick={mining.addSelectedNewWords}
-            disabled={addLoading || selectedNew.size === 0}
+            disabled={addLoading || visibleSelectedCount === 0}
             className="mt-3 w-full flex items-center justify-center gap-1.5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40"
           >
             {addLoading ? (
               <><Loader2 size={12} className="animate-spin" /> Adding…</>
             ) : (
-              <><Plus size={12} /> Add {selectedNew.size} to Deck</>
+              <><Plus size={12} /> Add {visibleSelectedCount} to Deck</>
             )}
           </button>
         </>
