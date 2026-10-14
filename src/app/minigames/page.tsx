@@ -43,6 +43,15 @@ const GAMES = [
     accent: "border-rose-600/40 hover:border-rose-500",
     badge: "bg-rose-500/10 text-rose-400",
   },
+  {
+    id: "kanji-rain",
+    href: "/minigames/kanji-rain",
+    emoji: "🌧️",
+    name: "Kanji Rain",
+    desc: "Japanese words fall on the left, meanings fall on the right. Tap the matching pair before either one lands.",
+    accent: "border-sky-600/40 hover:border-sky-500",
+    badge: "bg-sky-500/10 text-sky-400",
+  },
 ];
 
 export default function MiniGamesMenu() {
