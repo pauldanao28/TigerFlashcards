@@ -2147,9 +2147,12 @@ export default function StudyView() {
                           setTimeout(() => setJlptFilterToast(null), 2200);
                           return;
                         }
-                        setJlptFilters((prev) =>
-                          prev.includes(lvl) ? prev.filter((l) => l !== lvl) : [...prev, lvl],
-                        );
+                        const next = jlptFilters.includes(lvl)
+                          ? jlptFilters.filter((l) => l !== lvl)
+                          : [...jlptFilters, lvl];
+                        setJlptFilters(next);
+                        setJlptFilterToast(next.length === 0 ? "Studying all levels" : `Now studying ${next.join(", ")}`);
+                        setTimeout(() => setJlptFilterToast(null), 2200);
                       }}
                       className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
                         isActive
@@ -2185,20 +2188,6 @@ export default function StudyView() {
                   );
                 })}
               </div>
-              <button
-                onClick={() => {
-                  setShowJlptBreakdown(false);
-                  setJlptFilterToast(
-                    selectedJlptLevels.length === 0
-                      ? "Studying all levels"
-                      : `Now studying ${selectedJlptLevels.join(", ")}`,
-                  );
-                  setTimeout(() => setJlptFilterToast(null), 2200);
-                }}
-                className="w-full bg-indigo-600 text-white py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
-              >
-                Done
-              </button>
             </motion.div>
           </>
         )}
