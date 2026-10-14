@@ -15,9 +15,11 @@ type Tile = {
   cardId: string;
   side: Side;
   text: string;
+  lane: number;
   duration: number;
   bornAt: number;
 };
+type PendingPartner = { side: Side; readyAt: number };
 
 async function loadDeckCards(userId: string): Promise<Card[]> {
   const { data: deck } = await supabase
@@ -36,19 +38,24 @@ async function loadDeckCards(userId: string): Promise<Card[]> {
 }
 
 const DURATION = 60;
+const LANES = 4;
 const MAX_ACTIVE_WORDS = 3;
-const SPAWN_INTERVAL_MS = 1000;
-const OCCUPANCY_FRACTION = 0.35;
+const SPAWN_INTERVAL_MS = 700;
+const OCCUPANCY_FRACTION = 0.3;
 const BASE_FALL_SECONDS = 6.5;
-const MIN_FALL_SECONDS = 3.2;
+const MIN_FALL_SECONDS = 3.5;
 const FALL_STEP = 0.3;
+// A word's two tiles never drop together — the second side is held back a
+// random beat so the pair never lands side-by-side as an obvious giveaway.
+const PARTNER_DELAY_MIN_MS = 500;
+const PARTNER_DELAY_MAX_MS = 1600;
 
 function getFallDuration(score: number): number {
   return Math.max(MIN_FALL_SECONDS, BASE_FALL_SECONDS - Math.floor(score / 5) * FALL_STEP);
 }
 
-function laneIsFree(tiles: Tile[], side: Side, now: number): boolean {
-  const laneTiles = tiles.filter((t) => t.side === side);
+function laneIsFree(tiles: Tile[], lane: number, now: number): boolean {
+  const laneTiles = tiles.filter((t) => t.lane === lane);
   if (laneTiles.length === 0) return true;
   const mostRecent = laneTiles.reduce((a, b) => (a.bornAt > b.bornAt ? a : b));
   const elapsedFrac = (now - mostRecent.bornAt) / (mostRecent.duration * 1000);
@@ -74,6 +81,7 @@ export default function KanjiRainGame() {
   const scoreRef = useRef(0);
   const selectedRef = useRef<string | null>(null);
   const gameStateRef = useRef<"idle" | "playing" | "over">("idle");
+  const pendingPartnerRef = useRef<Map<string, PendingPartner>>(new Map());
 
   useEffect(() => { tilesRef.current = tiles; }, [tiles]);
   useEffect(() => { scoreRef.current = score; }, [score]);
@@ -97,23 +105,68 @@ export default function KanjiRainGame() {
 
   const trySpawn = useCallback(() => {
     const current = tilesRef.current;
-    const activeCardIds = new Set(current.map((t) => t.cardId));
-    if (activeCardIds.size >= MAX_ACTIVE_WORDS) return;
     const now = Date.now();
-    if (!laneIsFree(current, "jp", now) || !laneIsFree(current, "en", now)) return;
+    const freeLanes = Array.from({ length: LANES }, (_, i) => i).filter((l) => laneIsFree(current, l, now));
+    if (freeLanes.length === 0) return;
+
+    // Priority 1: release a held-back partner tile whose delay has elapsed.
+    for (const [cardId, pending] of pendingPartnerRef.current) {
+      if (pending.readyAt > now) continue;
+      const card = cardsRef.current.find((c) => c.id === cardId);
+      if (!card) { pendingPartnerRef.current.delete(cardId); continue; }
+      const lane = freeLanes[Math.floor(Math.random() * freeLanes.length)];
+      const duration = getFallDuration(scoreRef.current);
+      pendingPartnerRef.current.delete(cardId);
+      setTiles((prev) => [
+        ...prev,
+        {
+          tileId: crypto.randomUUID(),
+          cardId,
+          side: pending.side,
+          text: pending.side === "jp" ? card.japanese : card.english,
+          lane,
+          duration,
+          bornAt: now,
+        },
+      ]);
+      return;
+    }
+
+    const activeCardIds = new Set([...current.map((t) => t.cardId), ...pendingPartnerRef.current.keys()]);
+    if (activeCardIds.size >= MAX_ACTIVE_WORDS) return;
     const pool = cardsRef.current.filter((c) => !activeCardIds.has(c.id));
     if (pool.length === 0) return;
+
+    // Priority 2: start a brand-new word — one random side now, the other held back.
     const card = pool[Math.floor(Math.random() * pool.length)];
+    const firstSide: Side = Math.random() > 0.5 ? "jp" : "en";
+    const secondSide: Side = firstSide === "jp" ? "en" : "jp";
+    const lane = freeLanes[Math.floor(Math.random() * freeLanes.length)];
     const duration = getFallDuration(scoreRef.current);
+    pendingPartnerRef.current.set(card.id, {
+      side: secondSide,
+      readyAt: now + PARTNER_DELAY_MIN_MS + Math.random() * (PARTNER_DELAY_MAX_MS - PARTNER_DELAY_MIN_MS),
+    });
     setTiles((prev) => [
       ...prev,
-      { tileId: crypto.randomUUID(), cardId: card.id, side: "jp", text: card.japanese, duration, bornAt: now },
-      { tileId: crypto.randomUUID(), cardId: card.id, side: "en", text: card.english, duration, bornAt: now },
+      {
+        tileId: crypto.randomUUID(),
+        cardId: card.id,
+        side: firstSide,
+        text: firstSide === "jp" ? card.japanese : card.english,
+        lane,
+        duration,
+        bornAt: now,
+      },
     ]);
   }, []);
 
   const handleMiss = useCallback((tileId: string) => {
-    setTiles((prev) => prev.filter((t) => t.tileId !== tileId));
+    setTiles((prev) => {
+      const tile = prev.find((t) => t.tileId === tileId);
+      if (tile) pendingPartnerRef.current.delete(tile.cardId);
+      return prev.filter((t) => t.tileId !== tileId);
+    });
     setSelectedTileId((prev) => (prev === tileId ? null : prev));
     setCombo(0);
   }, []);
@@ -174,6 +227,7 @@ export default function KanjiRainGame() {
   }, []);
 
   const startGame = useCallback(() => {
+    pendingPartnerRef.current.clear();
     setScore(0);
     setCombo(0);
     setTimeLeft(DURATION);
@@ -203,6 +257,7 @@ export default function KanjiRainGame() {
   // Game over cleanup + best score
   useEffect(() => {
     if (gameState !== "over") return;
+    pendingPartnerRef.current.clear();
     setTiles([]);
     setSelectedTileId(null);
     if (!userId) return;
@@ -214,8 +269,6 @@ export default function KanjiRainGame() {
   }, [gameState]);
 
   const timerPct = (timeLeft / DURATION) * 100;
-  const jpTiles = tiles.filter((t) => t.side === "jp");
-  const enTiles = tiles.filter((t) => t.side === "en");
 
   if (loading) {
     return (
@@ -247,14 +300,14 @@ export default function KanjiRainGame() {
         </span>
       </div>
 
-      <div className="flex-1 flex flex-col p-5 max-w-sm mx-auto w-full">
+      <div className="flex-1 flex flex-col p-5 max-w-md mx-auto w-full">
         {gameState === "idle" && (
           <div className="flex-1 flex flex-col items-center justify-center text-center">
             <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }}>
               <div className="text-7xl mb-5">🌧️</div>
               <h1 className="text-white font-black text-2xl mb-2">Kanji Rain</h1>
               <p className="text-slate-400 text-sm leading-relaxed mb-8 max-w-xs mx-auto">
-                Japanese words fall on the left, their English meanings fall on the right. Tap a word, then tap its match — before either one hits the ground. 60 seconds.
+                Japanese words and English meanings fall together, mixed and scattered. Tap a word, then tap its matching meaning — before either one hits the ground. 60 seconds.
               </p>
               {bestScore > 0 && (
                 <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-5">
@@ -304,45 +357,27 @@ export default function KanjiRainGame() {
               </div>
             </div>
 
-            <div className="flex-1 flex gap-3 relative" style={{ maxHeight: "60vh" }}>
-              <div className="relative flex-1 overflow-hidden rounded-2xl bg-slate-950/40 border border-slate-800">
-                {jpTiles.map((tile) => (
-                  <motion.div
-                    key={tile.tileId}
-                    initial={{ top: "-14%" }}
-                    animate={{ top: "100%" }}
-                    transition={{ duration: tile.duration, ease: "linear" }}
-                    onAnimationComplete={() => handleMiss(tile.tileId)}
-                    className="absolute left-0 right-0 px-2"
+            <div className="relative flex-1 overflow-hidden rounded-2xl bg-slate-950/40 border border-slate-800" style={{ maxHeight: "60vh" }}>
+              {tiles.map((tile) => (
+                <motion.div
+                  key={tile.tileId}
+                  initial={{ top: "-14%" }}
+                  animate={{ top: "100%" }}
+                  transition={{ duration: tile.duration, ease: "linear" }}
+                  onAnimationComplete={() => handleMiss(tile.tileId)}
+                  className="absolute px-1.5"
+                  style={{ left: `${(tile.lane / LANES) * 100}%`, width: `${100 / LANES}%` }}
+                >
+                  <button
+                    onClick={() => handleTap(tile.tileId)}
+                    className={`w-full rounded-xl px-2 py-2.5 text-center border-2 transition-colors ${
+                      tile.side === "jp" ? "font-black text-sm" : "font-bold text-[11px] leading-snug"
+                    } ${tileClass(tile)}`}
                   >
-                    <button
-                      onClick={() => handleTap(tile.tileId)}
-                      className={`w-full rounded-xl px-3 py-3 text-center font-black text-base border-2 transition-colors ${tileClass(tile)}`}
-                    >
-                      {tile.text}
-                    </button>
-                  </motion.div>
-                ))}
-              </div>
-              <div className="relative flex-1 overflow-hidden rounded-2xl bg-slate-950/40 border border-slate-800">
-                {enTiles.map((tile) => (
-                  <motion.div
-                    key={tile.tileId}
-                    initial={{ top: "-14%" }}
-                    animate={{ top: "100%" }}
-                    transition={{ duration: tile.duration, ease: "linear" }}
-                    onAnimationComplete={() => handleMiss(tile.tileId)}
-                    className="absolute left-0 right-0 px-2"
-                  >
-                    <button
-                      onClick={() => handleTap(tile.tileId)}
-                      className={`w-full rounded-xl px-3 py-3 text-center font-bold text-xs leading-snug border-2 transition-colors ${tileClass(tile)}`}
-                    >
-                      {tile.text}
-                    </button>
-                  </motion.div>
-                ))}
-              </div>
+                    {tile.text}
+                  </button>
+                </motion.div>
+              ))}
             </div>
           </div>
         )}
