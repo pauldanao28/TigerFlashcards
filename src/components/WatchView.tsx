@@ -11,6 +11,9 @@ import { formatDuration, formatTime, parseDuration, parseTime, parseTranscript, 
 // YouTube player states (YT.PlayerState)
 const PLAYING = 1;
 
+// A transcript gives each line's start but not when the last one ends — play a bit past it.
+const LAST_LINE_PAD = 5;
+
 // The IFrame API script is global — load it once and share the promise.
 let ytApiPromise: Promise<void> | null = null;
 function loadYouTubeApi(): Promise<void> {
@@ -39,7 +42,7 @@ const PLAYER_ERRORS: Record<number, string> = {
 // Last video per user, so reopening Watch picks up where you left off. Convenience only —
 // browser storage can be unavailable, so every access is guarded.
 const storageKey = (userId: string) => `flashkado-watch-last-${userId}`;
-interface SavedSession { url: string; transcript: string; start: string; end: string; endMode?: EndMode; length?: string }
+interface SavedSession { url: string; transcript: string; start: string; end: string; endMode?: EndMode; length?: string; clipManual?: boolean }
 
 // The clip ends either at a fixed time ("end") or a number of minutes after the start ("length").
 type EndMode = "end" | "length";
@@ -72,6 +75,8 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
   const [endInput, setEndInput] = useState("");
   const [endMode, setEndMode] = useState<EndMode>("end");
   const [lengthInput, setLengthInput] = useState("");
+  // Until the user sets the clip themselves, it follows the transcript's first → last timestamp.
+  const [clipManual, setClipManual] = useState(false);
   const [loop, setLoop] = useState(false);
   const [tab, setTab] = useState<"captions" | "words">("captions");
 
@@ -81,6 +86,7 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
 
   const playerHostRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YT.Player | null>(null);
+  const autoPlayRef = useRef(false); // play as soon as the player is ready (set by Start Watching)
   const captionsRef = useRef<HTMLDivElement>(null);
   const lineRefs = useRef<(HTMLDivElement | null)[]>([]);
 
@@ -94,6 +100,7 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
     setEndInput(saved.end);
     setEndMode(saved.endMode ?? "end");
     setLengthInput(saved.length ?? "");
+    setClipManual(saved.clipManual ?? false);
   }, [userId]);
 
   const start = parseTime(startInput) ?? 0;
@@ -110,6 +117,28 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
     else setEndInput(end !== null ? formatTime(end) : "");
     setEndMode(mode);
   };
+
+  // Clip = the transcript's first timestamp → a little past its last one.
+  const applyTranscriptRange = (parsed: CaptionLine[]) => {
+    if (parsed.length === 0) return;
+    const first = parsed[0].t;
+    const last = parsed[parsed.length - 1].t + LAST_LINE_PAD;
+    setStartInput(formatTime(first));
+    if (endMode === "length") setLengthInput(formatDuration(last - first));
+    else setEndInput(formatTime(last));
+  };
+
+  // Parsed once per edit — the playback poll re-renders several times a second.
+  const pastedLines = useMemo(() => parseTranscript(transcriptInput), [transcriptInput]);
+
+  useEffect(() => {
+    if (clipManual) return;
+    applyTranscriptRange(pastedLines);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pastedLines, clipManual]);
+
+  // Typing a time or pressing "Now" takes the clip off auto.
+  const manual = <T,>(setter: (v: T) => void) => (v: T) => { setClipManual(true); setter(v); };
 
   const inClip = useCallback((t: number) => t >= start && (end === null || t < end), [start, end]);
 
@@ -146,6 +175,7 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
       setLines([]);
     }
     if (parsedUrl.start !== null && !startInput) setStartInput(formatTime(parsedUrl.start));
+    autoPlayRef.current = true;
     setVideoId(parsedUrl.id);
     setPlayerError(null);
     setCurrentTime(0);
@@ -157,14 +187,20 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
   const [lateTranscriptError, setLateTranscriptError] = useState<string | null>(null);
   const handleAddTranscript = () => {
     setLateTranscriptError(null);
-    if (!applyTranscript(transcriptInput)) setLateTranscriptError(TRANSCRIPT_ERROR);
+    if (!applyTranscript(transcriptInput)) { setLateTranscriptError(TRANSCRIPT_ERROR); return; }
+    // The clip just moved to the transcript's range — play from its start.
+    const first = pastedLines[0]?.t;
+    if (!clipManual && first !== undefined && playerRef.current) {
+      playerRef.current.seekTo(first, true);
+      playerRef.current.playVideo();
+    }
   };
 
   // Persist the session whenever the inputs that define it change.
   useEffect(() => {
     if (phase !== "watching") return;
-    saveSession(userId, { url: urlInput, transcript: transcriptInput, start: startInput, end: endInput, endMode, length: lengthInput });
-  }, [phase, userId, urlInput, transcriptInput, startInput, endInput, endMode, lengthInput]);
+    saveSession(userId, { url: urlInput, transcript: transcriptInput, start: startInput, end: endInput, endMode, length: lengthInput, clipManual });
+  }, [phase, userId, urlInput, transcriptInput, startInput, endInput, endMode, lengthInput, clipManual]);
 
   // Rebuild the word list when the clip range changes (debounced — no AI, just the tokenizer).
   useEffect(() => {
@@ -189,6 +225,11 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
         height: "100%",
         playerVars: { playsinline: 1, rel: 0, modestbranding: 1, start: Math.floor(start) },
         events: {
+          onReady: (e) => {
+            if (!autoPlayRef.current) return;
+            autoPlayRef.current = false;
+            e.target.playVideo(); // browsers may still block this — the Play button covers that
+          },
           onStateChange: (e) => setPlaying(e.data === PLAYING),
           onError: (e) => setPlayerError(PLAYER_ERRORS[e.data] ?? "This video can't be played."),
         },
@@ -276,6 +317,7 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
 
   // Start + End/Length fields. Shown before starting and under the video ("Now" buttons
   // only make sense once the player exists).
+  const hasTranscriptRange = pastedLines.length > 0;
   const renderClipFields = (withNow: boolean) => (
     <>
       <div className="grid grid-cols-2 gap-2">
@@ -283,25 +325,25 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
           label="Start"
           value={startInput}
           placeholder="0:00"
-          onChange={setStartInput}
-          onSetNow={withNow ? () => setStartInput(formatTime(currentTime)) : undefined}
+          onChange={manual(setStartInput)}
+          onSetNow={withNow ? () => manual(setStartInput)(formatTime(currentTime)) : undefined}
         />
         {endMode === "end" ? (
           <TimeField
             label={<EndModeToggle mode={endMode} onChange={switchEndMode} />}
             value={endInput}
             placeholder="end of video"
-            onChange={setEndInput}
-            onSetNow={withNow ? () => setEndInput(formatTime(currentTime)) : undefined}
-            onClear={endInput ? () => setEndInput("") : undefined}
+            onChange={manual(setEndInput)}
+            onSetNow={withNow ? () => manual(setEndInput)(formatTime(currentTime)) : undefined}
+            onClear={endInput ? () => manual(setEndInput)("") : undefined}
           />
         ) : (
           <TimeField
             label={<EndModeToggle mode={endMode} onChange={switchEndMode} />}
             value={lengthInput}
             placeholder="minutes, e.g. 3"
-            onChange={setLengthInput}
-            onClear={lengthInput ? () => setLengthInput("") : undefined}
+            onChange={manual(setLengthInput)}
+            onClear={lengthInput ? () => manual(setLengthInput)("") : undefined}
             isValid={(v) => parseDuration(v) !== null}
           />
         )}
@@ -313,6 +355,18 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
         <p className="text-[10px] font-bold text-slate-400 -mt-1">
           Plays {formatTime(start)} → {formatTime(end)} ({formatDuration(end - start)} min)
         </p>
+      )}
+      {hasTranscriptRange && (
+        clipManual ? (
+          <button
+            onClick={() => setClipManual(false)}
+            className="self-start -mt-1 text-[10px] font-black uppercase tracking-widest text-indigo-500 hover:text-indigo-700"
+          >
+            ↺ Use transcript range
+          </button>
+        ) : (
+          <p className="text-[10px] font-bold text-indigo-400 -mt-1">Set from your transcript&apos;s first and last timestamps</p>
+        )
       )}
     </>
   );
