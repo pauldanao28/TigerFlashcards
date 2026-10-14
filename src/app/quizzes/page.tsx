@@ -8,6 +8,7 @@ import SentenceQuiz from "@/components/SentenceQuiz";
 import ListeningQuiz from "@/components/ListeningQuiz";
 import GrammarQuiz from "@/components/GrammarQuiz";
 import ReaderView from "@/components/ReaderView";
+import WatchView from "@/components/WatchView";
 
 function QuizzesInner() {
   const router = useRouter();
@@ -18,6 +19,7 @@ function QuizzesInner() {
   const [showListening, setShowListening] = useState(false);
   const [showGrammar, setShowGrammar] = useState(false);
   const [showReader, setShowReader] = useState(false);
+  const [showWatch, setShowWatch] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -31,6 +33,7 @@ function QuizzesInner() {
       else if (open === "listening") setShowListening(true);
       else if (open === "grammar") setShowGrammar(true);
       else if (open === "reader") setShowReader(true);
+      else if (open === "watch") setShowWatch(true);
     });
   }, [router, searchParams]);
 
@@ -60,6 +63,24 @@ function QuizzesInner() {
             <div className="flex-1">
               <p className="font-black text-slate-900">Reader</p>
               <p className="text-xs text-slate-400 mt-0.5">Paste any text (or let AI write one) — tap words to add them, ask about grammar</p>
+            </div>
+            <span className="text-slate-300 text-lg">›</span>
+          </div>
+        </button>
+
+        {/* Watch */}
+        <button
+          onClick={() => setShowWatch(true)}
+          className="bg-white rounded-2xl p-5 border-2 border-indigo-100 shadow-sm active:scale-95 transition-all text-left w-full relative overflow-hidden"
+        >
+          <span className="absolute top-3 right-3 text-[8px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+            New
+          </span>
+          <div className="flex items-center gap-4">
+            <span className="text-3xl">📺</span>
+            <div className="flex-1">
+              <p className="font-black text-slate-900">Watch</p>
+              <p className="text-xs text-slate-400 mt-0.5">YouTube with Japanese captions beside it — tap words, find the ones you don&apos;t have</p>
             </div>
             <span className="text-slate-300 text-lg">›</span>
           </div>
@@ -127,7 +148,7 @@ function QuizzesInner() {
             <span className="text-slate-300 text-lg">›</span>
           </Link>
           {(["N5", "N4", "N3", "N2", "N1"] as const).map((lvl) => {
-            const colors: Record<string, string> = { N5: "text-emerald-600", N4: "text-teal-600", N3: "text-amber-600", N2: "text-orange-600", N1: "text-rose-600" };
+            const colors: Record<string, string> = { N5: "text-emerald-600", N4: "text-sky-600", N3: "text-amber-600", N2: "text-orange-600", N1: "text-rose-600" };
             const descs: Record<string, string> = { N5: "Basic verb forms, particles, present/past tense", N4: "て-form chains, たい, polite/plain switching", N3: "Conditionals, て-verb compounds, plain embedding", N2: "Passive, causative, potential, keigo basics", N1: "Keigo, classical patterns, complex compound sentences" };
             return (
               <Link
@@ -161,6 +182,9 @@ function QuizzesInner() {
       )}
       {showReader && (
         <ReaderView userId={userId} onClose={() => setShowReader(false)} />
+      )}
+      {showWatch && (
+        <WatchView userId={userId} onClose={() => setShowWatch(false)} />
       )}
     </div>
   );

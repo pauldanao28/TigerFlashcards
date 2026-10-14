@@ -1,13 +1,15 @@
 "use client";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { X, ChevronLeft, Loader2, List, Volume2 } from "lucide-react";
-import { speak } from "@/lib/tts";
+import { X, ChevronLeft, Loader2, List } from "lucide-react";
 import { grammarPatternScore, dailySessionWeight, jlptLevel } from "@/lib/scoring";
 import LevelUpModal from "@/components/LevelUpModal";
 import { authedFetch } from "@/lib/authedFetch";
 import { getTodayUsage, AiUsageInfo } from "@/lib/aiUsage";
 import { useAppAlert } from "@/context/AlertContext";
+import TappableText, { stripFurigana } from "@/components/TappableText";
+import WordLookupSheet from "@/components/WordLookupSheet";
+import { useWordLookup } from "@/hooks/useWordLookup";
 
 const GRAMMAR_DAILY_KEY = "flashkado-grammar-quiz-daily";
 function getGrammarDailyCount(): number {
@@ -58,70 +60,6 @@ type QuizQuestion =
   | { type: "grammar"; pattern_id: string; sentence: string; blank_hint: string; choices: string[]; answer: string; explanation: string }
   | { type: "reading"; pattern_id: string; japanese: string; choices: string[]; answer: string; explanation: string }
   | { type: "writing"; pattern_id: string; english: string; answer: string; hint?: string; explanation: string };
-
-interface WordTooltip {
-  word: string;
-  reading: string;
-  editWord: string;
-  knownEnglish?: string | null;
-  jishoLoading?: boolean;
-  jishoMeanings?: { definition: string; pos: string }[];
-  jlpt?: string[];
-  isCommon?: boolean;
-  compounds?: { word: string; reading: string; meaning: string; jlpt: string[]; is_common: boolean }[];
-}
-
-const kanjiRe = /[一-龯㐀-䶿々〻]/;
-
-let _jaSegmenter: Intl.Segmenter | null = null;
-function getSegmenter(): Intl.Segmenter | null {
-  if (typeof window === "undefined") return null;
-  if (!_jaSegmenter) {
-    try { _jaSegmenter = new Intl.Segmenter("ja", { granularity: "word" }); } catch { return null; }
-  }
-  return _jaSegmenter;
-}
-
-function stripFurigana(text: string): string {
-  return text.replace(/([一-龯々〻㐀-䶿][一-龯々〻㐀-䶿ぁ-ん]*)[（(]([ぁ-んァ-ンっーゃゅょ・]+)[）)]/g, "$1");
-}
-
-type WordTapHandler = (word: string, reading: string, e: React.MouseEvent | React.TouchEvent) => void;
-
-function TappableText({ text, keyPrefix, onWordTap }: { text: string; keyPrefix: string; onWordTap: WordTapHandler }) {
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-  const segmenter = getSegmenter();
-  const subSegs = segmenter
-    ? [...segmenter.segment(stripFurigana(text))]
-    : [{ segment: stripFurigana(text), isWordLike: false }];
-  return (
-    <>
-      {subSegs.map((sub, i) => {
-        if (sub.isWordLike && kanjiRe.test(sub.segment)) {
-          const word = sub.segment;
-          return (
-            <span key={`${keyPrefix}-${i}`} className="cursor-pointer active:opacity-60 transition-opacity"
-              onClick={(e) => { e.stopPropagation(); onWordTap(word, "", e); }}
-              onTouchStart={(e) => { touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
-              onTouchEnd={(e) => {
-                const start = touchStartRef.current;
-                touchStartRef.current = null;
-                if (!start) return;
-                const dx = Math.abs(e.changedTouches[0].clientX - start.x);
-                const dy = Math.abs(e.changedTouches[0].clientY - start.y);
-                if (dx < 8 && dy < 8) { e.preventDefault(); e.stopPropagation(); onWordTap(word, "", e as unknown as React.MouseEvent); }
-              }}>
-              {word.split("").map((ch, ci) =>
-                kanjiRe.test(ch) ? <span key={ci} className="underline decoration-dotted decoration-indigo-400 underline-offset-2">{ch}</span> : ch
-              )}
-            </span>
-          );
-        }
-        return <span key={`${keyPrefix}-${i}`}>{sub.segment}</span>;
-      })}
-    </>
-  );
-}
 
 export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
   const { showAlert } = useAppAlert();
@@ -248,8 +186,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
   const WORD_LIST_KEY = `flashkado-word-list-${userId}`;
 
   // Tooltip
-  const [tooltip, setTooltip] = useState<WordTooltip | null>(null);
-  const jishoDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { lookup, openLookup, setEditWord, closeLookup } = useWordLookup(userId);
 
   // Back confirm
   const [backConfirm, setBackConfirm] = useState(false);
@@ -273,28 +210,6 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
-  // Jisho re-lookup when editWord changes
-  useEffect(() => {
-    const word = tooltip?.editWord?.trim();
-    if (!word || !kanjiRe.test(word)) return;
-    if (jishoDebounceRef.current) clearTimeout(jishoDebounceRef.current);
-    jishoDebounceRef.current = setTimeout(() => {
-      setTooltip(prev => prev ? { ...prev, jishoLoading: true, jishoMeanings: [], jlpt: [], isCommon: false } : prev);
-      fetch(`/api/jisho?word=${encodeURIComponent(word)}`)
-        .then(r => r.json())
-        .then(d => setTooltip(prev => prev ? {
-          ...prev, jishoLoading: false,
-          reading: d.found ? d.reading : "",
-          jishoMeanings: d.found ? d.meanings : [],
-          jlpt: d.found ? d.jlpt : [],
-          isCommon: d.found ? d.is_common : false,
-        } : prev))
-        .catch(() => setTooltip(prev => prev ? { ...prev, jishoLoading: false } : prev));
-    }, 500);
-    return () => { if (jishoDebounceRef.current) clearTimeout(jishoDebounceRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tooltip?.editWord]);
-
   const syncWordList = useCallback((newList: string[]) => {
     setWordList(newList);
     localStorage.setItem(WORD_LIST_KEY, JSON.stringify(newList));
@@ -313,44 +228,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, wordList]);
 
-  const handleWordClick = useCallback((word: string, reading: string, e: React.MouseEvent | React.TouchEvent) => {
-    e.stopPropagation();
-    const extractWord = (text: string): string => {
-      const seg = getSegmenter();
-      if (!seg) return text;
-      const first = [...seg.segment(text)].find(s => s.isWordLike && kanjiRe.test(s.segment));
-      return first?.segment ?? text;
-    };
-    const editWord = extractWord(word);
-    setTooltip({ word, reading, editWord, knownEnglish: undefined, jishoLoading: true });
-
-    (async () => {
-      const { data: card } = await supabase.from("master_cards").select("id, english").eq("japanese", editWord).maybeSingle();
-      if (!card) { setTooltip(prev => prev ? { ...prev, knownEnglish: null } : prev); return; }
-      const { data: scoreRow } = await supabase.from("user_scores").select("id").eq("user_id", userId).eq("card_id", card.id).maybeSingle();
-      setTooltip(prev => prev ? { ...prev, knownEnglish: scoreRow ? card.english : null } : prev);
-    })();
-
-    const isSingleKanji = editWord.length === 1 && kanjiRe.test(editWord);
-    const jishoUrl = isSingleKanji
-      ? `/api/jisho?word=${encodeURIComponent(editWord)}&compounds=true`
-      : `/api/jisho?word=${encodeURIComponent(editWord)}`;
-    fetch(jishoUrl)
-      .then(r => r.json())
-      .then(d => setTooltip(prev => prev ? {
-        ...prev,
-        jishoLoading: false,
-        ...(isSingleKanji
-          ? { compounds: d.compounds ?? [] }
-          : {
-              reading: prev.reading || (d.found ? d.reading : ""),
-              jishoMeanings: d.found ? d.meanings : [],
-              jlpt: d.found ? d.jlpt : [],
-              isCommon: d.found ? d.is_common : false,
-            }),
-      } : prev))
-      .catch(() => setTooltip(prev => prev ? { ...prev, jishoLoading: false } : prev));
-  }, [userId]);
+  const handleWordClick = openLookup;
 
   const addListToDeck = async (text: string) => {
     const words = [...new Set(text.split("\n").map(w => w.trim()).filter(Boolean))];
@@ -416,7 +294,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
     setStarting(true);
     setPhase("loading");
     setError(null);
-    setTooltip(null);
+    closeLookup();
     incrementGrammarDailyCount();
     try {
       const [{ data: profileData }, { data: allPatterns }, { data: allScores }] = await Promise.all([
@@ -649,7 +527,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
           if (wrongItem) setWrong(nextWrong);
           const effectiveScore = score + bonusScore;
           if (bonusScore > 0) setScore(effectiveScore);
-          setTooltip(null);
+          closeLookup();
           if (isLast) {
             finishQuiz(effectiveScore, questions.length, nextWrong);
           } else {
@@ -864,88 +742,17 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
         </>
       )}
 
-      {/* ── Word tooltip ── */}
-      {tooltip && (
-        <>
-          <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setTooltip(null)} />
-          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl border-t border-slate-100 p-5"
-            style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
-            onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between gap-3 mb-3">
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <div className="text-2xl font-black text-slate-800">{tooltip.editWord}</div>
-                  {tooltip.jlpt && tooltip.jlpt.length > 0 && (
-                    <span className="bg-amber-100 text-amber-700 text-[9px] font-black px-1.5 py-0.5 rounded-full">{tooltip.jlpt[0].toUpperCase()}</span>
-                  )}
-                  {tooltip.isCommon && (
-                    <span className="bg-emerald-100 text-emerald-700 text-[9px] font-black px-1.5 py-0.5 rounded-full">common</span>
-                  )}
-                  <button onClick={() => speak(tooltip.editWord, "ja-JP")}
-                    className="flex items-center gap-1 text-[10px] font-black text-slate-400 hover:text-indigo-500 transition-colors px-1.5 py-0.5 rounded-lg hover:bg-indigo-50">
-                    <Volume2 size={11} /> Listen
-                  </button>
-                </div>
-                <div className="text-sm text-indigo-500 font-bold mt-0.5">{tooltip.reading}</div>
-                {tooltip.knownEnglish && (
-                  <div className="mt-1 inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full">
-                    ✓ in your deck
-                  </div>
-                )}
-              </div>
-              <button onClick={() => setTooltip(null)} className="text-slate-300 hover:text-slate-500 mt-1 shrink-0"><X size={16} /></button>
-            </div>
-
-            {tooltip.jishoLoading && (
-              <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-3">
-                <Loader2 size={11} className="animate-spin" /><span>Looking up…</span>
-              </div>
-            )}
-            {!tooltip.jishoLoading && tooltip.compounds && tooltip.compounds.length > 0 && (
-              <div className="mb-3 pb-3 border-b border-slate-100">
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Words using 「{tooltip.editWord}」</p>
-                <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                  {tooltip.compounds.map((c, i) => (
-                    <div key={i} className="flex items-center justify-between gap-2 py-1">
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm font-black text-slate-800">{c.word}</span>
-                        <span className="text-xs text-indigo-500 font-bold ml-1.5">{c.reading}</span>
-                        {c.jlpt?.[0] && <span className="ml-1.5 bg-amber-100 text-amber-700 text-[8px] font-black px-1 py-0.5 rounded-full">{c.jlpt[0].toUpperCase()}</span>}
-                        <p className="text-[10px] text-slate-500 truncate">{c.meaning}</p>
-                      </div>
-                      <button onClick={() => { if (!wordList.includes(c.word)) syncWordList([...wordList, c.word]); }}
-                        disabled={wordList.includes(c.word)}
-                        className={`shrink-0 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg transition-colors active:scale-95 ${wordList.includes(c.word) ? "bg-emerald-50 text-emerald-600 cursor-default" : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"}`}>
-                        {wordList.includes(c.word) ? "Added" : "+ Add"}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {!tooltip.jishoLoading && !tooltip.compounds?.length && tooltip.jishoMeanings && tooltip.jishoMeanings.length > 0 && (
-              <div className="mb-3 pb-3 border-b border-slate-100">
-                {tooltip.jishoMeanings.map((m, i) => (
-                  <div key={i} className="mb-1">
-                    {m.pos && <span className="text-[9px] text-slate-400 font-bold mr-1">{m.pos}</span>}
-                    <span className="text-xs text-slate-700">{m.definition}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Word to add</label>
-            <input type="text" value={tooltip.editWord}
-              onChange={(e) => setTooltip(prev => prev ? { ...prev, editWord: e.target.value } : prev)}
-              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
-              placeholder="e.g. 食べる" />
-            <button
-              onClick={() => { const word = tooltip.editWord.trim(); if (word && !wordList.includes(word)) syncWordList([...wordList, word]); setTooltip(null); }}
-              disabled={!tooltip.editWord.trim()}
-              className="mt-3 w-full flex items-center justify-center gap-1.5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40">
-              <List size={11} /> Add to List
-            </button>
-          </div>
-        </>
+      {/* ── Word lookup (shared with the Reader / Sensei chat) — adds to the word list ── */}
+      {lookup && (
+        <WordLookupSheet
+          lookup={lookup}
+          onClose={closeLookup}
+          onEditWord={setEditWord}
+          onAdd={(w) => { if (!wordList.includes(w)) syncWordList([...wordList, w]); }}
+          isAdded={(w) => wordList.includes(w)}
+          addLabel="Add to List"
+          addIcon={<List size={11} />}
+        />
       )}
 
       {/* ── Word list panel ── */}

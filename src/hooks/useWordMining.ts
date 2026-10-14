@@ -1,0 +1,171 @@
+"use client";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
+import { useAddWords } from "@/hooks/useAddWords";
+import { kanjiRe, getSegmenter, type WordStatus } from "@/components/TappableText";
+import { WEAK_THRESHOLD } from "@/hooks/useWordLookup";
+import type { ExtractedWord } from "@/lib/japaneseTokenizer";
+
+type ScoresJson = { jp_to_en?: { total?: number; percent?: number }; en_to_jp?: { total?: number; percent?: number } };
+
+/**
+ * Everything a "read real Japanese and mine words from it" screen needs (the Reader,
+ * the Watch view):
+ * - deck status per tapped word, for the amber (new) / rose (weak) highlights
+ * - the "Not in your deck" list — the server tokenizes the text into dictionary forms
+ *   (食べた → 食べる, no AI) and drops what's already in the deck; AI only runs when the
+ *   user batch-adds the ones they picked
+ * - adding words straight into the deck (useAddWords)
+ */
+export function useWordMining(userId: string) {
+  const [deckId, setDeckId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [blocklist, setBlocklist] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!userId) return;
+    Promise.all([
+      supabase.from("decks").select("id").eq("user_id", userId).eq("is_default", true).maybeSingle(),
+      supabase.from("profiles").select("is_admin, blocked_words").eq("id", userId).maybeSingle(),
+    ]).then(([deckRes, profileRes]) => {
+      setDeckId(deckRes.data?.id ?? null);
+      setIsAdmin(!!profileRes.data?.is_admin);
+      setBlocklist(profileRes.data?.blocked_words ?? []);
+    });
+  }, [userId]);
+
+  const { loading: addLoading, processWords } = useAddWords({
+    userId,
+    deckId: deckId ?? "",
+    isAdmin,
+    blocklist,
+  });
+  const [addedWords, setAddedWords] = useState<Set<string>>(new Set());
+
+  // ── Deck status for highlighting ──
+  const [wordStatus, setWordStatus] = useState<Map<string, { status: WordStatus; accuracy?: number }>>(new Map());
+  const getWordStatus = (word: string): WordStatus => wordStatus.get(word)?.status ?? "new";
+
+  const markKnown = (words: Iterable<string>) => {
+    const list = [...words];
+    setAddedWords((prev) => new Set([...prev, ...list]));
+    setWordStatus((prev) => {
+      const next = new Map(prev);
+      list.forEach((w) => next.set(w, { status: "known" }));
+      return next;
+    });
+  };
+
+  // Look up every kanji word in the text against the user's own deck (not just
+  // master_cards — a word can exist there without this user ever having added it),
+  // so new/weak words can be highlighted instead of treated the same as known ones.
+  const loadWordStatus = async (text: string) => {
+    const segmenter = getSegmenter();
+    if (!segmenter) return;
+    const words = [...new Set(
+      [...segmenter.segment(text)]
+        .filter((s) => s.isWordLike && kanjiRe.test(s.segment))
+        .map((s) => s.segment),
+    )];
+    if (words.length === 0) { setWordStatus(new Map()); return; }
+
+    const map = new Map<string, { status: WordStatus; accuracy?: number }>();
+    // Chunked so long texts (full video transcripts) don't blow past PostgREST's URL limit.
+    for (let i = 0; i < words.length; i += 100) {
+      const chunk = words.slice(i, i + 100);
+      const { data: cards } = await supabase.from("master_cards").select("id, japanese").in("japanese", chunk);
+      const cardIds = (cards ?? []).map((c) => c.id);
+      const { data: scores } = cardIds.length
+        ? await supabase.from("user_scores").select("card_id, scores_json").eq("user_id", userId).in("card_id", cardIds)
+        : { data: [] as { card_id: string; scores_json: ScoresJson }[] };
+      const scoreByCardId = new Map((scores ?? []).map((s) => [s.card_id, s.scores_json as ScoresJson]));
+
+      for (const word of chunk) {
+        const card = (cards ?? []).find((c) => c.japanese === word);
+        const s = card ? scoreByCardId.get(card.id) : undefined;
+        if (!s) { map.set(word, { status: "new" }); continue; }
+        const totalAttempts = (s.jp_to_en?.total || 0) + (s.en_to_jp?.total || 0);
+        const accuracy = Math.round(((s.jp_to_en?.percent || 0) + (s.en_to_jp?.percent || 0)) / 2);
+        map.set(word, { status: totalAttempts > 0 && accuracy < WEAK_THRESHOLD ? "weak" : "known", accuracy });
+      }
+    }
+    setWordStatus(map);
+  };
+
+  // ── "Not in your deck" list ──
+  const [newWords, setNewWords] = useState<ExtractedWord[]>([]);
+  const [selectedNew, setSelectedNew] = useState<Set<string>>(new Set());
+  const [newWordsError, setNewWordsError] = useState(false);
+  const [newWordsLoading, setNewWordsLoading] = useState(false);
+
+  const loadNewWords = async (text: string) => {
+    setNewWordsError(false);
+    setNewWordsLoading(true);
+    try {
+      const res = await authedFetch("/api/reader/words", { method: "POST", body: JSON.stringify({ text }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      // Already filtered against the deck server-side (across forms: 食べた/食べる, おいしい/美味しい).
+      const missing = ((data.words as ExtractedWord[]) ?? []).filter((w) => !blocklist.includes(w.word));
+      setNewWords(missing);
+      setSelectedNew(new Set(missing.map((w) => w.word)));
+    } catch {
+      setNewWords([]);
+      setNewWordsError(true);
+    } finally {
+      setNewWordsLoading(false);
+    }
+  };
+
+  const clearNewWords = () => {
+    setNewWords([]);
+    setSelectedNew(new Set());
+    setNewWordsError(false);
+  };
+
+  const toggleNewWord = (word: string) =>
+    setSelectedNew((prev) => {
+      const next = new Set(prev);
+      if (next.has(word)) next.delete(word); else next.add(word);
+      return next;
+    });
+
+  const toggleAllNewWords = () =>
+    setSelectedNew((prev) => (prev.size === newWords.length ? new Set() : new Set(newWords.map((w) => w.word))));
+
+  const addSelectedNewWords = async () => {
+    const words = newWords.filter((w) => selectedNew.has(w.word)).map((w) => w.word);
+    if (words.length === 0) return;
+    const added = await processWords(words);
+    if (added.size === 0) return;
+    setNewWords((prev) => prev.filter((w) => !added.has(w.word)));
+    setSelectedNew((prev) => new Set([...prev].filter((w) => !added.has(w))));
+    markKnown(added);
+  };
+
+  /** Add one word (from the lookup sheet) straight into the deck. */
+  const addWord = async (word: string) => {
+    await processWords([word]);
+    markKnown([word]);
+  };
+
+  return {
+    addLoading,
+    addedWords,
+    addWord,
+    getWordStatus,
+    loadWordStatus,
+    newWords,
+    selectedNew,
+    newWordsError,
+    newWordsLoading,
+    loadNewWords,
+    clearNewWords,
+    toggleNewWord,
+    toggleAllNewWords,
+    addSelectedNewWords,
+  };
+}
+
+export type WordMining = ReturnType<typeof useWordMining>;

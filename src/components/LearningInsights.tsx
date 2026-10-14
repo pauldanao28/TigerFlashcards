@@ -14,7 +14,7 @@ interface Insights {
 
 const JLPT_COLOR: Record<string, string> = {
   N5: "bg-emerald-400",
-  N4: "bg-teal-400",
+  N4: "bg-sky-400",
   N3: "bg-amber-400",
   N2: "bg-orange-400",
   N1: "bg-rose-400",

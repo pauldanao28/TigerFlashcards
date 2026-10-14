@@ -13,7 +13,7 @@ type LevelSlug = (typeof JLPT_LEVELS)[number];
 
 const LEVEL_META: Record<LevelSlug, { label: string; color: string; badgeColor: string; barColor: string }> = {
   n5: { label: "N5", color: "text-emerald-600", badgeColor: "bg-emerald-100 text-emerald-700", barColor: "bg-emerald-500" },
-  n4: { label: "N4", color: "text-teal-600",   badgeColor: "bg-teal-100 text-teal-700",     barColor: "bg-teal-500"    },
+  n4: { label: "N4", color: "text-sky-600",   badgeColor: "bg-sky-100 text-sky-700",     barColor: "bg-sky-500"    },
   n3: { label: "N3", color: "text-amber-600",   badgeColor: "bg-amber-100 text-amber-700",   barColor: "bg-amber-500"   },
   n2: { label: "N2", color: "text-orange-600",  badgeColor: "bg-orange-100 text-orange-700", barColor: "bg-orange-500"  },
   n1: { label: "N1", color: "text-rose-600",    badgeColor: "bg-rose-100 text-rose-700",     barColor: "bg-rose-500"    },

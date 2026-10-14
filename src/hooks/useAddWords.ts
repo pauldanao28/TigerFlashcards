@@ -80,6 +80,8 @@ export function useAddWords({
     return new Set((data ?? []).map((l) => l.card_id));
   };
 
+  // Batch input is one word per line — extracting vocabulary from lyrics/stories is
+  // the Reader's job, so lines are never re-segmented here (that chopped 食べる into 食|べる).
   const processWords = async (inputList: string[]): Promise<Set<string>> => {
     const succeededWords = new Set<string>();
     if (!userId || !deckId) {
@@ -102,16 +104,9 @@ export function useAddWords({
     } else if (rawInput.includes(",") || rawInput.includes("-")) {
       wordsToProcess = inputList.map((line) => line.split(/[,-]/)[0].trim());
     } else {
-      const segmenter = new Intl.Segmenter("ja-JP", { granularity: "word" });
-      const segments = segmenter.segment(rawInput);
-      wordsToProcess = Array.from(segments)
-        .map((s) => s.segment.trim())
-        .filter((w) => {
-          const isJapanese = /[぀-ヿ一-龯]/.test(w);
-          const isNotBlocked = !blocklist.includes(w);
-          const isMeaningful = w.length > 1 || /[一-龯]/.test(w);
-          return isJapanese && isNotBlocked && isMeaningful;
-        });
+      wordsToProcess = inputList
+        .map((w) => w.normalize("NFKC").trim())
+        .filter((w) => /[぀-ヿ一-龯]/.test(w) && !blocklist.includes(w));
     }
 
     const uniqueInputWords = [...new Set(wordsToProcess)];

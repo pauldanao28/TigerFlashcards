@@ -31,28 +31,28 @@ interface ProfileScores {
 // Solid = mastered portion, light = added-but-not-yet-mastered portion — same hue per level.
 const JLPT_BAR_COLOR: Record<JlptLevel, string> = {
   N5: "bg-emerald-500",
-  N4: "bg-teal-500",
+  N4: "bg-sky-500",
   N3: "bg-amber-500",
   N2: "bg-orange-500",
   N1: "bg-rose-500",
 };
 const JLPT_BAR_LIGHT_COLOR: Record<JlptLevel, string> = {
   N5: "bg-emerald-200",
-  N4: "bg-teal-200",
+  N4: "bg-sky-200",
   N3: "bg-amber-200",
   N2: "bg-orange-200",
   N1: "bg-rose-200",
 };
 const JLPT_BADGE_COLOR: Record<JlptLevel, string> = {
   N5: "bg-emerald-100 text-emerald-700 border-emerald-200",
-  N4: "bg-teal-100 text-teal-700 border-teal-200",
+  N4: "bg-sky-100 text-sky-700 border-sky-200",
   N3: "bg-amber-100 text-amber-700 border-amber-200",
   N2: "bg-orange-100 text-orange-700 border-orange-200",
   N1: "bg-rose-100 text-rose-700 border-rose-200",
 };
 const JLPT_TEXT_COLOR: Record<JlptLevel, string> = {
   N5: "text-emerald-700",
-  N4: "text-teal-700",
+  N4: "text-sky-700",
   N3: "text-amber-700",
   N2: "text-orange-700",
   N1: "text-rose-700",
@@ -128,8 +128,8 @@ function ScoreTile({
 const _dashboardCache = new Map<string, ProfileScores>();
 
 const OVERALL_SEGMENTS = [
-  { label: "N5", color: "bg-cyan-400"    },
-  { label: "N4", color: "bg-emerald-500" },
+  { label: "N5", color: "bg-emerald-400" },
+  { label: "N4", color: "bg-sky-400"     },
   { label: "N3", color: "bg-amber-500"   },
   { label: "N2", color: "bg-orange-500"  },
   { label: "N1", color: "bg-red-500"     },

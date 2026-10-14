@@ -16,7 +16,7 @@ const KANJI_RE = /[一-鿿]/;
 
 const JLPT_BADGE_COLOR: Record<string, string> = {
   N5: "bg-emerald-100 text-emerald-700 border-emerald-200",
-  N4: "bg-teal-100 text-teal-700 border-teal-200",
+  N4: "bg-sky-100 text-sky-700 border-sky-200",
   N3: "bg-amber-100 text-amber-700 border-amber-200",
   N2: "bg-orange-100 text-orange-700 border-orange-200",
   N1: "bg-rose-100 text-rose-700 border-rose-200",

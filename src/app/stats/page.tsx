@@ -684,7 +684,7 @@ export default function StatsPage() {
   const getJlptColor = (level: string) => {
     switch (level) {
       case "N5": return "bg-emerald-100 text-emerald-700 border-emerald-200";
-      case "N4": return "bg-teal-100 text-teal-700 border-teal-200";
+      case "N4": return "bg-sky-100 text-sky-700 border-sky-200";
       case "N3": return "bg-amber-100 text-amber-700 border-amber-200";
       case "N2": return "bg-orange-100 text-orange-700 border-orange-200";
       case "N1": return "bg-rose-100 text-rose-700 border-rose-200";

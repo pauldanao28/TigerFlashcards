@@ -11,7 +11,7 @@ const t = translations.en;
 const JLPT_LEVELS = ["N5", "N4", "N3", "N2", "N1"] as const;
 const JLPT_BADGE_COLOR: Record<(typeof JLPT_LEVELS)[number], string> = {
   N5: "bg-emerald-100 text-emerald-700 border-emerald-200",
-  N4: "bg-teal-100 text-teal-700 border-teal-200",
+  N4: "bg-sky-100 text-sky-700 border-sky-200",
   N3: "bg-amber-100 text-amber-700 border-amber-200",
   N2: "bg-orange-100 text-orange-700 border-orange-200",
   N1: "bg-rose-100 text-rose-700 border-rose-200",
@@ -231,21 +231,18 @@ export default function AddWordsSheet({
               )}
 
               {addSheetTab === "paste" && (() => {
-                const lines = batchInput.trim().split("\n").filter(Boolean);
-                const hasJp = /[぀-ヿ一-龯]/.test(batchInput);
-                const avgLen = batchInput.length / Math.max(lines.length, 1);
+                const lines = batchInput.split("\n").map((l) => l.trim()).filter(Boolean);
+                const looksLikeText = lines.some((l) => l.length > 15 || /[。、！？]/.test(l));
                 let hint: { label: string; emoji: string } | null = null;
-                if (batchInput.trim()) {
-                  if (lines.length === 1) hint = { emoji: "🔤", label: "Single word" };
-                  else if (hasJp && avgLen > 15) hint = { emoji: "🎵", label: "Japanese text — AI extracts vocabulary" };
-                  else if (hasJp) hint = { emoji: "📋", label: "Japanese word list" };
-                  else if (avgLen > 20) hint = { emoji: "📖", label: "English text (Japanese input works best)" };
-                  else hint = { emoji: "📋", label: "English word list — one per line" };
+                if (lines.length > 0) {
+                  hint = looksLikeText
+                    ? { emoji: "📖", label: "Looks like sentences — use the Reader" }
+                    : { emoji: "📋", label: `${lines.length} word${lines.length !== 1 ? "s" : ""}` };
                 }
                 return (
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Paste lyrics, a story, or a word list</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">One word per line</p>
                       {hint && (
                         <span className="text-[10px] font-black bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded-full">
                           {hint.emoji} {hint.label}
@@ -257,20 +254,23 @@ export default function AddWordsSheet({
                       onChange={(e) => setBatchInput(e.target.value)}
                       rows={9}
                       className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none font-mono leading-relaxed"
-                      placeholder={"食べる\n勉強する\n\nor paste a full song / article in Japanese…"}
+                      placeholder={"食べる\n勉強する\n彼女\n…"}
                     />
                     <button
                       onClick={async () => {
                         onClose();
                         setBatchProcessing(true);
-                        try { await processWords([batchInput]); }
+                        try { await processWords(lines); }
                         finally { setBatchProcessing(false); }
                       }}
                       disabled={loading || !batchInput.trim()}
                       className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
                     >
-                      {loading ? <><Loader2 size={16} className="animate-spin" /> Processing…</> : <><Plus size={16} /> Extract &amp; Add</>}
+                      {loading ? <><Loader2 size={16} className="animate-spin" /> Processing…</> : <><Plus size={16} /> Add {lines.length || ""} to Deck</>}
                     </button>
+                    <p className="text-center text-[10px] text-slate-400 font-bold">
+                      Have lyrics or a story? Paste it in Quizzes → Reader to pick out the words you don&apos;t have yet.
+                    </p>
                   </div>
                 );
               })()}

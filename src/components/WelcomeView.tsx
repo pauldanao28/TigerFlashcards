@@ -423,7 +423,7 @@ export default function WelcomeView() {
                 <div className="space-y-3.5">
                   {([
                     { level: "N5", mastered: 270, total: 460, floor: 800, badge: "bg-emerald-100 text-emerald-700 border-emerald-200", fill: "bg-emerald-500", light: "bg-emerald-200", delay: 0.10 },
-                    { level: "N4", mastered: 8,   total: 60,  floor: 600, badge: "bg-teal-100 text-teal-700 border-teal-200",           fill: "bg-teal-500",   light: "bg-teal-200",   delay: 0.20 },
+                    { level: "N4", mastered: 8,   total: 60,  floor: 600, badge: "bg-sky-100 text-sky-700 border-sky-200",           fill: "bg-sky-500",   light: "bg-sky-200",   delay: 0.20 },
                     { level: "N3", mastered: 0,   total: 0,   floor: 700, badge: "bg-amber-100 text-amber-700 border-amber-200",         fill: "bg-amber-500",  light: "bg-amber-200",  delay: 0.30 },
                   ] as const).map(({ level, mastered, total, floor, badge, fill, light, delay }) => {
                     const masteredPct = Math.round((mastered / floor) * 100);
@@ -546,7 +546,7 @@ export default function WelcomeView() {
               <span className="shrink-0 px-4 py-2 bg-slate-900 text-white rounded-full text-[10px] font-black uppercase tracking-widest">ALL</span>
               {[
                 { level: "N5", cls: "bg-emerald-100 text-emerald-700 border border-emerald-200" },
-                { level: "N4", cls: "bg-teal-100 text-teal-700 border border-teal-200" },
+                { level: "N4", cls: "bg-sky-100 text-sky-700 border border-sky-200" },
                 { level: "N3", cls: "bg-amber-100 text-amber-700 border border-amber-200" },
                 { level: "N2", cls: "bg-orange-100 text-orange-700 border border-orange-200" },
                 { level: "N1", cls: "bg-rose-100 text-rose-700 border border-rose-200" },
@@ -559,7 +559,7 @@ export default function WelcomeView() {
             <div className="px-4 pb-5 space-y-3.5">
               {[
                 { level: "N5", cards: 200, pct: 15, badge: "bg-emerald-100 text-emerald-700 border-emerald-200", fill: "bg-emerald-500", delay: 0.05 },
-                { level: "N4", cards: 270, pct: 20, badge: "bg-teal-100 text-teal-700 border-teal-200",          fill: "bg-teal-500",   delay: 0.12 },
+                { level: "N4", cards: 270, pct: 20, badge: "bg-sky-100 text-sky-700 border-sky-200",          fill: "bg-sky-500",   delay: 0.12 },
                 { level: "N3", cards: 408, pct: 30, badge: "bg-amber-100 text-amber-700 border-amber-200",       fill: "bg-amber-500",  delay: 0.19 },
                 { level: "N2", cards: 289, pct: 21, badge: "bg-orange-100 text-orange-700 border-orange-200",    fill: "bg-orange-500", delay: 0.26 },
                 { level: "N1", cards: 178, pct: 13, badge: "bg-rose-100 text-rose-700 border-rose-200",          fill: "bg-rose-500",   delay: 0.33 },
