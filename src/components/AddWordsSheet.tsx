@@ -184,18 +184,30 @@ export default function AddWordsSheet({
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Japanese or English word</p>
                     <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && input.trim()) {
-                            processWords(input.split("\n").filter((l) => l.trim()));
-                          }
-                        }}
-                        placeholder="食べる / taberu / to eat…"
-                        className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3.5 text-base font-bold outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
-                      />
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          value={input}
+                          onChange={(e) => setInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && input.trim()) {
+                              processWords(input.split("\n").filter((l) => l.trim()));
+                            }
+                          }}
+                          placeholder="食べる / taberu / to eat…"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-4 pr-10 py-3.5 text-base font-bold outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+                        />
+                        {input && (
+                          <button
+                            type="button"
+                            onClick={() => setInput("")}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full text-slate-300 hover:bg-slate-200 hover:text-slate-500 active:scale-90 transition-all"
+                            title="Clear"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <button
