@@ -1043,6 +1043,18 @@ export default function StudyView() {
     }
     return out;
   }, [cards, language]);
+  // Mastery per part of speech — same convention: independent of the active filters,
+  // since it's describing the deck, not what's about to be studied.
+  const posMasteryAll = useMemo(() => {
+    const mode = language === "jp" ? "jp_to_en" : "en_to_jp";
+    const out: Record<string, number> = {};
+    for (const pos of ALLOWED_PARTS_OF_SPEECH) {
+      const posCards = cards.filter((c) => (c.partOfSpeech ?? "noun") === pos);
+      const known = posCards.filter((c) => (c.scores?.[mode]?.pass ?? 0) >= MASTERY_MIN_TRIES && (c.scores?.[mode]?.percent ?? 0) >= 70).length;
+      out[pos] = posCards.length > 0 ? Math.round((known / posCards.length) * 100) : 0;
+    }
+    return out;
+  }, [cards, language]);
   const dominantJlptLevel = useMemo(() => {
     const levels = (["N5", "N4", "N3", "N2", "N1"] as const);
     return levels.reduce((best, level) =>
@@ -2224,12 +2236,13 @@ export default function StudyView() {
               <div className="h-px bg-slate-100 -mx-6 mb-4" />
               <p className="text-slate-800 font-black text-sm uppercase tracking-tight mb-1.5">Part of Speech</p>
               <p className="text-[10px] font-bold text-slate-400 mb-3 leading-relaxed">
-                Narrow it further — pick as many as you like.
+                Narrow it further — pick as many as you like. Each pill fills left to right by how well you&apos;ve mastered that tag.
               </p>
               <div className="flex gap-2 flex-wrap">
                 {(["All", ...ALLOWED_PARTS_OF_SPEECH] as const).map((pos) => {
                   const isAll = pos === "All";
                   const isActive = isAll ? selectedPos.length === 0 : posFilters.includes(pos);
+                  const mastery = isAll ? 0 : posMasteryAll[pos];
                   return (
                     <button
                       key={pos}
@@ -2247,13 +2260,22 @@ export default function StudyView() {
                         setJlptFilterToast(next.length === 0 ? "Studying all parts of speech" : `Now studying: ${next.join(", ")}`);
                         setTimeout(() => setJlptFilterToast(null), 2200);
                       }}
-                      className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
-                        isActive
-                          ? "bg-indigo-600 text-white border-transparent"
-                          : "bg-slate-50 text-slate-500 border-slate-200"
+                      className={`relative overflow-hidden px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                        isAll
+                          ? isActive
+                            ? "bg-slate-800 text-white border-slate-800"
+                            : "bg-slate-50 text-slate-500 border-slate-200"
+                          : `bg-slate-50 text-slate-600 ${isActive ? "border-indigo-600 ring-2 ring-indigo-600 ring-offset-1" : "border-slate-200"}`
                       }`}
                     >
-                      {pos}
+                      {!isAll && (
+                        <span
+                          aria-hidden
+                          className="absolute inset-y-0 left-0 bg-indigo-200"
+                          style={{ width: `${mastery}%` }}
+                        />
+                      )}
+                      <span className="relative">{pos}{!isAll ? ` · ${mastery}%` : ""}</span>
                     </button>
                   );
                 })}
