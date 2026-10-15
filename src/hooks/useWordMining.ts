@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useAddWords, type AddedWordSummary } from "@/hooks/useAddWords";
@@ -116,10 +116,20 @@ export function useWordMining(userId: string) {
   };
 
   // ── "Not in your deck" list ──
+  // `newWords` is the server-tokenized auto-extract from the current clip/passage —
+  // loadNewWords() replaces it wholesale every time the text changes. `manualWords` is
+  // words queued one at a time from the lookup sheet; kept separate so a clip-range
+  // edit (which re-tokenizes and overwrites `newWords`) can never silently drop one.
   const [newWords, setNewWords] = useState<ExtractedWord[]>([]);
+  const [manualWords, setManualWords] = useState<ExtractedWord[]>([]);
   const [selectedNew, setSelectedNew] = useState<Set<string>>(new Set());
   const [newWordsError, setNewWordsError] = useState(false);
   const [newWordsLoading, setNewWordsLoading] = useState(false);
+
+  const allNewWords = useMemo(() => {
+    const seen = new Set(newWords.map((w) => w.word));
+    return [...newWords, ...manualWords.filter((w) => !seen.has(w.word))];
+  }, [newWords, manualWords]);
 
   const [kanjiOnly, setKanjiOnly] = useState(false);
   useEffect(() => { setKanjiOnly(loadKanjiOnly()); }, []);
@@ -130,7 +140,7 @@ export function useWordMining(userId: string) {
     });
 
   // What the list shows (and what "Select all" / "Add" act on) after the filter.
-  const visibleNewWords = kanjiOnly ? newWords.filter((w) => kanjiRe.test(w.word)) : newWords;
+  const visibleNewWords = kanjiOnly ? allNewWords.filter((w) => kanjiRe.test(w.word)) : allNewWords;
   const visibleSelectedCount = visibleNewWords.filter((w) => selectedNew.has(w.word)).length;
 
   const lastTextRef = useRef("");
@@ -157,6 +167,7 @@ export function useWordMining(userId: string) {
 
   const clearNewWords = () => {
     setNewWords([]);
+    setManualWords([]);
     setSelectedNew(new Set());
     setNewWordsError(false);
   };
@@ -182,6 +193,7 @@ export function useWordMining(userId: string) {
     const added = await processWords(words);
     if (added.size === 0) return;
     setNewWords((prev) => prev.filter((w) => !added.has(w.word)));
+    setManualWords((prev) => prev.filter((w) => !added.has(w.word)));
     setSelectedNew((prev) => new Set([...prev].filter((w) => !added.has(w))));
     markKnown(added);
   };
@@ -193,10 +205,12 @@ export function useWordMining(userId: string) {
   };
 
   /** Queue one word (from the lookup sheet) into the "Not in your deck" list instead of
-   * adding it straight away — same batch-review-then-add flow as the auto-extracted list. */
+   * adding it straight away — same batch-review-then-add flow as the auto-extracted list.
+   * Kept in `manualWords`, not `newWords`, so a later clip/passage re-tokenize (which
+   * replaces `newWords` wholesale) can never silently drop it. */
   const queueWord = (word: string, reading = "") => {
-    if (newWords.some((w) => w.word === word) || addedWords.has(word)) return;
-    setNewWords((prev) => [...prev, { word, reading, pos: "" }]);
+    if (allNewWords.some((w) => w.word === word) || addedWords.has(word)) return;
+    setManualWords((prev) => [...prev, { word, reading, pos: "" }]);
     setSelectedNew((prev) => new Set(prev).add(word));
   };
 
@@ -223,7 +237,7 @@ export function useWordMining(userId: string) {
     queueWord,
     getWordStatus,
     loadWordStatus,
-    newWords,
+    newWords: allNewWords,
     visibleNewWords,
     visibleSelectedCount,
     kanjiOnly,
