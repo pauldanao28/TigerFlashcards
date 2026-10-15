@@ -4,8 +4,10 @@
 export const AI_DAILY_LIMITS = {
   generate: 150,         // words card-generated per day
   chat: 50,               // sensei messages per day
-  tts: 15,                // Gemini voice plays per day (chat replies + listening quiz audio) — a free taste; browser voice fills in after this
-  tts_preview: 30,        // voice-picker "preview" samples per day — kept separate so browsing voices never eats the tts tease
+  tts: 0,                 // Gemini voice plays per day (chat replies + listening quiz audio) —
+                          // the priciest call in the app; free tier always falls back to the
+                          // browser's own speech synthesis instead. Premium-only for now.
+  tts_preview: 0,         // voice-picker "preview" samples per day — same gate as tts
   quiz_grammar: 8,       // grammar quiz rounds per day
   quiz_sentences: 8,     // reading quiz rounds per day
   quiz_listening: 8,     // listening quiz rounds per day
