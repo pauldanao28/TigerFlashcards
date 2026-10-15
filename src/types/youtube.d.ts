@@ -9,6 +9,7 @@ declare namespace YT {
     getDuration(): number;
     getPlayerState(): number;
     setPlaybackRate(rate: number): void;
+    getVideoData?(): { title?: string; author?: string; video_id?: string };
     destroy(): void;
   }
   interface PlayerEvent { target: Player }

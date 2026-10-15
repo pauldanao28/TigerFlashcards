@@ -1,11 +1,13 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, MonitorPlay, Play, Plus, Repeat, RotateCcw, Sparkles, Upload, X } from "lucide-react";
+import { ChevronLeft, MonitorPlay, Play, Plus, Repeat, RotateCcw, Sparkles, Trash2, Upload, X } from "lucide-react";
 import TappableText from "@/components/TappableText";
 import NewWordsPanel from "@/components/NewWordsPanel";
 import LineStudyBar, { type StudyRate } from "@/components/LineStudyBar";
 import LineExplainSheet from "@/components/LineExplainSheet";
 import { useLineExplain } from "@/hooks/useLineExplain";
+import { useAppAlert } from "@/context/AlertContext";
+import { deleteSavedVideo, getSavedVideo, listSavedVideos, saveVideo, thumbnailUrl, updateVideo, type SavedVideo } from "@/lib/watchVideos";
 import AddedWordsSummary from "@/components/AddedWordsSummary";
 import WordLookupSheet from "@/components/WordLookupSheet";
 import { useWordLookup } from "@/hooks/useWordLookup";
@@ -172,23 +174,109 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
   };
 
   // ── Start ── (the transcript is optional — without one it's just the player + clip controls)
-  const handleStart = () => {
+  // Takes the values explicitly so a saved video can start in the same tick its fields are set.
+  const startWith = (url: string, transcript: string, startField: string) => {
     setInputError(null);
-    const parsedUrl = parseYouTubeUrl(urlInput);
+    const parsedUrl = parseYouTubeUrl(url);
     if (!parsedUrl) { setInputError("Paste a YouTube link, e.g. https://www.youtube.com/watch?v=…"); return; }
-    if (transcriptInput.trim()) {
-      if (!applyTranscript(transcriptInput)) { setInputError(TRANSCRIPT_ERROR); return; }
+    if (transcript.trim()) {
+      if (!applyTranscript(transcript)) { setInputError(TRANSCRIPT_ERROR); return; }
     } else {
       setLines([]);
     }
-    if (parsedUrl.start !== null && !startInput) setStartInput(formatTime(parsedUrl.start));
+    if (parsedUrl.start !== null && !startField) setStartInput(formatTime(parsedUrl.start));
     autoPlayRef.current = true;
+    setVideoTitle(null);
     setVideoId(parsedUrl.id);
     setPlayerError(null);
     setCurrentTime(0);
     setTab("captions");
     setPhase("watching");
   };
+  const handleStart = () => {
+    resumeRef.current = null;
+    startWith(urlInput, transcriptInput, startInput);
+  };
+
+  // ── Saved videos (watch_videos) — synced across devices, with resume ──
+  const { showConfirm } = useAppAlert();
+  const [savedVideos, setSavedVideos] = useState<Omit<SavedVideo, "transcript">[]>([]);
+  const [showAllSaved, setShowAllSaved] = useState(false);
+  const [openingSaved, setOpeningSaved] = useState<string | null>(null);
+  const [videoTitle, setVideoTitle] = useState<string | null>(null);
+  const savedIdRef = useRef<string | null>(null);
+  const resumeRef = useRef<number | null>(null); // seek here once the player is ready
+
+  // (Re)load the list whenever the start screen shows. If the table isn't there yet
+  // (migration not applied) the list just stays empty.
+  useEffect(() => {
+    if (phase !== "input") return;
+    listSavedVideos(userId).then(setSavedVideos).catch(() => setSavedVideos([]));
+  }, [phase, userId]);
+
+  const openSaved = async (id: string) => {
+    setOpeningSaved(id);
+    try {
+      const v = await getSavedVideo(id);
+      if (!v) return;
+      setUrlInput(v.url);
+      setTranscriptInput(v.transcript);
+      setStartInput(v.start_input);
+      setEndInput(v.end_input);
+      setEndMode(v.end_mode);
+      setLengthInput(v.length_input);
+      setClipManual(v.clip_manual);
+      resumeRef.current = v.last_position;
+      startWith(v.url, v.transcript, v.start_input);
+    } catch {
+      setInputError("Couldn't open that video — try again.");
+    } finally {
+      setOpeningSaved(null);
+    }
+  };
+
+  const removeSaved = async (v: Omit<SavedVideo, "transcript">) => {
+    const ok = await showConfirm(`Remove “${v.title ?? "this video"}” and its transcript from My videos?`, { confirmLabel: "Remove", danger: true });
+    if (!ok) return;
+    try {
+      await deleteSavedVideo(v.id);
+      setSavedVideos((prev) => prev.filter((x) => x.id !== v.id));
+    } catch {
+      setInputError("Couldn't remove that video — try again.");
+    }
+  };
+
+  // Save (upsert) whenever what defines the session changes — debounced.
+  useEffect(() => {
+    if (phase !== "watching" || !videoId) return;
+    const t = setTimeout(async () => {
+      const id = await saveVideo(userId, videoId, {
+        url: urlInput,
+        transcript: transcriptInput,
+        line_count: lines.length,
+        start_input: startInput,
+        end_input: endInput,
+        end_mode: endMode,
+        length_input: lengthInput,
+        clip_manual: clipManual,
+        ...(videoTitle ? { title: videoTitle } : {}),
+      });
+      if (id) savedIdRef.current = id;
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [phase, userId, videoId, urlInput, transcriptInput, lines.length, startInput, endInput, endMode, lengthInput, clipManual, videoTitle]);
+
+  // Resume position: every 15s while playing, plus on pause and when leaving.
+  const savePosition = () => {
+    const p = playerRef.current;
+    if (!savedIdRef.current || !p || typeof p.getCurrentTime !== "function") return;
+    updateVideo(savedIdRef.current, { last_position: p.getCurrentTime() });
+  };
+  useEffect(() => {
+    if (phase !== "watching") return;
+    const id = setInterval(() => { if (playerRef.current?.getPlayerState?.() === PLAYING) savePosition(); }, 15000);
+    return () => clearInterval(id);
+  }, [phase]);
 
   // Transcript pasted after starting (from the captions side)
   const [lateTranscriptError, setLateTranscriptError] = useState<string | null>(null);
@@ -253,11 +341,20 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
         events: {
           onReady: (e) => {
             try { e.target.setPlaybackRate(rate); } catch { /* unsupported rate */ }
+            const title = e.target.getVideoData?.().title;
+            if (title) setVideoTitle(title);
+            // Resume a saved video where it was left, if that's still inside the clip.
+            const resume = resumeRef.current;
+            resumeRef.current = null;
+            if (resume !== null && resume > start + 1 && (end === null || resume < end - 1)) e.target.seekTo(resume, true);
             if (!autoPlayRef.current) return;
             autoPlayRef.current = false;
             e.target.playVideo(); // browsers may still block this — the Play button covers that
           },
-          onStateChange: (e) => setPlaying(e.data === PLAYING),
+          onStateChange: (e) => {
+            setPlaying(e.data === PLAYING);
+            if (e.data === 2) savePosition(); // paused
+          },
           onError: (e) => setPlayerError(PLAYER_ERRORS[e.data] ?? "This video can't be played."),
         },
       });
@@ -379,6 +476,8 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
   };
 
   const backToInput = () => {
+    savePosition();
+    savedIdRef.current = null;
     closeLookup();
     mining.clearNewWords();
     setPhase("input");
@@ -445,7 +544,7 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white shrink-0">
         <button
-          onClick={phase === "watching" ? backToInput : onClose}
+          onClick={phase === "watching" ? backToInput : () => { savePosition(); onClose(); }}
           className="flex items-center gap-0.5 text-slate-400 hover:text-slate-700 active:scale-90 transition-all"
         >
           <ChevronLeft size={14} />
@@ -456,14 +555,64 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
           <span className="font-black text-[11px] uppercase tracking-widest text-slate-700">Watch</span>
         </div>
         <div className="w-[92px] flex justify-end">
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 text-slate-400 active:scale-90"><X size={16} /></button>
+          <button onClick={() => { savePosition(); onClose(); }} className="p-2 rounded-full hover:bg-slate-100 text-slate-400 active:scale-90"><X size={16} /></button>
         </div>
       </div>
 
       {/* INPUT PHASE */}
       {phase === "input" && (
         <div className="flex-1 overflow-y-auto px-5 py-6 max-w-xl mx-auto w-full">
-          <h2 className="text-xl font-black text-slate-900 mb-1">Watch YouTube in Japanese</h2>
+          {savedVideos.length > 0 && (
+            <div className="mb-6">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">My videos</p>
+              <div className="flex flex-col gap-2">
+                {(showAllSaved ? savedVideos : savedVideos.slice(0, 4)).map((v) => {
+                  const clip = v.start_input || v.end_input || v.length_input
+                    ? `${v.start_input || "0:00"} → ${v.end_mode === "length" && v.length_input ? `+${v.length_input} min` : v.end_input || "end"}`
+                    : null;
+                  return (
+                    <div key={v.id} className="flex items-center gap-3 bg-white border border-slate-100 rounded-2xl p-2 shadow-sm">
+                      <button
+                        onClick={() => openSaved(v.id)}
+                        disabled={openingSaved !== null}
+                        className="flex-1 min-w-0 flex items-center gap-3 text-left active:scale-[0.99] transition-transform disabled:opacity-60"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={thumbnailUrl(v.video_id)} alt="" className="w-24 shrink-0 aspect-video rounded-xl object-cover bg-slate-100" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-black text-slate-800 leading-snug line-clamp-2">{v.title ?? "YouTube video"}</p>
+                          <p className="text-[10px] font-bold text-slate-400 mt-0.5">
+                            {openingSaved === v.id ? "Opening…" : [
+                              v.line_count > 0 ? `${v.line_count} lines` : "No captions",
+                              clip,
+                              v.last_position ? `resume ${formatTime(v.last_position)}` : null,
+                            ].filter(Boolean).join(" · ")}
+                          </p>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => removeSaved(v)}
+                        aria-label="Remove video"
+                        className="shrink-0 p-2 rounded-xl text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              {savedVideos.length > 4 && (
+                <button
+                  onClick={() => setShowAllSaved((v) => !v)}
+                  className="mt-2 text-[10px] font-black uppercase tracking-widest text-indigo-500"
+                >
+                  {showAllSaved ? "Show fewer" : `Show all ${savedVideos.length}`}
+                </button>
+              )}
+            </div>
+          )}
+
+          <h2 className="text-xl font-black text-slate-900 mb-1">{savedVideos.length > 0 ? "Add a video" : "Watch YouTube in Japanese"}</h2>
           <p className="text-slate-500 text-sm font-medium mb-4 leading-relaxed">
             Pick the part you want to watch. Add the transcript and captions play beside the video — tap any word to look it up, and pick out the ones you don&apos;t have yet.
           </p>
