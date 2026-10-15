@@ -1,27 +1,14 @@
 "use client";
 import { useRef } from "react";
+import { kanjiRe, splitTappable, stripFurigana } from "@/lib/japaneseText";
 
-// Shared tap-to-lookup text used by the quizzes (Grammar / Reading / Listening) and the
-// Reader: kanji words get a dotted underline, and tapping one calls onWordTap so the
-// caller can open its Jisho lookup. Text is never shown with inline furigana — the
+// Shared tap-to-lookup text used by the quizzes (Grammar / Reading / Listening), the
+// Reader and Watch: kanji words — with their okurigana, like the Sensei chat (難しい,
+// 食べて), see splitTappable — get a dotted underline, and tapping one calls onWordTap so
+// the caller can open its Jisho lookup. Text is never shown with inline furigana — the
 // reading comes from the lookup.
 
-export const kanjiRe = /[一-龯㐀-䶿々〻]/;
-
-// Lazy-init: avoid module-level Intl.Segmenter which crashes during Next.js SSR
-let _jaSegmenter: Intl.Segmenter | null = null;
-export function getSegmenter(): Intl.Segmenter | null {
-  if (typeof window === "undefined") return null;
-  if (!_jaSegmenter) {
-    try { _jaSegmenter = new Intl.Segmenter("ja", { granularity: "word" }); } catch { return null; }
-  }
-  return _jaSegmenter;
-}
-
-// Drops inline furigana like 漢字(かんじ) so only the kanji is shown and segmented.
-export function stripFurigana(text: string): string {
-  return text.replace(/([一-龯々〻㐀-䶿][一-龯々〻㐀-䶿ぁ-ん]*)[（(]([ぁ-んァ-ンっーゃゅょ・]+)[）)]/g, "$1");
-}
+export { kanjiRe, getSegmenter, stripFurigana } from "@/lib/japaneseText";
 
 export type WordTapHandler = (word: string, reading: string, e: React.MouseEvent | React.TouchEvent) => void;
 
@@ -58,14 +45,12 @@ export default function TappableText({
   getStatus?: (word: string) => WordStatus;
 }) {
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-  const segmenter = getSegmenter();
-  const clean = stripFurigana(text);
-  const subSegs = segmenter ? [...segmenter.segment(clean)] : [{ segment: clean, isWordLike: false }];
+  const pieces = splitTappable(stripFurigana(text));
   return (
     <>
-      {subSegs.map((sub, i) => {
-        if (sub.isWordLike && kanjiRe.test(sub.segment)) {
-          const word = sub.segment;
+      {pieces.map((piece, i) => {
+        if (piece.word) {
+          const word = piece.text;
           const status = getStatus?.(word);
           return (
             <span
@@ -90,7 +75,7 @@ export default function TappableText({
             </span>
           );
         }
-        return <span key={`${keyPrefix}-${i}`}>{sub.segment}</span>;
+        return <span key={`${keyPrefix}-${i}`}>{piece.text}</span>;
       })}
     </>
   );

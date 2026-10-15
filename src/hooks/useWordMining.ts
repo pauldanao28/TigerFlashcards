@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useAddWords, type AddedWordSummary } from "@/hooks/useAddWords";
-import { kanjiRe, getSegmenter, type WordStatus } from "@/components/TappableText";
+import type { WordStatus } from "@/components/TappableText";
+import { kanjiRe, splitTappable, stripFurigana } from "@/lib/japaneseText";
 import { WEAK_THRESHOLD } from "@/hooks/useWordLookup";
 import type { ExtractedWord } from "@/lib/japaneseTokenizer";
 
@@ -76,13 +77,8 @@ export function useWordMining(userId: string) {
   // master_cards — a word can exist there without this user ever having added it),
   // so new/weak words can be highlighted instead of treated the same as known ones.
   const loadWordStatus = async (text: string) => {
-    const segmenter = getSegmenter();
-    if (!segmenter) return;
-    const words = [...new Set(
-      [...segmenter.segment(text)]
-        .filter((s) => s.isWordLike && kanjiRe.test(s.segment))
-        .map((s) => s.segment),
-    )];
+    // Same word units TappableText renders, so every highlighted word has a status.
+    const words = [...new Set(splitTappable(stripFurigana(text)).filter((p) => p.word).map((p) => p.text))];
     if (words.length === 0) { setWordStatus(new Map()); return; }
 
     const map = new Map<string, { status: WordStatus; accuracy?: number }>();

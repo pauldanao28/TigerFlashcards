@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { kanjiRe, getSegmenter, type WordStatus } from "@/components/TappableText";
+import type { WordStatus } from "@/components/TappableText";
+import { kanjiRe, splitTappable } from "@/lib/japaneseText";
 
 // Below this accuracy a deck word counts as "weak" — same threshold the stats page uses
 // for its Struggling list.
@@ -22,13 +23,10 @@ export interface WordLookup {
 
 type ScoresJson = { jp_to_en?: { total?: number; percent?: number }; en_to_jp?: { total?: number; percent?: number } };
 
-// A tap can land on a longer segment than the word itself (食べてください, furigana
-// phrases) — look up the first kanji-containing word in it.
+// A tap can land on a longer phrase than one word (the Sensei chat's furigana phrases like
+// 今日も元気に) — look up its first kanji word, okurigana included (same rule as TappableText).
 function extractWord(text: string): string {
-  const seg = getSegmenter();
-  if (!seg) return text;
-  const first = [...seg.segment(text)].find((s) => s.isWordLike && kanjiRe.test(s.segment));
-  return first?.segment ?? text;
+  return splitTappable(text).find((p) => p.word)?.text ?? text;
 }
 
 /**
