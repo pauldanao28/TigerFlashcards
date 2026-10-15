@@ -266,6 +266,7 @@ export default function Dashboard() {
   );
   const [doneTodayQuizzes, setDoneTodayQuizzes] = useState({ reading: false, listening: false, grammar: false });
   const [isSocialOpen, setIsSocialOpen] = useState(false);
+  const [selectedPos, setSelectedPos] = useState<string | null>(null);
   const { friends, fetchFriends } = useFriends();
 
   useEffect(() => {
@@ -606,7 +607,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Vocabulary by Part of Speech — view-only, no filtering here (that lives in Practice) */}
+      {/* Vocabulary by Part of Speech — not a filter (that lives in Practice), tap a tag for its numbers */}
       {data.deck_size > 0 && (
         <div className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Vocabulary by Part of Speech</p>
@@ -615,19 +616,71 @@ export default function Dashboard() {
               const { total, mastered } = data.pos_stats[pos] ?? { total: 0, mastered: 0 };
               const pct = total > 0 ? Math.round((mastered / total) * 100) : 0;
               return (
-                <div
+                <button
                   key={pos}
-                  className="relative overflow-hidden px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-slate-200 bg-slate-50 text-slate-600"
+                  onClick={() => setSelectedPos(pos)}
+                  className="relative overflow-hidden px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-slate-200 bg-slate-50 text-slate-600 active:scale-95 transition-transform"
                 >
                   <span aria-hidden className="absolute inset-y-0 left-0 bg-indigo-200" style={{ width: `${pct}%` }} />
                   <span className="relative">{pos} · {pct}%</span>
-                </div>
+                </button>
               );
             })}
           </div>
         </div>
       )}
       </div>
+
+      {/* Part of speech detail modal */}
+      <AnimatePresence>
+        {selectedPos && (() => {
+          const { total, mastered } = data.pos_stats[selectedPos] ?? { total: 0, mastered: 0 };
+          const pct = total > 0 ? Math.round((mastered / total) * 100) : 0;
+          return (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[210] bg-black/20"
+                onClick={() => setSelectedPos(null)}
+              />
+              <motion.div
+                initial={{ y: 60, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 60, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 320, damping: 28 }}
+                className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[211] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm"
+                style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-slate-800 font-black text-sm uppercase tracking-tight">
+                    {selectedPos.charAt(0).toUpperCase() + selectedPos.slice(1)}
+                  </p>
+                  <button onClick={() => setSelectedPos(null)} className="text-slate-300 hover:text-slate-500">✕</button>
+                </div>
+                <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden mb-4">
+                  <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${pct}%` }} />
+                </div>
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div>
+                    <p className="text-2xl font-black text-slate-800 tabular-nums">{total}</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">In Deck</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-black text-emerald-600 tabular-nums">{mastered}</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Mastered</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-black text-indigo-600 tabular-nums">{pct}%</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Mastery</p>
+                  </div>
+                </div>
+              </motion.div>
+            </>
+          );
+        })()}
+      </AnimatePresence>
 
       <AnimatePresence>
         {isSocialOpen && user?.id && (
