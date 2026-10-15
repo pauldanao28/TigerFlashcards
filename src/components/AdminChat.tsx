@@ -105,11 +105,6 @@ export default function AdminChat({ userId }: { userId: string }) {
     getTodayUsage(userId, "chat").then(setChatUsage);
   }, [userId]);
   useEffect(() => { refreshChatUsage(); }, [refreshChatUsage]);
-  const [ttsUsage, setTtsUsage] = useState<AiUsageInfo | null>(null);
-  const refreshTtsUsage = useCallback(() => {
-    getTodayUsage(userId, "tts").then(setTtsUsage);
-  }, [userId]);
-  useEffect(() => { refreshTtsUsage(); }, [refreshTtsUsage]);
   const [showList, setShowList] = useState(false);
   const [batchAdding, setBatchAdding] = useState(false);
   const [addedSummary, setAddedSummary] = useState<any[]>([]);
@@ -599,7 +594,7 @@ export default function AdminChat({ userId }: { userId: string }) {
       return;
     }
     setSpeakingId(msgId);
-    playTTS(ttsClean(text), "ja-JP", { onEnd: () => setSpeakingId(null) }).then(refreshTtsUsage);
+    playTTS(ttsClean(text), "ja-JP", { onEnd: () => setSpeakingId(null) });
   };
 
   // ── Render message content ──────────────────────────────────────────────────
@@ -958,9 +953,6 @@ export default function AdminChat({ userId }: { userId: string }) {
               <div>
                 <h2 className="text-base font-black text-slate-800 uppercase italic tracking-tighter">Voice</h2>
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Japanese TTS · affects all audio</p>
-                <p className="text-[10px] text-slate-400 font-medium normal-case tracking-normal mt-1">
-                  These AI voices are a Premium feature — everyone else hears their device&apos;s own voice instead.
-                </p>
               </div>
               <button onClick={() => setShowVoicePicker(false)} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400"><X size={14} /></button>
             </div>
@@ -1044,10 +1036,6 @@ export default function AdminChat({ userId }: { userId: string }) {
           {chatUsage != null && chatUsage.remaining <= 0
             ? "Daily message limit reached — this keeps Sensei free for everyone. Come back tomorrow!"
             : "Tap underlined kanji · Add to deck"}
-          {" · "}
-          {ttsUsage != null && ttsUsage.remaining <= 0
-            ? "🔊 browser voice"
-            : "🔊 AI voice replies"}
         </p>
       </div>
     </div>
