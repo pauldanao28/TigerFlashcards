@@ -160,7 +160,7 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
     return idx;
   }, [lines, currentTime]);
 
-  const TRANSCRIPT_ERROR = "Couldn't find timestamps in the transcript — captions need them to sync with the video. Copy it with timestamps on (or use a .srt/.vtt file). Plain text without timestamps works in the Reader instead.";
+  const TRANSCRIPT_ERROR = "Couldn't find timestamps in the transcript — captions need them to sync with the video. Copy it with timestamps on (or upload a .srt file). Plain text without timestamps works in the Reader instead.";
 
   // Parses the transcript and loads its deck highlights. Returns false if it has no timestamps.
   const applyTranscript = (raw: string): boolean => {
@@ -503,7 +503,7 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
               <li>Click <b>Show transcript</b> and choose <b>Japanese</b> at the bottom of the panel.</li>
               <li>Select all the lines (timestamps included), copy, and paste here.</li>
               <li>On a phone, copying a screen at a time (e.g. with Google Lens) works too — paste each part one after another; overlaps are skipped.</li>
-              <li>Or use a transcript downloader and <b>Upload</b> its file — .txt with timestamps, .srt or .vtt.</li>
+              <li>Or <b>Upload</b> a .txt (with timestamps) or .srt file.</li>
             </ol>
             <p className="mt-1.5 text-slate-400">Skip it to just watch — you can paste a transcript later. No “Show transcript” on YouTube means the video has no captions.</p>
           </div>
@@ -757,7 +757,7 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
   );
 }
 
-// Loads a transcript file (.txt / .srt / .vtt from a transcript downloader) into a textarea.
+// Loads a .txt (with timestamps) or .srt transcript file into a textarea.
 function TranscriptFileButton({ onLoad }: { onLoad: (text: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   return (
@@ -772,7 +772,7 @@ function TranscriptFileButton({ onLoad }: { onLoad: (text: string) => void }) {
       <input
         ref={inputRef}
         type="file"
-        accept=".txt,.srt,.vtt,text/plain,text/vtt"
+        accept=".txt,.srt,text/plain"
         className="hidden"
         onChange={async (e) => {
           const file = e.target.files?.[0];

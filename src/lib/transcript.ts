@@ -1,5 +1,5 @@
 // Helpers for the Watch view: parse a pasted or uploaded transcript (YouTube's copy,
-// transcript-downloader .txt, SRT/VTT) into timed caption lines, and pull the video id /
+// an uploaded .txt / .srt, VTT) into timed caption lines, and pull the video id /
 // start time out of a YouTube link.
 
 export interface CaptionLine {
