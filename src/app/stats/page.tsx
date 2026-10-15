@@ -2458,21 +2458,6 @@ export default function StatsPage() {
                           New
                         </span>
                       )}
-                      {(() => {
-                        const status = cardScoreStatus(card);
-                        if (!status) return null;
-                        return (
-                          <span
-                            className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest border ${
-                              status === "mastered"
-                                ? "bg-emerald-50 text-emerald-600 border-emerald-200"
-                                : "bg-rose-50 text-rose-600 border-rose-200"
-                            }`}
-                          >
-                            {status === "mastered" ? t.mastered : t.struggling}
-                          </span>
-                        );
-                      })()}
                     </div>
 
                     {card.partOfSpeech && (
@@ -2489,6 +2474,21 @@ export default function StatsPage() {
                         {card.jlpt_level}
                       </span>
                     )}
+                    {(() => {
+                      const status = cardScoreStatus(card);
+                      if (!status) return null;
+                      return (
+                        <span
+                          className={`ml-1.5 text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${
+                            status === "mastered"
+                              ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                              : "bg-rose-50 text-rose-600 border-rose-200"
+                          }`}
+                        >
+                          {status === "mastered" ? t.mastered : t.struggling}
+                        </span>
+                      );
+                    })()}
                     <div className="text-sm font-bold text-indigo-500">
                       {card.reading}
                     </div>
