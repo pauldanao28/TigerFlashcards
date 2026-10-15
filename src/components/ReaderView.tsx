@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, Sparkles, Send, Loader2, List, BookOpen, NotebookText, Trash2, X } from "lucide-react";
+import { ChevronLeft, Sparkles, Send, Loader2, List, BookOpen, NotebookText, Pencil, Check, Trash2, X } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
 import TappableText from "@/components/TappableText";
 import NewWordsPanel from "@/components/NewWordsPanel";
@@ -26,9 +26,11 @@ const LEVELS = ["N5", "N4", "N3", "N2", "N1"] as const;
 type Level = (typeof LEVELS)[number];
 const MAX_CHARS = 1500;
 
-// A one-line "title" for a saved passage in "My passages" — the topic for an AI-written
-// one (more meaningful than its text), otherwise a short lead-in to the pasted text.
+// A one-line "title" for a saved passage in "My passages" — the user's own if they set
+// one, else the topic for an AI-written one (more meaningful than its text), else a short
+// lead-in to the pasted text.
 function passageTitle(p: SavedPassage): string {
+  if (p.title?.trim()) return p.title.trim();
   if (p.source === "generated" && p.gen_topic) return p.gen_topic;
   const clean = p.passage.replace(/\s+/g, " ").trim();
   return clean.length > 28 ? `${clean.slice(0, 28)}…` : clean;
@@ -156,6 +158,8 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
   const [savedPassages, setSavedPassages] = useState<SavedPassage[]>([]);
   const [showAllSaved, setShowAllSaved] = useState(false);
   const [openingSaved, setOpeningSaved] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   useEffect(() => {
     if (phase !== "input") return;
@@ -179,6 +183,17 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
     } catch {
       setError("Couldn't remove that passage — try again.");
     }
+  };
+
+  const startRename = (p: SavedPassage) => {
+    setRenamingId(p.id);
+    setRenameValue(passageTitle(p));
+  };
+  const saveRename = async (id: string) => {
+    const title = renameValue.trim();
+    setRenamingId(null);
+    await updatePassage(id, { title: title || null });
+    setSavedPassages((prev) => prev.map((x) => (x.id === id ? { ...x, title: title || null } : x)));
   };
 
   const handleAsk = async () => {
@@ -336,31 +351,67 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
               <div className="flex flex-col gap-2">
                 {(showAllSaved ? savedPassages : savedPassages.slice(0, 4)).map((p) => (
                   <div key={p.id} className="flex items-center gap-3 bg-white border border-slate-100 rounded-2xl p-2 shadow-sm">
-                    <button
-                      onClick={() => openSaved(p)}
-                      disabled={openingSaved !== null}
-                      className="flex-1 min-w-0 flex items-center gap-3 text-left active:scale-[0.99] transition-transform disabled:opacity-60"
-                    >
-                      <div className="w-10 h-10 shrink-0 rounded-xl bg-indigo-50 flex items-center justify-center">
-                        <BookOpen size={16} className="text-indigo-400" />
+                    {renamingId === p.id ? (
+                      <div className="flex-1 min-w-0 flex items-center gap-2 px-1">
+                        <input
+                          type="text"
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          autoFocus
+                          onKeyDown={(e) => e.key === "Enter" && saveRename(p.id)}
+                          className="flex-1 min-w-0 text-sm font-black text-slate-800 bg-slate-50 border border-indigo-200 rounded-xl px-2.5 py-1.5 outline-none focus:border-indigo-400"
+                        />
+                        <button
+                          onClick={() => saveRename(p.id)}
+                          aria-label="Save name"
+                          className="shrink-0 p-2 rounded-xl text-emerald-500 hover:bg-emerald-50 transition-colors"
+                        >
+                          <Check size={15} />
+                        </button>
+                        <button
+                          onClick={() => setRenamingId(null)}
+                          aria-label="Cancel"
+                          className="shrink-0 p-2 rounded-xl text-slate-300 hover:bg-slate-100 transition-colors"
+                        >
+                          <X size={15} />
+                        </button>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-black text-slate-800 leading-snug truncate">{passageTitle(p)}</p>
-                        <p className="text-[10px] font-bold text-slate-400 mt-0.5">
-                          {openingSaved === p.id ? "Opening…" : [
-                            p.source === "generated" ? `AI${p.gen_level ? ` · ${p.gen_level}` : ""}` : "Pasted",
-                            p.read_idx ? "in progress" : null,
-                          ].filter(Boolean).join(" · ")}
-                        </p>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => removeSaved(p)}
-                      aria-label="Remove passage"
-                      className="shrink-0 p-2 rounded-xl text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-colors"
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => openSaved(p)}
+                          disabled={openingSaved !== null}
+                          className="flex-1 min-w-0 flex items-center gap-3 text-left active:scale-[0.99] transition-transform disabled:opacity-60"
+                        >
+                          <div className="w-10 h-10 shrink-0 rounded-xl bg-indigo-50 flex items-center justify-center">
+                            <BookOpen size={16} className="text-indigo-400" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-black text-slate-800 leading-snug truncate">{passageTitle(p)}</p>
+                            <p className="text-[10px] font-bold text-slate-400 mt-0.5">
+                              {openingSaved === p.id ? "Opening…" : [
+                                p.source === "generated" ? `AI${p.gen_level ? ` · ${p.gen_level}` : ""}` : "Pasted",
+                                p.read_idx ? "in progress" : null,
+                              ].filter(Boolean).join(" · ")}
+                            </p>
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => startRename(p)}
+                          aria-label="Rename passage"
+                          className="shrink-0 p-2 rounded-xl text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 transition-colors"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => removeSaved(p)}
+                          aria-label="Remove passage"
+                          className="shrink-0 p-2 rounded-xl text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>

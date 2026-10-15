@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 export interface SavedPassage {
   id: string;
   passage: string;
+  title: string | null; // user-set — falls back to gen_topic / a lead-in snippet when unset
   source: "pasted" | "generated";
   gen_level: string | null;
   gen_topic: string | null;
@@ -20,7 +21,7 @@ export type SavedPassageFields = Partial<Omit<SavedPassage, "id" | "updated_at">
 export async function listSavedPassages(userId: string, limit = 50): Promise<SavedPassage[]> {
   const { data, error } = await supabase
     .from("reader_passages")
-    .select("id, passage, source, gen_level, gen_topic, grammar_notes, read_idx, updated_at")
+    .select("id, passage, title, source, gen_level, gen_topic, grammar_notes, read_idx, updated_at")
     .eq("user_id", userId)
     .order("updated_at", { ascending: false })
     .limit(limit);
