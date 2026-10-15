@@ -16,14 +16,14 @@ export type WordTapHandler = (word: string, reading: string, e: React.MouseEvent
 // "easy" = in the deck and mastered. "known" = in the deck, still learning — no highlight.
 export type WordStatus = "new" | "weak" | "easy" | "known";
 
-// Background tints the whole word (continuous, via the wrapping span); decoration colors
-// only the dotted underline under each kanji character.
+// Background tints the whole word (continuous, via the wrapping span) — reserved for the
+// two statuses actually worth flagging at a glance (new to add, or weak and worth
+// reviewing). Easy/known words just get the dotted underline like everything else, so the
+// highlights don't compete with each other.
 const STATUS_BG: Record<WordStatus, string> = {
-  // A touch stronger than weak/easy's translucent tint — these are the words worth
-  // adding, so they should be the first thing that jumps out, not the easiest to miss.
   new: "bg-violet-200",
   weak: "bg-rose-100/70", // in the deck but struggling — same color as the stats page's Struggling list
-  easy: "bg-emerald-100/70", // mastered — same color as the stats page's Mastered card
+  easy: "",
   known: "",
 };
 const STATUS_DECORATION: Record<WordStatus, string> = {
@@ -57,10 +57,14 @@ export default function TappableText({
           const word = piece.text;
           const reading = piece.reading ?? "";
           const status = getStatus?.(word);
+          // Only pad/round the span when it actually has a background to show — padding
+          // with no visible fill just pushes into the next character, since Japanese text
+          // runs with no spaces between words.
+          const bg = status ? STATUS_BG[status] : "";
           return (
             <span
               key={`${keyPrefix}-${i}`}
-              className={`cursor-pointer active:opacity-60 transition-opacity ${status ? `rounded px-0.5 ${STATUS_BG[status]}` : ""}`}
+              className={`cursor-pointer active:opacity-60 transition-opacity ${bg ? `rounded px-0.5 ${bg}` : ""}`}
               onClick={(e) => { e.stopPropagation(); onWordTap(word, reading, e); }}
               onTouchStart={(e) => { touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
               onTouchEnd={(e) => {
