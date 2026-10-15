@@ -11,7 +11,12 @@ export async function GET(req: Request) {
   try {
     const res = await fetch(
       `https://jisho.org/api/v1/search/words?keyword=${encodeURIComponent(word)}`,
-      { signal: AbortSignal.timeout(5000) }
+      {
+        signal: AbortSignal.timeout(5000),
+        // Server-to-server requests with no/bot-like User-Agent get blocked by
+        // Cloudflare-protected hosts like jisho.org — a browser UA gets through.
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" },
+      }
     );
     if (!res.ok) return NextResponse.json({ found: false });
     const data = await res.json();

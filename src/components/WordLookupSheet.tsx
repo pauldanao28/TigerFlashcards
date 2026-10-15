@@ -127,6 +127,11 @@ export default function WordLookupSheet({
             ))}
           </div>
         )}
+        {!lookup.jishoLoading && !lookup.compounds?.length && lookup.jishoMeanings && lookup.jishoMeanings.length === 0 && (
+          <p className="text-xs text-slate-400 mb-3 pb-3 border-b border-slate-100">
+            No dictionary entry found for this — you can still add it below.
+          </p>
+        )}
 
         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Word to add</label>
         <input
