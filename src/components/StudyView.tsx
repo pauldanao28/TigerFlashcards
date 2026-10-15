@@ -8,6 +8,7 @@ import { translations } from "@/lib/languages";
 import { calculateGlobalStats } from "@/lib/stats";
 import { processReferral } from "@/lib/social";
 import { rollingAvg, vocabMastery, JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
+import { ALLOWED_PARTS_OF_SPEECH } from "@/lib/textNormalize";
 import { useFriends } from "@/hooks/useFriends";
 import { authedFetch } from "@/lib/authedFetch";
 import { useAppAlert } from "@/context/AlertContext";
@@ -271,6 +272,14 @@ export default function StudyView() {
       : selectedJlptLevels.length === 1
         ? selectedJlptLevels[0]
         : selectedJlptLevels.join("+");
+  // Part-of-speech filter — lives in the same "By Level" breakdown sheet as the JLPT
+  // filter above (narrows the same study pool) rather than its own top-level control.
+  const [posFilters, setPosFilters] = useState<string[]>([]);
+  const selectedPos = useMemo(
+    () => ALLOWED_PARTS_OF_SPEECH.filter((p) => posFilters.includes(p)),
+    [posFilters],
+  );
+  const posFilterKey = selectedPos.join(",");
   const t = translations.en;
 
   useEffect(() => {
@@ -684,7 +693,10 @@ export default function StudyView() {
         }
       }
 
-      const pool = jlptFilters.length === 0 ? updatedCards : updatedCards.filter(c => jlptFilters.includes(c.jlpt_level as "N5" | "N4" | "N3" | "N2" | "N1"));
+      const pool = updatedCards.filter(c =>
+        (jlptFilters.length === 0 || jlptFilters.includes(c.jlpt_level as "N5" | "N4" | "N3" | "N2" | "N1")) &&
+        (posFilters.length === 0 || posFilters.includes(c.partOfSpeech ?? "noun"))
+      );
       setCurrentCard(getNextPriorityCard(pool.length > 0 ? pool : updatedCards, language, currentCard.id));
       setIsFlipped(false);
     },
@@ -698,6 +710,7 @@ export default function StudyView() {
       sessionStreak,
       t,
       jlptFilters,
+      posFilters,
       showHints,
     ],
   );
@@ -752,10 +765,13 @@ export default function StudyView() {
     navigator.vibrate?.([60, 40, 100]);
     setTimeout(() => setCardMasteryToast(null), 2000);
 
-    const pool = jlptFilters.length === 0 ? updatedCards : updatedCards.filter(c => jlptFilters.includes(c.jlpt_level as "N5" | "N4" | "N3" | "N2" | "N1"));
+    const pool = updatedCards.filter(c =>
+      (jlptFilters.length === 0 || jlptFilters.includes(c.jlpt_level as "N5" | "N4" | "N3" | "N2" | "N1")) &&
+      (posFilters.length === 0 || posFilters.includes(c.partOfSpeech ?? "noun"))
+    );
     setCurrentCard(getNextPriorityCard(pool.length > 0 ? pool : updatedCards, language, currentCard.id));
     setIsFlipped(false);
-  }, [currentCard, user, cards, language, jlptFilters, showHints, setCardMasteryToast]);
+  }, [currentCard, user, cards, language, jlptFilters, posFilters, showHints, setCardMasteryToast]);
 
   // Rolling cap: starring a 31st word bumps whichever one has been starred longest,
   // rather than blocking the action or requiring the user to manage the count by hand.
@@ -1024,8 +1040,11 @@ export default function StudyView() {
   const [levelUpToast, setLevelUpToast] = useState<{ level: string; lang: "jp" | "en"; direction: "up" | "down"; filter?: string } | null>(null);
 
   const filteredCards = useMemo(
-    () => jlptFilters.length === 0 ? cards : cards.filter(c => jlptFilters.includes(c.jlpt_level as "N5" | "N4" | "N3" | "N2" | "N1")),
-    [cards, jlptFilters],
+    () => cards.filter(c =>
+      (jlptFilters.length === 0 || jlptFilters.includes(c.jlpt_level as "N5" | "N4" | "N3" | "N2" | "N1")) &&
+      (posFilters.length === 0 || posFilters.includes(c.partOfSpeech ?? "noun"))
+    ),
+    [cards, jlptFilters, posFilters],
   );
 
   // No real schedule to check against (no next_review_at tracking), so this isn't a
@@ -1119,7 +1138,7 @@ export default function StudyView() {
     setCurrentCard(getNextPriorityCard(filteredCards, language));
     setIsFlipped(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jlptFilterKey]);
+  }, [jlptFilterKey, posFilterKey]);
 
   // Show full-screen loading until the first deck fetch completes
   if (!hasLoadedOnce) {
@@ -2142,7 +2161,6 @@ export default function StudyView() {
                       onClick={() => {
                         if (isAll) {
                           setJlptFilters([]);
-                          setShowJlptBreakdown(false);
                           setJlptFilterToast("Studying all levels");
                           setTimeout(() => setJlptFilterToast(null), 2200);
                           return;
@@ -2185,6 +2203,44 @@ export default function StudyView() {
                         {count} <span className="text-slate-400 font-bold">· {pct}%</span>
                       </span>
                     </div>
+                  );
+                })}
+              </div>
+
+              <div className="h-px bg-slate-100 -mx-6 mb-4" />
+              <p className="text-slate-800 font-black text-sm uppercase tracking-tight mb-1.5">Part of Speech</p>
+              <p className="text-[10px] font-bold text-slate-400 mb-3 leading-relaxed">
+                Narrow it further — pick as many as you like.
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                {(["All", ...ALLOWED_PARTS_OF_SPEECH] as const).map((pos) => {
+                  const isAll = pos === "All";
+                  const isActive = isAll ? selectedPos.length === 0 : posFilters.includes(pos);
+                  return (
+                    <button
+                      key={pos}
+                      onClick={() => {
+                        if (isAll) {
+                          setPosFilters([]);
+                          setJlptFilterToast("Studying all parts of speech");
+                          setTimeout(() => setJlptFilterToast(null), 2200);
+                          return;
+                        }
+                        const next = posFilters.includes(pos)
+                          ? posFilters.filter((p) => p !== pos)
+                          : [...posFilters, pos];
+                        setPosFilters(next);
+                        setJlptFilterToast(next.length === 0 ? "Studying all parts of speech" : `Now studying: ${next.join(", ")}`);
+                        setTimeout(() => setJlptFilterToast(null), 2200);
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                        isActive
+                          ? "bg-indigo-600 text-white border-transparent"
+                          : "bg-slate-50 text-slate-500 border-slate-200"
+                      }`}
+                    >
+                      {pos}
+                    </button>
                   );
                 })}
               </div>
