@@ -1582,7 +1582,9 @@ export default function StatsPage() {
             </Link>
           </div>
 
-          {/* Starter Packs Section */}
+          {/* Starter Packs Section — hidden once every pack has been added, so it's not
+              permanent real estate for users with nothing left to add. */}
+          {starterPacks.some((pack) => !ownedPacks?.includes(pack.id)) && (
           <div className="mb-10">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">
@@ -1663,17 +1665,9 @@ export default function StatsPage() {
                   </div>
                 );
               })}
-
-              {/* Empty State */}
-              {starterPacks.length === 0 && (
-                <div className="flex-none w-full p-8 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center">
-                  <p className="text-sm text-slate-400 font-bold italic">
-                    {t.looking_collections}
-                  </p>
-                </div>
-              )}
             </div>
           </div>
+          )}
 
           {viewMode !== "none" && (
             /* 1. Backdrop Overlay */
