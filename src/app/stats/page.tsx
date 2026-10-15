@@ -44,7 +44,7 @@ function computeQuickStats(rows: { user_scores?: { scores_json?: any }[] }[]): Q
     const enPass5 = (en.pass ?? 0) >= 5 && (en.percent ?? 0) >= 70;
     if (jpPass5 || enPass5) mastered++;
     const totalAttempts = (jp.total ?? 0) + (en.total ?? 0);
-    if (totalAttempts > 0 && ((jp.percent ?? 0) + (en.percent ?? 0)) / 2 < 40) struggling++;
+    if (totalAttempts > 0 && Math.max(jp.percent ?? 0, en.percent ?? 0) < 40) struggling++;
     jpTries += jp.total ?? 0; jpPass += jp.pass ?? 0; jpFail += jp.fail ?? 0;
     enTries += en.total ?? 0; enPass += en.pass ?? 0; enFail += en.fail ?? 0;
   }
@@ -636,10 +636,12 @@ export default function StatsPage() {
       const s = c.scores;
       const totalAttempts =
         (s?.jp_to_en?.total || 0) + (s?.en_to_jp?.total || 0);
-      const avgAccuracy =
-        ((s?.jp_to_en?.percent || 0) + (s?.en_to_jp?.percent || 0)) / 2;
+      // Best direction, not the average — same philosophy as Mastered (either direction
+      // clearing the bar counts), so a card doing fine in one direction isn't dragged
+      // into Struggling by a weak, possibly-untried, other direction.
+      const bestAccuracy = Math.max(s?.jp_to_en?.percent || 0, s?.en_to_jp?.percent || 0);
 
-      return totalAttempts > 0 && avgAccuracy < 40;
+      return totalAttempts > 0 && bestAccuracy < 40;
     });
   }, [cards]);
 
@@ -650,8 +652,8 @@ export default function StatsPage() {
     const enMastered = (s?.en_to_jp?.pass || 0) >= 5 && (s?.en_to_jp?.percent || 0) >= 70;
     if (jpMastered || enMastered) return "mastered";
     const totalAttempts = (s?.jp_to_en?.total || 0) + (s?.en_to_jp?.total || 0);
-    const avgAccuracy = ((s?.jp_to_en?.percent || 0) + (s?.en_to_jp?.percent || 0)) / 2;
-    if (totalAttempts > 0 && avgAccuracy < 40) return "struggling";
+    const bestAccuracy = Math.max(s?.jp_to_en?.percent || 0, s?.en_to_jp?.percent || 0);
+    if (totalAttempts > 0 && bestAccuracy < 40) return "struggling";
     return null;
   };
 
