@@ -2218,7 +2218,7 @@ export default function StudyView() {
                   // Coverage of that level's real JLPT vocab size, not share of your own
                   // deck — N5/N4 have far fewer words than N3/N2/N1 in the first place, so
                   // a deck-share % made levels look equally sized when they aren't.
-                  const pct = Math.round((count / JLPT_VOCAB_INCREMENT[level]) * 100);
+                  const pct = Math.min(100, Math.round((count / JLPT_VOCAB_INCREMENT[level]) * 100));
                   const mastery = jlptLevelMasteryAll[level];
                   return (
                     <div key={level} className="flex items-center gap-3">
