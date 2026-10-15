@@ -193,7 +193,20 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
     setTab("captions");
     setPhase("watching");
   };
-  const handleStart = () => {
+  // New video: link + transcript are both required, and it's saved before it plays.
+  const [savingNew, setSavingNew] = useState(false);
+  const handleStart = async () => {
+    setInputError(null);
+    const parsedUrl = parseYouTubeUrl(urlInput);
+    if (!parsedUrl) { setInputError("Paste a YouTube link, e.g. https://www.youtube.com/watch?v=…"); return; }
+    if (!transcriptInput.trim()) { setInputError("Paste the captions with timestamps, or upload a .srt / .txt file."); return; }
+    const parsedLines = parseTranscript(transcriptInput);
+    if (parsedLines.length === 0) { setInputError(TRANSCRIPT_ERROR); return; }
+    setSavingNew(true);
+    const id = await saveVideo(userId, parsedUrl.id, { url: urlInput, transcript: transcriptInput, line_count: parsedLines.length });
+    setSavingNew(false);
+    if (!id) { setInputError("Couldn't save the video — check your connection and try again."); return; }
+    savedIdRef.current = id;
     resumeRef.current = null;
     startWith(urlInput, transcriptInput, startInput);
   };
@@ -614,7 +627,7 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
 
           <h2 className="text-xl font-black text-slate-900 mb-1">{savedVideos.length > 0 ? "Add a video" : "Watch YouTube in Japanese"}</h2>
           <p className="text-slate-500 text-sm font-medium mb-4 leading-relaxed">
-            Pick the part you want to watch. Add the transcript and captions play beside the video — tap any word to look it up, and pick out the ones you don&apos;t have yet.
+            Paste the link and its captions — it&apos;s saved to My videos so you can come back to it on any device.
           </p>
 
           <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">YouTube link</label>
@@ -626,45 +639,36 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
             className="mt-1 w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
           />
 
-          <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-3">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Part to watch <span className="text-slate-300">· optional</span></p>
-            {renderClipFields(false)}
-          </div>
-
           <div className="mt-4 flex items-center justify-between gap-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-              Transcript with timestamps <span className="text-slate-300">· optional</span>
-            </label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Captions with timestamps</label>
             <TranscriptFileButton onLoad={setTranscriptInput} />
           </div>
           <textarea
             value={transcriptInput}
             onChange={(e) => setTranscriptInput(e.target.value)}
             rows={9}
-            placeholder={"0:00\n今日はいい天気ですね\n0:04\nどこに行きたい？\n…"}
+            placeholder={"Paste captions, or upload a .srt / .txt file\n\n0:00\n今日はいい天気ですね\n0:04\nどこに行きたい？"}
             className="mt-1 w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none font-mono leading-relaxed"
           />
 
-          <div className="mt-3 bg-indigo-50 border border-indigo-100 rounded-2xl p-4 text-xs text-slate-600 leading-relaxed">
-            <p className="font-black text-indigo-600 uppercase tracking-widest text-[10px] mb-1.5">Getting the transcript</p>
-            <ol className="list-decimal pl-4 space-y-0.5">
+          <details className="mt-2 text-xs text-slate-500 leading-relaxed">
+            <summary className="cursor-pointer font-bold text-indigo-600">How do I get the captions?</summary>
+            <ol className="list-decimal pl-4 mt-1.5 space-y-0.5">
               <li>Open the video on youtube.com and expand the description (<b>…more</b>).</li>
               <li>Click <b>Show transcript</b> and choose <b>Japanese</b> at the bottom of the panel.</li>
               <li>Select all the lines (timestamps included), copy, and paste here.</li>
-              <li>On a phone, copying a screen at a time (e.g. with Google Lens) works too — paste each part one after another; overlaps are skipped.</li>
-              <li>Or <b>Upload</b> a .txt (with timestamps) or .srt file.</li>
+              <li>Or <b>Upload</b> a .srt or .txt (with timestamps) file.</li>
             </ol>
-            <p className="mt-1.5 text-slate-400">Skip it to just watch — you can paste a transcript later. No “Show transcript” on YouTube means the video has no captions.</p>
-          </div>
+          </details>
 
           {inputError && <p className="text-rose-500 font-bold text-xs mt-3">{inputError}</p>}
 
           <button
             onClick={handleStart}
-            disabled={!urlInput.trim()}
+            disabled={!urlInput.trim() || !transcriptInput.trim() || savingNew}
             className="w-full mt-4 py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
           >
-            <Play size={16} /> Start Watching
+            <Play size={16} /> {savingNew ? "Saving…" : "Watch"}
           </button>
         </div>
       )}
