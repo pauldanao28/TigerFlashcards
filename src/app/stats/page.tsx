@@ -437,26 +437,11 @@ export default function StatsPage() {
 
     setCardsLoading(true);
     try {
-      // Phase 1 — lean: fetch only scores_json (no text columns) to show stat numbers fast
-      const leanAll: any[] = [];
-      const LEAN_PAGE = 1000;
-      for (let from = 0; ; from += LEAN_PAGE) {
-        const { data: page } = await supabase
-          .from("master_cards")
-          .select("id, deck_cards!inner(deck_id), user_scores(scores_json)")
-          .eq("deck_cards.deck_id", defaultDeckId)
-          .eq("user_scores.user_id", user.id)
-          // Required for .range() pagination to be reliable past one page — see the
-          // full-fetch query below for why.
-          .order("id", { ascending: true })
-          .range(from, from + LEAN_PAGE - 1);
-        if (page) leanAll.push(...page);
-        if (!page || page.length < LEAN_PAGE) break;
-      }
-      if (leanAll.length) setQuickStats(computeQuickStats(leanAll));
-      setInitLoading(false); // page is now visible with stat numbers
-
-      // Phase 2 — full: fetch all card content for the card list (background)
+      // One paginated fetch of full card data — this used to be two full passes over the
+      // same deck (a lean scores-only pass just to show stat numbers fast, then a full
+      // pass for the card list), which doubled the requests and data transferred for no
+      // real benefit: the full rows already carry scores_json too. Stats now update
+      // incrementally as each page lands, so they still show up before the full list does.
       const allData: any[] = [];
       let error = null;
       const PAGE_SIZE = 1000;
@@ -473,7 +458,11 @@ export default function StatsPage() {
           .order("id", { ascending: true })
           .range(from, from + PAGE_SIZE - 1);
         if (pageErr) { error = pageErr; break; }
-        if (page) allData.push(...page);
+        if (page) {
+          allData.push(...page);
+          setQuickStats(computeQuickStats(allData));
+          setInitLoading(false); // page is now visible with stat numbers
+        }
         if (!page || page.length < PAGE_SIZE) break;
       }
 
