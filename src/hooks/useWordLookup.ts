@@ -21,7 +21,20 @@ export interface WordLookup {
   deckAccuracy?: number;
 }
 
-type ScoresJson = { jp_to_en?: { total?: number; percent?: number }; en_to_jp?: { total?: number; percent?: number } };
+type DirScore = { pass?: number; total?: number; percent?: number };
+export type ScoresJson = { jp_to_en?: DirScore; en_to_jp?: DirScore };
+
+/**
+ * Deck status of a word the user has: "weak" (hard) = below WEAK_THRESHOLD, "easy" = the
+ * stats page's Mastered rule (≥5 passes at ≥70% in either direction), else "known".
+ */
+export function deckStatusFromScores(s: ScoresJson): { status: WordStatus; accuracy: number } {
+  const totalAttempts = (s.jp_to_en?.total || 0) + (s.en_to_jp?.total || 0);
+  const accuracy = Math.round(((s.jp_to_en?.percent || 0) + (s.en_to_jp?.percent || 0)) / 2);
+  const mastered = [s.jp_to_en, s.en_to_jp].some((d) => (d?.pass || 0) >= 5 && (d?.percent || 0) >= 70);
+  const status = totalAttempts > 0 && accuracy < WEAK_THRESHOLD ? "weak" : mastered ? "easy" : "known";
+  return { status, accuracy };
+}
 
 // A tap can land on a longer phrase than one word (the Sensei chat's furigana phrases like
 // 今日も元気に) — look up its first kanji word, okurigana included (same rule as TappableText).
@@ -50,10 +63,8 @@ export function useWordLookup(userId: string | null | undefined) {
       ? await supabase.from("user_scores").select("scores_json").eq("user_id", userId).eq("card_id", card.id).maybeSingle()
       : { data: null };
     if (!score) { patch(word, { deckStatus: "new", deckAccuracy: undefined }); return; }
-    const s = (score.scores_json ?? {}) as ScoresJson;
-    const totalAttempts = (s.jp_to_en?.total || 0) + (s.en_to_jp?.total || 0);
-    const accuracy = Math.round(((s.jp_to_en?.percent || 0) + (s.en_to_jp?.percent || 0)) / 2);
-    patch(word, { deckStatus: totalAttempts > 0 && accuracy < WEAK_THRESHOLD ? "weak" : "known", deckAccuracy: accuracy });
+    const { status, accuracy } = deckStatusFromScores((score.scores_json ?? {}) as ScoresJson);
+    patch(word, { deckStatus: status, deckAccuracy: accuracy });
   }, [userId]);
 
   const fetchJisho = useCallback((word: string, allowCompounds: boolean) => {

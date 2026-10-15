@@ -13,19 +13,21 @@ export { kanjiRe, getSegmenter, stripFurigana } from "@/lib/japaneseText";
 export type WordTapHandler = (word: string, reading: string, e: React.MouseEvent | React.TouchEvent) => void;
 
 // "new" = not in the user's deck at all. "weak" = in the deck but struggling.
-// "known" = in the deck and not struggling — no special highlight needed.
-export type WordStatus = "new" | "weak" | "known";
+// "easy" = in the deck and mastered. "known" = in the deck, still learning — no highlight.
+export type WordStatus = "new" | "weak" | "easy" | "known";
 
 // Background tints the whole word (continuous, via the wrapping span); decoration colors
 // only the dotted underline under each kanji character.
 const STATUS_BG: Record<WordStatus, string> = {
   new: "bg-violet-100", // not in the deck yet — its own hue, not a difficulty/JLPT color
   weak: "bg-rose-100/70", // in the deck but struggling — same color as the stats page's Struggling list
+  easy: "bg-emerald-100/70", // mastered — same color as the stats page's Mastered card
   known: "",
 };
 const STATUS_DECORATION: Record<WordStatus, string> = {
   new: "decoration-violet-500",
   weak: "decoration-rose-500",
+  easy: "decoration-emerald-500",
   known: "decoration-indigo-400",
 };
 

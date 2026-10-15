@@ -5,7 +5,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { useAddWords, type AddedWordSummary } from "@/hooks/useAddWords";
 import type { WordStatus } from "@/components/TappableText";
 import { kanjiRe, splitTappable, stripFurigana } from "@/lib/japaneseText";
-import { WEAK_THRESHOLD } from "@/hooks/useWordLookup";
+import { deckStatusFromScores, type ScoresJson } from "@/hooks/useWordLookup";
 import type { ExtractedWord } from "@/lib/japaneseTokenizer";
 
 // "Kanji words only" filter for the "Not in your deck" list — hides words with no kanji
@@ -16,12 +16,10 @@ function loadKanjiOnly(): boolean {
   try { return localStorage.getItem(KANJI_ONLY_KEY) === "1"; } catch { return false; }
 }
 
-type ScoresJson = { jp_to_en?: { total?: number; percent?: number }; en_to_jp?: { total?: number; percent?: number } };
-
 /**
  * Everything a "read real Japanese and mine words from it" screen needs (the Reader,
  * the Watch view):
- * - deck status per tapped word, for the amber (new) / rose (weak) highlights
+ * - deck status per tapped word, for the violet (new) / rose (weak) / emerald (easy) highlights
  * - the "Not in your deck" list — the server tokenizes the text into dictionary forms
  *   (食べた → 食べる, no AI) and drops what's already in the deck; AI only runs when the
  *   user batch-adds the ones they picked
@@ -105,9 +103,7 @@ export function useWordMining(userId: string) {
       for (const card of cards ?? []) {
         const s = scoreByCardId.get(card.id);
         if (!s) continue; // in the shared library but not in this user's deck
-        const totalAttempts = (s.jp_to_en?.total || 0) + (s.en_to_jp?.total || 0);
-        const accuracy = Math.round(((s.jp_to_en?.percent || 0) + (s.en_to_jp?.percent || 0)) / 2);
-        statusByJapanese.set(card.japanese, { status: totalAttempts > 0 && accuracy < WEAK_THRESHOLD ? "weak" : "known", accuracy });
+        statusByJapanese.set(card.japanese, deckStatusFromScores(s));
       }
     }
 

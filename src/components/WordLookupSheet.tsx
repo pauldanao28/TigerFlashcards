@@ -64,6 +64,10 @@ export default function WordLookupSheet({
               <div className="mt-1 inline-flex items-center gap-1 bg-rose-50 text-rose-700 text-xs font-bold px-2 py-0.5 rounded-full">
                 ⚠️ Weak — {lookup.deckAccuracy}% accuracy
               </div>
+            ) : lookup.deckStatus === "easy" ? (
+              <div className="mt-1 inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                ✓ Easy — {lookup.deckAccuracy}% accuracy
+              </div>
             ) : lookup.deckStatus === "known" ? (
               <div className="mt-1 inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full">
                 ✓ in your deck
