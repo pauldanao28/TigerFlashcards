@@ -108,3 +108,18 @@ export async function findNewWords(text: string, deck: DeckWord[]): Promise<Extr
     return true;
   });
 }
+
+/**
+ * Dictionary form of each tapped word unit (難しかった → 難しい, 読みました → 読む,
+ * 勉強しています → 勉強): the first vocabulary token's base form. Words the tokenizer
+ * can't analyze map to themselves.
+ */
+export async function dictionaryForms(words: string[]): Promise<Record<string, string>> {
+  const tokenizer = await getTokenizer();
+  const out: Record<string, string> = {};
+  for (const w of words) {
+    const t = tokenizer.tokenize(w).find((tok) => POS_MAP[tok.pos] && !SKIP_DETAIL.has(tok.pos_detail_1));
+    out[w] = t && t.basic_form && t.basic_form !== "*" ? t.basic_form : w;
+  }
+  return out;
+}

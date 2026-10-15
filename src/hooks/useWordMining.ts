@@ -81,10 +81,20 @@ export function useWordMining(userId: string) {
     const words = [...new Set(splitTappable(stripFurigana(text)).filter((p) => p.word).map((p) => p.text))];
     if (words.length === 0) { setWordStatus(new Map()); return; }
 
-    const map = new Map<string, { status: WordStatus; accuracy?: number }>();
+    // Dictionary form of each unit (難しかった → 難しい) from the server tokenizer — no AI.
+    // If it fails, words are matched exactly as written.
+    let forms: Record<string, string> = {};
+    try {
+      const res = await authedFetch("/api/reader/forms", { method: "POST", body: JSON.stringify({ words }) });
+      if (res.ok) forms = (await res.json()).forms ?? {};
+    } catch { /* exact matching only */ }
+
+    // Status per card text, for both the written form and the dictionary form.
+    const statusByJapanese = new Map<string, { status: WordStatus; accuracy?: number }>();
+    const candidates = [...new Set(words.flatMap((w) => [w, forms[w] ?? w]))];
     // Chunked so long texts (full video transcripts) don't blow past PostgREST's URL limit.
-    for (let i = 0; i < words.length; i += 100) {
-      const chunk = words.slice(i, i + 100);
+    for (let i = 0; i < candidates.length; i += 100) {
+      const chunk = candidates.slice(i, i + 100);
       const { data: cards } = await supabase.from("master_cards").select("id, japanese").in("japanese", chunk);
       const cardIds = (cards ?? []).map((c) => c.id);
       const { data: scores } = cardIds.length
@@ -92,14 +102,19 @@ export function useWordMining(userId: string) {
         : { data: [] as { card_id: string; scores_json: ScoresJson }[] };
       const scoreByCardId = new Map((scores ?? []).map((s) => [s.card_id, s.scores_json as ScoresJson]));
 
-      for (const word of chunk) {
-        const card = (cards ?? []).find((c) => c.japanese === word);
-        const s = card ? scoreByCardId.get(card.id) : undefined;
-        if (!s) { map.set(word, { status: "new" }); continue; }
+      for (const card of cards ?? []) {
+        const s = scoreByCardId.get(card.id);
+        if (!s) continue; // in the shared library but not in this user's deck
         const totalAttempts = (s.jp_to_en?.total || 0) + (s.en_to_jp?.total || 0);
         const accuracy = Math.round(((s.jp_to_en?.percent || 0) + (s.en_to_jp?.percent || 0)) / 2);
-        map.set(word, { status: totalAttempts > 0 && accuracy < WEAK_THRESHOLD ? "weak" : "known", accuracy });
+        statusByJapanese.set(card.japanese, { status: totalAttempts > 0 && accuracy < WEAK_THRESHOLD ? "weak" : "known", accuracy });
       }
+    }
+
+    const map = new Map<string, { status: WordStatus; accuracy?: number }>();
+    for (const word of words) {
+      const form = forms[word];
+      map.set(word, statusByJapanese.get(word) ?? (form ? statusByJapanese.get(form) : undefined) ?? { status: "new" });
     }
     setWordStatus(map);
   };

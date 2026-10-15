@@ -11,6 +11,7 @@ const nextConfig = {
   serverExternalPackages: ['kuromoji'],
   outputFileTracingIncludes: {
     '/api/reader/words': ['./node_modules/kuromoji/dict/**'],
+    '/api/reader/forms': ['./node_modules/kuromoji/dict/**'],
   },
 }
 
