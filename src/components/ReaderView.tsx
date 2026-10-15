@@ -50,6 +50,13 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
   const [passage, setPassage] = useState("");
   const [grammarNotes, setGrammarNotes] = useState<GrammarNote[]>([]);
   const [showNotes, setShowNotes] = useState(false);
+  const notesRef = useRef<HTMLDivElement>(null);
+  // The notes button lives in the fixed header, but the panel it reveals sits far down
+  // the scroll (after the passage and "Not in your deck") — scroll it into view so
+  // opening it doesn't look like nothing happened.
+  useEffect(() => {
+    if (showNotes && grammarNotes.length > 0) notesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [showNotes, grammarNotes.length]);
   const [qa, setQa] = useState<{ q: string; a: string }[]>([]);
   const [askInput, setAskInput] = useState("");
   const [asking, setAsking] = useState(false);
@@ -356,6 +363,7 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
               <AnimatePresence>
                 {showNotes && grammarNotes.length > 0 && (
                   <motion.div
+                    ref={notesRef}
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
