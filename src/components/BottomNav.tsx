@@ -16,7 +16,7 @@ type Tab = {
 const TABS: Tab[] = [
   { href: "/",        label: "Home",    icon: Home },
   { href: "/study",   label: "Study",   icon: BookOpen },
-  { href: "/quizzes", label: "Quizzes", icon: ScrollText },
+  { href: "/quizzes", label: "Practice", icon: ScrollText },
   { href: "/sensei",  label: "Sensei",  kanji: "先生" },
   { href: "/stats",   label: "Profile", icon: BarChart2 },
 ];

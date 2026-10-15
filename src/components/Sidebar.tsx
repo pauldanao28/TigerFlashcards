@@ -8,7 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 const TABS = [
   { href: "/",        label: "Home",    Icon: Home,       kanji: null },
   { href: "/study",   label: "Study",   Icon: BookOpen,   kanji: null },
-  { href: "/quizzes", label: "Quizzes", Icon: ScrollText, kanji: null },
+  { href: "/quizzes", label: "Practice", Icon: ScrollText, kanji: null },
   { href: "/sensei",  label: "Sensei",  Icon: null,       kanji: "先生" },
   { href: "/stats",   label: "Profile", Icon: BarChart2,  kanji: null },
 ] as const;

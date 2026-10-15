@@ -261,7 +261,7 @@ export default function AddWordsSheet({
                       {loading ? <><Loader2 size={16} className="animate-spin" /> Processing…</> : <><Plus size={16} /> Add {lines.length || ""} to Deck</>}
                     </button>
                     <p className="text-center text-[10px] text-slate-400 font-bold">
-                      Have lyrics or a story? Paste it in Quizzes → Reader to pick out the words you don&apos;t have yet.
+                      Have lyrics or a story? Paste it in Practice → Reader to pick out the words you don&apos;t have yet.
                     </p>
                   </div>
                 );
