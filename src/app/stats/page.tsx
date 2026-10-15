@@ -1353,6 +1353,31 @@ export default function StatsPage() {
                 )}
               </div>
 
+              {/* ===== GROUP: ADMIN (admin-only) ===== */}
+              {isAdmin && (
+                <>
+                  <div className="flex items-center gap-2.5 mb-6 mt-16">
+                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                    <h2 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.3em]">Admin</h2>
+                    <div className="flex-1 h-px bg-slate-100" />
+                  </div>
+                  <div className="mb-4 flex flex-col sm:flex-row gap-3">
+                    <Link
+                      href="/admin"
+                      className="flex-1 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <span className="text-sm">🚩</span> {t.admin_title}
+                    </Link>
+                    <Link
+                      href="/admin/users"
+                      className="flex-1 bg-indigo-600 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <span className="text-sm">📊</span> {t.admin_user_stats}
+                    </Link>
+                  </div>
+                </>
+              )}
+
               </div>
             </div>
           )}
@@ -1428,25 +1453,6 @@ export default function StatsPage() {
                 </Link>
 
               </div>
-
-              {/* ADMIN ROW */}
-              {isAdmin && (
-                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                  <Link
-                    href="/admin"
-                    className="w-full md:w-auto bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <span className="text-sm">🚩</span> {t.admin_title}
-                  </Link>
-
-                  <Link
-                    href="/admin/users"
-                    className="w-full md:w-auto bg-indigo-600 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <span className="text-sm">📊</span> {t.admin_user_stats}
-                  </Link>
-                </div>
-              )}
             </div>
           </div>
 
