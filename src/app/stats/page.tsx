@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FlashcardData } from "@/lib/types";
@@ -14,12 +14,38 @@ import { calculateGlobalStats } from "@/lib/stats";
 import LoadingScreen from "@/components/LoadingScreen";
 import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
 import AddWordsSheet from "@/components/AddWordsSheet";
-import { List, Plus, Star } from "lucide-react";
+import { List, Plus, RefreshCw, Star } from "lucide-react";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
 
-interface StatsCardsCache { userId: string; cards: FlashcardData[]; deckId: string; }
+interface StatsCardsCache { userId: string; cards: FlashcardData[]; deckId: string; quickStats: QuickStats | null; }
+// In-memory — survives in-app navigation back to this tab, but a real page reload
+// (pull-to-refresh, browser refresh, the app being relaunched) wipes it, since that
+// resets the whole JS runtime.
 let _statsCardsCache: StatsCardsCache | null = null;
+
+// Persisted — survives real reloads too. Convenience only (stale-while-revalidate: shown
+// instantly, then silently replaced once fetchCards' real network call lands), so every
+// access is guarded; a failure here (quota exceeded, private browsing) just means the
+// page falls back to its normal cold-load behavior.
+const cardsCacheKey = (userId: string) => `flashkado-cards-cache-${userId}`;
+function loadPersistedCardsCache(userId: string): StatsCardsCache | null {
+  try {
+    const raw = localStorage.getItem(cardsCacheKey(userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.userId === userId ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+function savePersistedCardsCache(cache: StatsCardsCache) {
+  try {
+    localStorage.setItem(cardsCacheKey(cache.userId), JSON.stringify(cache));
+  } catch {
+    // ignore — quota exceeded, private browsing, storage disabled, etc.
+  }
+}
 
 // Keep in sync with StudyView.tsx's rolling priority cap.
 const PRIORITY_CAP = 30;
@@ -166,7 +192,6 @@ export default function StatsPage() {
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [pendingWordCount, setPendingWordCount] = useState(0);
-  const skipNextCardFetch = useRef(false);
   // Safety net: don't let the nav-guard get stuck "busy" forever if this page unmounts
   // some other way (browser back/forward) while a batch upload was mid-flight.
   useEffect(() => () => setUploadBusy(false), [setUploadBusy]);
@@ -320,12 +345,15 @@ export default function StatsPage() {
     const initData = async () => {
       if (user) {
         try {
-          // Cache hit: populate cards instantly so the page renders without waiting for the big fetch
-          const cached = _statsCardsCache?.userId === user.id ? _statsCardsCache : null;
+          // Cache hit (in-memory, else the persisted fallback): populate cards instantly
+          // so the page renders without waiting for the big fetch. fetchCards still runs
+          // below once defaultDeckId is set — on purpose, to revalidate this snapshot in
+          // the background rather than trusting it for the rest of the session.
+          const cached = (_statsCardsCache?.userId === user.id ? _statsCardsCache : null) ?? loadPersistedCardsCache(user.id);
           if (cached) {
             setCards(cached.cards);
             setDefaultDeckId(cached.deckId);
-            skipNextCardFetch.current = true;
+            if (cached.quickStats) setQuickStats(cached.quickStats);
             setInitLoading(false);
           }
 
@@ -348,13 +376,10 @@ export default function StatsPage() {
     initData();
   }, [user]);
 
-  // 2. ONLY fetch cards once we have a valid Deck ID
+  // 2. ONLY fetch cards once we have a valid Deck ID — runs even after a cache hit above,
+  // to revalidate that snapshot in the background (stale-while-revalidate).
   useEffect(() => {
     if (!user || !defaultDeckId) return;
-    if (skipNextCardFetch.current) {
-      skipNextCardFetch.current = false;
-      return;
-    }
     fetchCards();
   }, [user, defaultDeckId]);
 
@@ -478,7 +503,8 @@ export default function StatsPage() {
 
       if (error) { console.error("Fetch Error:", (error as any).message); return; }
 
-      if (allData.length) setQuickStats(computeQuickStats(allData));
+      const freshQuickStats = allData.length ? computeQuickStats(allData) : null;
+      if (freshQuickStats) setQuickStats(freshQuickStats);
 
       const flattened = allData.map((card: any) => ({
         ...card,
@@ -493,7 +519,9 @@ export default function StatsPage() {
 
       setCards(flattened);
       if (user && defaultDeckId) {
-        _statsCardsCache = { userId: user.id, cards: flattened, deckId: defaultDeckId };
+        const freshCache: StatsCardsCache = { userId: user.id, cards: flattened, deckId: defaultDeckId, quickStats: freshQuickStats };
+        _statsCardsCache = freshCache;
+        savePersistedCardsCache(freshCache);
       }
     } catch (err) {
       console.error("Unexpected Fetch Error:", err);
@@ -2358,21 +2386,33 @@ export default function StatsPage() {
             />
           )}
 
-          {/* Search */}
-          <div className="relative mb-6">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
-              🔍
+          {/* Search + manual refresh — the page already revalidates itself in the
+              background on load (stale-while-revalidate), this is just for forcing it
+              on demand instead of waiting. */}
+          <div className="flex items-center gap-2 mb-6">
+            <div className="relative flex-1">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                🔍
+              </div>
+              <input
+                type="text"
+                placeholder={t.search_placeholder}
+                className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setDisplayLimit(20);
+                }}
+              />
             </div>
-            <input
-              type="text"
-              placeholder={t.search_placeholder}
-              className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setDisplayLimit(20);
-              }}
-            />
+            <button
+              onClick={() => fetchCards()}
+              disabled={cardsLoading}
+              title="Refresh"
+              className="shrink-0 w-12 h-12 flex items-center justify-center bg-white border border-slate-200 rounded-2xl shadow-sm text-slate-400 hover:text-indigo-600 active:scale-90 transition-all disabled:opacity-50"
+            >
+              <RefreshCw size={16} className={cardsLoading ? "animate-spin" : ""} />
+            </button>
           </div>
 
           {/* Card list skeleton while full content loads */}
@@ -2518,15 +2558,19 @@ export default function StatsPage() {
                     ✕
                   </button>
                 </div>
-                {scoreDetailCard.exampleSentence?.jp && (
-                  <div className="mb-4 p-4 bg-slate-50 rounded-2xl">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Example</p>
-                    <p className="text-slate-800 font-bold leading-relaxed">{scoreDetailCard.exampleSentence.jp}</p>
-                    {scoreDetailCard.exampleSentence.en && (
-                      <p className="text-slate-500 text-sm mt-1 leading-relaxed">{scoreDetailCard.exampleSentence.en}</p>
-                    )}
-                  </div>
-                )}
+                <div className="mb-4 p-4 bg-slate-50 rounded-2xl">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Example</p>
+                  {scoreDetailCard.exampleSentence?.jp ? (
+                    <>
+                      <p className="text-slate-800 font-bold leading-relaxed">{scoreDetailCard.exampleSentence.jp}</p>
+                      {scoreDetailCard.exampleSentence.en && (
+                        <p className="text-slate-500 text-sm mt-1 leading-relaxed">{scoreDetailCard.exampleSentence.en}</p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-slate-400 text-sm italic">No sentence example</p>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
                   <div>
                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">
