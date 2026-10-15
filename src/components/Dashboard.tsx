@@ -13,6 +13,10 @@ import { useFriends } from "@/hooks/useFriends";
 type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
 
 const DAILY_GOAL = 10;
+// Same targets Study uses for its reviews-today / mastered-today chips — kept identical
+// so the same numbers mean the same thing on both tabs.
+const REVIEW_TARGET = 100;
+const MASTERED_GOAL = 20;
 
 interface ProfileScores {
   name: string | null;
@@ -20,6 +24,8 @@ interface ProfileScores {
   streak: number;
   max_streak: number;
   daily_count: number;
+  mastered_today: number;
+  still_learning: number;
   vocab_score: number | null;
   reading_score: number | null;
   listening_score: number | null;
@@ -274,8 +280,8 @@ export default function Dashboard() {
     const load = async () => {
       const today = new Date().toLocaleDateString("en-CA");
 
-      // Round 1: profile + deck + today's review count + today's quiz completions
-      const [profileRes, deckRes, reviewRes, quizRes] = await Promise.all([
+      // Round 1: profile + deck + today's review count + today's mastery count + today's quiz completions
+      const [profileRes, deckRes, reviewRes, masteryRes, quizRes] = await Promise.all([
         supabase
           .from("profiles")
           .select("full_name, referral_code, streak_count, max_streak, reading_score, listening_score, grammar_score")
@@ -283,6 +289,7 @@ export default function Dashboard() {
           .single(),
         supabase.from("decks").select("id").eq("user_id", user.id).eq("is_default", true).single(),
         supabase.from("user_review_counts").select("count").eq("user_id", user.id).eq("study_date", today).maybeSingle(),
+        supabase.from("user_mastery_counts").select("count").eq("user_id", user.id).eq("mastery_date", today).maybeSingle(),
         supabase.from("quiz_daily_stats").select("quiz_type").eq("user_id", user.id).eq("study_date", today),
       ]);
 
@@ -357,11 +364,13 @@ export default function Dashboard() {
       // match the generator's own default, so nothing silently falls out of every bucket.
       const posStats: Record<string, { total: number; mastered: number }> = {};
       for (const pos of ALLOWED_PARTS_OF_SPEECH) posStats[pos] = { total: 0, mastered: 0 };
+      let stillLearning = 0; // mirrors Study's "still learning" count — deck-wide, not mastered yet
       for (const card of cardMeta) {
         const sc = scoreMap.get(card.id);
         const jpM = (sc?.jp_to_en?.pass ?? 0) >= 5 && (sc?.jp_to_en?.percent ?? 0) >= 70;
         const enM = (sc?.en_to_jp?.pass ?? 0) >= 5 && (sc?.en_to_jp?.percent ?? 0) >= 70;
         const mastered = jpM || enM;
+        if (!mastered) stillLearning++;
 
         if (card.jlpt_level && card.jlpt_level in jlptStats) {
           const lvl = card.jlpt_level as JlptLevel;
@@ -423,6 +432,8 @@ export default function Dashboard() {
         streak: p?.streak_count ?? 0,
         max_streak: p?.max_streak ?? 0,
         daily_count: reviewRes.data?.count ?? 0,
+        mastered_today: masteryRes.data?.count ?? 0,
+        still_learning: stillLearning,
         vocab_score: vocabScore,
         reading_score: p?.reading_score ?? null,
         listening_score: p?.listening_score ?? null,
@@ -447,7 +458,7 @@ export default function Dashboard() {
     return <LoadingScreen />;
   }
 
-  const { name, streak, max_streak, daily_count } = data;
+  const { name, streak, max_streak, daily_count, mastered_today, still_learning } = data;
   const h = new Date().getHours();
   const greeting = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 
@@ -626,6 +637,31 @@ export default function Dashboard() {
                 </button>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Today — same three daily chips shown in Study, just as a card here */}
+      {data.deck_size > 0 && (
+        <div className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Today</p>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div>
+              <p className="text-xl font-black text-slate-800 tabular-nums">
+                {daily_count}<span className="text-slate-300 text-sm">/{REVIEW_TARGET}</span>
+              </p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Reviews</p>
+            </div>
+            <div>
+              <p className={`text-xl font-black tabular-nums ${mastered_today >= MASTERED_GOAL ? "text-emerald-600" : "text-slate-800"}`}>
+                {mastered_today}<span className="text-slate-300 text-sm">/{MASTERED_GOAL}</span>
+              </p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Mastered</p>
+            </div>
+            <div>
+              <p className="text-xl font-black text-slate-800 tabular-nums">{still_learning}</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Not Yet Mastered</p>
+            </div>
           </div>
         </div>
       )}
