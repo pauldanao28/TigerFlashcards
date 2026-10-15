@@ -299,8 +299,10 @@ export default function StatsPage() {
     } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
 
-      // 2. Stop loading on any auth event (login, token refresh, etc.)
-      setInitLoading(false);
+      // Signing out still needs to drop the loading gate (nothing left to wait for);
+      // otherwise leave it to initData/fetchCards below, once there's real data to show
+      // instead of revealing the page with every stat still at its zero default.
+      if (!session) setInitLoading(false);
 
       if (event === "SIGNED_OUT") {
         window.location.href = "/";
@@ -324,14 +326,17 @@ export default function StatsPage() {
             setInitLoading(false);
           }
 
-          await Promise.all([
+          const [, deckId] = await Promise.all([
             fetchProfile(),
             fetchDefaultDeck(),
             fetchStarterPacks(),
           ]);
+          // Nothing to wait for (no deck → fetchCards never runs) — reveal now. Otherwise
+          // leave the gate to fetchCards's own first-page handler, so the page doesn't
+          // show every stat at zero before the real numbers land.
+          if (!cached && !deckId) setInitLoading(false);
         } catch (error) {
           console.error("Error loading stats:", error);
-        } finally {
           setInitLoading(false);
         }
       }
@@ -376,7 +381,9 @@ export default function StatsPage() {
     }
   };
 
-  const fetchDefaultDeck = async () => {
+  // Returns the deck id (or null if the user has none) so the caller can tell whether
+  // there's a card fetch to wait for before revealing the page.
+  const fetchDefaultDeck = async (): Promise<string | null> => {
     const { data } = await supabase
       .from("decks")
       .select("id, title")
@@ -387,7 +394,9 @@ export default function StatsPage() {
       setDefaultDeckId(data.id);
       setDeckTitle(data.title);
       setTempTitle(data.title);
+      return data.id;
     }
+    return null;
   };
 
   // 3. Add the update function
