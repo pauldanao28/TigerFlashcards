@@ -32,7 +32,10 @@ export default function WordLookupSheet({
   layerClassName?: { backdrop: string; sheet: string };
 }) {
   const editWord = lookup.editWord.trim();
-  const added = !!editWord && isAdded(editWord);
+  // Already in the deck from before this session (checked fresh against the DB by
+  // useWordLookup, not just the session-local `isAdded` set) — treat the same as added.
+  const alreadyInDeck = lookup.deckStatus !== undefined && lookup.deckStatus !== "new";
+  const added = !!editWord && (isAdded(editWord) || alreadyInDeck);
 
   return (
     <>
