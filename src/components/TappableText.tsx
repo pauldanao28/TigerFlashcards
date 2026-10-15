@@ -19,13 +19,15 @@ export type WordStatus = "new" | "weak" | "easy" | "known";
 // Background tints the whole word (continuous, via the wrapping span); decoration colors
 // only the dotted underline under each kanji character.
 const STATUS_BG: Record<WordStatus, string> = {
-  new: "bg-violet-100", // not in the deck yet — its own hue, not a difficulty/JLPT color
+  // A touch stronger than weak/easy's translucent tint — these are the words worth
+  // adding, so they should be the first thing that jumps out, not the easiest to miss.
+  new: "bg-violet-200",
   weak: "bg-rose-100/70", // in the deck but struggling — same color as the stats page's Struggling list
   easy: "bg-emerald-100/70", // mastered — same color as the stats page's Mastered card
   known: "",
 };
 const STATUS_DECORATION: Record<WordStatus, string> = {
-  new: "decoration-violet-500",
+  new: "decoration-violet-600",
   weak: "decoration-rose-500",
   easy: "decoration-emerald-500",
   known: "decoration-indigo-400",

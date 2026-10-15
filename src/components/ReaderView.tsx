@@ -333,7 +333,7 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
               </div>
               <div className="flex items-center gap-4 mb-3 px-1">
                 <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-violet-600">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-violet-100 border border-violet-400" /> Not in deck
+                  <span className="w-2.5 h-2.5 rounded-sm bg-violet-200 border border-violet-500" /> Not in deck
                 </span>
                 <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-rose-600">
                   <span className="w-2.5 h-2.5 rounded-sm bg-rose-100/70 border border-rose-400" /> Weak
