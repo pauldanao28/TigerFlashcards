@@ -2173,7 +2173,7 @@ export default function StudyView() {
                 <button onClick={() => setShowJlptBreakdown(false)} className="text-slate-300 hover:text-slate-500">✕</button>
               </div>
               <p className="text-[10px] font-bold text-slate-400 mb-4 leading-relaxed">
-                Tap levels to filter what you study — pick as many as you like. Bars below show your mastery of each level; the number on the right is how many cards you have and what % of that level&apos;s real JLPT vocabulary that covers (N5/N4 have far fewer words than N3/N2/N1 to begin with).
+                Tap levels to filter what you study — pick as many as you like. Bars below show your mastery of each level; the number on the right is how many cards you have.
               </p>
               {/* Filter chips */}
               <div className="flex gap-2 mb-5 flex-wrap">
@@ -2215,10 +2215,6 @@ export default function StudyView() {
               <div className="space-y-3 mb-5">
                 {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
                   const count = jlptDistribution[level];
-                  // Coverage of that level's real JLPT vocab size, not share of your own
-                  // deck — N5/N4 have far fewer words than N3/N2/N1 in the first place, so
-                  // a deck-share % made levels look equally sized when they aren't.
-                  const pct = Math.min(100, Math.round((count / JLPT_VOCAB_INCREMENT[level]) * 100));
                   const mastery = jlptLevelMasteryAll[level];
                   return (
                     <div key={level} className="flex items-center gap-3">
@@ -2228,8 +2224,8 @@ export default function StudyView() {
                       <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
                         <div className={`h-full rounded-full ${JLPT_BAR_COLOR[level]}`} style={{ width: `${mastery}%` }} />
                       </div>
-                      <span className="shrink-0 w-20 text-right text-xs font-black text-slate-600">
-                        {count} <span className="text-slate-400 font-bold">· {pct}%</span>
+                      <span className="shrink-0 w-14 text-right text-xs font-black text-slate-600">
+                        {count}
                       </span>
                     </div>
                   );

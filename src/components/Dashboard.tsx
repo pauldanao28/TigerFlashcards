@@ -580,7 +580,7 @@ export default function Dashboard() {
             {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
               const { total, mastered } = data.jlpt_stats[level];
               const floor = JLPT_VOCAB_INCREMENT[level];
-              const floorPct = Math.round((total / floor) * 100);
+              const floorPct = Math.min(100, Math.round((total / floor) * 100));
               const masteredOfFloorPct = Math.min(100, Math.round((mastered / floor) * 100));
               const addedNotMasteredOfFloorPct = Math.min(100 - masteredOfFloorPct, Math.round(((total - mastered) / floor) * 100));
               const masteryPct = total > 0 ? Math.round((mastered / total) * 100) : 0;
