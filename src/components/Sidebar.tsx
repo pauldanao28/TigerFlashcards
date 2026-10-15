@@ -10,7 +10,7 @@ const TABS = [
   { href: "/study",   label: "Study",   Icon: BookOpen,   kanji: null },
   { href: "/quizzes", label: "Practice", Icon: ScrollText, kanji: null },
   { href: "/sensei",  label: "Sensei",  Icon: null,       kanji: "先生" },
-  { href: "/stats",   label: "Profile", Icon: BarChart2,  kanji: null },
+  { href: "/stats",   label: "Cards", Icon: BarChart2,  kanji: null },
 ] as const;
 
 const SHOW_ON = new Set(["/", "/study", "/quizzes", "/sensei", "/stats"]);

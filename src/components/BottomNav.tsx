@@ -18,7 +18,7 @@ const TABS: Tab[] = [
   { href: "/study",   label: "Study",   icon: BookOpen },
   { href: "/quizzes", label: "Practice", icon: ScrollText },
   { href: "/sensei",  label: "Sensei",  kanji: "先生" },
-  { href: "/stats",   label: "Profile", icon: BarChart2 },
+  { href: "/stats",   label: "Cards", icon: BarChart2 },
 ];
 
 const SHOW_ON = new Set(["/", "/study", "/quizzes", "/sensei", "/stats"]);
