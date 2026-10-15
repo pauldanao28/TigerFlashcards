@@ -1,8 +1,9 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, MonitorPlay, Pause, Play, Plus, Repeat, RotateCcw, X } from "lucide-react";
+import { ChevronLeft, MonitorPlay, Play, Plus, Repeat, RotateCcw, X } from "lucide-react";
 import TappableText from "@/components/TappableText";
 import NewWordsPanel from "@/components/NewWordsPanel";
+import LineStudyBar, { type StudyRate } from "@/components/LineStudyBar";
 import AddedWordsSummary from "@/components/AddedWordsSummary";
 import WordLookupSheet from "@/components/WordLookupSheet";
 import { useWordLookup } from "@/hooks/useWordLookup";
@@ -79,6 +80,9 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
   // Until the user sets the clip themselves, it follows the transcript's first → last timestamp.
   const [clipManual, setClipManual] = useState(false);
   const [loop, setLoop] = useState(false);
+  // Line-by-line study: pause at the end of every caption line, playback speed
+  const [autoPause, setAutoPause] = useState(false);
+  const [rate, setRate] = useState<StudyRate>(1);
   const [tab, setTab] = useState<"captions" | "words">("captions");
 
   const [playerError, setPlayerError] = useState<string | null>(null);
@@ -246,6 +250,7 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
         playerVars: { playsinline: 1, rel: 0, modestbranding: 1, start: Math.floor(start) },
         events: {
           onReady: (e) => {
+            try { e.target.setPlaybackRate(rate); } catch { /* unsupported rate */ }
             if (!autoPlayRef.current) return;
             autoPlayRef.current = false;
             e.target.playVideo(); // browsers may still block this — the Play button covers that
@@ -265,9 +270,20 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, videoId]);
 
-  // Poll playback position: drives caption sync and enforces the clip's end (or loops).
-  const clipRef = useRef({ start, end, loop });
-  useEffect(() => { clipRef.current = { start, end, loop }; }, [start, end, loop]);
+  // Index of the caption line playing at time t (no look-ahead), -1 before the first.
+  const lineIndexAt = (list: CaptionLine[], t: number) => {
+    let idx = -1;
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].t <= t) idx = i; else break;
+    }
+    return idx;
+  };
+
+  // Poll playback position: drives caption sync, enforces the clip's end (or loops), and
+  // pauses at each line boundary when "Pause each line" is on.
+  const clipRef = useRef({ start, end, loop, autoPause, lines });
+  useEffect(() => { clipRef.current = { start, end, loop, autoPause, lines }; }, [start, end, loop, autoPause, lines]);
+  const lastLineRef = useRef<number | null>(null); // line playback was last in (auto-pause)
   useEffect(() => {
     if (phase !== "watching") return;
     const id = setInterval(() => {
@@ -275,14 +291,28 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
       if (!p || typeof p.getCurrentTime !== "function") return;
       const t = p.getCurrentTime();
       setCurrentTime(t);
-      const { start: s, end: e, loop: l } = clipRef.current;
-      if (e !== null && t >= e && p.getPlayerState() === PLAYING) {
-        if (l) p.seekTo(s, true);
+      if (p.getPlayerState() !== PLAYING) return;
+      const { start: s, end: e, loop: l, autoPause: ap, lines: ls } = clipRef.current;
+      if (e !== null && t >= e) {
+        if (l) { p.seekTo(s, true); lastLineRef.current = lineIndexAt(ls, s); }
         else p.pauseVideo();
+        return;
       }
-    }, 250);
+      const idx = lineIndexAt(ls, t);
+      if (ap && lastLineRef.current !== null && idx > lastLineRef.current) {
+        // Crossed into the next line — stop there, rewound to its exact start so it plays whole.
+        p.pauseVideo();
+        p.seekTo(ls[idx].t, true);
+      }
+      lastLineRef.current = idx;
+    }, 100);
     return () => clearInterval(id);
   }, [phase]);
+
+  // Playback speed — applied whenever it changes (and on player ready, below).
+  useEffect(() => {
+    try { playerRef.current?.setPlaybackRate(rate); } catch { /* player not ready yet */ }
+  }, [rate]);
 
   // Keep the active caption in view — but not while the lookup sheet is open.
   useEffect(() => {
@@ -318,10 +348,18 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
     p.playVideo();
   };
 
-  const playLine = (t: number) => {
-    seek(t);
+  // Jump to caption line i and play it (auto-pause, if on, stops at its end).
+  const playLineIndex = (i: number) => {
+    const line = lines[i];
+    if (!line) return;
+    seek(line.t);
+    lastLineRef.current = i;
     playerRef.current?.playVideo();
   };
+  const currentLine = () => Math.max(lineIndexAt(lines, currentTime), 0);
+  const prevLine = () => playLineIndex(Math.max(currentLine() - 1, 0));
+  const nextLine = () => playLineIndex(Math.min(currentLine() + 1, lines.length - 1));
+  const repeatLine = () => playLineIndex(currentLine());
 
   // Tapping a word pauses the video so there's time to read the lookup.
   const handleWordTap = (word: string, e: React.MouseEvent | React.TouchEvent) => {
@@ -482,27 +520,32 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
             </div>
 
             <div className="px-4 py-3 flex flex-col gap-3">
+              <LineStudyBar
+                playing={playing}
+                onPlayPause={togglePlay}
+                onPrev={prevLine}
+                onNext={nextLine}
+                onRepeat={repeatLine}
+                autoPause={autoPause}
+                onToggleAutoPause={() => setAutoPause((v) => !v)}
+                rate={rate}
+                onRate={setRate}
+                position={lines.length > 0 ? { index: activeIndex, total: lines.length } : undefined}
+                lineControls={lines.length > 0}
+              />
               <div className="flex items-center gap-2">
                 <button
-                  onClick={togglePlay}
-                  aria-label={playing ? "Pause" : "Play"}
-                  className="w-11 h-11 shrink-0 rounded-2xl bg-indigo-600 text-white flex items-center justify-center active:scale-90 transition-all shadow-md shadow-indigo-200"
-                >
-                  {playing ? <Pause size={18} /> : <Play size={18} />}
-                </button>
-                <button
                   onClick={playFromStart}
-                  aria-label="Play from start"
-                  className="w-11 h-11 shrink-0 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center active:scale-90 transition-all"
+                  className="h-8 px-2.5 shrink-0 rounded-xl bg-slate-100 text-slate-500 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
                 >
-                  <RotateCcw size={16} />
+                  <RotateCcw size={12} /> Clip start
                 </button>
                 <button
                   onClick={() => setLoop((v) => !v)}
                   aria-pressed={loop}
-                  className={`h-11 px-3 shrink-0 rounded-2xl flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest active:scale-90 transition-all ${loop ? "bg-indigo-50 text-indigo-600 border border-indigo-200" : "bg-slate-100 text-slate-500"}`}
+                  className={`h-8 px-2.5 shrink-0 rounded-xl flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all ${loop ? "bg-indigo-50 text-indigo-600 border border-indigo-200" : "bg-slate-100 text-slate-500 border border-transparent"}`}
                 >
-                  <Repeat size={14} /> Loop
+                  <Repeat size={12} /> Loop clip
                 </button>
                 <span className="ml-auto font-mono text-xs font-bold text-slate-400">{formatTime(currentTime)}</span>
               </div>
@@ -569,7 +612,7 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
                       className={`flex gap-3 items-start rounded-2xl px-3 py-2.5 mb-1 border-l-4 transition-colors ${active ? "bg-indigo-50 border-indigo-500" : "border-transparent"} ${inClip(line.t) ? "" : "opacity-40"}`}
                     >
                       <button
-                        onClick={() => playLine(line.t)}
+                        onClick={() => playLineIndex(i)}
                         className={`shrink-0 mt-1 font-mono text-[10px] font-bold px-1.5 py-0.5 rounded-md transition-colors ${active ? "text-indigo-600 bg-white" : "text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"}`}
                         aria-label={`Play from ${formatTime(line.t)}`}
                       >

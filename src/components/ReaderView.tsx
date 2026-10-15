@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, Sparkles, Send, Loader2, Plus, BookOpen, NotebookText, X } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
@@ -9,6 +9,9 @@ import AddedWordsSummary from "@/components/AddedWordsSummary";
 import WordLookupSheet from "@/components/WordLookupSheet";
 import { useWordLookup } from "@/hooks/useWordLookup";
 import { useWordMining } from "@/hooks/useWordMining";
+import LineStudyBar, { type StudyRate } from "@/components/LineStudyBar";
+import { splitSentences } from "@/lib/japaneseText";
+import { speakSentence, stopSentence } from "@/lib/tts";
 
 interface GrammarNote {
   pattern: string;
@@ -121,7 +124,53 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
     }
   };
 
+  // ── Read aloud, sentence by sentence (browser voice — free, no AI) ──
+  const sentences = useMemo(() => splitSentences(passage), [passage]);
+  const speakable = useMemo(() => sentences.flatMap((s, i) => (s.speakable ? [i] : [])), [sentences]);
+  const [readIdx, setReadIdx] = useState(-1);  // index into `sentences`, -1 = not started
+  const [speaking, setSpeaking] = useState(false);
+  const [autoPause, setAutoPause] = useState(false);
+  const [rate, setRate] = useState<StudyRate>(0.75);
+  // Read by the onEnd callback, which outlives the render that started the sentence.
+  const readRef = useRef({ autoPause, rate, speakable, sentences });
+  useEffect(() => { readRef.current = { autoPause, rate, speakable, sentences }; }, [autoPause, rate, speakable, sentences]);
+  const finishedRef = useRef(false); // current sentence ended on its own (so Play moves on)
+
+  const speakAt = (i: number) => {
+    const { sentences: ss, speakable: sp, rate: r } = readRef.current;
+    if (!ss[i]) { stopSentence(); setSpeaking(false); return; }
+    finishedRef.current = false;
+    setReadIdx(i);
+    setSpeaking(true);
+    speakSentence(ss[i].text, {
+      rate: r,
+      onEnd: () => {
+        finishedRef.current = true;
+        const next = sp[sp.indexOf(i) + 1];
+        if (readRef.current.autoPause || next === undefined) setSpeaking(false);
+        else speakAt(next);
+      },
+    });
+  };
+
+  const stopReading = () => { stopSentence(); setSpeaking(false); };
+  useEffect(() => () => stopSentence(), []);
+
+  const readPos = speakable.indexOf(readIdx); // -1 before starting
+  const togglePlayRead = () => {
+    if (speaking) { stopReading(); return; }
+    if (readPos < 0) { speakAt(speakable[0]); return; }
+    // After a sentence finished (auto-pause), Play continues with the next one; at the end it starts over.
+    const next = finishedRef.current ? speakable[readPos + 1] ?? speakable[0] : readIdx;
+    speakAt(next);
+  };
+  const prevSentence = () => speakAt(speakable[Math.max(readPos - 1, 0)]);
+  const nextSentence = () => speakAt(speakable[Math.min(readPos + 1, speakable.length - 1)]);
+  const repeatSentence = () => speakAt(readPos < 0 ? speakable[0] : readIdx);
+
   const reset = () => {
+    stopReading();
+    setReadIdx(-1);
     setPhase("input");
     setDraft("");
     setPassage("");
@@ -136,7 +185,7 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white shrink-0">
         <button
-          onClick={phase === "reading" ? reset : onClose}
+          onClick={phase === "reading" ? reset : () => { stopReading(); onClose(); }}
           className="flex items-center gap-0.5 text-slate-400 hover:text-slate-700 active:scale-90 transition-all"
         >
           <ChevronLeft size={14} />
@@ -250,6 +299,22 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
         <div className="flex-1 flex flex-col min-h-0">
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-xl mx-auto w-full px-5 py-6">
+              <div className="sticky top-0 z-10 -mx-5 px-5 pt-1 pb-3 mb-2 bg-slate-50/95 backdrop-blur-sm">
+                <LineStudyBar
+                  playing={speaking}
+                  onPlayPause={togglePlayRead}
+                  onPrev={prevSentence}
+                  onNext={nextSentence}
+                  onRepeat={repeatSentence}
+                  autoPause={autoPause}
+                  onToggleAutoPause={() => setAutoPause((v) => !v)}
+                  rate={rate}
+                  onRate={setRate}
+                  position={{ index: readPos, total: speakable.length }}
+                  unit="sentence"
+                  disabled={speakable.length === 0}
+                />
+              </div>
               <div className="flex items-center gap-4 mb-3 px-1">
                 <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-violet-600">
                   <span className="w-2.5 h-2.5 rounded-sm bg-violet-100 border border-violet-400" /> Not in deck
@@ -259,7 +324,14 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
                 </span>
               </div>
               <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6 text-xl leading-[2.6] whitespace-pre-wrap break-words">
-                <TappableText text={passage} keyPrefix="p" onWordTap={(word, _reading, e) => handleWordTap(word, e)} getStatus={getWordStatus} />
+                {sentences.map((sentence, i) => (
+                  <span
+                    key={i}
+                    className={i === readIdx ? "bg-indigo-50 rounded-lg ring-1 ring-indigo-100" : ""}
+                  >
+                    <TappableText text={sentence.text} keyPrefix={`s${i}`} onWordTap={(word, _reading, e) => handleWordTap(word, e)} getStatus={getWordStatus} />
+                  </span>
+                ))}
               </div>
 
               <NewWordsPanel mining={mining} onWordTap={handleWordTap} className="mt-4" />

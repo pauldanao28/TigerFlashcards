@@ -8,6 +8,7 @@ declare namespace YT {
     getCurrentTime(): number;
     getDuration(): number;
     getPlayerState(): number;
+    setPlaybackRate(rate: number): void;
     destroy(): void;
   }
   interface PlayerEvent { target: Player }

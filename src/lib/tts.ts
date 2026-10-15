@@ -54,6 +54,33 @@ export function speak(text: string, lang: "ja-JP" | "en-US" = "ja-JP") {
   synth.speak(utter);
 }
 
+// Browser voice, one sentence at a time (Reader's read-aloud). Free — no API call.
+// Only the latest utterance may report back: cancel() fires onend/onerror on some
+// browsers, so the previous one is detached before it's cancelled.
+let currentUtter: SpeechSynthesisUtterance | null = null;
+
+export function speakSentence(text: string, { rate = 1, onEnd }: { rate?: number; onEnd?: () => void } = {}) {
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+  const synth = window.speechSynthesis;
+  stopSentence();
+  synth.resume();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = "ja-JP";
+  utter.rate = rate;
+  const voice = synth.getVoices().find((v) => v.lang === "ja-JP");
+  if (voice) utter.voice = voice;
+  utter.onend = () => { if (currentUtter === utter) { currentUtter = null; onEnd?.(); } };
+  currentUtter = utter;
+  synth.speak(utter);
+}
+
+export function stopSentence() {
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+  if (currentUtter) currentUtter.onend = null;
+  currentUtter = null;
+  window.speechSynthesis.cancel();
+}
+
 // AdminChat sensei messages — Gemini TTS route, cached per session
 async function fetchAudio(text: string, voice?: string, isPreview?: boolean): Promise<string> {
   const resolvedVoice = voice ?? getVoice();

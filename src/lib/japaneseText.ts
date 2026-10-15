@@ -71,3 +71,38 @@ export function splitTappable(text: string, segmenter: Intl.Segmenter | null = g
   }
   return out;
 }
+
+/**
+ * Splits a passage into sentences — after 。！？!? (outside 「」/『』/（） quotes, so
+ * 「行こう！」と言った。 stays one sentence) and at line breaks — keeping every character so
+ * the pieces render back to the original text. Whitespace-only pieces have speakable: false.
+ */
+export function splitSentences(text: string): { text: string; speakable: boolean }[] {
+  const out: { text: string; speakable: boolean }[] = [];
+  let buf = "";
+  let depth = 0;
+  const push = () => {
+    if (buf) out.push({ text: buf, speakable: /\S/.test(buf) });
+    buf = "";
+  };
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "\n") {
+      push();
+      let nl = ch;
+      while (text[i + 1] === "\n") nl += text[++i];
+      out.push({ text: nl, speakable: false });
+      depth = 0;
+      continue;
+    }
+    buf += ch;
+    if ("「『（(".includes(ch)) depth++;
+    else if ("」』）)".includes(ch)) depth = Math.max(0, depth - 1);
+    else if ("。！？!?".includes(ch) && depth === 0) {
+      while (text[i + 1] && "。！？!?」』）)\"".includes(text[i + 1])) buf += text[++i];
+      push();
+    }
+  }
+  push();
+  return out;
+}
