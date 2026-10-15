@@ -953,6 +953,7 @@ export default function AdminChat({ userId }: { userId: string }) {
               <div>
                 <h2 className="text-base font-black text-slate-800 uppercase italic tracking-tighter">Voice</h2>
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Japanese TTS · affects all audio</p>
+                <p className="text-[10px] text-amber-600 font-bold mt-1.5">✨ Premium feature — coming soon</p>
               </div>
               <button onClick={() => setShowVoicePicker(false)} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400"><X size={14} /></button>
             </div>
