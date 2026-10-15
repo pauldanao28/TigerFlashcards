@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { getLevel, jlptLevel, JLPT_VOCAB_INCREMENT, grammarPatternScore } from "@/lib/scoring";
+import { ALLOWED_PARTS_OF_SPEECH } from "@/lib/textNormalize";
 import LoadingScreen from "@/components/LoadingScreen";
 import { SocialDock } from "@/components/SocialDock";
 import { useFriends } from "@/hooks/useFriends";
@@ -25,6 +26,7 @@ interface ProfileScores {
   grammar_score: number | null;
   deck_size: number;
   jlpt_stats: Record<JlptLevel, { total: number; mastered: number }>;
+  pos_stats: Record<string, { total: number; mastered: number }>;
   vocab_nlevel: JlptLevel;
 }
 
@@ -320,23 +322,23 @@ export default function Dashboard() {
         }
         return rows;
       };
-      const fetchJlptCards = async (): Promise<{ id: string; jlpt_level: JlptLevel | null }[]> => {
+      const fetchCardMeta = async (): Promise<{ id: string; jlpt_level: JlptLevel | null; partOfSpeech: string | null }[]> => {
         if (!deckId) return [];
-        const rows: { id: string; jlpt_level: JlptLevel | null }[] = [];
+        const rows: { id: string; jlpt_level: JlptLevel | null; partOfSpeech: string | null }[] = [];
         for (let from = 0; ; from += PAGE) {
           const { data } = await supabase
             .from("master_cards")
-            .select("id, jlpt_level, deck_cards!inner(deck_id)")
+            .select("id, jlpt_level, partOfSpeech, deck_cards!inner(deck_id)")
             .eq("deck_cards.deck_id", deckId)
             .order("id")
             .range(from, from + PAGE - 1);
-          if (data) rows.push(...(data as unknown as { id: string; jlpt_level: JlptLevel | null }[]));
+          if (data) rows.push(...(data as unknown as { id: string; jlpt_level: JlptLevel | null; partOfSpeech: string | null }[]));
           if (!data || data.length < PAGE) break;
         }
         return rows;
       };
 
-      const [deckCards, scoreRows, jlptCards] = await Promise.all([fetchAllDeckCards(), fetchAllScores(), fetchJlptCards()]);
+      const [deckCards, scoreRows, cardMeta] = await Promise.all([fetchAllDeckCards(), fetchAllScores(), fetchCardMeta()]);
 
       // Build score map
       const scoreMap = new Map(scoreRows.map((s) => [s.card_id, s.scores_json]));
@@ -350,14 +352,27 @@ export default function Dashboard() {
         N2: { total: 0, mastered: 0 },
         N1: { total: 0, mastered: 0 },
       };
-      for (const card of jlptCards) {
-        if (!card.jlpt_level || !(card.jlpt_level in jlptStats)) continue;
+      // Per-tag stats (same ≥5 tries, ≥70% mastered rule) — unset defaults to "noun" to
+      // match the generator's own default, so nothing silently falls out of every bucket.
+      const posStats: Record<string, { total: number; mastered: number }> = {};
+      for (const pos of ALLOWED_PARTS_OF_SPEECH) posStats[pos] = { total: 0, mastered: 0 };
+      for (const card of cardMeta) {
         const sc = scoreMap.get(card.id);
-        const lvl = card.jlpt_level as JlptLevel;
-        jlptStats[lvl].total++;
         const jpM = (sc?.jp_to_en?.pass ?? 0) >= 5 && (sc?.jp_to_en?.percent ?? 0) >= 70;
         const enM = (sc?.en_to_jp?.pass ?? 0) >= 5 && (sc?.en_to_jp?.percent ?? 0) >= 70;
-        if (jpM || enM) jlptStats[lvl].mastered++;
+        const mastered = jpM || enM;
+
+        if (card.jlpt_level && card.jlpt_level in jlptStats) {
+          const lvl = card.jlpt_level as JlptLevel;
+          jlptStats[lvl].total++;
+          if (mastered) jlptStats[lvl].mastered++;
+        }
+
+        const pos = card.partOfSpeech ?? "noun";
+        if (pos in posStats) {
+          posStats[pos].total++;
+          if (mastered) posStats[pos].mastered++;
+        }
       }
 
       // Vocab score: either jp or en mastered per N level (both directions count).
@@ -413,6 +428,7 @@ export default function Dashboard() {
         grammar_score: grammarScore,
         deck_size: deckSize,
         jlpt_stats: jlptStats,
+        pos_stats: posStats,
         vocab_nlevel: vocabNLevel,
       };
       _dashboardCache.set(user.id, fresh);
@@ -583,6 +599,28 @@ export default function Dashboard() {
                     <span>{total}/{floor} = {floorPct}%</span>
                     <span>{mastered}/{total} Mastered ({masteryPct}%)</span>
                   </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Vocabulary by Part of Speech — view-only, no filtering here (that lives in Practice) */}
+      {data.deck_size > 0 && (
+        <div className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Vocabulary by Part of Speech</p>
+          <div className="flex gap-2 flex-wrap">
+            {ALLOWED_PARTS_OF_SPEECH.map((pos) => {
+              const { total, mastered } = data.pos_stats[pos] ?? { total: 0, mastered: 0 };
+              const pct = total > 0 ? Math.round((mastered / total) * 100) : 0;
+              return (
+                <div
+                  key={pos}
+                  className="relative overflow-hidden px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-slate-200 bg-slate-50 text-slate-600"
+                >
+                  <span aria-hidden className="absolute inset-y-0 left-0 bg-indigo-200" style={{ width: `${pct}%` }} />
+                  <span className="relative">{pos} · {pct}%</span>
                 </div>
               );
             })}
