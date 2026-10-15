@@ -1030,6 +1030,19 @@ export default function StudyView() {
   const jlptTaggedTotal = (["N5", "N4", "N3", "N2", "N1"] as const).reduce(
     (sum, l) => sum + jlptDistribution[l], 0
   );
+  // Mastery per level (independent of the active JLPT/POS filters — this is the deck
+  // overview, not "what I'm currently studying") — same Mastered rule used everywhere
+  // else: ≥5 passes at ≥70% in the direction currently being studied.
+  const jlptLevelMasteryAll = useMemo(() => {
+    const mode = language === "jp" ? "jp_to_en" : "en_to_jp";
+    const out: Record<"N5" | "N4" | "N3" | "N2" | "N1", number> = { N5: 0, N4: 0, N3: 0, N2: 0, N1: 0 };
+    for (const level of ["N5", "N4", "N3", "N2", "N1"] as const) {
+      const levelCards = cards.filter((c) => c.jlpt_level === level);
+      const known = levelCards.filter((c) => (c.scores?.[mode]?.pass ?? 0) >= MASTERY_MIN_TRIES && (c.scores?.[mode]?.percent ?? 0) >= 70).length;
+      out[level] = levelCards.length > 0 ? Math.round((known / levelCards.length) * 100) : 0;
+    }
+    return out;
+  }, [cards, language]);
   const dominantJlptLevel = useMemo(() => {
     const levels = (["N5", "N4", "N3", "N2", "N1"] as const);
     return levels.reduce((best, level) =>
@@ -2148,7 +2161,7 @@ export default function StudyView() {
                 <button onClick={() => setShowJlptBreakdown(false)} className="text-slate-300 hover:text-slate-500">✕</button>
               </div>
               <p className="text-[10px] font-bold text-slate-400 mb-4 leading-relaxed">
-                Tap levels to filter what you study — pick as many as you like. Percentages below show each level&apos;s share of your deck, not mastery.
+                Tap levels to filter what you study — pick as many as you like. Bars below show your mastery of each level; the number on the right is how many cards (and what share of your deck) that level has.
               </p>
               {/* Filter chips */}
               <div className="flex gap-2 mb-5 flex-wrap">
@@ -2191,13 +2204,14 @@ export default function StudyView() {
                 {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
                   const count = jlptDistribution[level];
                   const pct = jlptTotal > 0 ? Math.round((count / jlptTotal) * 100) : 0;
+                  const mastery = jlptLevelMasteryAll[level];
                   return (
                     <div key={level} className="flex items-center gap-3">
                       <span className={`shrink-0 w-9 text-[10px] px-1.5 py-0.5 rounded-md border font-black text-center uppercase tracking-tighter ${JLPT_BADGE_COLOR[level]}`}>
                         {level}
                       </span>
                       <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${JLPT_BAR_COLOR[level]}`} style={{ width: `${pct}%` }} />
+                        <div className={`h-full rounded-full ${JLPT_BAR_COLOR[level]}`} style={{ width: `${mastery}%` }} />
                       </div>
                       <span className="shrink-0 w-20 text-right text-xs font-black text-slate-600">
                         {count} <span className="text-slate-400 font-bold">· {pct}%</span>
