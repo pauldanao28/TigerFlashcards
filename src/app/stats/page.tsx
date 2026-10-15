@@ -108,7 +108,7 @@ export default function StatsPage() {
   const router = useRouter();
   const t = translations.en;
   const { isBusy: uploadBusy, setIsBusy: setUploadBusy } = useUploadGuard();
-  const { showAlert, showConfirm } = useAppAlert();
+  const { showAlert, showConfirm, showPrompt } = useAppAlert();
   const [cards, setCards] = useState<FlashcardData[]>([]);
   const [loading, setLoading] = useState(false);
   const [initLoading, setInitLoading] = useState(false);
@@ -426,14 +426,14 @@ export default function StatsPage() {
   };
 
   const handleReport = async (cardId: string, currentMeaning: string) => {
-    const suggestion = window.prompt(t.report_placeholder);
+    const suggestion = await showPrompt(t.report_placeholder, { title: "Report a card" });
 
-    if (!suggestion || suggestion.trim() === "") return;
+    if (!suggestion) return;
 
     const { error } = await supabase.from("card_reports").insert({
       card_id: cardId,
       user_id: user?.id,
-      suggested_meaning: suggestion.trim(),
+      suggested_meaning: suggestion,
       status: "pending",
     });
 
@@ -2415,14 +2415,6 @@ export default function StatsPage() {
                       />
                     </button>
 
-                    {/* REPORT BUTTON */}
-                    <button
-                      onClick={() => handleReport(card.id, card.english)}
-                      className="w-8 h-8 flex items-center justify-center text-amber-500 active:scale-90 transition-all"
-                    >
-                      <span className="text-base leading-none">🚩</span>
-                    </button>
-
                     {/* DELETE BUTTON */}
                     <button
                       onClick={() => deleteCard(card.id)}
@@ -2560,6 +2552,16 @@ export default function StatsPage() {
                     </div>
                   </div>
                 </div>
+                <button
+                  onClick={() => {
+                    const card = scoreDetailCard;
+                    setScoreDetailCard(null);
+                    handleReport(card.id, card.english);
+                  }}
+                  className="w-full mt-4 pt-4 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-600 active:scale-95 transition-all"
+                >
+                  <span>🚩</span> Report a Problem
+                </button>
               </div>
             </div>
           )}
