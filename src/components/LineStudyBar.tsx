@@ -1,5 +1,5 @@
 "use client";
-import { Pause, Play, RotateCcw, SkipBack, SkipForward } from "lucide-react";
+import { Pause, Play, RotateCcw, SkipBack, SkipForward, Sparkles } from "lucide-react";
 
 export const STUDY_RATES = [0.5, 0.75, 1] as const;
 export type StudyRate = (typeof STUDY_RATES)[number];
@@ -23,6 +23,7 @@ export default function LineStudyBar({
   unit = "line",
   disabled = false,
   lineControls = true,
+  onExplain,
 }: {
   playing: boolean;
   onPlayPause: () => void;
@@ -37,6 +38,7 @@ export default function LineStudyBar({
   unit?: "line" | "sentence";
   disabled?: boolean;
   lineControls?: boolean; // false → only play/pause and speed (e.g. Watch with no transcript)
+  onExplain?: () => void;  // "Explain this line" (AI) for the current line
 }) {
   const label = unit === "line" ? "Line" : "Sentence";
   return (
@@ -102,6 +104,15 @@ export default function LineStudyBar({
             </button>
           ))}
         </div>
+        {onExplain && (
+          <button
+            onClick={onExplain}
+            disabled={disabled || !lineControls}
+            className="h-8 px-2.5 rounded-xl flex items-center gap-1 text-[10px] font-black uppercase tracking-widest bg-violet-50 text-violet-600 border border-violet-100 active:scale-95 transition-all disabled:opacity-40"
+          >
+            <Sparkles size={12} /> Explain
+          </button>
+        )}
       </div>
     </div>
   );

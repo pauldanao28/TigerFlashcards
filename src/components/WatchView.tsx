@@ -1,9 +1,11 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, MonitorPlay, Play, Plus, Repeat, RotateCcw, X } from "lucide-react";
+import { ChevronLeft, MonitorPlay, Play, Plus, Repeat, RotateCcw, Sparkles, X } from "lucide-react";
 import TappableText from "@/components/TappableText";
 import NewWordsPanel from "@/components/NewWordsPanel";
 import LineStudyBar, { type StudyRate } from "@/components/LineStudyBar";
+import LineExplainSheet from "@/components/LineExplainSheet";
+import { useLineExplain } from "@/hooks/useLineExplain";
 import AddedWordsSummary from "@/components/AddedWordsSummary";
 import WordLookupSheet from "@/components/WordLookupSheet";
 import { useWordLookup } from "@/hooks/useWordLookup";
@@ -361,6 +363,15 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
   const nextLine = () => playLineIndex(Math.min(currentLine() + 1, lines.length - 1));
   const repeatLine = () => playLineIndex(currentLine());
 
+  // ── Explain this line (AI) — pauses the video; ‹ › in the sheet step through lines ──
+  const { explain, openExplain, closeExplain } = useLineExplain();
+  const explainLine = (i: number) => {
+    if (!lines[i]) return;
+    playerRef.current?.pauseVideo();
+    const context = [...lines.slice(Math.max(0, i - 2), i), ...lines.slice(i + 1, i + 3)].map((l) => l.text).join("\n");
+    openExplain(i, lines[i].text, context);
+  };
+
   // Tapping a word pauses the video so there's time to read the lookup.
   const handleWordTap = (word: string, e: React.MouseEvent | React.TouchEvent) => {
     playerRef.current?.pauseVideo();
@@ -532,6 +543,7 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
                 onRate={setRate}
                 position={lines.length > 0 ? { index: activeIndex, total: lines.length } : undefined}
                 lineControls={lines.length > 0}
+                onExplain={() => explainLine(currentLine())}
               />
               <div className="flex items-center gap-2">
                 <button
@@ -618,7 +630,14 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
                       >
                         {formatTime(line.t)}
                       </button>
-                      <p className={`text-lg leading-[2.1] break-words ${active ? "text-slate-900" : "text-slate-600"}`}>
+                      <button
+                        onClick={() => explainLine(i)}
+                        aria-label="Explain this line"
+                        className="shrink-0 mt-1 p-1 rounded-md text-violet-300 hover:text-violet-600 hover:bg-violet-50 transition-colors"
+                      >
+                        <Sparkles size={13} />
+                      </button>
+                      <p className={`flex-1 min-w-0 text-lg leading-[2.1] break-words ${active ? "text-slate-900" : "text-slate-600"}`}>
                         <TappableText
                           text={line.text}
                           keyPrefix={`l${i}`}
@@ -699,6 +718,19 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
           addLabel="Add to Deck"
           addIcon={<Plus size={11} />}
           layerClassName={{ backdrop: "z-[310]", sheet: "z-[320] bottom-0 left-0 right-0" }}
+        />
+      )}
+
+      {explain && (
+        <LineExplainSheet
+          explain={explain}
+          onClose={closeExplain}
+          onPrev={explain.index > 0 ? () => explainLine(explain.index - 1) : undefined}
+          onNext={explain.index < lines.length - 1 ? () => explainLine(explain.index + 1) : undefined}
+          onAddWord={mining.addWord}
+          isAdded={(w) => mining.addedWords.has(w)}
+          adding={mining.addLoading}
+          position={{ index: explain.index, total: lines.length }}
         />
       )}
 

@@ -10,6 +10,8 @@ import WordLookupSheet from "@/components/WordLookupSheet";
 import { useWordLookup } from "@/hooks/useWordLookup";
 import { useWordMining } from "@/hooks/useWordMining";
 import LineStudyBar, { type StudyRate } from "@/components/LineStudyBar";
+import LineExplainSheet from "@/components/LineExplainSheet";
+import { useLineExplain } from "@/hooks/useLineExplain";
 import { splitSentences } from "@/lib/japaneseText";
 import { speakSentence, stopSentence } from "@/lib/tts";
 
@@ -168,6 +170,17 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
   const nextSentence = () => speakAt(speakable[Math.min(readPos + 1, speakable.length - 1)]);
   const repeatSentence = () => speakAt(readPos < 0 ? speakable[0] : readIdx);
 
+  // ── Explain this sentence (AI) — `pos` indexes speakable sentences; ‹ › step through them ──
+  const { explain, openExplain, closeExplain } = useLineExplain();
+  const explainSentence = (pos: number) => {
+    const i = speakable[pos];
+    if (i === undefined) return;
+    stopReading();
+    setReadIdx(i); // highlight the sentence being explained
+    const near = [...speakable.slice(Math.max(0, pos - 2), pos), ...speakable.slice(pos + 1, pos + 3)];
+    openExplain(pos, sentences[i].text, near.map((j) => sentences[j].text.trim()).join("\n"));
+  };
+
   const reset = () => {
     stopReading();
     setReadIdx(-1);
@@ -313,6 +326,7 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
                   position={{ index: readPos, total: speakable.length }}
                   unit="sentence"
                   disabled={speakable.length === 0}
+                  onExplain={() => explainSentence(Math.max(readPos, 0))}
                 />
               </div>
               <div className="flex items-center gap-4 mb-3 px-1">
@@ -408,6 +422,20 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
           addLabel="Add to Deck"
           addIcon={<Plus size={11} />}
           layerClassName={{ backdrop: "z-[310]", sheet: "z-[320] bottom-0 left-0 right-0" }}
+        />
+      )}
+
+      {explain && (
+        <LineExplainSheet
+          explain={explain}
+          onClose={closeExplain}
+          onPrev={explain.index > 0 ? () => explainSentence(explain.index - 1) : undefined}
+          onNext={explain.index < speakable.length - 1 ? () => explainSentence(explain.index + 1) : undefined}
+          onAddWord={addWord}
+          isAdded={(w) => addedWords.has(w)}
+          adding={addLoading}
+          position={{ index: explain.index, total: speakable.length }}
+          unit="sentence"
         />
       )}
 

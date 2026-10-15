@@ -62,3 +62,10 @@ export type FlashcardData = MasterCard & {
 };
 
 export type StudyMode = 'recognition' | 'production';
+// "Explain this line" result (Reader sentences / Watch captions) — /api/reader/explain
+export interface LineExplanation {
+  translation: string;
+  grammar: { pattern: string; explanation: string }[];
+  words: { word: string; reading: string; meaning: string }[];
+  note: string;
+}
