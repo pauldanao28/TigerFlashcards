@@ -2518,6 +2518,15 @@ export default function StatsPage() {
                     ✕
                   </button>
                 </div>
+                {scoreDetailCard.exampleSentence?.jp && (
+                  <div className="mb-4 p-4 bg-slate-50 rounded-2xl">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Example</p>
+                    <p className="text-slate-800 font-bold leading-relaxed">{scoreDetailCard.exampleSentence.jp}</p>
+                    {scoreDetailCard.exampleSentence.en && (
+                      <p className="text-slate-500 text-sm mt-1 leading-relaxed">{scoreDetailCard.exampleSentence.en}</p>
+                    )}
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
                   <div>
                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">
