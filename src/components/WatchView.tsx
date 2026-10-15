@@ -197,6 +197,25 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
     }
   };
 
+  // More captions pasted while watching (e.g. the next screenful copied with Lens) —
+  // appended to the transcript, overlaps dropped by the parser.
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [moreInput, setMoreInput] = useState("");
+  const [moreMessage, setMoreMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const handleAddMore = () => {
+    if (parseTranscript(moreInput).length === 0) {
+      setMoreMessage({ ok: false, text: TRANSCRIPT_ERROR });
+      return;
+    }
+    const combined = `${transcriptInput.trimEnd()}\n${moreInput.trim()}`;
+    const before = lines.length;
+    setTranscriptInput(combined);
+    applyTranscript(combined);
+    const added = parseTranscript(combined).length - before;
+    setMoreInput("");
+    setMoreMessage({ ok: true, text: added > 0 ? `Added ${added} new line${added !== 1 ? "s" : ""}` : "Nothing new — those lines were already here" });
+  };
+
   // Persist the session whenever the inputs that define it change.
   useEffect(() => {
     if (phase !== "watching") return;
@@ -431,6 +450,7 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
               <li>Open the video on youtube.com and expand the description (<b>…more</b>).</li>
               <li>Click <b>Show transcript</b> and choose <b>Japanese</b> at the bottom of the panel.</li>
               <li>Select all the lines (timestamps included), copy, and paste here.</li>
+              <li>On a phone, copying a screen at a time (e.g. with Google Lens) works too — paste each part one after another; overlaps are skipped.</li>
             </ol>
             <p className="mt-1.5 text-slate-400">Skip it to just watch — you can paste a transcript later. No “Show transcript” on YouTube means the video has no captions.</p>
           </div>
@@ -566,6 +586,49 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
                     </div>
                   );
                 })}
+
+                {/* Add the next chunk of the transcript */}
+                <div className="mt-3 mx-1 mb-2 bg-white border border-dashed border-indigo-200 rounded-2xl p-3">
+                  {!moreOpen ? (
+                    <button
+                      onClick={() => { setMoreOpen(true); setMoreMessage(null); }}
+                      className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-600"
+                    >
+                      <Plus size={12} /> Add more captions
+                    </button>
+                  ) : (
+                    <>
+                      <p className="text-[10px] font-bold text-slate-400 mb-2">
+                        Paste the next part of the transcript (timestamps included). Overlapping lines are skipped.
+                      </p>
+                      <textarea
+                        value={moreInput}
+                        onChange={(e) => setMoreInput(e.target.value)}
+                        rows={5}
+                        placeholder={"1:05\n…"}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none font-mono leading-relaxed"
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={() => { setMoreOpen(false); setMoreInput(""); }}
+                          className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest"
+                        >
+                          Done
+                        </button>
+                        <button
+                          onClick={handleAddMore}
+                          disabled={!moreInput.trim()}
+                          className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-40"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </>
+                  )}
+                  {moreMessage && (
+                    <p className={`text-[10px] font-bold mt-2 text-center ${moreMessage.ok ? "text-emerald-600" : "text-rose-500"}`}>{moreMessage.text}</p>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="flex-1 min-h-0 overflow-y-auto p-3">

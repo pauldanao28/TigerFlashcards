@@ -54,6 +54,10 @@ export function formatTime(seconds: number): string {
  * Parses YouTube's "Show transcript" copy (timestamp on its own line, then the text),
  * "0:05 text" on one line, or SRT/VTT subtitle files. Lines before the first
  * timestamp are ignored; consecutive text lines under one timestamp are joined.
+ *
+ * The transcript can arrive in overlapping chunks (e.g. copied a screen at a time with
+ * Google Lens), so lines are de-duplicated by timestamp — keeping the longest text, since
+ * a line at the edge of a screenshot can be cut off.
  */
 export function parseTranscript(raw: string): CaptionLine[] {
   const out: CaptionLine[] = [];
@@ -82,7 +86,14 @@ export function parseTranscript(raw: string): CaptionLine[] {
     if (current) current.text += (current.text ? " " : "") + line;
   }
   flush();
-  return out.sort((a, b) => a.t - b.t);
+
+  const byTime = new Map<number, CaptionLine>();
+  for (const line of out) {
+    const text = line.text.replace(/\s+/g, " ");
+    const existing = byTime.get(line.t);
+    if (!existing || text.length > existing.text.length) byTime.set(line.t, { t: line.t, text });
+  }
+  return [...byTime.values()].sort((a, b) => a.t - b.t);
 }
 
 /** Video id (and ?t= start, if any) from any common YouTube link form, or a bare id. */
