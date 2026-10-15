@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, MonitorPlay, Play, Plus, Repeat, RotateCcw, Sparkles, Trash2, Upload, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronUp, MonitorPlay, Play, Plus, Repeat, RotateCcw, Sparkles, Trash2, Upload, X } from "lucide-react";
 import TappableText from "@/components/TappableText";
 import NewWordsPanel from "@/components/NewWordsPanel";
 import LineStudyBar, { type StudyRate } from "@/components/LineStudyBar";
@@ -88,6 +88,9 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
   const [autoPause, setAutoPause] = useState(false);
   const [rate, setRate] = useState<StudyRate>(1);
   const [tab, setTab] = useState<"captions" | "words">("captions");
+  // Hides the line-study bar, clip buttons and start/end fields — just the video
+  // and its native YouTube controls — so phones get more room for captions below.
+  const [showControls, setShowControls] = useState(true);
 
   const [playerError, setPlayerError] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -698,40 +701,52 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
               )}
             </div>
 
-            <div className="px-4 py-3 flex flex-col gap-3">
-              <LineStudyBar
-                playing={playing}
-                onPlayPause={togglePlay}
-                onPrev={prevLine}
-                onNext={nextLine}
-                onRepeat={repeatLine}
-                autoPause={autoPause}
-                onToggleAutoPause={() => setAutoPause((v) => !v)}
-                rate={rate}
-                onRate={setRate}
-                position={lines.length > 0 ? { index: activeIndex, total: lines.length } : undefined}
-                lineControls={lines.length > 0}
-                onExplain={() => explainLine(currentLine())}
-              />
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={playFromStart}
-                  className="h-8 px-2.5 shrink-0 rounded-xl bg-slate-100 text-slate-500 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
-                >
-                  <RotateCcw size={12} /> Clip start
-                </button>
-                <button
-                  onClick={() => setLoop((v) => !v)}
-                  aria-pressed={loop}
-                  className={`h-8 px-2.5 shrink-0 rounded-xl flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all ${loop ? "bg-indigo-50 text-indigo-600 border border-indigo-200" : "bg-slate-100 text-slate-500 border border-transparent"}`}
-                >
-                  <Repeat size={12} /> Loop clip
-                </button>
-                <span className="ml-auto font-mono text-xs font-bold text-slate-400">{formatTime(currentTime)}</span>
-              </div>
+            <button
+              onClick={() => setShowControls((v) => !v)}
+              className="w-full flex items-center justify-center gap-1 py-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 border-b border-slate-100 transition-colors"
+            >
+              {showControls ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              <span className="text-[9px] font-black uppercase tracking-widest">
+                {showControls ? "Hide controls" : "Show controls"}
+              </span>
+            </button>
 
-              {renderClipFields(true)}
-            </div>
+            {showControls && (
+              <div className="px-4 py-3 flex flex-col gap-3">
+                <LineStudyBar
+                  playing={playing}
+                  onPlayPause={togglePlay}
+                  onPrev={prevLine}
+                  onNext={nextLine}
+                  onRepeat={repeatLine}
+                  autoPause={autoPause}
+                  onToggleAutoPause={() => setAutoPause((v) => !v)}
+                  rate={rate}
+                  onRate={setRate}
+                  position={lines.length > 0 ? { index: activeIndex, total: lines.length } : undefined}
+                  lineControls={lines.length > 0}
+                  onExplain={() => explainLine(currentLine())}
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={playFromStart}
+                    className="h-8 px-2.5 shrink-0 rounded-xl bg-slate-100 text-slate-500 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
+                  >
+                    <RotateCcw size={12} /> Clip start
+                  </button>
+                  <button
+                    onClick={() => setLoop((v) => !v)}
+                    aria-pressed={loop}
+                    className={`h-8 px-2.5 shrink-0 rounded-xl flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all ${loop ? "bg-indigo-50 text-indigo-600 border border-indigo-200" : "bg-slate-100 text-slate-500 border border-transparent"}`}
+                  >
+                    <Repeat size={12} /> Loop clip
+                  </button>
+                  <span className="ml-auto font-mono text-xs font-bold text-slate-400">{formatTime(currentTime)}</span>
+                </div>
+
+                {renderClipFields(true)}
+              </div>
+            )}
           </div>
 
           {/* Captions / new words */}
