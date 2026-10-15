@@ -92,8 +92,8 @@ async function buildSummary(userId: string) {
     velocity: { last7: 0, last30: 0, byDay: {} as Record<string, number> },
     acquisition: { last7: 0, last30: 0, byDay: {} as Record<string, number> },
     studyConsistency: { daysStudied: 0, totalDays: 30 },
-    weakestWords: [] as { japanese: string; reading: string; english: string; accuracy: number; attempts: number }[],
-    relapsedWords: [] as { japanese: string; reading: string; english: string; accuracy: number; attempts: number }[],
+    weakestWords: [] as { japanese: string; reading: string; english: string; accuracy: number; attempts: number; jlptLevel: string | null }[],
+    relapsedWords: [] as { japanese: string; reading: string; english: string; accuracy: number; attempts: number; jlptLevel: string | null }[],
     contentCoverage: { exampleSentencePct: 0, mnemonicPct: 0 },
     priorityEffectiveness: { priorityAccuracy: 0, priorityCount: 0, nonPriorityAccuracy: 0, nonPriorityCount: 0 },
     quizPerformance: {} as Record<string, { sessions: number; correct: number; total: number; accuracy: number }>,
@@ -128,8 +128,8 @@ async function buildSummary(userId: string) {
   for (const lvl of JLPT_LEVELS) jlpt[lvl] = { count: 0, accSum: 0, accN: 0 };
   const pos: Record<string, { count: number; accSum: number; accN: number }> = {};
   let jpToEnPass = 0, jpToEnTotal = 0, enToJpPass = 0, enToJpTotal = 0;
-  const weakCandidates: { japanese: string; reading: string; english: string; accuracy: number; attempts: number }[] = [];
-  const relapsedCandidates: { japanese: string; reading: string; english: string; accuracy: number; attempts: number }[] = [];
+  const weakCandidates: { japanese: string; reading: string; english: string; accuracy: number; attempts: number; jlptLevel: string | null }[] = [];
+  const relapsedCandidates: { japanese: string; reading: string; english: string; accuracy: number; attempts: number; jlptLevel: string | null }[] = [];
 
   for (const row of allRows) {
     const scoreRow = row.user_scores?.[0];
@@ -170,7 +170,7 @@ async function buildSummary(userId: string) {
     if (accuracy !== null) { posBucket.accSum += accuracy; posBucket.accN++; }
 
     if (accuracy !== null && total >= WEAK_MIN_ATTEMPTS) {
-      weakCandidates.push({ japanese: row.japanese, reading: row.reading, english: row.english, accuracy, attempts: total });
+      weakCandidates.push({ japanese: row.japanese, reading: row.reading, english: row.english, accuracy, attempts: total, jlptLevel: row.jlpt_level });
     }
 
     // "Relapsed" heuristic: enough passes in a direction to have crossed Mastered at
@@ -179,7 +179,7 @@ async function buildSummary(userId: string) {
     // this can't be a precise "used to be mastered" check, only a plausible proxy.
     const hadEnoughPasses = (jp?.pass ?? 0) >= MASTERY_MIN_TRIES || (en?.pass ?? 0) >= MASTERY_MIN_TRIES;
     if (!isMastered && hadEnoughPasses && accuracy !== null) {
-      relapsedCandidates.push({ japanese: row.japanese, reading: row.reading, english: row.english, accuracy, attempts: total });
+      relapsedCandidates.push({ japanese: row.japanese, reading: row.reading, english: row.english, accuracy, attempts: total, jlptLevel: row.jlpt_level });
     }
   }
 

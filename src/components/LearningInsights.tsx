@@ -48,12 +48,15 @@ const MiniBars = ({ byDay, color }: { byDay: Record<string, number>; color: stri
   );
 };
 
-const WordList = ({ words, badgeClass }: { words: { japanese: string; reading: string; english: string; accuracy: number }[]; badgeClass: string }) => (
+const WordList = ({ words, badgeClass }: { words: { japanese: string; reading: string; english: string; accuracy: number; jlptLevel?: string | null }[]; badgeClass: string }) => (
   <div className="bg-white rounded-2xl border border-slate-100 shadow-sm divide-y divide-slate-50">
     {words.map((w, i) => (
       <div key={i} className="flex items-center justify-between gap-3 px-5 py-3">
         <div className="min-w-0">
-          <p className="font-black text-slate-800 text-sm truncate">{w.japanese}</p>
+          <p className="font-black text-slate-800 text-sm truncate flex items-center gap-1.5">
+            {w.japanese}
+            {w.jlptLevel && <span className="text-[9px] font-black text-slate-400 uppercase shrink-0">{w.jlptLevel}</span>}
+          </p>
           <p className="text-slate-400 text-[11px] font-medium truncate">{w.reading} • {w.english}</p>
         </div>
         <span className={`shrink-0 text-[10px] font-black px-2 py-1 rounded-full ${badgeClass}`}>{w.accuracy}%</span>
