@@ -343,7 +343,8 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
                 {sentences.map((sentence, i) => (
                   <span
                     key={i}
-                    className={i === readIdx ? "bg-indigo-50 rounded-lg ring-1 ring-indigo-100" : ""}
+                    onClick={sentence.speakable ? () => speakAt(i) : undefined}
+                    className={`${sentence.speakable ? "cursor-pointer" : ""} ${i === readIdx ? "bg-indigo-50 rounded-lg ring-1 ring-indigo-100" : ""}`}
                   >
                     <TappableText text={sentence.text} keyPrefix={`s${i}`} onWordTap={(word, reading, e) => handleWordTap(word, e, reading)} getStatus={getWordStatus} />
                   </span>
