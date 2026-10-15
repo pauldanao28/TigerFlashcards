@@ -26,6 +26,14 @@ const LEVELS = ["N5", "N4", "N3", "N2", "N1"] as const;
 type Level = (typeof LEVELS)[number];
 const MAX_CHARS = 1500;
 
+// A one-line "title" for a saved passage in "My passages" — the topic for an AI-written
+// one (more meaningful than its text), otherwise a short lead-in to the pasted text.
+function passageTitle(p: SavedPassage): string {
+  if (p.source === "generated" && p.gen_topic) return p.gen_topic;
+  const clean = p.passage.replace(/\s+/g, " ").trim();
+  return clean.length > 28 ? `${clean.slice(0, 28)}…` : clean;
+}
+
 /**
  * Paste any Japanese text (or have AI write one) and read it with the same
  * tap-a-kanji-to-look-it-up interaction as the Grammar/Reading quizzes —
@@ -337,9 +345,7 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
                         <BookOpen size={16} className="text-indigo-400" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-black text-slate-800 leading-snug line-clamp-2">
-                          {p.passage.length > 60 ? `${p.passage.slice(0, 60)}…` : p.passage}
-                        </p>
+                        <p className="text-sm font-black text-slate-800 leading-snug truncate">{passageTitle(p)}</p>
                         <p className="text-[10px] font-bold text-slate-400 mt-0.5">
                           {openingSaved === p.id ? "Opening…" : [
                             p.source === "generated" ? `AI${p.gen_level ? ` · ${p.gen_level}` : ""}` : "Pasted",
