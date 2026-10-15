@@ -147,6 +147,9 @@ export default function StatsPage() {
   const [viewMode, setViewMode] = useState<"none" | "mastered" | "struggling">(
     "none",
   );
+  // Tapped card's JP→EN/EN→JP detail — shown in a small modal instead of inline, so the
+  // collapsed list card stays compact.
+  const [scoreDetailCard, setScoreDetailCard] = useState<FlashcardData | null>(null);
   const [dailyHistory, setDailyHistory] = useState<
     { study_date: string; count: number }[]
   >([]);
@@ -639,6 +642,18 @@ export default function StatsPage() {
       return totalAttempts > 0 && avgAccuracy < 40;
     });
   }, [cards]);
+
+  // Per-card version of the same two rules above, for the compact list card's tag.
+  const cardScoreStatus = (card: FlashcardData): "mastered" | "struggling" | null => {
+    const s = card.scores;
+    const jpMastered = (s?.jp_to_en?.pass || 0) >= 5 && (s?.jp_to_en?.percent || 0) >= 70;
+    const enMastered = (s?.en_to_jp?.pass || 0) >= 5 && (s?.en_to_jp?.percent || 0) >= 70;
+    if (jpMastered || enMastered) return "mastered";
+    const totalAttempts = (s?.jp_to_en?.total || 0) + (s?.en_to_jp?.total || 0);
+    const avgAccuracy = ((s?.jp_to_en?.percent || 0) + (s?.en_to_jp?.percent || 0)) / 2;
+    if (totalAttempts > 0 && avgAccuracy < 40) return "struggling";
+    return null;
+  };
 
   const masteredCount = (quickStats && cards.length === 0) ? quickStats.mastered : masteredList.length;
   const strugglingCount = (quickStats && cards.length === 0) ? quickStats.struggling : strugglingList.length;
@@ -2427,7 +2442,10 @@ export default function StatsPage() {
                       </svg>
                     </button>
                   </div>
-                  <div className="mb-4">
+                  <div
+                    className="cursor-pointer active:opacity-70 transition-opacity"
+                    onClick={() => setScoreDetailCard(card)}
+                  >
                     {/* Flex container to keep Japanese and Badge together */}
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <div className="text-2xl font-black text-slate-800 leading-none">
@@ -2440,6 +2458,21 @@ export default function StatsPage() {
                           New
                         </span>
                       )}
+                      {(() => {
+                        const status = cardScoreStatus(card);
+                        if (!status) return null;
+                        return (
+                          <span
+                            className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest border ${
+                              status === "mastered"
+                                ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                                : "bg-rose-50 text-rose-600 border-rose-200"
+                            }`}
+                          >
+                            {status === "mastered" ? t.mastered : t.struggling}
+                          </span>
+                        );
+                      })()}
                     </div>
 
                     {card.partOfSpeech && (
@@ -2461,48 +2494,73 @@ export default function StatsPage() {
                     </div>
                     <div className="text-slate-600 mt-1">{card.english}</div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50">
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">
-                        🇯🇵 → 🇺🇸
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold">
-                          {card.scores?.jp_to_en?.percent || 0}%
-                        </span>
-                        <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-emerald-400"
-                            style={{
-                              width: `${card.scores?.jp_to_en?.percent || 0}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">
-                        🇺🇸 → 🇯🇵
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold">
-                          {card.scores?.en_to_jp?.percent || 0}%
-                        </span>
-                        <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-orange-400"
-                            style={{
-                              width: `${card.scores?.en_to_jp?.percent || 0}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               );
             })}
           </div>
+
+          {/* JP→EN / EN→JP detail — tap a card above to see it, instead of every card
+              carrying two bars inline all the time. */}
+          {scoreDetailCard && (
+            <div
+              className="fixed inset-0 z-[230] flex items-center justify-center p-4"
+              onClick={() => setScoreDetailCard(null)}
+            >
+              <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200" />
+              <div
+                className="relative w-full max-w-sm bg-white rounded-[2rem] shadow-2xl p-6 animate-in zoom-in-95 duration-200"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div className="min-w-0">
+                    <p className="text-2xl font-black text-slate-800 truncate">{scoreDetailCard.japanese}</p>
+                    <p className="text-sm font-bold text-indigo-500">{scoreDetailCard.reading}</p>
+                    <p className="text-slate-600 text-sm mt-0.5">{scoreDetailCard.english}</p>
+                  </div>
+                  <button
+                    onClick={() => setScoreDetailCard(null)}
+                    className="h-9 w-9 shrink-0 flex items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:bg-slate-100 active:scale-90 transition-all"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">
+                      🇯🇵 → 🇺🇸
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold">
+                        {scoreDetailCard.scores?.jp_to_en?.percent || 0}%
+                      </span>
+                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-400"
+                          style={{ width: `${scoreDetailCard.scores?.jp_to_en?.percent || 0}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">
+                      🇺🇸 → 🇯🇵
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold">
+                        {scoreDetailCard.scores?.en_to_jp?.percent || 0}%
+                      </span>
+                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-orange-400"
+                          style={{ width: `${scoreDetailCard.scores?.en_to_jp?.percent || 0}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="hidden md:block bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
             <table className="w-full text-left border-collapse">
