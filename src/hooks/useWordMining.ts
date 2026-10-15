@@ -192,6 +192,14 @@ export function useWordMining(userId: string) {
     markKnown([word]);
   };
 
+  /** Queue one word (from the lookup sheet) into the "Not in your deck" list instead of
+   * adding it straight away — same batch-review-then-add flow as the auto-extracted list. */
+  const queueWord = (word: string, reading = "") => {
+    if (newWords.some((w) => w.word === word) || addedWords.has(word)) return;
+    setNewWords((prev) => [...prev, { word, reading, pos: "" }]);
+    setSelectedNew((prev) => new Set(prev).add(word));
+  };
+
   /** Undo from the "Words added" summary: remove from the deck, un-highlight, and put it back in the list. */
   const removeAdded = async (word: AddedWordSummary) => {
     await deleteFromSummary(word.id);
@@ -212,6 +220,7 @@ export function useWordMining(userId: string) {
     addLoading,
     addedWords,
     addWord,
+    queueWord,
     getWordStatus,
     loadWordStatus,
     newWords,

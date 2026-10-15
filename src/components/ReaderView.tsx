@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, Sparkles, Send, Loader2, Plus, BookOpen, NotebookText, X } from "lucide-react";
+import { ChevronLeft, Sparkles, Send, Loader2, List, BookOpen, NotebookText, X } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
 import TappableText from "@/components/TappableText";
 import NewWordsPanel from "@/components/NewWordsPanel";
@@ -29,12 +29,14 @@ const MAX_CHARS = 1500;
  * tap-a-kanji-to-look-it-up interaction as the Grammar/Reading quizzes —
  * dotted underline, Jisho lookup for the definition — plus grammar notes for
  * the specific passage and a question box scoped to it. Adding a looked-up
- * word goes through the same useAddWords pipeline as the Add Sheet (Profile
- * page / Study tab), landing in the deck immediately, not a deferred queue.
+ * word queues it into the same "Not in your deck" list the passage itself
+ * populates, for a batch add later — same deferred flow as the quizzes'
+ * "Add to List", not a straight-to-deck add.
  */
 export default function ReaderView({ userId, onClose }: { userId: string; onClose: () => void }) {
   const mining = useWordMining(userId);
-  const { addLoading, addedWords, addWord, getWordStatus } = mining;
+  const { addedWords, queueWord, newWords, getWordStatus } = mining;
+  const isQueued = (w: string) => addedWords.has(w) || newWords.some((nw) => nw.word === w);
 
   const [phase, setPhase] = useState<"input" | "loading" | "reading">("input");
   const [draft, setDraft] = useState("");
@@ -410,17 +412,16 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
         </div>
       )}
 
-      {/* Word lookup (shared with the quizzes / Sensei chat) — adds straight to the deck */}
+      {/* Word lookup (shared with the quizzes / Sensei chat) — queues into "Not in your deck" */}
       {lookup && (
         <WordLookupSheet
           lookup={lookup}
           onClose={closeLookup}
           onEditWord={setEditWord}
-          onAdd={addWord}
-          isAdded={(w) => addedWords.has(w)}
-          adding={addLoading}
-          addLabel="Add to Deck"
-          addIcon={<Plus size={11} />}
+          onAdd={(w) => queueWord(w, lookup.reading)}
+          isAdded={isQueued}
+          addLabel="Add to List"
+          addIcon={<List size={11} />}
           layerClassName={{ backdrop: "z-[310]", sheet: "z-[320] bottom-0 left-0 right-0" }}
         />
       )}
@@ -431,9 +432,8 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
           onClose={closeExplain}
           onPrev={explain.index > 0 ? () => explainSentence(explain.index - 1) : undefined}
           onNext={explain.index < speakable.length - 1 ? () => explainSentence(explain.index + 1) : undefined}
-          onAddWord={addWord}
-          isAdded={(w) => addedWords.has(w)}
-          adding={addLoading}
+          onAddWord={(w) => queueWord(w)}
+          isAdded={isQueued}
           position={{ index: explain.index, total: speakable.length }}
           unit="sentence"
         />

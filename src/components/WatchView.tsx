@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronUp, MonitorPlay, Play, Plus, Repeat, RotateCcw, Sparkles, Trash2, Upload, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronUp, List, MonitorPlay, Play, Plus, Repeat, RotateCcw, Sparkles, Trash2, Upload, X } from "lucide-react";
 import TappableText from "@/components/TappableText";
 import NewWordsPanel from "@/components/NewWordsPanel";
 import LineStudyBar, { type StudyRate } from "@/components/LineStudyBar";
@@ -485,6 +485,9 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
     openExplain(i, lines[i].text, context);
   };
 
+  // Already queued in "Not in your deck", or fully added.
+  const isQueued = (w: string) => mining.addedWords.has(w) || mining.newWords.some((nw) => nw.word === w);
+
   // Tapping a word pauses the video so there's time to read the lookup.
   const handleWordTap = (word: string, e: React.MouseEvent | React.TouchEvent, reading = "") => {
     playerRef.current?.pauseVideo();
@@ -901,11 +904,10 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
           lookup={lookup}
           onClose={closeLookup}
           onEditWord={setEditWord}
-          onAdd={mining.addWord}
-          isAdded={(w) => mining.addedWords.has(w)}
-          adding={mining.addLoading}
-          addLabel="Add to Deck"
-          addIcon={<Plus size={11} />}
+          onAdd={(w) => mining.queueWord(w, lookup.reading)}
+          isAdded={isQueued}
+          addLabel="Add to List"
+          addIcon={<List size={11} />}
           layerClassName={{ backdrop: "z-[310]", sheet: "z-[320] bottom-0 left-0 right-0" }}
         />
       )}
@@ -916,9 +918,8 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
           onClose={closeExplain}
           onPrev={explain.index > 0 ? () => explainLine(explain.index - 1) : undefined}
           onNext={explain.index < lines.length - 1 ? () => explainLine(explain.index + 1) : undefined}
-          onAddWord={mining.addWord}
-          isAdded={(w) => mining.addedWords.has(w)}
-          adding={mining.addLoading}
+          onAddWord={(w) => mining.queueWord(w)}
+          isAdded={isQueued}
           position={{ index: explain.index, total: lines.length }}
         />
       )}
