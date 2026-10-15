@@ -9,7 +9,7 @@ import { rollingAvg } from "@/lib/scoring";
 import { useAppAlert } from "@/context/AlertContext";
 import { authedFetch } from "@/lib/authedFetch";
 import { getTodayUsage, AiUsageInfo } from "@/lib/aiUsage";
-import { kanjiRe, getSegmenter } from "@/components/TappableText";
+import TappableText from "@/components/TappableText";
 import WordLookupSheet from "@/components/WordLookupSheet";
 import { useWordLookup } from "@/hooks/useWordLookup";
 
@@ -79,36 +79,6 @@ interface SenseiProfile {
   notes?: string;
 }
 
-type Segment =
-  | { type: "annotated"; text: string; reading: string }
-  | { type: "plain"; text: string };
-
-// ── Furigana parser ───────────────────────────────────────────────────────────
-// Tappable if word STARTS with kanji — allows okurigana suffix (食べる, 頑張って).
-// Rejects words where kana precedes kanji (お願い) or no kanji at all (ありがとう).
-// Furigana parentheses are always stripped so they never appear in chat text.
-function parseFurigana(text: string): Segment[] {
-  if (!text) return [];
-  const parts: Segment[] = [];
-  // Match kanji word (with optional okurigana) + reading. First char must be kanji so particles
-  // like の between two words don't get swallowed into the annotated segment.
-  const regex = /([一-龯々〻㐀-䶿][一-龯々〻㐀-䶿ぁ-ん]*)[（(]([ぁ-んァ-ンっーゃゅょ・]+)[）)]/g;
-  const containsKanji = /[一-龯々〻㐀-䶿ヶ]/;
-  let lastIndex = 0;
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIndex) parts.push({ type: "plain", text: text.slice(lastIndex, match.index) });
-    if (containsKanji.test(match[1])) {
-      parts.push({ type: "annotated", text: match[1], reading: match[2] });
-    } else {
-      parts.push({ type: "plain", text: match[1] }); // strip furigana, show word as-is
-    }
-    lastIndex = match.index + match[0].length;
-  }
-  if (lastIndex < text.length) parts.push({ type: "plain", text: text.slice(lastIndex) });
-  return parts;
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function AdminChat({ userId }: { userId: string }) {
   const router = useRouter();
@@ -157,7 +127,6 @@ export default function AdminChat({ userId }: { userId: string }) {
   const greetingFiredRef = useRef(false);
 
   const lastAnalyzedIndexRef = useRef(0);
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const lastProfileUpdateRef = useRef(0);
   const grammarScoreRef = useRef<number>(0);
   const sheetOpenRef = useRef(false); // true while bottom sheet is open — suppress auto-scroll
@@ -638,44 +607,10 @@ export default function AdminChat({ userId }: { userId: string }) {
     if (role === "user") return <span>{text}</span>;
     try {
 
-    const makeWordSpan = (word: string, reading: string, key: string) => (
-      <span key={key} className="cursor-pointer active:opacity-60 transition-opacity"
-        onClick={(e) => { e.stopPropagation(); handleWordClick(word, reading, e); }}
-        onTouchStart={(e) => { touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
-        onTouchEnd={(e) => {
-          const start = touchStartRef.current;
-          touchStartRef.current = null;
-          if (!start) return;
-          const dx = Math.abs(e.changedTouches[0].clientX - start.x);
-          const dy = Math.abs(e.changedTouches[0].clientY - start.y);
-          if (dx < 8 && dy < 8) { e.preventDefault(); e.stopPropagation(); handleWordClick(word, reading, e as unknown as React.MouseEvent); }
-        }}>
-        {word.split("").map((ch, ci) =>
-          kanjiRe.test(ch) ? <span key={ci} className="underline decoration-dotted decoration-indigo-400 underline-offset-2">{ch}</span> : ch
-        )}
-      </span>
-    );
-
-    // Render a plain text chunk through furigana + kanji-tapping
-    const renderChunk = (chunk: string, kp: string): React.ReactNode[] => {
-      const nodes: React.ReactNode[] = [];
-      parseFurigana(chunk).forEach((seg, si) => {
-        if (seg.type === "annotated") {
-          nodes.push(makeWordSpan(seg.text, seg.reading, `${kp}-a${si}`));
-        } else {
-          const segmenter = getSegmenter();
-          const subSegs = segmenter ? [...segmenter.segment(seg.text)] : [{ segment: seg.text, isWordLike: false }];
-          subSegs.forEach((sub, subI) => {
-            if (sub.isWordLike && kanjiRe.test(sub.segment)) {
-              nodes.push(makeWordSpan(sub.segment, "", `${kp}-p${si}-${subI}`));
-            } else {
-              nodes.push(<span key={`${kp}-p${si}-${subI}`}>{sub.segment}</span>);
-            }
-          });
-        }
-      });
-      return nodes;
-    };
+    // Plain text → the shared tap-to-lookup text (furigana words keep their reading)
+    const renderChunk = (chunk: string, kp: string): React.ReactNode[] => [
+      <TappableText key={kp} text={chunk} keyPrefix={kp} onWordTap={handleWordClick} />,
+    ];
 
     // Render a line with inline **bold** support
     const renderInline = (line: string, kp: string): React.ReactNode[] => {

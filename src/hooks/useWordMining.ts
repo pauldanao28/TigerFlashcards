@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useAddWords, type AddedWordSummary } from "@/hooks/useAddWords";
 import type { WordStatus } from "@/components/TappableText";
-import { kanjiRe, splitTappable, stripFurigana } from "@/lib/japaneseText";
+import { kanjiRe, splitTappableText } from "@/lib/japaneseText";
 import { deckStatusFromScores, type ScoresJson } from "@/hooks/useWordLookup";
 import type { ExtractedWord } from "@/lib/japaneseTokenizer";
 
@@ -76,7 +76,7 @@ export function useWordMining(userId: string) {
   // so new/weak words can be highlighted instead of treated the same as known ones.
   const loadWordStatus = async (text: string) => {
     // Same word units TappableText renders, so every highlighted word has a status.
-    const words = [...new Set(splitTappable(stripFurigana(text)).filter((p) => p.word).map((p) => p.text))];
+    const words = [...new Set(splitTappableText(text).filter((p) => p.word).map((p) => p.text))];
     if (words.length === 0) { setWordStatus(new Map()); return; }
 
     // Dictionary form of each unit (難しかった → 難しい) from the server tokenizer — no AI.

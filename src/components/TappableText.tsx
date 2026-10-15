@@ -1,12 +1,12 @@
 "use client";
 import { useRef } from "react";
-import { kanjiRe, splitTappable, stripFurigana } from "@/lib/japaneseText";
+import { kanjiRe, splitTappableText } from "@/lib/japaneseText";
 
-// Shared tap-to-lookup text used by the quizzes (Grammar / Reading / Listening), the
-// Reader and Watch: kanji words — with their okurigana, like the Sensei chat (難しい,
-// 食べて), see splitTappable — get a dotted underline, and tapping one calls onWordTap so
-// the caller can open its Jisho lookup. Text is never shown with inline furigana — the
-// reading comes from the lookup.
+// Shared tap-to-lookup text used everywhere — the Sensei chat, the quizzes (Grammar /
+// Reading / Listening), the Reader and Watch: kanji words, with their okurigana (難しい,
+// 食べて), get a dotted underline, and tapping one calls onWordTap so the caller can open
+// its Jisho lookup. Inline furigana is never shown — a word written with it is one unit
+// and its reading is passed to onWordTap (see splitTappableText).
 
 export { kanjiRe, getSegmenter, stripFurigana } from "@/lib/japaneseText";
 
@@ -47,18 +47,19 @@ export default function TappableText({
   getStatus?: (word: string) => WordStatus;
 }) {
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-  const pieces = splitTappable(stripFurigana(text));
+  const pieces = splitTappableText(text);
   return (
     <>
       {pieces.map((piece, i) => {
         if (piece.word) {
           const word = piece.text;
+          const reading = piece.reading ?? "";
           const status = getStatus?.(word);
           return (
             <span
               key={`${keyPrefix}-${i}`}
               className={`cursor-pointer active:opacity-60 transition-opacity ${status ? `rounded px-0.5 ${STATUS_BG[status]}` : ""}`}
-              onClick={(e) => { e.stopPropagation(); onWordTap(word, "", e); }}
+              onClick={(e) => { e.stopPropagation(); onWordTap(word, reading, e); }}
               onTouchStart={(e) => { touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
               onTouchEnd={(e) => {
                 const start = touchStartRef.current;
@@ -66,7 +67,7 @@ export default function TappableText({
                 if (!start) return;
                 const dx = Math.abs(e.changedTouches[0].clientX - start.x);
                 const dy = Math.abs(e.changedTouches[0].clientY - start.y);
-                if (dx < 8 && dy < 8) { e.preventDefault(); e.stopPropagation(); onWordTap(word, "", e as unknown as React.MouseEvent); }
+                if (dx < 8 && dy < 8) { e.preventDefault(); e.stopPropagation(); onWordTap(word, reading, e as unknown as React.MouseEvent); }
               }}
             >
               {word.split("").map((ch, ci) =>

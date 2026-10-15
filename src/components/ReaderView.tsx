@@ -55,7 +55,7 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
 
   // ── Tap a word → shared lookup sheet (Jisho + deck status), same as the quizzes ──
   const { lookup, openLookup, setEditWord, closeLookup } = useWordLookup(userId);
-  const handleWordTap = (word: string, e: React.MouseEvent | React.TouchEvent) => openLookup(word, "", e);
+  const handleWordTap = (word: string, e: React.MouseEvent | React.TouchEvent, reading = "") => openLookup(word, reading, e);
 
   useEffect(() => {
     qaEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -343,7 +343,7 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
                     key={i}
                     className={i === readIdx ? "bg-indigo-50 rounded-lg ring-1 ring-indigo-100" : ""}
                   >
-                    <TappableText text={sentence.text} keyPrefix={`s${i}`} onWordTap={(word, _reading, e) => handleWordTap(word, e)} getStatus={getWordStatus} />
+                    <TappableText text={sentence.text} keyPrefix={`s${i}`} onWordTap={(word, reading, e) => handleWordTap(word, e, reading)} getStatus={getWordStatus} />
                   </span>
                 ))}
               </div>

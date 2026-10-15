@@ -483,9 +483,9 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
   };
 
   // Tapping a word pauses the video so there's time to read the lookup.
-  const handleWordTap = (word: string, e: React.MouseEvent | React.TouchEvent) => {
+  const handleWordTap = (word: string, e: React.MouseEvent | React.TouchEvent, reading = "") => {
     playerRef.current?.pauseVideo();
-    openLookup(word, "", e);
+    openLookup(word, reading, e);
   };
 
   const backToInput = () => {
@@ -812,7 +812,7 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
                         <TappableText
                           text={line.text}
                           keyPrefix={`l${i}`}
-                          onWordTap={(word, _reading, e) => handleWordTap(word, e)}
+                          onWordTap={(word, reading, e) => handleWordTap(word, e, reading)}
                           getStatus={mining.getWordStatus}
                         />
                       </p>

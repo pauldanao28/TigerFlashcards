@@ -13,9 +13,13 @@ export function getSegmenter(): Intl.Segmenter | null {
   return _jaSegmenter;
 }
 
+// Inline furigana: a word starting with kanji (okurigana allowed) + its reading in
+// brackets — 漢字(かんじ), 食べる（たべる）.
+const FURIGANA_RE = /([一-龯々〻㐀-䶿][一-龯々〻㐀-䶿ぁ-ん]*)[（(]([ぁ-んァ-ンっーゃゅょ・]+)[）)]/g;
+
 // Drops inline furigana like 漢字(かんじ) so only the kanji is shown and segmented.
 export function stripFurigana(text: string): string {
-  return text.replace(/([一-龯々〻㐀-䶿][一-龯々〻㐀-䶿ぁ-ん]*)[（(]([ぁ-んァ-ンっーゃゅょ・]+)[）)]/g, "$1");
+  return text.replace(FURIGANA_RE, "$1");
 }
 
 const hiraganaRe = /^[ぁ-ゖー]+$/;
@@ -30,6 +34,7 @@ const COPULA_RE = /です|でし|でしょ|だっ|だろ|じゃ|では|くだ/;
 export interface TextPiece {
   text: string;
   word: boolean; // tappable kanji word
+  reading?: string; // from inline furigana, when the text had it
 }
 
 /**
@@ -55,6 +60,8 @@ export function splitTappable(text: string, segmenter: Intl.Segmenter | null = g
     let j = i + 1;
     for (; j < segs.length; j++) {
       const next = segs[j].text;
+      // Kanji cut apart by the segmenter (頑|張|って) — join them while no kana has come yet.
+      if (segs[j].isWordLike && kanjiRe.test(next) && kanjiRe.test(word[word.length - 1])) { word += next; continue; }
       if (!hiraganaRe.test(next) || PARTICLES.has(next)) break;
       const cut = next.search(COPULA_RE);
       if (cut === 0) break;
@@ -69,6 +76,23 @@ export function splitTappable(text: string, segmenter: Intl.Segmenter | null = g
     out.push({ text: word, word: true });
     i = j - 1;
   }
+  return out;
+}
+
+/**
+ * The tap-to-lookup word units used everywhere (Sensei chat, quizzes, Reader, Watch):
+ * a word written with inline furigana (難しい(むずかしい)) is one unit, shown without the
+ * brackets and looked up with that reading; everything else goes through splitTappable.
+ */
+export function splitTappableText(text: string, segmenter: Intl.Segmenter | null = getSegmenter()): TextPiece[] {
+  const out: TextPiece[] = [];
+  let last = 0;
+  for (const m of text.matchAll(FURIGANA_RE)) {
+    if (m.index > last) out.push(...splitTappable(text.slice(last, m.index), segmenter));
+    out.push({ text: m[1], word: true, reading: m[2] });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(...splitTappable(text.slice(last), segmenter));
   return out;
 }
 
