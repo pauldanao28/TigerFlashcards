@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, MonitorPlay, Play, Plus, Repeat, RotateCcw, Sparkles, X } from "lucide-react";
+import { ChevronLeft, MonitorPlay, Play, Plus, Repeat, RotateCcw, Sparkles, Upload, X } from "lucide-react";
 import TappableText from "@/components/TappableText";
 import NewWordsPanel from "@/components/NewWordsPanel";
 import LineStudyBar, { type StudyRate } from "@/components/LineStudyBar";
@@ -160,7 +160,7 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
     return idx;
   }, [lines, currentTime]);
 
-  const TRANSCRIPT_ERROR = "Couldn't find timestamps in the transcript. Copy it from YouTube's “Show transcript” panel with timestamps on.";
+  const TRANSCRIPT_ERROR = "Couldn't find timestamps in the transcript — captions need them to sync with the video. Copy it with timestamps on (or use a .srt/.vtt file). Plain text without timestamps works in the Reader instead.";
 
   // Parses the transcript and loads its deck highlights. Returns false if it has no timestamps.
   const applyTranscript = (raw: string): boolean => {
@@ -482,9 +482,12 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
             {renderClipFields(false)}
           </div>
 
-          <label className="block mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
-            Transcript with timestamps <span className="text-slate-300">· optional</span>
-          </label>
+          <div className="mt-4 flex items-center justify-between gap-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Transcript with timestamps <span className="text-slate-300">· optional</span>
+            </label>
+            <TranscriptFileButton onLoad={setTranscriptInput} />
+          </div>
           <textarea
             value={transcriptInput}
             onChange={(e) => setTranscriptInput(e.target.value)}
@@ -500,6 +503,7 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
               <li>Click <b>Show transcript</b> and choose <b>Japanese</b> at the bottom of the panel.</li>
               <li>Select all the lines (timestamps included), copy, and paste here.</li>
               <li>On a phone, copying a screen at a time (e.g. with Google Lens) works too — paste each part one after another; overlaps are skipped.</li>
+              <li>Or use a transcript downloader and <b>Upload</b> its file — .txt with timestamps, .srt or .vtt.</li>
             </ol>
             <p className="mt-1.5 text-slate-400">Skip it to just watch — you can paste a transcript later. No “Show transcript” on YouTube means the video has no captions.</p>
           </div>
@@ -570,7 +574,10 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
           {lines.length === 0 ? (
             <div className="flex-1 min-h-0 overflow-y-auto p-4">
               <div className="bg-white border border-slate-100 rounded-3xl shadow-sm p-5 max-w-xl mx-auto">
-                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-1">No captions yet</p>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600">No captions yet</p>
+                  <TranscriptFileButton onLoad={setTranscriptInput} />
+                </div>
                 <p className="text-xs text-slate-500 leading-relaxed mb-3">
                   Paste the transcript from YouTube&apos;s <b>Show transcript</b> (timestamps included) to get synced captions, tap-to-lookup and the words you don&apos;t have.
                 </p>
@@ -660,9 +667,12 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
                     </button>
                   ) : (
                     <>
-                      <p className="text-[10px] font-bold text-slate-400 mb-2">
-                        Paste the next part of the transcript (timestamps included). Overlapping lines are skipped.
-                      </p>
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <p className="text-[10px] font-bold text-slate-400">
+                          Paste the next part of the transcript (timestamps included). Overlapping lines are skipped.
+                        </p>
+                        <TranscriptFileButton onLoad={setMoreInput} />
+                      </div>
                       <textarea
                         value={moreInput}
                         onChange={(e) => setMoreInput(e.target.value)}
@@ -744,6 +754,34 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
         />
       )}
     </div>
+  );
+}
+
+// Loads a transcript file (.txt / .srt / .vtt from a transcript downloader) into a textarea.
+function TranscriptFileButton({ onLoad }: { onLoad: (text: string) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        className="shrink-0 flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded-lg transition-colors active:scale-95"
+      >
+        <Upload size={11} /> Upload
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".txt,.srt,.vtt,text/plain,text/vtt"
+        className="hidden"
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = ""; // allow picking the same file again
+          if (!file) return;
+          onLoad(await file.text());
+        }}
+      />
+    </>
   );
 }
 
