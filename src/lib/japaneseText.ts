@@ -23,10 +23,17 @@ export function stripFurigana(text: string): string {
 }
 
 const hiraganaRe = /^[ぁ-ゖー]+$/;
-// Hiragana that starts the NEXT word rather than finishing this one: particles…
+// Hiragana that starts the NEXT word rather than finishing this one: particles, plus
+// light nouns (もの/こと/とき…) that routinely follow a verb phrase with no particle
+// between them (食べたい+もの, 考えた+こと) and would otherwise get swallowed into it.
+// NOT って — it's far more often the て-form ending of a godan verb (待って, 手伝って,
+// 持って…) than the casual quotation particle, so keeping it out here lets it stay part
+// of the word; the rarer quotation case just ends up with って glued on, which is a much
+// smaller miss than truncating every て-form verb down to its bare stem.
 const PARTICLES = new Set([
   "は", "が", "を", "に", "へ", "で", "と", "も", "や", "の", "か", "ね", "よ", "な", "わ", "ぞ", "さ",
-  "から", "まで", "より", "ので", "のに", "けど", "けれど", "だけ", "など", "って", "とか",
+  "から", "まで", "より", "ので", "のに", "けど", "けれど", "だけ", "など", "とか",
+  "もの", "こと", "とき", "ところ", "ため", "わけ", "はず", "つもり",
 ]);
 // …and the copula (です/だ…) plus ください, which follow a word but aren't part of it.
 const COPULA_RE = /です|でし|でしょ|だっ|だろ|じゃ|では|くだ/;

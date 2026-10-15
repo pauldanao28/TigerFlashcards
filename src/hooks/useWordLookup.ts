@@ -111,7 +111,7 @@ export function useWordLookup(userId: string | null | undefined) {
         : prev));
       checkDeck(word);
       fetchJisho(word, false);
-    }, 500);
+    }, 2000);
   }, [checkDeck, fetchJisho]);
 
   const closeLookup = useCallback(() => {
