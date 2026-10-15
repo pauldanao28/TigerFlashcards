@@ -452,8 +452,10 @@ export default function StatsPage() {
       // One paginated fetch of full card data — this used to be two full passes over the
       // same deck (a lean scores-only pass just to show stat numbers fast, then a full
       // pass for the card list), which doubled the requests and data transferred for no
-      // real benefit: the full rows already carry scores_json too. Stats now update
-      // incrementally as each page lands, so they still show up before the full list does.
+      // real benefit: the full rows already carry scores_json too. Stats are set once
+      // after every page has landed (not per-page) — updating them as each page arrived
+      // made the numbers visibly count up page by page (0 → 1000 → 2000 → 2900) instead
+      // of just appearing once, correct.
       const allData: any[] = [];
       let error = null;
       const PAGE_SIZE = 1000;
@@ -470,15 +472,13 @@ export default function StatsPage() {
           .order("id", { ascending: true })
           .range(from, from + PAGE_SIZE - 1);
         if (pageErr) { error = pageErr; break; }
-        if (page) {
-          allData.push(...page);
-          setQuickStats(computeQuickStats(allData));
-          setInitLoading(false); // page is now visible with stat numbers
-        }
+        if (page) allData.push(...page);
         if (!page || page.length < PAGE_SIZE) break;
       }
 
       if (error) { console.error("Fetch Error:", (error as any).message); return; }
+
+      if (allData.length) setQuickStats(computeQuickStats(allData));
 
       const flattened = allData.map((card: any) => ({
         ...card,
