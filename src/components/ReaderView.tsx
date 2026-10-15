@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, Sparkles, Send, Loader2, List, BookOpen, NotebookText, X } from "lucide-react";
+import { ChevronLeft, Sparkles, Send, Loader2, List, BookOpen, NotebookText, Trash2, X } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
 import TappableText from "@/components/TappableText";
 import NewWordsPanel from "@/components/NewWordsPanel";
@@ -9,6 +9,8 @@ import AddedWordsSummary from "@/components/AddedWordsSummary";
 import WordLookupSheet from "@/components/WordLookupSheet";
 import { useWordLookup } from "@/hooks/useWordLookup";
 import { useWordMining } from "@/hooks/useWordMining";
+import { useAppAlert } from "@/context/AlertContext";
+import { deleteSavedPassage, listSavedPassages, savePassage, updatePassage, type SavedPassage } from "@/lib/readerPassages";
 import LineStudyBar, { type StudyRate } from "@/components/LineStudyBar";
 import LineExplainSheet from "@/components/LineExplainSheet";
 import { useLineExplain } from "@/hooks/useLineExplain";
@@ -70,22 +72,50 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
     qaEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [qa.length]);
 
-  const annotate = async (text: string) => {
+  // Saved passages (reader_passages) — synced across devices, with resume. `savedIdRef`
+  // is the current session's row id (set on first save, or when opening a saved one);
+  // `resumeIdxRef` is the sentence index to jump to once a reopened passage is ready.
+  const savedIdRef = useRef<string | null>(null);
+  const resumeIdxRef = useRef<number | null>(null);
+
+  // `opts.notes` skips the AI annotate call entirely — used when reopening a saved
+  // passage, whose grammar notes were already computed and saved the first time.
+  const annotate = async (
+    text: string,
+    opts?: { notes?: GrammarNote[]; source?: "pasted" | "generated"; genLevel?: Level; genTopic?: string },
+  ) => {
     setPhase("loading");
     setError(null);
     try {
-      const res = await authedFetch("/api/reader/annotate", {
-        method: "POST",
-        body: JSON.stringify({ text }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to process passage");
+      let notes: GrammarNote[];
+      if (opts?.notes) {
+        notes = opts.notes;
+      } else {
+        const res = await authedFetch("/api/reader/annotate", {
+          method: "POST",
+          body: JSON.stringify({ text }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to process passage");
+        notes = data.grammarNotes ?? [];
+      }
       setPassage(text);
-      setGrammarNotes(data.grammarNotes ?? []);
+      setGrammarNotes(notes);
       setQa([]);
       setShowNotes(false);
       await Promise.all([mining.loadWordStatus(text), mining.loadNewWords(text)]);
       setPhase("reading");
+      // A brand-new passage (not a reopened saved one) — save it now.
+      if (!savedIdRef.current) {
+        savePassage(userId, {
+          passage: text,
+          source: opts?.source ?? "pasted",
+          gen_level: opts?.genLevel ?? null,
+          gen_topic: opts?.genTopic ?? null,
+          grammar_notes: notes,
+          read_idx: 0,
+        }).then((id) => { if (id) savedIdRef.current = id; });
+      }
     } catch (e: any) {
       setError(e.message || "Something went wrong");
       setPhase("input");
@@ -95,20 +125,51 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
   const handleGenerate = async () => {
     setGenerating(true);
     setError(null);
+    const topic = genTopic.trim();
     try {
       const res = await authedFetch("/api/reader/generate", {
         method: "POST",
-        body: JSON.stringify({ level: genLevel, topic: genTopic.trim() || undefined }),
+        body: JSON.stringify({ level: genLevel, topic: topic || undefined }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to generate a passage");
       setGenOpen(false);
       setGenTopic("");
-      await annotate(data.text);
+      await annotate(data.text, { source: "generated", genLevel, genTopic: topic || undefined });
     } catch (e: any) {
       setError(e.message || "Something went wrong");
     } finally {
       setGenerating(false);
+    }
+  };
+
+  // ── Saved passages list (input phase) ──
+  const { showConfirm } = useAppAlert();
+  const [savedPassages, setSavedPassages] = useState<SavedPassage[]>([]);
+  const [showAllSaved, setShowAllSaved] = useState(false);
+  const [openingSaved, setOpeningSaved] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (phase !== "input") return;
+    listSavedPassages(userId).then(setSavedPassages).catch(() => setSavedPassages([]));
+  }, [phase, userId]);
+
+  const openSaved = async (p: SavedPassage) => {
+    setOpeningSaved(p.id);
+    savedIdRef.current = p.id;
+    resumeIdxRef.current = p.read_idx;
+    await annotate(p.passage, { notes: p.grammar_notes });
+    setOpeningSaved(null);
+  };
+
+  const removeSaved = async (p: SavedPassage) => {
+    const ok = await showConfirm("Remove this saved passage from My passages?", { confirmLabel: "Remove", danger: true });
+    if (!ok) return;
+    try {
+      await deleteSavedPassage(p.id);
+      setSavedPassages((prev) => prev.filter((x) => x.id !== p.id));
+    } catch {
+      setError("Couldn't remove that passage — try again.");
     }
   };
 
@@ -167,6 +228,27 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
   const stopReading = () => { stopSentence(); setSpeaking(false); };
   useEffect(() => () => stopSentence(), []);
 
+  // Jump to a reopened passage's saved position once its sentences are ready.
+  useEffect(() => {
+    if (phase !== "reading" || resumeIdxRef.current === null) return;
+    const r = resumeIdxRef.current;
+    resumeIdxRef.current = null;
+    if (sentences[r]) setReadIdx(r);
+  }, [phase, sentences]);
+
+  // Persist reading progress — debounced, so scrubbing through sentences doesn't spam writes.
+  useEffect(() => {
+    if (phase !== "reading" || !savedIdRef.current || readIdx < 0) return;
+    const id = savedIdRef.current;
+    const t = setTimeout(() => updatePassage(id, { read_idx: readIdx }), 1000);
+    return () => clearTimeout(t);
+  }, [phase, readIdx]);
+
+  // Flush the position immediately when leaving (new passage / close).
+  const savePosition = () => {
+    if (savedIdRef.current && readIdx >= 0) updatePassage(savedIdRef.current, { read_idx: readIdx });
+  };
+
   const readPos = speakable.indexOf(readIdx); // -1 before starting
   const togglePlayRead = () => {
     if (speaking) { stopReading(); return; }
@@ -191,7 +273,9 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
   };
 
   const reset = () => {
+    savePosition();
     stopReading();
+    savedIdRef.current = null;
     setReadIdx(-1);
     setPhase("input");
     setDraft("");
@@ -238,9 +322,56 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
       {/* INPUT PHASE */}
       {phase === "input" && (
         <div className="flex-1 overflow-y-auto px-5 py-6 max-w-xl mx-auto w-full">
-          <h2 className="text-xl font-black text-slate-900 mb-1">Paste something to read</h2>
+          {savedPassages.length > 0 && (
+            <div className="mb-6">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">My passages</p>
+              <div className="flex flex-col gap-2">
+                {(showAllSaved ? savedPassages : savedPassages.slice(0, 4)).map((p) => (
+                  <div key={p.id} className="flex items-center gap-3 bg-white border border-slate-100 rounded-2xl p-2 shadow-sm">
+                    <button
+                      onClick={() => openSaved(p)}
+                      disabled={openingSaved !== null}
+                      className="flex-1 min-w-0 flex items-center gap-3 text-left active:scale-[0.99] transition-transform disabled:opacity-60"
+                    >
+                      <div className="w-10 h-10 shrink-0 rounded-xl bg-indigo-50 flex items-center justify-center">
+                        <BookOpen size={16} className="text-indigo-400" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-slate-800 leading-snug line-clamp-2">
+                          {p.passage.length > 60 ? `${p.passage.slice(0, 60)}…` : p.passage}
+                        </p>
+                        <p className="text-[10px] font-bold text-slate-400 mt-0.5">
+                          {openingSaved === p.id ? "Opening…" : [
+                            p.source === "generated" ? `AI${p.gen_level ? ` · ${p.gen_level}` : ""}` : "Pasted",
+                            p.read_idx ? "in progress" : null,
+                          ].filter(Boolean).join(" · ")}
+                        </p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => removeSaved(p)}
+                      aria-label="Remove passage"
+                      className="shrink-0 p-2 rounded-xl text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {savedPassages.length > 4 && (
+                <button
+                  onClick={() => setShowAllSaved((v) => !v)}
+                  className="mt-2 text-[10px] font-black uppercase tracking-widest text-indigo-500"
+                >
+                  {showAllSaved ? "Show fewer" : `Show all ${savedPassages.length}`}
+                </button>
+              )}
+            </div>
+          )}
+
+          <h2 className="text-xl font-black text-slate-900 mb-1">{savedPassages.length > 0 ? "Add a passage" : "Paste something to read"}</h2>
           <p className="text-slate-500 text-sm font-medium mb-4 leading-relaxed">
-            Lyrics, a manga page, a news snippet, anything. Tap any kanji to look it up and add it to your deck — and get grammar notes for the specific text.
+            Lyrics, a manga page, a news snippet, anything. Tap any kanji to look it up and add it to your deck — and get grammar notes for the specific text. Saved to My passages so you can come back to it on any device.
           </p>
 
           <textarea
