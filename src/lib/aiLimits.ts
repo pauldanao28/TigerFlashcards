@@ -2,20 +2,20 @@
 // Safe to import from client code (no Supabase client, no secrets) — the
 // server-only enforcement lives in rateLimit.ts, which re-exports this.
 export const AI_DAILY_LIMITS = {
-  generate: 100,        // words card-generated per day
-  chat: 20,              // sensei messages per day
-  tts: 5,                 // Gemini voice plays per day (chat replies + listening quiz audio) — a free taste; browser voice fills in after this
-  tts_preview: 20,        // voice-picker "preview" samples per day — kept separate so browsing voices never eats the tts tease
-  quiz_grammar: 2,       // grammar quiz rounds per day
-  quiz_sentences: 2,     // reading quiz rounds per day
-  quiz_listening: 2,     // listening quiz rounds per day
-  reader_generate: 10,    // AI-written reading passages per day
-  reader_annotate: 15,    // passages glossed (pasted or generated) per day
-  reader_ask: 20,         // "ask about this passage" questions per day
-  mnemonic: 20,           // kanji mnemonics generated per day — most taps hit the
+  generate: 150,         // words card-generated per day
+  chat: 50,               // sensei messages per day
+  tts: 15,                // Gemini voice plays per day (chat replies + listening quiz audio) — a free taste; browser voice fills in after this
+  tts_preview: 30,        // voice-picker "preview" samples per day — kept separate so browsing voices never eats the tts tease
+  quiz_grammar: 8,       // grammar quiz rounds per day
+  quiz_sentences: 8,     // reading quiz rounds per day
+  quiz_listening: 8,     // listening quiz rounds per day
+  reader_generate: 15,    // AI-written reading passages per day
+  reader_annotate: 25,    // passages glossed (pasted or generated) per day
+  reader_ask: 30,         // "ask about this passage" questions per day
+  mnemonic: 30,           // kanji mnemonics generated per day — most taps hit the
                           // master_cards cache and never reach this limit at all
-  learning_insights: 3,   // admin-only "analyze my progress" narrative per day
-  line_explain: 30,       // "Explain this line" (Reader sentences / Watch captions) per day —
+  learning_insights: 5,   // admin-only "analyze my progress" narrative per day
+  line_explain: 50,       // "Explain this line" (Reader sentences / Watch captions) per day —
                           // repeat views of a line are cached client-side and don't count
 } as const;
 
@@ -24,19 +24,19 @@ export const AI_DAILY_LIMITS = {
 // than the subscription covers). Admin accounts are the only fully-exempt
 // tier, since those are internal/dev, not customer-facing.
 export const AI_DAILY_LIMITS_PREMIUM = {
-  generate: 500,
-  chat: 100,
-  tts: 60,
-  tts_preview: 40,
-  quiz_grammar: 10,
-  quiz_sentences: 10,
-  quiz_listening: 10,
-  reader_generate: 40,
-  reader_annotate: 60,
-  reader_ask: 80,
-  mnemonic: 60,
-  learning_insights: 10,
-  line_explain: 120,
+  generate: 750,
+  chat: 200,
+  tts: 80,
+  tts_preview: 60,
+  quiz_grammar: 30,
+  quiz_sentences: 30,
+  quiz_listening: 30,
+  reader_generate: 50,
+  reader_annotate: 80,
+  reader_ask: 100,
+  mnemonic: 80,
+  learning_insights: 15,
+  line_explain: 150,
 } as const;
 
 export type AiEndpoint = keyof typeof AI_DAILY_LIMITS;

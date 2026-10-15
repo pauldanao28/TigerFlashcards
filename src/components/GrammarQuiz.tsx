@@ -467,8 +467,13 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
             </p>
           </div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">
-            20 questions · ~10 min · {usage?.remaining ?? '…'}/{usage?.limit ?? 15} rounds left today
+            20 questions · ~10 min
           </p>
+          {usage != null && usage.remaining <= 0 && (
+            <p className="text-rose-400 font-black uppercase tracking-widest text-[10px]">
+              Daily limit reached — come back tomorrow!
+            </p>
+          )}
           {error && <p className="text-red-500 font-bold text-xs">{error}</p>}
           <button onClick={load} disabled={starting || (usage != null && usage.remaining <= 0)}
             className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all shadow-sm disabled:opacity-40 flex items-center justify-center gap-2">

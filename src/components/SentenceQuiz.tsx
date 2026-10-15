@@ -211,7 +211,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
   const load = useCallback(async () => {
     if (loadingRef.current) return;
     if (!isAdmin && usage != null && usage.remaining <= 0) {
-      setError(`Daily limit reached — ${usage.limit} quizzes per day keeps this free for everyone. Come back tomorrow!`);
+      setError("Daily limit reached — this keeps it free for everyone. Come back tomorrow!");
       setPhase("loading"); // show error state (error takes priority in render)
       return;
     }
@@ -463,9 +463,9 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
           <div className="flex items-center gap-2.5">
             <span className="text-base">📝</span>
             <span className="font-black text-[11px] uppercase tracking-widest text-slate-700">Sentence Quiz</span>
-            {!isAdmin && (
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 ml-1">
-                {usage?.remaining ?? '…'}/{usage?.limit ?? 15} left today
+            {!isAdmin && usage != null && usage.remaining <= 0 && (
+              <span className="text-[9px] font-black uppercase tracking-widest text-rose-400 ml-1">
+                Come back tomorrow
               </span>
             )}
           </div>
@@ -512,9 +512,9 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
             </button>
           </div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">20 questions · ~5–10 min</p>
-          {!isAdmin && (
-            <p className="text-slate-300 font-black uppercase tracking-widest text-[10px]">
-              {usage?.remaining ?? '…'}/{usage?.limit ?? 15} quizzes left today
+          {!isAdmin && usage != null && usage.remaining <= 0 && (
+            <p className="text-rose-400 font-black uppercase tracking-widest text-[10px]">
+              Daily limit reached — come back tomorrow!
             </p>
           )}
           <button
@@ -534,11 +534,6 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
           <div className="w-9 h-9 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">Generating quiz…</p>
           <p className="text-slate-300 font-bold text-[10px]">Please wait, this can take a few seconds</p>
-          {!isAdmin && (
-            <p className="text-slate-300 font-black uppercase tracking-widest text-[10px] mt-1">
-              {usage?.remaining ?? '…'}/{usage?.limit ?? 15} quizzes left today
-            </p>
-          )}
         </div>
       )}
 
@@ -724,12 +719,6 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
                 ))}
               </div>
             </div>
-          )}
-
-          {!isAdmin && (
-            <p className="text-slate-300 font-black uppercase tracking-widest text-[10px] mb-4">
-              {usage?.remaining ?? '…'}/{usage?.limit ?? 15} quizzes left today
-            </p>
           )}
 
           <div className="flex gap-3 w-full">

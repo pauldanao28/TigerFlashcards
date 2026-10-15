@@ -63,7 +63,7 @@ export async function POST(req: Request) {
   const usage = await checkAndRecordUsage(user.id, "mnemonic", 1);
   if (!usage.allowed) {
     return NextResponse.json(
-      { error: `Daily limit reached — ${usage.limit} mnemonics per day. Come back tomorrow!` },
+      { error: "Daily limit reached — come back tomorrow!" },
       { status: 429 },
     );
   }

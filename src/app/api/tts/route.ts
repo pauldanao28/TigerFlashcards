@@ -14,7 +14,7 @@ export async function POST(req: Request) {
 
   const usage = await checkAndRecordUsage(user.id, isPreview ? "tts_preview" : "tts");
   if (!usage.allowed) {
-    return NextResponse.json({ error: "Daily audio limit reached" }, { status: 429 });
+    return NextResponse.json({ error: "Daily audio limit reached — come back tomorrow!" }, { status: 429 });
   }
 
   const apiKey = process.env.GOOGLE_GEMINI_API_KEY;

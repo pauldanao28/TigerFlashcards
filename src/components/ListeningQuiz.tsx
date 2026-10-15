@@ -470,8 +470,13 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
             </button>
           </div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">
-            20 questions · ~10–15 min · {usage?.remaining ?? '…'}/{usage?.limit ?? 15} rounds left today
+            20 questions · ~10–15 min
           </p>
+          {!isAdmin && usage != null && usage.remaining <= 0 && (
+            <p className="text-rose-400 font-black uppercase tracking-widest text-[10px]">
+              Daily limit reached — come back tomorrow!
+            </p>
+          )}
           <button
             onClick={() => { setStarting(true); load(); }}
             disabled={starting || (!isAdmin && usage != null && usage.remaining <= 0)}
@@ -544,7 +549,7 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
                   <p className="text-[9px] font-black uppercase tracking-widest text-slate-300">
                     {ttsUsage != null && ttsUsage.remaining <= 0
                       ? "🔊 Browser voice — still tap to listen"
-                      : <>🎙️ AI voice · {ttsUsage?.remaining ?? '…'}/{ttsUsage?.limit ?? 5} left today</>}
+                      : "🎙️ AI voice"}
                   </p>
                 </div>
               ) : (

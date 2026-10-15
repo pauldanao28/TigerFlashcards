@@ -88,7 +88,7 @@ export async function POST(req: Request) {
   const usage = await checkAndRecordUsage(user.id, "generate", words.length);
   if (!usage.allowed) {
     return NextResponse.json(
-      { error: `Daily limit reached — ${usage.limit} words per day. Come back tomorrow!` },
+      { error: "Daily limit reached — come back tomorrow!" },
       { status: 429 }
     );
   }

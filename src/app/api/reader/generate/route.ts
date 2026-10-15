@@ -59,7 +59,7 @@ export async function POST(req: Request) {
   const usage = await checkAndRecordUsage(user.id, "reader_generate", 1);
   if (!usage.allowed) {
     return NextResponse.json(
-      { error: `Daily limit reached — ${usage.limit} generated passages per day. Come back tomorrow!` },
+      { error: "Daily limit reached — come back tomorrow!" },
       { status: 429 },
     );
   }

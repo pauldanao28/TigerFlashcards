@@ -355,7 +355,7 @@ export async function POST(req: Request) {
   const usage = await checkAndRecordUsage(user.id, "learning_insights", 1);
   if (!usage.allowed) {
     return NextResponse.json(
-      { error: `Daily limit reached — ${usage.limit} analyses per day. Come back tomorrow!` },
+      { error: "Daily limit reached — come back tomorrow!" },
       { status: 429 },
     );
   }

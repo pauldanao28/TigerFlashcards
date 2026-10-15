@@ -12,7 +12,7 @@ export async function POST(req: Request) {
 
   const usage = await checkAndRecordUsage(user.id, "quiz_grammar");
   if (!usage.allowed) {
-    return NextResponse.json({ error: `Daily limit reached — ${usage.limit} per day.` }, { status: 429 });
+    return NextResponse.json({ error: "Daily limit reached — come back tomorrow!" }, { status: 429 });
   }
 
   try {

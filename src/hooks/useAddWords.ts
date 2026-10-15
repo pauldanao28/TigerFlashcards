@@ -7,7 +7,7 @@ import { useUploadGuard } from "@/context/UploadGuardContext";
 import { translations } from "@/lib/languages";
 
 const t = translations.en;
-const DAILY_LIMIT = 50;
+const DAILY_LIMIT = 100;
 
 export interface AddedWordSummary {
   id: string;
@@ -130,18 +130,14 @@ export function useAddWords({
         if (currentToday >= DAILY_LIMIT) {
           setLoading(false);
           setUploadBusy(false);
-          showAlert(
-            t.limit_reached_msg
-              .replace("{{current}}", currentToday.toString())
-              .replace("{{limit}}", DAILY_LIMIT.toString()),
-          );
+          showAlert(t.limit_reached_msg);
           return succeededWords;
         }
 
         if (currentToday + uniqueInputWords.length > DAILY_LIMIT) {
           const allowedCount = DAILY_LIMIT - currentToday;
           wordsToActuallyProcess = uniqueInputWords.slice(0, allowedCount);
-          showAlert(t.partial_limit_msg.replace("{{count}}", allowedCount.toString()));
+          showAlert(t.partial_limit_msg);
         }
       }
     } catch (limitErr) {

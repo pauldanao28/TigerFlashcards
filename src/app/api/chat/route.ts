@@ -143,7 +143,7 @@ export async function POST(req: Request) {
   const usage = await checkAndRecordUsage(user.id, "chat");
   if (!usage.allowed) {
     return NextResponse.json(
-      { error: `Daily limit reached — ${usage.limit} messages per day. Come back tomorrow!` },
+      { error: "Daily limit reached — come back tomorrow!" },
       { status: 429 }
     );
   }

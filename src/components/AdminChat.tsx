@@ -1040,11 +1040,11 @@ export default function AdminChat({ userId }: { userId: string }) {
         <p className="text-center text-[10px] text-slate-300 mt-2 font-medium uppercase tracking-widest">
           {chatUsage != null && chatUsage.remaining <= 0
             ? "Daily message limit reached — this keeps Sensei free for everyone. Come back tomorrow!"
-            : <>Tap underlined kanji · Add to deck · {chatUsage?.remaining ?? '…'}/{chatUsage?.limit ?? 20} messages left today</>}
+            : "Tap underlined kanji · Add to deck"}
           {" · "}
           {ttsUsage != null && ttsUsage.remaining <= 0
             ? "voice replies used up (browser voice will play instead)"
-            : <>🔊 {ttsUsage?.remaining ?? '…'}/{ttsUsage?.limit ?? 5} voice replies left today</>}
+            : "🔊 AI voice replies"}
         </p>
       </div>
     </div>
