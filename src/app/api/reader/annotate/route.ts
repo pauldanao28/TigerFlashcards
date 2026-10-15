@@ -6,9 +6,6 @@ import { checkAndRecordUsage } from "@/lib/rateLimit";
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
-// Keep passages short enough that grammar-note extraction stays reliable and cheap —
-// this is a reading aid, not a bulk-import pipeline. Word lookup itself doesn't touch
-// Gemini at all (same Jisho tap-to-lookup as the quizzes), only this grammar pass does.
 const MAX_CHARS = 1500;
 
 const prompt = (text: string) => `A Japanese language learner is reading this passage:
