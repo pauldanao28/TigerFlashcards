@@ -475,16 +475,6 @@ export default function StatsPage() {
     );
   };
 
-  // Raw data, no English wrapper sentence — this gets pasted straight into a chat
-  // (e.g. a Gemini diary), which can read the shorthand fine on its own.
-  const copyDailyStrugglesForGemini = async () => {
-    const text = dailyStruggles
-      .map((w) => `${w.japanese} (${w.reading}) - ${w.english}${w.jlpt_level ? ` [${w.jlpt_level}]` : ""} x${w.fail_count}`)
-      .join("\n");
-    await navigator.clipboard.writeText(text);
-    showAlert("Copied!");
-  };
-
   // "Explained Today" — Reader sentences / Watch caption lines tapped "Explain" today
   // (daily_explained_lines, written by useLineExplain on a successful explain fetch).
   const fetchDailyExplainedLines = async () => {
@@ -2615,15 +2605,6 @@ export default function StatsPage() {
                       </span>
                     </div>
                   ))}
-                </div>
-
-                <div className="p-4 border-t border-slate-50 shrink-0">
-                  <button
-                    onClick={copyDailyStrugglesForGemini}
-                    className="w-full bg-slate-900 text-white py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-all active:scale-95"
-                  >
-                    Copy for Gemini
-                  </button>
                 </div>
               </div>
             </div>
