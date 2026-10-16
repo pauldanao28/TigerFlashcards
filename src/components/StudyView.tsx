@@ -1792,13 +1792,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     className="absolute top-full right-0 mt-2 flex flex-col items-end gap-2 z-[60]"
                   >
                     <button
-                      onClick={() => { openMiniPlayer(); setShowQuickMenu(false); }}
-                      className="flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
-                      title="Pop Out Mini Player"
-                    >
-                      <ExternalLink size={18} className="text-slate-500" />
-                    </button>
-                    <button
                       onClick={() => { setIsSocialOpen(true); setShowQuickMenu(false); }}
                       className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
                     >
