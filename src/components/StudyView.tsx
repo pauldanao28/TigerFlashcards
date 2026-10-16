@@ -1382,21 +1382,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           )}
         </div>
 
-        <div className="w-full flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => onSwipe("left")}
-            className="flex-1 py-3 rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
-          >
-            {t.fail}
-          </button>
-          <button
-            onClick={() => onSwipe("right")}
-            className="flex-1 py-3 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-600 font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
-          >
-            {t.pass}
-          </button>
-        </div>
-
         {showStillThere && (
           <div className="fixed inset-0 z-[300] bg-slate-900/95 flex flex-col items-center justify-center p-4 gap-3 text-center">
             <p className="text-white font-black text-sm">Still there?</p>
