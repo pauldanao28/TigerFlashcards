@@ -2849,6 +2849,31 @@ export default function StatsPage() {
                     <X size={15} />
                   </button>
                 </div>
+
+                {(scoreDetailCard.transitivity || scoreDetailCard.verb_type || scoreDetailCard.adjective_type || scoreDetailCard.te_form) && (
+                  <div className="flex flex-wrap items-center gap-1.5 mb-4">
+                    {scoreDetailCard.transitivity && (
+                      <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-indigo-100">
+                        {scoreDetailCard.transitivity === "transitive" ? "Transitive" : "Intransitive"}
+                      </span>
+                    )}
+                    {scoreDetailCard.verb_type && (
+                      <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-indigo-100">
+                        {scoreDetailCard.verb_type === "godan" ? "Godan" : scoreDetailCard.verb_type === "ichidan" ? "Ichidan" : "Irregular"}
+                      </span>
+                    )}
+                    {scoreDetailCard.adjective_type && (
+                      <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-indigo-100">
+                        {scoreDetailCard.adjective_type === "i" ? "い-adjective" : "な-adjective"}
+                      </span>
+                    )}
+                    {scoreDetailCard.te_form && (
+                      <span className="px-2.5 py-1 bg-slate-50 text-slate-600 rounded-full text-[9px] font-bold border border-slate-100">
+                        Te-form: {scoreDetailCard.te_form}
+                      </span>
+                    )}
+                  </div>
+                )}
                 <div className="mb-4 p-4 bg-slate-50 rounded-2xl">
                   <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Example</p>
                   {scoreDetailCard.exampleSentence?.jp ? (

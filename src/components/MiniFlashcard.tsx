@@ -107,6 +107,30 @@ export default function MiniFlashcard({ card, language, isFlipped, onFlip, onSwi
             <h2 className={`font-bold leading-tight break-words ${getFontSize(backText, isBackJapanese)}`}>
               {backText}
             </h2>
+            {(card.transitivity || card.verb_type || card.adjective_type) && (
+              <div className="flex flex-wrap items-center justify-center gap-1">
+                {card.transitivity && (
+                  <span className="px-1.5 py-0.5 bg-white/15 rounded-full text-[7px] font-black uppercase tracking-widest">
+                    {card.transitivity === "transitive" ? "Trans." : "Intrans."}
+                  </span>
+                )}
+                {card.verb_type && (
+                  <span className="px-1.5 py-0.5 bg-white/15 rounded-full text-[7px] font-black uppercase tracking-widest">
+                    {card.verb_type === "godan" ? "Godan" : card.verb_type === "ichidan" ? "Ichidan" : "Irregular"}
+                  </span>
+                )}
+                {card.adjective_type && (
+                  <span className="px-1.5 py-0.5 bg-white/15 rounded-full text-[7px] font-black uppercase tracking-widest">
+                    {card.adjective_type === "i" ? "い-adj" : "な-adj"}
+                  </span>
+                )}
+              </div>
+            )}
+            {card.te_form && (
+              <p className="text-indigo-200 text-[10px] font-medium">
+                Te: <span className="text-white font-bold">{card.te_form}</span>
+              </p>
+            )}
           </div>
         </motion.div>
       </motion.div>

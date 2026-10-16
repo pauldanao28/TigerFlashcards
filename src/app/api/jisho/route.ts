@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
+import { classifyFromTags, computeTeForm } from "@/lib/verbConjugation";
 
 const CACHE = { headers: { "Cache-Control": "public, max-age=86400" } };
+
+interface JishoEntry {
+  japanese?: { word?: string; reading?: string }[];
+  senses?: { parts_of_speech?: string[] }[];
+}
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const word = searchParams.get("word");
   const compounds = searchParams.get("compounds") === "true";
+  const classify = searchParams.get("classify") === "true";
   if (!word) return NextResponse.json({ found: false });
 
   try {
@@ -20,6 +27,18 @@ export async function GET(req: Request) {
     );
     if (!res.ok) return NextResponse.json({ found: false });
     const data = await res.json();
+
+    if (classify) {
+      // Match the entry whose dictionary form is exactly this word — the first result
+      // isn't always it (jisho ranks by relevance/commonness, not exact match).
+      const entries: JishoEntry[] = data.data ?? [];
+      const entry = entries.find((e) => e.japanese?.some((j) => j.word === word)) ?? entries[0];
+      if (!entry) return NextResponse.json({ found: false });
+      const tags: string[] = (entry.senses ?? []).flatMap((s) => s.parts_of_speech ?? []);
+      const { verbType, transitivity, adjectiveType } = classifyFromTags(tags);
+      const teForm = verbType ? computeTeForm(word, verbType) : null;
+      return NextResponse.json({ found: true, teForm, transitivity, verbType, adjectiveType }, CACHE);
+    }
 
     if (compounds) {
       const entries: any[] = data.data ?? [];

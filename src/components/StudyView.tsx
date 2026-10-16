@@ -232,6 +232,9 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const reflexDeadlineRef = useRef<number | null>(null);
   const reflexTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reflexTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Cards already attempted this session — avoids re-fetching Jisho on every redraw of
+  // a word it simply has no usable data for (the route itself also caches 24h).
+  const grammarFillAttemptedRef = useRef<Set<string>>(new Set());
 
   // Animate recap stats from 0 when the modal opens
   useEffect(() => {
@@ -957,6 +960,45 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     setCards((prev) => prev.map(applyPatch));
     setCurrentCard((prev) => (prev ? applyPatch(prev) : prev));
   }, []);
+
+  // Lazily fills te-form/transitivity/verb-type (verbs, plus noun+する compounds like
+  // 勉強する) or adjective-type (い/な) the first time an eligible card missing them gets
+  // drawn — a single Jisho lookup, cached onto master_cards forever (shared across every
+  // user), same "fetch once, cache on the shared row" shape as the mnemonic feature.
+  useEffect(() => {
+    if (!currentCard) return;
+    const { id: cardId, japanese: word, partOfSpeech } = currentCard;
+    const isSuruNoun = partOfSpeech === "noun" && word.endsWith("する");
+    const isAdjective = partOfSpeech === "adjective";
+    if (partOfSpeech !== "verb" && !isSuruNoun && !isAdjective) return;
+
+    const needsFill = isAdjective
+      ? currentCard.adjective_type == null
+      : currentCard.te_form == null || currentCard.transitivity == null || currentCard.verb_type == null;
+    if (!needsFill || grammarFillAttemptedRef.current.has(cardId)) return;
+    grammarFillAttemptedRef.current.add(cardId);
+
+    fetch(`/api/jisho?word=${encodeURIComponent(word)}&classify=true`)
+      .then((r) => r.json())
+      .then(async (d) => {
+        if (!d.found) return;
+        const patch: Partial<FlashcardData> = {};
+        if (d.teForm) patch.te_form = d.teForm;
+        if (d.transitivity) patch.transitivity = d.transitivity;
+        if (d.verbType) patch.verb_type = d.verbType;
+        if (d.adjectiveType) patch.adjective_type = d.adjectiveType;
+        if (Object.keys(patch).length === 0) return;
+        const { error } = await supabase.from("master_cards").update(patch).eq("id", cardId);
+        if (error) { console.error("Error saving verb/adjective grammar info:", error); return; }
+        const applyPatch = (c: FlashcardData) => (c.id === cardId ? { ...c, ...patch } : c);
+        setCards((prev) => prev.map(applyPatch));
+        setCurrentCard((prev) => (prev ? applyPatch(prev) : prev));
+      })
+      .catch(() => {});
+    // Re-running on every currentCard object identity change (e.g. a priority toggle)
+    // would be wasted work — the ref guard already prevents a double-fetch per id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentCard?.id]);
 
   // Opens the mnemonic sheet for a word from the Weak Words list — same cache-check,
   // confirm-before-spending-AI, and generate flow as Flashcard.tsx's handleOpenMnemonic,

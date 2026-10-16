@@ -468,12 +468,37 @@ export default function Flashcard({
               )}
 
               <h2
-                className={`font-bold leading-tight break-words w-full 
-    ${isReady ? "transition-all duration-300" : "transition-none"} 
+                className={`font-bold leading-tight break-words w-full
+    ${isReady ? "transition-all duration-300" : "transition-none"}
     ${getFontSize(backText, isBackJapanese)}`}
               >
                 {backText}
               </h2>
+
+              {(card?.transitivity || card?.verb_type || card?.adjective_type) && (
+                <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3">
+                  {card?.transitivity && (
+                    <span className="px-2.5 py-1 bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10">
+                      {card.transitivity === "transitive" ? "Transitive" : "Intransitive"}
+                    </span>
+                  )}
+                  {card?.verb_type && (
+                    <span className="px-2.5 py-1 bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10">
+                      {card.verb_type === "godan" ? "Godan" : card.verb_type === "ichidan" ? "Ichidan" : "Irregular"}
+                    </span>
+                  )}
+                  {card?.adjective_type && (
+                    <span className="px-2.5 py-1 bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10">
+                      {card.adjective_type === "i" ? "い-adjective" : "な-adjective"}
+                    </span>
+                  )}
+                </div>
+              )}
+              {card?.te_form && (
+                <p className="text-indigo-200 text-xs font-medium mt-1.5">
+                  Te-form: <span className="text-white font-bold">{card.te_form}</span>
+                </p>
+              )}
             </div>
 
             {/* Footer Area */}

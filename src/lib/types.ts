@@ -16,6 +16,12 @@ export interface MasterCard {
   is_public: boolean;
   created_at: string;
   mnemonic?: KanjiMnemonic | null;
+  // Verb/adjective grammar metadata — filled in lazily from Jisho the first time an
+  // eligible card is drawn in Study (see StudyView's fill-in effect), null until then.
+  te_form?: string | null;
+  transitivity?: 'transitive' | 'intransitive' | null;
+  verb_type?: 'godan' | 'ichidan' | 'irregular' | null;
+  adjective_type?: 'i' | 'na' | null;
 }
 
 export interface KanjiMnemonicEntry {
