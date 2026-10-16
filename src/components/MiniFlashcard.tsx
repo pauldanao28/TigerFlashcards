@@ -1,6 +1,7 @@
 "use client";
 import { motion, useMotionValue, useTransform, AnimatePresence, type PanInfo } from "framer-motion";
 import { FlashcardData } from "@/lib/types";
+import { suruLabel } from "@/lib/verbConjugation";
 
 // A deliberately stripped-down card for Mini Mode: just the word, tap to flip,
 // swipe to grade. No audio, mnemonic, example sentence, priority star, or report
@@ -138,7 +139,7 @@ export default function MiniFlashcard({ card, language, isFlipped, onFlip, onSwi
             {(card.transitivity || card.verb_type || card.adjective_type) && (
               <div className="flex flex-wrap items-center justify-center gap-1">
                 {card.partOfSpeech === "noun" && (card.transitivity || card.verb_type) && (
-                  <span className="text-indigo-200 text-[7px] font-bold">{card.japanese}する:</span>
+                  <span className="text-indigo-200 text-[7px] font-bold">{suruLabel(card.japanese)}:</span>
                 )}
                 {card.transitivity && (
                   <span className="px-1.5 py-0.5 bg-white/15 rounded-full text-[7px] font-black uppercase tracking-widest">
@@ -164,7 +165,7 @@ export default function MiniFlashcard({ card, language, isFlipped, onFlip, onSwi
             )}
             {card.suru_meaning && (
               <p className="text-indigo-200 text-[10px] font-medium">
-                {card.japanese}する: <span className="text-white font-bold">{card.suru_meaning}</span>
+                {suruLabel(card.japanese)}: <span className="text-white font-bold">{card.suru_meaning}</span>
               </p>
             )}
           </div>

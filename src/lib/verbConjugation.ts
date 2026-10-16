@@ -7,6 +7,13 @@ export type VerbType = "godan" | "ichidan" | "irregular";
 export type Transitivity = "transitive" | "intransitive";
 export type AdjectiveType = "i" | "na";
 
+// Label for a suru-capable noun's する-usage ("急行する:"). Most suru-nouns are stored
+// bare (急行), but a few older/mistagged rows already have する baked into "japanese" —
+// appending する unconditionally there would show "急行するする:".
+export function suruLabel(word: string): string {
+  return word.endsWith("する") ? word : `${word}する`;
+}
+
 export function classifyFromTags(tags: string[]): {
   verbType: VerbType | null;
   transitivity: Transitivity | null;

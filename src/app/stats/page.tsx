@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FlashcardData } from "@/lib/types";
+import { suruLabel } from "@/lib/verbConjugation";
 import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
 import { translations } from "@/lib/languages";
@@ -2900,7 +2901,7 @@ export default function StatsPage() {
                 {(scoreDetailCard.transitivity || scoreDetailCard.verb_type || scoreDetailCard.adjective_type || scoreDetailCard.te_form) && (
                   <div className="flex flex-wrap items-center gap-1.5 mb-4">
                     {scoreDetailCard.partOfSpeech === "noun" && (scoreDetailCard.transitivity || scoreDetailCard.verb_type) && (
-                      <span className="text-slate-400 text-[10px] font-bold">{scoreDetailCard.japanese}する:</span>
+                      <span className="text-slate-400 text-[10px] font-bold">{suruLabel(scoreDetailCard.japanese)}:</span>
                     )}
                     {scoreDetailCard.transitivity && (
                       <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-indigo-100">
@@ -2926,7 +2927,7 @@ export default function StatsPage() {
                 )}
                 {scoreDetailCard.suru_meaning && (
                   <p className="text-slate-500 text-xs font-medium mb-4 -mt-2">
-                    {scoreDetailCard.japanese}する: <span className="text-slate-800 font-bold">{scoreDetailCard.suru_meaning}</span>
+                    {suruLabel(scoreDetailCard.japanese)}: <span className="text-slate-800 font-bold">{scoreDetailCard.suru_meaning}</span>
                   </p>
                 )}
                 <div className="mb-4 p-4 bg-slate-50 rounded-2xl">

@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { motion, useMotionValue, useTransform, AnimatePresence } from "framer-motion";
 import { Star, Lightbulb, Loader2, X } from "lucide-react";
 import { FlashcardData, KanjiMnemonic } from "@/lib/types";
+import { suruLabel } from "@/lib/verbConjugation";
 import { supabase } from "@/lib/supabase";
 import { translations } from "@/lib/languages";
 import { speak } from "@/lib/tts";
@@ -506,7 +507,7 @@ export default function Flashcard({
               {(card?.transitivity || card?.verb_type || card?.adjective_type) && (
                 <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3">
                   {card?.partOfSpeech === "noun" && (card?.transitivity || card?.verb_type) && (
-                    <span className="text-indigo-200 text-[10px] font-bold">{card.japanese}する:</span>
+                    <span className="text-indigo-200 text-[10px] font-bold">{suruLabel(card.japanese)}:</span>
                   )}
                   {card?.transitivity && (
                     <span className="px-2.5 py-1 bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10">
@@ -532,7 +533,7 @@ export default function Flashcard({
               )}
               {card?.suru_meaning && (
                 <p className="text-indigo-200 text-xs font-medium mt-1.5">
-                  {card.japanese}する: <span className="text-white font-bold">{card.suru_meaning}</span>
+                  {suruLabel(card.japanese)}: <span className="text-white font-bold">{card.suru_meaning}</span>
                 </p>
               )}
             </div>
