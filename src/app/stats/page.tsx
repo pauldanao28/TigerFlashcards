@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FlashcardData } from "@/lib/types";
@@ -798,7 +798,7 @@ export default function StatsPage() {
   const packWordsMissing = (pack: { card_data?: PackWord[] }): PackWord[] =>
     cards.length === 0 ? [] : (pack.card_data ?? []).filter((w) => !deckForms.has(w.japanese));
 
-  const importPack = async (pack: any) => {
+  const importPack = async (pack: any, opts?: { silent?: boolean }) => {
     if (!defaultDeckId) {
       showAlert(
         "Deck ID is missing. Still loading your profile... please try again in 1 second.",
@@ -909,7 +909,9 @@ export default function StatsPage() {
       // 5. Update local state
       setOwnedPacks(updatedPacks);
       fetchCards();
-      setTriage({ packName: pack.name, cards: uploadedCards.map((c) => ({ id: c.id, japanese: c.japanese, english: c.english })) });
+      if (!opts?.silent) {
+        setTriage({ packName: pack.name, cards: uploadedCards.map((c) => ({ id: c.id, japanese: c.japanese, english: c.english })) });
+      }
     } catch (error: any) {
       console.error(error);
       showAlert("Error: " + error.message);
@@ -917,6 +919,24 @@ export default function StatsPage() {
       setLoading(false);
     }
   };
+
+  // A starter pack you already own can still gain words later (content fixes, pack
+  // growth). Sync those in automatically instead of making you notice and click an
+  // "Add new words" button — a brand-new import already gets the pack's full current
+  // word list, so this only ever applies to packs you'd already added.
+  const autoSyncedPacksRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!ownedPacks || cards.length === 0 || starterPacks.length === 0) return;
+    for (const pack of starterPacks) {
+      if (!ownedPacks.includes(pack.id)) continue;
+      if (autoSyncedPacksRef.current.has(pack.id)) continue;
+      if (packWordsMissing(pack).length === 0) continue;
+      autoSyncedPacksRef.current.add(pack.id);
+      importPack(pack, { silent: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownedPacks, cards, starterPacks]);
+
   const submitFeedback = async () => {
     setSubmittingFeedback(true);
 
@@ -989,7 +1009,7 @@ export default function StatsPage() {
           </div>
         </div>
       </header>
-      <main className="min-h-screen bg-slate-50 p-8">
+      <main className="min-h-screen bg-slate-50 px-8 pb-8 pt-12">
         <div className="max-w-5xl mx-auto">
 
           {/* Settings — full-screen overlay, same pattern as the quiz components */}
@@ -1258,14 +1278,9 @@ export default function StatsPage() {
 
                   {/* Reflex Mode Toggle */}
                   <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
-                    <div>
-                      <p className="text-sm font-bold text-slate-700">
-                        Reflex Mode
-                      </p>
-                      <p className="text-[10px] text-slate-400 font-medium leading-tight">
-                        Auto-fails a card if you don&apos;t grade it within 3 seconds — drills quick recall. Pauses automatically if you leave the app mid-session.
-                      </p>
-                    </div>
+                    <p className="text-sm font-bold text-slate-700">
+                      Reflex Mode
+                    </p>
                     <button
                       onClick={() =>
                         updateAudioSetting("reflex_mode", !reflexMode)
@@ -1714,7 +1729,6 @@ export default function StatsPage() {
               {starterPacks.map((pack) => {
                 // Pure ID comparison
                 const isOwned = ownedPacks?.includes(pack.id);
-                const missingCount = isOwned ? packWordsMissing(pack).length : 0;
 
                 return (
                   <div
@@ -1759,26 +1773,26 @@ export default function StatsPage() {
                       </p>
                     </div>
 
-                    {/* Bottom Section: Action */}
+                    {/* Bottom Section: Action — words added to a pack after you already own
+                        it sync in automatically (see the auto-sync effect below), so an
+                        owned pack never needs a manual "add new words" step here. */}
                     <button
                       onClick={async () => {
-                        const count = missingCount || pack.card_data?.length || 0;
+                        const count = pack.card_data?.length || 0;
                         const ok = await showConfirm(
-                          missingCount
-                            ? `"${pack.name}" has ${count} new words since you added it. Add them to your deck?`
-                            : `Add "${pack.name}" (${count} words) to your deck? This can't be undone.`,
+                          `Add "${pack.name}" (${count} words) to your deck? This can't be undone.`,
                           { title: "Add to Deck", confirmLabel: "Add" }
                         );
                         if (ok) importPack(pack);
                       }}
-                      disabled={loading || (isOwned && missingCount === 0)}
+                      disabled={loading || isOwned}
                       className={`w-full py-3 rounded-xl text-xs font-bold transition-all ${
-                        isOwned && missingCount === 0
+                        isOwned
                           ? "bg-slate-200 text-slate-400"
                           : "bg-indigo-600 text-white hover:bg-indigo-700"
                       }`}
                     >
-                      {isOwned ? (missingCount ? `${t.add_new_words} (${missingCount})` : t.already_in_deck) : t.add_to_deck}
+                      {isOwned ? t.already_in_deck : t.add_to_deck}
                     </button>
                   </div>
                 );

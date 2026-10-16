@@ -25,7 +25,7 @@ import ListeningQuiz from "@/components/ListeningQuiz";
 import AddWordsSheet from "@/components/AddWordsSheet";
 import { FlashcardData, KanjiMnemonic } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, History, Star, TrendingDown, Lightbulb, Loader2, X, Menu } from "lucide-react";
+import { Plus, History, Star, TrendingDown, Lightbulb, Loader2, X, Menu, Zap } from "lucide-react";
 const DAILY_GOAL = 10;
 const MASTERY_MIN_TRIES = 5;
 const PRIORITY_CAP = 30;
@@ -788,6 +788,16 @@ export default function StudyView() {
     reflexAutoFailStreakRef.current = 0;
     setShowStillThere(false);
   }, []);
+
+  // Quick toggle beside the language pill — mirrors the Settings switch so Reflex
+  // Mode doesn't require a trip to Cards > Settings to turn on mid-session.
+  const toggleReflexMode = useCallback(async () => {
+    const next = !reflexMode;
+    setReflexMode(next);
+    if (user) {
+      await supabase.from("profiles").update({ reflex_mode: next }).eq("id", user.id);
+    }
+  }, [reflexMode, user]);
 
   // Runs the countdown only while a card is actually waiting to be flipped — flipping
   // is the "I responded" signal, so the timer has nothing left to enforce once it happens.
@@ -1597,6 +1607,18 @@ export default function StudyView() {
                 <span className="text-[8px] uppercase tracking-widest leading-none whitespace-nowrap">
                   {language === "jp" ? t.recognition : t.recall}
                 </span>
+              </button>
+              {/* Icon-only — no label, keeps this row compact next to the language pill */}
+              <button
+                onClick={toggleReflexMode}
+                title="Reflex Mode"
+                className={`relative flex items-center justify-center w-11 h-11 rounded-2xl border shadow-sm active:scale-95 transition-all ${
+                  reflexMode
+                    ? "bg-indigo-600 border-indigo-600 text-white"
+                    : "bg-white/80 backdrop-blur-md border-white text-slate-400"
+                }`}
+              >
+                <Zap size={18} fill={reflexMode ? "currentColor" : "none"} />
               </button>
               {/* Collapsed behind a single trigger — the dropdown below is absolutely
                   positioned so opening it never pushes the card/content down. */}
