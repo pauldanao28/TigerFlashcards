@@ -1278,9 +1278,14 @@ export default function StatsPage() {
 
                   {/* Reflex Mode Toggle */}
                   <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
-                    <p className="text-sm font-bold text-slate-700">
-                      Reflex Mode
-                    </p>
+                    <div>
+                      <p className="text-sm font-bold text-slate-700">
+                        Reflex Mode
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-medium leading-tight">
+                        Auto-fails a card if you don&apos;t grade it within 3 seconds
+                      </p>
+                    </div>
                     <button
                       onClick={() =>
                         updateAudioSetting("reflex_mode", !reflexMode)
