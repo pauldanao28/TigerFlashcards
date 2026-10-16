@@ -16,6 +16,7 @@ import { useAppAlert } from "@/context/AlertContext";
 import Auth from "@/components/Auth";
 import Logo from "@/components/Logo";
 import Flashcard from "@/components/Flashcard";
+import MiniFlashcard from "@/components/MiniFlashcard";
 import OnboardingModal from "@/components/OnboardingModal";
 import LoadingScreen from "@/components/LoadingScreen";
 import CoachMarks from "@/components/CoachMarks";
@@ -1359,21 +1360,13 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
             )}
           </AnimatePresence>
           {cards.length > 0 && currentCard ? (
-            <Flashcard
+            <MiniFlashcard
               key={currentCard.id}
               card={currentCard}
               language={language}
-              userId={user?.id || ""}
-              onSwipe={onSwipe}
-              autoPlayJp={autoPlayJp && hasInteracted.current}
-              autoPlayEn={autoPlayEn && hasInteracted.current}
-              sfxEnabled={sfxEnabled}
               isFlipped={isFlipped}
               onFlip={setIsFlipped}
-              audioPulse={audioPulse}
-              isPriority={!!currentCard.is_priority}
-              onTogglePriority={() => togglePriority(currentCard)}
-              onMnemonicGenerated={handleMnemonicGenerated}
+              onSwipe={onSwipe}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-slate-300 text-xs font-bold">
