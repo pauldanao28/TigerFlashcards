@@ -582,6 +582,14 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         localStorage.removeItem("show_first_timer_hint");
       }
 
+      // Log today's miss (any Fail grade, including a Reflex Mode timeout) — separate
+      // from the cumulative scores_json, so "what did I get wrong today" survives
+      // independently of all-time accuracy. Fire-and-forget, same pattern as mastery counts.
+      if (!isPass) {
+        supabase.rpc("record_daily_struggle", { target_user_id: user.id, target_card_id: currentCard.id })
+          .then(({ error }) => { if (error) console.error("Error recording daily struggle:", error); });
+      }
+
       // 1. Calculate Score Updates
       const mode = language === "jp" ? "jp_to_en" : "en_to_jp";
       const s = currentCard.scores || {

@@ -161,6 +161,10 @@ export default function StatsPage() {
   const [triage, setTriage] = useState<{ packName: string; cards: TriageCard[] } | null>(null);
   const [swipeOnly, setSwipeOnly] = useState(false);
   const [reflexMode, setReflexMode] = useState(false);
+  const [dailyStruggles, setDailyStruggles] = useState<
+    { card_id: string; fail_count: number; japanese: string; reading: string; english: string; jlpt_level: string | null }[]
+  >([]);
+  const [showDailyStruggles, setShowDailyStruggles] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
@@ -365,6 +369,7 @@ export default function StatsPage() {
             fetchProfile(),
             fetchDefaultDeck(),
             fetchStarterPacks(),
+            fetchDailyStruggles(),
           ]);
           // Nothing to wait for (no deck → fetchCards never runs) — reveal now. Otherwise
           // leave the gate to fetchCards's own first-page handler, so the page doesn't
@@ -430,6 +435,41 @@ export default function StatsPage() {
       return data.id;
     }
     return null;
+  };
+
+  // "Struggling Today" — cards graded Fail at least once today (daily_struggles,
+  // written by StudyView's handleScore), not the all-time accuracy-based metric.
+  const fetchDailyStruggles = async () => {
+    if (!user) return;
+    const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+    const { data, error } = await supabase
+      .from("daily_struggles")
+      .select("card_id, fail_count, master_cards(japanese, reading, english, jlpt_level)")
+      .eq("user_id", user.id)
+      .eq("struggle_date", sgToday)
+      .order("fail_count", { ascending: false });
+    if (error || !data) return;
+    setDailyStruggles(
+      data
+        .map((row) => ({ ...row, card: row.master_cards?.[0] }))
+        .filter((row): row is typeof row & { card: NonNullable<typeof row.card> } => !!row.card)
+        .map((row) => ({
+          card_id: row.card_id,
+          fail_count: row.fail_count,
+          japanese: row.card.japanese,
+          reading: row.card.reading,
+          english: row.card.english,
+          jlpt_level: row.card.jlpt_level,
+        })),
+    );
+  };
+
+  const copyDailyStrugglesForGemini = async () => {
+    const today = new Date().toLocaleDateString("en-US", { timeZone: "Asia/Singapore", month: "long", day: "numeric", year: "numeric" });
+    const lines = dailyStruggles.map((w) => `- ${w.japanese} (${w.reading}) — ${w.english}${w.jlpt_level ? ` [${w.jlpt_level}]` : ""}, missed ${w.fail_count}x`);
+    const text = `Words I struggled with today (${today}):\n${lines.join("\n")}`;
+    await navigator.clipboard.writeText(text);
+    showAlert("Copied! Paste it into your diary chat.");
   };
 
   // 3. Add the update function
@@ -1717,6 +1757,24 @@ export default function StatsPage() {
             </Link>
           </div>
 
+          {/* Struggling Today — cards you've gotten wrong at least once today (not the
+              all-time accuracy metric). Hidden on a clean day, same as Starter Packs. */}
+          {dailyStruggles.length > 0 && (
+            <div className="mb-10">
+              <button
+                onClick={() => setShowDailyStruggles(true)}
+                className="w-full flex items-center justify-between bg-white px-6 py-4 rounded-2xl shadow-sm border border-slate-100 font-black text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.99]"
+              >
+                <span className="flex items-center gap-2 text-sm">
+                  <TrendingDown size={16} className="text-rose-400" /> Struggling Today
+                </span>
+                <span className="flex items-center gap-2 text-slate-400 text-xs">
+                  {dailyStruggles.length} {dailyStruggles.length === 1 ? "word" : "words"} <span>→</span>
+                </span>
+              </button>
+            </div>
+          )}
+
           {/* Starter Packs Section — hidden once every pack has been added, so it's not
               permanent real estate for users with nothing left to add. */}
           {starterPacks.some((pack) => !ownedPacks?.includes(pack.id) || packWordsMissing(pack).length > 0) && (
@@ -2462,6 +2520,58 @@ export default function StatsPage() {
               cards={triage.cards}
               onDone={() => setTriage(null)}
             />
+          )}
+
+          {showDailyStruggles && (
+            <div
+              className="fixed inset-0 z-[220] flex items-center justify-center p-4 sm:p-6"
+              onClick={() => setShowDailyStruggles(false)}
+            >
+              <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" />
+              <div
+                className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl border border-white/20 flex flex-col max-h-[80vh] overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-6 border-b border-slate-50 flex justify-between items-center shrink-0">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                      <TrendingDown size={18} className="text-rose-500" /> Struggling Today
+                    </h3>
+                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">
+                      Words you missed at least once today — resets tomorrow.
+                    </p>
+                  </div>
+                  <button onClick={() => setShowDailyStruggles(false)} className="text-slate-300 hover:text-slate-500 shrink-0">
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                  {dailyStruggles.map((w) => (
+                    <div key={w.card_id} className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3">
+                      <div className="min-w-0">
+                        <p className="font-black text-slate-800 truncate">
+                          {w.japanese} <span className="text-slate-400 font-medium">{w.reading !== w.japanese ? w.reading : ""}</span>
+                        </p>
+                        <p className="text-xs text-slate-500 truncate">{w.english}</p>
+                      </div>
+                      <span className="shrink-0 text-[10px] font-black text-rose-500 bg-rose-50 border border-rose-100 rounded-full px-2 py-1">
+                        ×{w.fail_count}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="p-4 border-t border-slate-50 shrink-0">
+                  <button
+                    onClick={copyDailyStrugglesForGemini}
+                    className="w-full bg-slate-900 text-white py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-all active:scale-95"
+                  >
+                    Copy for Gemini
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Duplicate cards (kana copies of kanji cards, word + particle) — see lib/duplicates */}
