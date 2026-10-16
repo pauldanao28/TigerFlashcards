@@ -16,7 +16,7 @@ import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
 import AddWordsSheet from "@/components/AddWordsSheet";
 import DuplicatesSheet from "@/components/DuplicatesSheet";
 import { findDuplicates, skipDeckDuplicates } from "@/lib/duplicates";
-import { AlertTriangle, Ban, BarChart3, BookOpen, ChevronLeft, Flag, Gamepad2, Gift, Headphones, ImageIcon, Layers, List, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Volume2, X } from "lucide-react";
+import { AlertTriangle, Ban, BarChart3, BookOpen, ChevronLeft, Flag, Gamepad2, Gift, Headphones, ImageIcon, Layers, List, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Volume2, X, Zap } from "lucide-react";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
 
@@ -166,7 +166,7 @@ export default function StatsPage() {
   const [swipeOnly, setSwipeOnly] = useState(false);
   const [reflexMode, setReflexMode] = useState(false);
   const [dailyStruggles, setDailyStruggles] = useState<
-    { card_id: string; fail_count: number; japanese: string; reading: string; english: string; jlpt_level: string | null; partOfSpeech: string | null }[]
+    { card_id: string; fail_count: number; reflex_fail_count: number; japanese: string; reading: string; english: string; jlpt_level: string | null; partOfSpeech: string | null }[]
   >([]);
   const [showDailyStruggles, setShowDailyStruggles] = useState(false);
   const [dailyExplainedLines, setDailyExplainedLines] = useState<
@@ -476,7 +476,7 @@ export default function StatsPage() {
     const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
     const { data: struggles, error } = await supabase
       .from("daily_struggles")
-      .select("card_id, fail_count")
+      .select("card_id, fail_count, reflex_fail_count")
       .eq("user_id", user.id)
       .eq("struggle_date", sgToday)
       .gte("fail_count", DAILY_STRUGGLE_THRESHOLD)
@@ -495,7 +495,7 @@ export default function StatsPage() {
       struggles
         .map((s) => {
           const card = cardById.get(s.card_id);
-          return card ? { card_id: s.card_id, fail_count: s.fail_count, japanese: card.japanese, reading: card.reading, english: card.english, jlpt_level: card.jlpt_level, partOfSpeech: card.partOfSpeech } : null;
+          return card ? { card_id: s.card_id, fail_count: s.fail_count, reflex_fail_count: s.reflex_fail_count ?? 0, japanese: card.japanese, reading: card.reading, english: card.english, jlpt_level: card.jlpt_level, partOfSpeech: card.partOfSpeech } : null;
         })
         .filter((row): row is NonNullable<typeof row> => !!row),
     );
@@ -2611,7 +2611,7 @@ export default function StatsPage() {
                                   {w.japanese} <span className="text-slate-400 font-medium">{w.reading !== w.japanese ? w.reading : ""}</span>
                                 </p>
                                 <p className="text-xs text-slate-500 truncate">{w.english}</p>
-                                {(w.partOfSpeech || w.jlpt_level) && (
+                                {(w.partOfSpeech || w.jlpt_level || w.reflex_fail_count > 0) && (
                                   <div className="flex items-center gap-1 mt-1">
                                     {w.partOfSpeech && (
                                       <span className={`text-[9px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(w.partOfSpeech)}`}>
@@ -2621,6 +2621,18 @@ export default function StatsPage() {
                                     {w.jlpt_level && (
                                       <span className={`text-[9px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getJlptColor(w.jlpt_level)}`}>
                                         {w.jlpt_level}
+                                      </span>
+                                    )}
+                                    {w.reflex_fail_count > 0 && (
+                                      // Informational only — doesn't change fail_count or the
+                                      // 3+ threshold, just flags that some of today's fails were
+                                      // Reflex Mode timeouts rather than deliberate misses.
+                                      <span
+                                        className="text-[9px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter bg-amber-50 text-amber-600 border-amber-100 flex items-center gap-0.5"
+                                        title={`${w.reflex_fail_count} of today's fails were Reflex Mode timeouts`}
+                                      >
+                                        <Zap size={9} fill="currentColor" />
+                                        Reflex ×{w.reflex_fail_count}
                                       </span>
                                     )}
                                   </div>
