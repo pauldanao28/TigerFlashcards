@@ -11,15 +11,26 @@ export function classifyFromTags(tags: string[]): {
   verbType: VerbType | null;
   transitivity: Transitivity | null;
   adjectiveType: AdjectiveType | null;
+  // True for a word Jisho tags as able to take する — either it's already a suru verb
+  // entry, or (more commonly in this app's data, since a suru-capable word is stored as
+  // the bare noun, e.g. 勉強 not 勉強する) a noun tagged "Noun or participle which takes
+  // the aux. verb suru". Every "suru"-mentioning tag genuinely means this; no known
+  // false positives in Jisho's tag set.
+  isSuruCapable: boolean;
 } {
   let verbType: VerbType | null = null;
   let transitivity: Transitivity | null = null;
   let adjectiveType: AdjectiveType | null = null;
+  let isSuruCapable = false;
 
   for (const raw of tags) {
     const t = raw.toLowerCase();
+    if (t.includes("suru")) {
+      isSuruCapable = true;
+      if (!verbType) verbType = "irregular";
+    }
     if (!verbType) {
-      if (t.includes("suru verb") || t.includes("kuru verb")) verbType = "irregular";
+      if (t.includes("kuru verb")) verbType = "irregular";
       else if (t.includes("ichidan verb")) verbType = "ichidan";
       else if (t.includes("godan verb")) verbType = "godan";
     }
@@ -33,7 +44,7 @@ export function classifyFromTags(tags: string[]): {
       else if (t.includes("na-adjective")) adjectiveType = "na";
     }
   }
-  return { verbType, transitivity, adjectiveType };
+  return { verbType, transitivity, adjectiveType, isSuruCapable };
 }
 
 const GODAN_TE_ENDING: Record<string, string> = {
@@ -45,14 +56,17 @@ const GODAN_TE_ENDING: Record<string, string> = {
 // `word` is the dictionary form (kanji + okurigana, e.g. 食べる, 飲む, 勉強する, 来る) —
 // Japanese verbs always carry their inflecting ending in kana even when written with
 // kanji, so operating on the word's own last character(s) is enough; no separate
-// reading-based logic needed.
-export function computeTeForm(word: string, verbType: VerbType): string | null {
+// reading-based logic needed. `isSuruCapable` covers the bare-noun case (勉強 rather
+// than 勉強する — this app stores a suru-capable word without the する, so there's
+// nothing to strip; して is appended instead).
+export function computeTeForm(word: string, verbType: VerbType, isSuruCapable?: boolean): string | null {
   if (!word) return null;
 
   // する-compounds (勉強する, 結婚する, bare する) all conjugate the same way regardless
   // of what precedes them — checked before godan/ichidan since する also ends in る,
   // which would otherwise wrongly trigger the godan "-ru ending" rule.
   if (word.endsWith("する")) return word.slice(0, -2) + "して";
+  if (isSuruCapable) return word + "して";
   if (word.endsWith("来る")) return word.slice(0, -2) + "来て";
   if (word === "くる") return "きて";
 

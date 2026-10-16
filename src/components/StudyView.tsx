@@ -67,6 +67,29 @@ interface StudyCacheEntry {
 }
 let _studyCache: StudyCacheEntry | null = null;
 
+// Device-local (not per-user — a shared master_cards row's grammar fields don't depend
+// on who's asking) record of which card ids have already had a verb/adjective grammar
+// lookup attempted, so a plain noun that turned out not to be suru-capable isn't
+// re-checked against Jisho every single session. Module-level cache avoids re-parsing
+// localStorage on every StudyView re-render; only the first call per page load actually
+// touches localStorage.
+const GRAMMAR_FILL_CACHE_KEY = "flashkado-grammar-fill-checked";
+let _grammarFillCache: Set<string> | null = null;
+function getGrammarFillCache(): Set<string> {
+  if (_grammarFillCache) return _grammarFillCache;
+  _grammarFillCache = new Set();
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(GRAMMAR_FILL_CACHE_KEY);
+      if (raw) (JSON.parse(raw) as string[]).forEach((id) => _grammarFillCache!.add(id));
+    } catch { /* corrupt/unavailable — start fresh */ }
+  }
+  return _grammarFillCache;
+}
+function persistGrammarFillCache(cache: Set<string>) {
+  try { localStorage.setItem(GRAMMAR_FILL_CACHE_KEY, JSON.stringify([...cache])); } catch { /* ignore */ }
+}
+
 function getNextPriorityCard(
   allCards: FlashcardData[],
   lang: "jp" | "en",
@@ -232,9 +255,10 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const reflexDeadlineRef = useRef<number | null>(null);
   const reflexTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reflexTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Cards already attempted this session — avoids re-fetching Jisho on every redraw of
-  // a word it simply has no usable data for (the route itself also caches 24h).
-  const grammarFillAttemptedRef = useRef<Set<string>>(new Set());
+  // Cards already attempted, persisted to localStorage via getGrammarFillCache (see
+  // module scope above) — avoids re-fetching Jisho on every redraw, in every session,
+  // of a word it simply has no usable data for.
+  const grammarFillAttemptedRef = useRef<Set<string>>(getGrammarFillCache());
 
   // Animate recap stats from 0 when the modal opens
   useEffect(() => {
@@ -961,22 +985,28 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     setCurrentCard((prev) => (prev ? applyPatch(prev) : prev));
   }, []);
 
-  // Lazily fills te-form/transitivity/verb-type (verbs, plus noun+する compounds like
-  // 勉強する) or adjective-type (い/な) the first time an eligible card missing them gets
-  // drawn — a single Jisho lookup, cached onto master_cards forever (shared across every
-  // user), same "fetch once, cache on the shared row" shape as the mnemonic feature.
+  // Lazily fills te-form/transitivity/verb-type (verbs, and nouns — Jisho's own tags
+  // decide whether a noun is actually suru-capable, since this app stores a suru-capable
+  // word as the bare noun, e.g. 勉強 not 勉強する, so there's no way to tell from the
+  // word's spelling alone) or adjective-type (い/な) the first time an eligible card
+  // missing them gets drawn — a single Jisho lookup, cached onto master_cards forever
+  // (shared across every user), same "fetch once, cache on the shared row" shape as the
+  // mnemonic feature. Most nouns aren't suru-capable, so most of these checks come back
+  // empty — grammarFillAttemptedRef is persisted to localStorage (not just this session)
+  // specifically so a plain noun like 猫 only ever gets checked once per device, not
+  // once per session forever.
   useEffect(() => {
     if (!currentCard) return;
     const { id: cardId, japanese: word, partOfSpeech } = currentCard;
-    const isSuruNoun = partOfSpeech === "noun" && word.endsWith("する");
     const isAdjective = partOfSpeech === "adjective";
-    if (partOfSpeech !== "verb" && !isSuruNoun && !isAdjective) return;
+    if (partOfSpeech !== "verb" && partOfSpeech !== "noun" && !isAdjective) return;
 
     const needsFill = isAdjective
       ? currentCard.adjective_type == null
       : currentCard.te_form == null || currentCard.transitivity == null || currentCard.verb_type == null;
     if (!needsFill || grammarFillAttemptedRef.current.has(cardId)) return;
     grammarFillAttemptedRef.current.add(cardId);
+    persistGrammarFillCache(grammarFillAttemptedRef.current);
 
     fetch(`/api/jisho?word=${encodeURIComponent(word)}&classify=true`)
       .then((r) => r.json())

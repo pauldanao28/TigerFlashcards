@@ -46,10 +46,18 @@ Rules for the "exampleSentence" field:
 - Keep both short (roughly 5-15 words) and don't lean on grammar harder than the word's own JLPT level.
 
 Rules for the verb/adjective grammar fields (te_form, transitivity, verb_type, adjective_type):
-- These only apply to verbs (including a suru-compound tagged "noun", e.g. 勉強する) and adjectives. For every other word, set all four to null.
-- "verb_type": for a verb or suru-compound only — EXACTLY ONE of "godan", "ichidan", "irregular" (する, 来る, and any suru-compound are "irregular"). null otherwise.
-- "transitivity": for a verb or suru-compound only — EXACTLY ONE of "transitive", "intransitive", whichever the word actually is. If it genuinely has both senses, pick its more common usage. null otherwise.
-- "te_form": for a verb or suru-compound only — its て-form (食べる→食べて, 飲む→飲んで, 勉強する→勉強して, 来る→来て). null otherwise.
+- These apply to verbs, adjectives, AND any noun capable of taking する to become a verb
+  (e.g. 勉強, 結婚, 料理) — note that per the partOfSpeech rule above, such a word is
+  still tagged "noun" and its "japanese" field stays the bare noun (勉強, never 勉強する);
+  only these four extra fields describe its する-usage. For every other word, set all
+  four to null.
+- "verb_type": EXACTLY ONE of "godan", "ichidan", "irregular". する itself, 来る, and any
+  suru-capable noun (勉強, 結婚, etc.) are all "irregular". null for non-verbs/non-suru-nouns.
+- "transitivity": EXACTLY ONE of "transitive", "intransitive", whichever the word (or its
+  する-usage, for a suru-capable noun) actually is. If it genuinely has both senses, pick
+  its more common usage. null otherwise.
+- "te_form": the て-form AS IF する were conjugated onto it — 食べる→食べて, 飲む→飲んで,
+  来る→来て, 勉強 (suru-capable noun)→勉強して. null otherwise.
 - "adjective_type": for an adjective only — EXACTLY ONE of "i", "na" (い-adjective vs な-adjective — some words ending in い are actually na-adjectives, e.g. きれい, きらい, ゆうめい; don't be fooled by the spelling). null otherwise.
 
 Output ONLY raw JSON as an ARRAY of objects:

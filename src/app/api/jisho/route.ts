@@ -35,8 +35,8 @@ export async function GET(req: Request) {
       const entry = entries.find((e) => e.japanese?.some((j) => j.word === word)) ?? entries[0];
       if (!entry) return NextResponse.json({ found: false });
       const tags: string[] = (entry.senses ?? []).flatMap((s) => s.parts_of_speech ?? []);
-      const { verbType, transitivity, adjectiveType } = classifyFromTags(tags);
-      const teForm = verbType ? computeTeForm(word, verbType) : null;
+      const { verbType, transitivity, adjectiveType, isSuruCapable } = classifyFromTags(tags);
+      const teForm = verbType ? computeTeForm(word, verbType, isSuruCapable) : null;
       return NextResponse.json({ found: true, teForm, transitivity, verbType, adjectiveType }, CACHE);
     }
 
