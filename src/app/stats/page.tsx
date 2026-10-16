@@ -2550,14 +2550,14 @@ export default function StatsPage() {
 
                     {card.partOfSpeech && (
                       <span
-                        className={`text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(card.partOfSpeech)}`}
+                        className={`text-[9px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(card.partOfSpeech)}`}
                       >
                         {card.partOfSpeech}
                       </span>
                     )}
                     {card.jlpt_level && (
                       <span
-                        className={`ml-1.5 text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getJlptColor(card.jlpt_level)}`}
+                        className={`ml-1.5 text-[9px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getJlptColor(card.jlpt_level)}`}
                       >
                         {card.jlpt_level}
                       </span>
@@ -2567,7 +2567,7 @@ export default function StatsPage() {
                       if (!status) return null;
                       return (
                         <span
-                          className={`ml-1.5 text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${
+                          className={`ml-1.5 text-[9px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter ${
                             status === "mastered"
                               ? "bg-emerald-50 text-emerald-600 border-emerald-200"
                               : "bg-rose-50 text-rose-600 border-rose-200"
