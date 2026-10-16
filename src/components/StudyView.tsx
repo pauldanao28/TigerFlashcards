@@ -159,6 +159,14 @@ function cardOverallPercent(c: FlashcardData): number {
   return total > 0 ? Math.round((pass / total) * 100) : 0;
 }
 
+// Average seconds taken to recall a word under Reflex Mode (passes only — a Fail
+// isn't a "how long did recall take" data point). Null with no attempts yet.
+function avgReflexSeconds(c: FlashcardData): number | null {
+  const attempts = c.reflex_attempts ?? 0;
+  if (attempts === 0) return null;
+  return (c.reflex_time_total_ms ?? 0) / attempts / 1000;
+}
+
 export default function StudyView({ compact = false }: { compact?: boolean } = {}) {
   const { user, loading } = useAuth();
   const { showAlert, showConfirm } = useAppAlert();
@@ -253,12 +261,9 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const vocabSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentCardRef = useRef<FlashcardData | null>(null);
   const jlptFilterInitialized = useRef(false);
-  // Reflex Mode: consecutive timeout-fails with zero real interaction in between —
-  // hits 3 and we stop auto-failing and ask "Still there?" instead (the AFK guard).
-  const reflexAutoFailStreakRef = useRef(0);
-  const reflexDeadlineRef = useRef<number | null>(null);
-  const reflexTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reflexTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Reflex Mode: when the current card became "live" for timing purposes (no
+  // deadline — just a stopwatch start, read back on a Pass to measure recall speed).
+  const reflexStartRef = useRef<number | null>(null);
   // Cards already attempted, persisted to localStorage via getGrammarFillCache (see
   // module scope above) — avoids re-fetching Jisho on every redraw, in every session,
   // of a word it simply has no usable data for.
@@ -300,17 +305,15 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [swipeOnly, setSwipeOnly] = useState(false);
   const [reflexMode, setReflexMode] = useState(false);
-  const [reflexSecondsLeft, setReflexSecondsLeft] = useState<number | null>(null);
-  const [showStillThere, setShowStillThere] = useState(false);
   const [showMiniFilters, setShowMiniFilters] = useState(false);
-  // Same big PASS/FAIL text the card shows for an actual swipe, triggered without one —
-  // specifically for a Reflex Mode timeout, so a silent auto-fail doesn't feel silent.
-  const [forcedCardFeedback, setForcedCardFeedback] = useState<"pass" | "fail" | null>(null);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const [swipeFeedback, setSwipeFeedback] = useState<{
     percent: number;
     isPass: boolean;
+    // How long this Pass took under Reflex Mode, for a quick "⚡0.8s" readout —
+    // undefined when Reflex Mode wasn't on or the grade was a Fail.
+    reflexMs?: number;
   } | null>(null);
   // Empty array = "All" (no filter). Ordered by difficulty (N5 easiest → N1 hardest),
   // not insertion order, so the compact label/toast text always reads consistently.
@@ -469,7 +472,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           `
           *,
           deck_cards!inner (deck_id),
-          user_scores (scores_json, is_priority, prioritized_at, updated_at, reflex_score, reflex_attempts)
+          user_scores (scores_json, is_priority, prioritized_at, updated_at, reflex_time_total_ms, reflex_attempts)
         `,
         )
         .eq("deck_cards.deck_id", defaultDeckId)
@@ -495,7 +498,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         is_priority: card.user_scores?.[0]?.is_priority || false,
         prioritized_at: card.user_scores?.[0]?.prioritized_at || null,
         last_reviewed_at: card.user_scores?.[0]?.updated_at || null,
-        reflex_score: card.user_scores?.[0]?.reflex_score ?? null,
+        reflex_time_total_ms: card.user_scores?.[0]?.reflex_time_total_ms ?? 0,
         reflex_attempts: card.user_scores?.[0]?.reflex_attempts ?? 0,
       }));
       setCards(flattened);
@@ -594,34 +597,16 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     if (error) console.error("Error incrementing daily count:", error);
   };
   const handleScore = useCallback(
-    async (isPass: boolean, opts?: { isTimeout?: boolean }) => {
+    async (isPass: boolean) => {
       if (!currentCard || !user) return;
-      // Race guard: a Reflex Mode timeout and a manual grade (swipe/button/key) can
-      // both fire for the same card within milliseconds of each other — a setTimeout
-      // callback that's already due to run isn't stoppable by clearTimeout once it's
-      // started, so clearing the timer elsewhere in this function isn't enough on its
-      // own. A short self-resetting window (not a lock that could stick if some future
-      // early-return were added) means only the first of the two actually counts.
+      // Race guard against any double-fire of a grade for the same card within
+      // milliseconds (e.g. a double-tap or a stray duplicate event) — a short
+      // self-resetting window rather than a lock that could stick if some future
+      // early-return were added.
       const now = Date.now();
       if (now - lastGradeAtRef.current < 400) return;
       lastGradeAtRef.current = now;
       hasInteracted.current = true;
-
-      // Reflex Mode: any grade the user actually triggered clears the AFK streak;
-      // a timeout-triggered auto-fail (opts.isTimeout) leaves it for the caller to bump.
-      if (!opts?.isTimeout) {
-        reflexAutoFailStreakRef.current = 0;
-      }
-      if (reflexTimeoutRef.current) {
-        clearTimeout(reflexTimeoutRef.current);
-        reflexTimeoutRef.current = null;
-      }
-      if (reflexTickRef.current) {
-        clearInterval(reflexTickRef.current);
-        reflexTickRef.current = null;
-      }
-      reflexDeadlineRef.current = null;
-      setReflexSecondsLeft(null);
 
       // Dismiss the swipe-tutorial overlay on the first graded card, regardless of
       // whether it was graded by swipe, button, or keyboard shortcut.
@@ -630,15 +615,15 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         localStorage.removeItem("show_first_timer_hint");
       }
 
-      // Log today's miss (any Fail grade, including a Reflex Mode timeout) — separate
-      // from the cumulative scores_json, so "what did I get wrong today" survives
-      // independently of all-time accuracy. Fire-and-forget, same pattern as mastery counts.
+      // Log today's miss — separate from the cumulative scores_json, so "what did I
+      // get wrong today" survives independently of all-time accuracy. Fire-and-forget,
+      // same pattern as mastery counts.
       if (!isPass) {
         supabase.rpc("record_daily_struggle", { target_user_id: user.id, target_card_id: currentCard.id })
           .then(({ error }) => { if (error) console.error("Error recording daily struggle:", error); });
         // Separate call, not a param on record_daily_struggle — keeps that function's
         // signature untouched. Purely informational tag; doesn't affect fail_count.
-        if (opts?.isTimeout) {
+        if (reflexMode) {
           supabase.rpc("bump_reflex_struggle", { target_user_id: user.id, target_card_id: currentCard.id })
             .then(({ error }) => { if (error) console.error("Error bumping reflex struggle:", error); });
         }
@@ -670,8 +655,16 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
 
       const newScores = { ...s, [mode]: updatedStats };
 
+      // Reflex time — only a Pass is a "how long did recall take" data point; a Fail
+      // isn't (you didn't recall it). Unbounded — Reflex Mode no longer enforces a
+      // deadline, it just measures. Never touches scores_json/mastery at all.
+      const reflexElapsedMs =
+        reflexMode && isPass && reflexStartRef.current != null
+          ? Math.max(0, Date.now() - reflexStartRef.current)
+          : null;
+
       // 2. Trigger UI Feedback (Floating Percentage)
-      setSwipeFeedback({ percent: nextPercent, isPass });
+      setSwipeFeedback({ percent: nextPercent, isPass, reflexMs: reflexElapsedMs ?? undefined });
       setTimeout(() => setSwipeFeedback(null), 800);
 
       // 3. Update Session Logic
@@ -700,14 +693,13 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           .eq("id", user?.id);
       }
 
-      // Reflex score — a second, separate signal (+20 pass / -10 fail, unbounded).
-      // Only moves while Reflex Mode is actually on; never touches scores_json/mastery.
-      const reflexPatch = reflexMode
-        ? {
-            reflex_score: (currentCard.reflex_score ?? 0) + (isPass ? 20 : -10),
-            reflex_attempts: (currentCard.reflex_attempts ?? 0) + 1,
-          }
-        : null;
+      const reflexPatch =
+        reflexElapsedMs != null
+          ? {
+              reflex_time_total_ms: (currentCard.reflex_time_total_ms ?? 0) + reflexElapsedMs,
+              reflex_attempts: (currentCard.reflex_attempts ?? 0) + 1,
+            }
+          : null;
 
       // 5. Database Sync (Upsert Score)
       await supabase.from("user_scores").upsert(
@@ -823,55 +815,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   );
   // Add the dependencies used inside the function
 
-  const REFLEX_WINDOW_MS = 3000;
-
-  const clearReflexTimer = useCallback(() => {
-    if (reflexTimeoutRef.current) {
-      clearTimeout(reflexTimeoutRef.current);
-      reflexTimeoutRef.current = null;
-    }
-    if (reflexTickRef.current) {
-      clearInterval(reflexTickRef.current);
-      reflexTickRef.current = null;
-    }
-    reflexDeadlineRef.current = null;
-    setReflexSecondsLeft(null);
-  }, []);
-
-  // Timed out without a flip — counts as a miss. 3 in a row with no real interaction
-  // in between means the user is probably AFK, not just slow, so we stop auto-failing
-  // and ask them to confirm they're still here instead of silently torching the deck.
-  const handleReflexTimeout = useCallback(() => {
-    reflexAutoFailStreakRef.current += 1;
-    clearReflexTimer();
-    if (reflexAutoFailStreakRef.current >= 3) {
-      setShowStillThere(true);
-      return;
-    }
-    setForcedCardFeedback("fail");
-    setTimeout(() => setForcedCardFeedback(null), 700);
-    handleScore(false, { isTimeout: true });
-  }, [handleScore, clearReflexTimer]);
-
-  // Always a fresh full window — resuming after the app was backgrounded (or after the
-  // "Still there?" prompt) never grants a partial countdown.
-  const startReflexTimer = useCallback(() => {
-    clearReflexTimer();
-    if (typeof document !== "undefined" && document.hidden) return;
-    reflexDeadlineRef.current = Date.now() + REFLEX_WINDOW_MS;
-    setReflexSecondsLeft(3);
-    reflexTickRef.current = setInterval(() => {
-      if (reflexDeadlineRef.current == null) return;
-      setReflexSecondsLeft(Math.max(0, Math.ceil((reflexDeadlineRef.current - Date.now()) / 1000)));
-    }, 100);
-    reflexTimeoutRef.current = setTimeout(handleReflexTimeout, REFLEX_WINDOW_MS);
-  }, [clearReflexTimer, handleReflexTimeout]);
-
-  const handleReflexResume = useCallback(() => {
-    reflexAutoFailStreakRef.current = 0;
-    setShowStillThere(false);
-  }, []);
-
   // Quick toggle beside the language pill — mirrors the Settings switch so Reflex
   // Mode doesn't require a trip to Cards > Settings to turn on mid-session.
   // Opens Mini Mode (see the `compact` branch of the render below) in a small
@@ -886,7 +829,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     setReflexMode(next);
     setReflexToggleToast(
       next
-        ? "⚡ Reflex Mode ON — answer within 3 seconds or it auto-fails"
+        ? "⚡ Reflex Mode ON — I'll time how fast you recall each word"
         : "Reflex Mode off",
     );
     setTimeout(() => setReflexToggleToast(null), next ? 3500 : 2000);
@@ -895,33 +838,12 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     }
   }, [reflexMode, user]);
 
-  // Runs the countdown only while a card is actually waiting to be flipped — flipping
-  // is the "I responded" signal, so the timer has nothing left to enforce once it happens.
+  // Marks when the current card became "live" for timing purposes — no deadline, just
+  // a stopwatch start read back on a Pass. Resets on a new card, or the moment Reflex
+  // Mode is turned on for the card already showing.
   useEffect(() => {
-    if (!reflexMode || !prefsLoaded || !currentCard || isFlipped || showStillThere) {
-      clearReflexTimer();
-      return;
-    }
-    startReflexTimer();
-    return () => clearReflexTimer();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reflexMode, prefsLoaded, currentCard?.id, isFlipped, showStillThere, startReflexTimer, clearReflexTimer]);
-
-  // Pausing on visibility change is the AFK safety net: a backgrounded tab/locked phone
-  // stops the clock instead of silently auto-failing cards no one looked at.
-  useEffect(() => {
-    if (!reflexMode) return;
-    const onVisibility = () => {
-      if (document.hidden) {
-        clearReflexTimer();
-      } else if (!isFlipped && currentCard && !showStillThere) {
-        startReflexTimer();
-      }
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reflexMode, isFlipped, currentCard?.id, showStillThere, startReflexTimer, clearReflexTimer]);
+    reflexStartRef.current = reflexMode ? Date.now() : null;
+  }, [reflexMode, currentCard?.id]);
 
   // Fast-track for cards never reviewed before — skips the flip/grade ritual
   // and immediately seeds a high-confidence score in both directions so it
@@ -1390,14 +1312,14 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       .slice(0, 20);
   }, [cards]);
 
-  // Words that are consistently slow/shaky specifically under Reflex Mode's time
-  // pressure — separate from weakWordsList, which is about not knowing a word at all.
-  // 3+ reflex attempts before trusting the number, same spirit as weakWordsList's 10+.
+  // Words that take the longest to recall under Reflex Mode specifically — separate
+  // from weakWordsList, which is about not knowing a word at all. 3+ attempts before
+  // trusting the average, same spirit as weakWordsList's 10+. Top 10 slowest only.
   const slowRecallList = useMemo(() => {
     return cards
-      .filter((c) => (c.reflex_attempts ?? 0) >= 3 && (c.reflex_score ?? 0) < 0)
-      .sort((a, b) => (a.reflex_score ?? 0) - (b.reflex_score ?? 0))
-      .slice(0, 20);
+      .filter((c) => (c.reflex_attempts ?? 0) >= 3)
+      .sort((a, b) => (avgReflexSeconds(b) ?? 0) - (avgReflexSeconds(a) ?? 0))
+      .slice(0, 10);
   }, [cards]);
 
   // Level-up detection: track whichever % is visible — per-N-level(s) when filtered, overall when "All"
@@ -1484,18 +1406,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         </div>
 
         <div className="relative w-full flex-1 min-h-0 flex items-center justify-center">
-          {reflexMode && reflexSecondsLeft !== null && !isFlipped && (
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] pointer-events-none">
-              <div
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-full shadow-lg transition-colors duration-300 ${
-                  reflexSecondsLeft <= 1 ? "bg-rose-500" : reflexSecondsLeft === 2 ? "bg-amber-500" : "bg-slate-900/85"
-                }`}
-              >
-                <Zap size={10} className="text-white" fill="currentColor" />
-                <span className="text-white font-black text-xs tabular-nums leading-none">{reflexSecondsLeft}</span>
-              </div>
-            </div>
-          )}
           <AnimatePresence>
             {swipeFeedback && (
               <motion.div
@@ -1505,13 +1415,19 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-none"
               >
                 <div
-                  className={`px-4 py-2 rounded-full font-black text-base shadow-xl border-2 ${
+                  className={`px-4 py-2 rounded-full font-black text-base shadow-xl border-2 flex items-center gap-1.5 ${
                     swipeFeedback.isPass
                       ? "bg-emerald-500 text-white border-emerald-400"
                       : "bg-rose-500 text-white border-rose-400"
                   }`}
                 >
-                  {swipeFeedback.percent}%
+                  <span>{swipeFeedback.percent}%</span>
+                  {swipeFeedback.reflexMs != null && (
+                    <span className="flex items-center gap-0.5 text-xs font-bold opacity-90">
+                      <Zap size={11} fill="currentColor" />
+                      {(swipeFeedback.reflexMs / 1000).toFixed(1)}s
+                    </span>
+                  )}
                 </div>
               </motion.div>
             )}
@@ -1524,7 +1440,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               isFlipped={isFlipped}
               onFlip={setIsFlipped}
               onSwipe={onSwipe}
-              forcedFeedback={forcedCardFeedback}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-slate-300 text-xs font-bold">
@@ -1532,18 +1447,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
             </div>
           )}
         </div>
-
-        {showStillThere && (
-          <div className="fixed inset-0 z-[300] bg-slate-900/95 flex flex-col items-center justify-center p-4 gap-3 text-center">
-            <p className="text-white font-black text-sm">Still there?</p>
-            <button
-              onClick={handleReflexResume}
-              className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
-            >
-              I&apos;m Here
-            </button>
-          </div>
-        )}
 
         {showMiniFilters && (
           <div className="fixed inset-0 z-[300] bg-slate-900/95 flex flex-col p-4 overflow-y-auto">
@@ -2378,21 +2281,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 <AnimatePresence>
                   {showHints && !dataLoading && <CoachMarks />}
                 </AnimatePresence>
-                {/* REFLEX MODE COUNTDOWN */}
-                {reflexMode && reflexSecondsLeft !== null && !isFlipped && (
-                  <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[90] pointer-events-none">
-                    <div
-                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full shadow-lg transition-colors duration-300 ${
-                        reflexSecondsLeft <= 1 ? "bg-rose-500" : reflexSecondsLeft === 2 ? "bg-amber-500" : "bg-slate-900/85"
-                      }`}
-                    >
-                      <Zap size={13} className="text-white" fill="currentColor" />
-                      <span className="text-white font-black text-base tabular-nums leading-none">
-                        {reflexSecondsLeft}
-                      </span>
-                    </div>
-                  </div>
-                )}
                 {/* SWIPE FEEDBACK OVERLAY */}
                 <AnimatePresence>
                   {swipeFeedback && (
@@ -2403,13 +2291,19 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                       className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-none"
                     >
                       <div
-                        className={`px-6 py-3 rounded-full font-black text-2xl shadow-2xl border-2 ${
+                        className={`px-6 py-3 rounded-full font-black text-2xl shadow-2xl border-2 flex items-center gap-2 ${
                           swipeFeedback.isPass
                             ? "bg-emerald-500 text-white border-emerald-400"
                             : "bg-rose-500 text-white border-rose-400"
                         }`}
                       >
-                        {swipeFeedback.percent}%
+                        <span>{swipeFeedback.percent}%</span>
+                        {swipeFeedback.reflexMs != null && (
+                          <span className="flex items-center gap-1 text-sm font-bold opacity-90">
+                            <Zap size={15} fill="currentColor" />
+                            {(swipeFeedback.reflexMs / 1000).toFixed(1)}s
+                          </span>
+                        )}
                       </div>
                     </motion.div>
                   )}
@@ -2457,7 +2351,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     isPriority={!!currentCard.is_priority}
                     onTogglePriority={() => togglePriority(currentCard)}
                     onMnemonicGenerated={handleMnemonicGenerated}
-                    forcedFeedback={forcedCardFeedback}
                   />
                 ) : !dataLoading && cards.length === 0 && hasLoadedOnce ? (
                   <div className="w-full h-full flex flex-col items-center justify-center bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 p-8 text-center">
@@ -2665,38 +2558,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
               >
                 Keep Going →
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      <AnimatePresence>
-        {showStillThere && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[300] bg-slate-900/95 backdrop-blur-md flex flex-col items-center justify-center p-6"
-          >
-            <motion.div
-              initial={{ scale: 0.85, opacity: 0, y: 40 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 26 }}
-              className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 flex flex-col items-center gap-5 text-center shadow-2xl"
-            >
-              <div className="text-5xl">⏸️</div>
-              <div>
-                <p className="text-xl font-black text-slate-900">Still there?</p>
-                <p className="text-sm text-slate-400 font-medium mt-1">
-                  Reflex Mode paused itself after 3 cards timed out with no response.
-                </p>
-              </div>
-              <button
-                onClick={handleReflexResume}
-                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
-              >
-                I&apos;m Here — Keep Going
               </button>
             </motion.div>
           </motion.div>
@@ -3107,12 +2968,12 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 <button onClick={() => setShowSlowRecallModal(false)} className="text-slate-300 hover:text-slate-500">✕</button>
               </div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3 shrink-0">
-                Net negative Reflex Mode score (3+ attempts) — you know these, you&apos;re just slow
+                Slowest average recall time under Reflex Mode (3+ attempts) — top 10
               </p>
               <div className="flex-1 overflow-y-auto space-y-2 -mx-1 px-1">
                 {slowRecallList.length === 0 ? (
                   <p className="text-center text-slate-400 text-xs font-bold py-8">
-                    No slow-recall words with enough Reflex Mode attempts yet.
+                    No words with enough Reflex Mode attempts yet.
                   </p>
                 ) : (
                   slowRecallList.map((c) => (
@@ -3135,7 +2996,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                       </div>
                       <div className="shrink-0 flex items-center gap-2">
                         <span className="text-[10px] font-black px-2 py-1 rounded-full bg-amber-100 text-amber-700">
-                          {c.reflex_score} ×{c.reflex_attempts}
+                          {avgReflexSeconds(c)?.toFixed(1)}s avg ×{c.reflex_attempts}
                         </span>
                         {KANJI_RE.test(c.japanese) && (
                           <button

@@ -68,10 +68,11 @@ export type FlashcardData = MasterCard & {
   is_priority?: boolean;
   prioritized_at?: string | null;
   last_reviewed_at?: string | null;
-  // Separate from `scores` above — only moves on a grade made while Reflex Mode is
-  // on (+20 pass / -10 fail, unbounded, never touches the real pass/fail accuracy).
-  // null/0 attempts means never graded under Reflex Mode yet.
-  reflex_score?: number | null;
+  // Separate from `scores` above — sum of how long each Reflex Mode PASS took to
+  // answer, in ms. Only a Pass contributes (a Fail isn't a "how long did recall
+  // take" data point); never touches the real pass/fail accuracy. Divide by
+  // reflex_attempts for the average — that's the "slow recall" ranking metric.
+  reflex_time_total_ms?: number;
   reflex_attempts?: number;
 };
 

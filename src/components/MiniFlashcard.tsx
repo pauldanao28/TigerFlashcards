@@ -1,5 +1,5 @@
 "use client";
-import { motion, useMotionValue, useTransform, AnimatePresence, type PanInfo } from "framer-motion";
+import { motion, useMotionValue, useTransform, type PanInfo } from "framer-motion";
 import { FlashcardData } from "@/lib/types";
 import { suruLabel } from "@/lib/verbConjugation";
 
@@ -13,9 +13,6 @@ interface MiniFlashcardProps {
   isFlipped: boolean;
   onFlip: (state: boolean) => void;
   onSwipe?: (direction: "left" | "right") => void;
-  // Shows the same PASS/FAIL text the drag gesture shows, without an actual drag —
-  // for a grade that happened another way (e.g. a Reflex Mode timeout).
-  forcedFeedback?: "pass" | "fail" | null;
 }
 
 const JLPT_BADGE_COLOR: Record<string, string> = {
@@ -40,7 +37,7 @@ const getFontSize = (text: string, isJapanese: boolean) => {
   return "text-xl";
 };
 
-export default function MiniFlashcard({ card, language, isFlipped, onFlip, onSwipe, forcedFeedback }: MiniFlashcardProps) {
+export default function MiniFlashcard({ card, language, isFlipped, onFlip, onSwipe }: MiniFlashcardProps) {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-150, 150], [-15, 15]);
   const opacity = useTransform(x, [-150, -100, 0, 100, 150], [0, 1, 1, 1, 0]);
@@ -74,27 +71,6 @@ export default function MiniFlashcard({ card, language, isFlipped, onFlip, onSwi
           <motion.div style={{ opacity: failOpacity }} className="absolute inset-0 bg-rose-500/10 flex items-center justify-center">
             <span className="text-rose-600/30 text-4xl font-black uppercase tracking-tighter rotate-12">Fail</span>
           </motion.div>
-          <AnimatePresence>
-            {forcedFeedback && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className={`absolute inset-0 flex items-center justify-center ${
-                  forcedFeedback === "pass" ? "bg-emerald-500/10" : "bg-rose-500/10"
-                }`}
-              >
-                <span
-                  className={`text-4xl font-black uppercase tracking-tighter ${
-                    forcedFeedback === "pass" ? "text-emerald-600/30 -rotate-12" : "text-rose-600/30 rotate-12"
-                  }`}
-                >
-                  {forcedFeedback === "pass" ? "Pass" : "Fail"}
-                </span>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
 
         <motion.div
