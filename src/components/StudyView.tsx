@@ -27,7 +27,7 @@ import AddWordsSheet from "@/components/AddWordsSheet";
 import { FlashcardData, KanjiMnemonic } from "@/lib/types";
 import { useIsMiniViewport } from "@/lib/useMiniViewport";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, History, Star, TrendingDown, Lightbulb, Loader2, X, Menu, Zap, ExternalLink } from "lucide-react";
+import { Plus, History, Star, TrendingDown, Lightbulb, Loader2, X, Menu, Zap, ExternalLink, Filter } from "lucide-react";
 const DAILY_GOAL = 10;
 const MASTERY_MIN_TRIES = 5;
 const PRIORITY_CAP = 30;
@@ -268,6 +268,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const [reflexMode, setReflexMode] = useState(false);
   const [reflexSecondsLeft, setReflexSecondsLeft] = useState<number | null>(null);
   const [showStillThere, setShowStillThere] = useState(false);
+  const [showMiniFilters, setShowMiniFilters] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const [swipeFeedback, setSwipeFeedback] = useState<{
@@ -1309,7 +1310,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   if (isMiniMode) {
     return (
       <main className="fixed inset-0 h-[100dvh] w-full bg-slate-50 flex flex-col items-center justify-between p-3 gap-3 touch-none select-none overflow-hidden">
-        <div className="w-full flex items-center justify-between gap-2 shrink-0">
+        <div className="w-full flex items-center justify-between gap-1.5 shrink-0">
           <button
             onClick={toggleReflexMode}
             title="Reflex Mode"
@@ -1321,7 +1322,18 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           >
             <Zap size={13} fill={reflexMode ? "currentColor" : "none"} />
           </button>
-          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">
+          <button
+            onClick={() => setShowMiniFilters(true)}
+            title="Filter by Level / Part of Speech"
+            className={`relative shrink-0 flex items-center justify-center w-8 h-8 rounded-xl border transition-all active:scale-95 ${
+              selectedJlptLevels.length > 0 || selectedPos.length > 0
+                ? "bg-indigo-600 border-indigo-600 text-white"
+                : "bg-white border-slate-200 text-slate-400"
+            }`}
+          >
+            <Filter size={13} />
+          </button>
+          <span className="flex-1 min-w-0 text-[9px] font-black text-slate-400 uppercase tracking-widest truncate text-center">
             {currentCard?.scores?.[language === "jp" ? "jp_to_en" : "en_to_jp"]?.percent ?? 0}% {t.accuracy}
           </span>
           <button
@@ -1383,6 +1395,82 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
             >
               I&apos;m Here
+            </button>
+          </div>
+        )}
+
+        {showMiniFilters && (
+          <div className="fixed inset-0 z-[300] bg-slate-900/95 flex flex-col p-4 overflow-y-auto">
+            <div className="flex items-center justify-between mb-4 shrink-0">
+              <p className="text-white font-black text-xs uppercase tracking-widest">Filter</p>
+              <button onClick={() => setShowMiniFilters(false)} className="text-slate-400 hover:text-white active:scale-90 transition-all">
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Level</p>
+            <div className="flex gap-1.5 flex-wrap mb-5">
+              {(["All", "N5", "N4", "N3", "N2", "N1"] as const).map((lvl) => {
+                const isAll = lvl === "All";
+                const isActive = isAll ? selectedJlptLevels.length === 0 : jlptFilters.includes(lvl);
+                return (
+                  <button
+                    key={lvl}
+                    onClick={() => {
+                      if (isAll) { setJlptFilters([]); return; }
+                      setJlptFilters(
+                        jlptFilters.includes(lvl)
+                          ? jlptFilters.filter((l) => l !== lvl)
+                          : [...jlptFilters, lvl],
+                      );
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                      isActive
+                        ? isAll
+                          ? "bg-white text-slate-900 border-white"
+                          : JLPT_BADGE_COLOR[lvl]
+                        : "bg-transparent text-slate-500 border-slate-700"
+                    }`}
+                  >
+                    {lvl}
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Part of Speech</p>
+            <div className="flex gap-1.5 flex-wrap">
+              {(["All", ...ALLOWED_PARTS_OF_SPEECH] as const).map((pos) => {
+                const isAll = pos === "All";
+                const isActive = isAll ? selectedPos.length === 0 : posFilters.includes(pos);
+                return (
+                  <button
+                    key={pos}
+                    onClick={() => {
+                      if (isAll) { setPosFilters([]); return; }
+                      setPosFilters(
+                        posFilters.includes(pos)
+                          ? posFilters.filter((p) => p !== pos)
+                          : [...posFilters, pos],
+                      );
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                      isActive
+                        ? "bg-indigo-600 text-white border-indigo-600"
+                        : "bg-transparent text-slate-500 border-slate-700"
+                    }`}
+                  >
+                    {pos}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => setShowMiniFilters(false)}
+              className="mt-auto pt-6 w-full bg-indigo-600 text-white py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all shrink-0"
+            >
+              Done
             </button>
           </div>
         )}
