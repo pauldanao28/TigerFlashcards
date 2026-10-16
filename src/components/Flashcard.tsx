@@ -504,7 +504,7 @@ export default function Flashcard({
                 </p>
               )}
               {card?.suru_meaning && (
-                <p className="text-indigo-200 text-xs font-medium mt-1.5">
+                <p className="text-indigo-200 text-xs font-medium mt-1.5 line-clamp-2" title={card.suru_meaning}>
                   {suruLabel(card.japanese)}: <span className="text-white font-bold">{card.suru_meaning}</span>
                 </p>
               )}

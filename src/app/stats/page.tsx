@@ -2926,7 +2926,7 @@ export default function StatsPage() {
                   </div>
                 )}
                 {scoreDetailCard.suru_meaning && (
-                  <p className="text-slate-500 text-xs font-medium mb-4 -mt-2">
+                  <p className="text-slate-500 text-xs font-medium mb-4 -mt-2 line-clamp-2" title={scoreDetailCard.suru_meaning}>
                     {suruLabel(scoreDetailCard.japanese)}: <span className="text-slate-800 font-bold">{scoreDetailCard.suru_meaning}</span>
                   </p>
                 )}

@@ -44,8 +44,11 @@ export async function GET(req: Request) {
       const suruSense = isSuruCapable
         ? senses.find((s) => (s.parts_of_speech ?? []).some((t) => t.toLowerCase().includes("suru")))
         : undefined;
+      // Capped — Jisho often lists many near-synonyms for one sense (record, document,
+      // minutes, log, recording, ...); the point is conveying the differing meaning at
+      // a glance, not reproducing the whole dictionary entry.
       const suruMeaning = suruSense?.english_definitions?.length
-        ? suruSense.english_definitions.join(", ")
+        ? suruSense.english_definitions.slice(0, 2).join(", ")
         : null;
       return NextResponse.json({ found: true, teForm, transitivity, verbType, adjectiveType, suruMeaning }, CACHE);
     }

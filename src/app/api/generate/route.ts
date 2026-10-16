@@ -61,8 +61,9 @@ Rules for the verb/adjective grammar fields (te_form, transitivity, verb_type, a
 - "suru_meaning": ONLY for a suru-capable noun whose する-usage means something genuinely
   different from the noun's own "english" field above — e.g. 急行 ("english": "express
   train") → "suru_meaning": "to rush / proceed directly" (its する-usage is a different
-  concept, not just a form change). If the する-usage means essentially the same thing as
-  the noun (e.g. 勉強 "study" → 勉強する "to study"), set this to null — it would be
+  concept, not just a form change). Keep it SHORT — a few words or one short phrase, at
+  most 2 near-synonyms separated by " / "; never a long list of synonyms. If the する-usage
+  means essentially the same thing as the noun (e.g. 勉強 "study" → 勉強する "to study"), set this to null — it would be
   redundant with "english". null for everything else too.
 
 Output ONLY raw JSON as an ARRAY of objects:

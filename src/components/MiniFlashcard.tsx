@@ -140,7 +140,7 @@ export default function MiniFlashcard({ card, language, isFlipped, onFlip, onSwi
               </p>
             )}
             {card.suru_meaning && (
-              <p className="text-indigo-200 text-[10px] font-medium">
+              <p className="text-indigo-200 text-[10px] font-medium line-clamp-1" title={card.suru_meaning}>
                 {suruLabel(card.japanese)}: <span className="text-white font-bold">{card.suru_meaning}</span>
               </p>
             )}
