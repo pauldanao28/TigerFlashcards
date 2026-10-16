@@ -63,7 +63,8 @@ export async function POST(req: Request) {
   const { data: cards, error } = await supabaseAdmin
     .from("master_cards")
     .select("id, japanese, reading, english, jlpt_level")
-    .or("exampleSentence.is.null,exampleSentence->>jp.is.null")
+    // Empty too, not just missing — the add-words flow saves { jp: "", en: "" } when the AI gives none
+    .or("exampleSentence.is.null,exampleSentence->>jp.is.null,exampleSentence->>jp.eq.")
     .limit(BATCH);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
