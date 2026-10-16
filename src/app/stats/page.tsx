@@ -16,7 +16,7 @@ import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
 import AddWordsSheet from "@/components/AddWordsSheet";
 import DuplicatesSheet from "@/components/DuplicatesSheet";
 import { findDuplicates, skipDeckDuplicates } from "@/lib/duplicates";
-import { BookOpen, List, Plus, RefreshCw, Star, Target, TrendingDown, Trophy } from "lucide-react";
+import { AlertTriangle, Ban, BarChart3, BookOpen, ChevronLeft, Flag, Gamepad2, Gift, Headphones, ImageIcon, Layers, List, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Volume2, X } from "lucide-react";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
 
@@ -968,7 +968,7 @@ export default function StatsPage() {
                 </span>
                 {isPremium && (
                   <span className="px-2.5 py-0.5 bg-gradient-to-r from-amber-400 to-yellow-500 text-white rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm">
-                    ✨ Premium
+                    <Sparkles size={10} /> Premium
                   </span>
                 )}
               </div>
@@ -981,7 +981,7 @@ export default function StatsPage() {
               onClick={() => setShowSettings(true)}
               className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 font-black text-slate-600 transition-all active:scale-95 h-10 uppercase tracking-widest text-[10px]"
             >
-              <span>⚙️</span> {t.settings}
+              <SettingsIcon size={14} /> {t.settings}
             </button>
           </div>
         </div>
@@ -997,7 +997,7 @@ export default function StatsPage() {
                   onClick={() => setShowSettings(false)}
                   className="flex items-center gap-0.5 text-slate-400 hover:text-slate-700 active:scale-90 transition-all"
                 >
-                  <span>←</span>
+                  <ChevronLeft size={14} />
                   <span className="text-[9px] font-black uppercase tracking-widest">{t.back}</span>
                 </button>
                 <span className="font-black text-[11px] uppercase tracking-widest text-slate-700">{t.settings}</span>
@@ -1013,7 +1013,7 @@ export default function StatsPage() {
               {/* AVATAR PICKER */}
               <div className="mb-8">
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span>🖼️</span> Avatar
+                  <ImageIcon size={15} className="text-slate-400" /> Avatar
                 </h3>
                 <div className="grid grid-cols-5 gap-3">
                   {AVATAR_PRESETS.map((url) => (
@@ -1037,7 +1037,7 @@ export default function StatsPage() {
               {/* INVITE FRIENDS — referral code + one-tap share */}
               <div className="mb-8">
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span>🎁</span> Invite Friends
+                  <Gift size={15} className="text-slate-400" /> Invite Friends
                 </h3>
                 <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
                   <p className="text-[10px] text-slate-400 font-medium leading-tight mb-3">
@@ -1081,7 +1081,7 @@ export default function StatsPage() {
               {/* ACCOUNT SECURITY SECTION */}
               <div className="mb-8">
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span>🔒</span> {t.account_security || "Account Security"}
+                  <Lock size={15} className="text-slate-400" /> {t.account_security || "Account Security"}
                 </h3>
 
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 gap-4">
@@ -1103,7 +1103,7 @@ export default function StatsPage() {
                       onClick={() => router.push("/update-password")}
                       className="w-full sm:w-auto px-6 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-indigo-600 hover:text-indigo-600 transition-all active:scale-95 shadow-sm flex items-center justify-center gap-2"
                     >
-                      <span>🔄</span> {t.change_btn || "Change"}
+                      <RefreshCw size={13} /> {t.change_btn || "Change"}
                     </button>
                   ) : (
                     <div className="px-4 py-2 bg-slate-100 rounded-lg text-[9px] font-black text-slate-400 uppercase tracking-widest border border-slate-200">
@@ -1128,7 +1128,7 @@ export default function StatsPage() {
               {/* DANGER ZONE — intentionally far from sign out */}
               <div className="mt-16 pt-8 border-t-2 border-red-100">
                 <h3 className="text-[10px] font-black text-red-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                  <span>⚠️</span> {t.danger_zone}
+                  <AlertTriangle size={12} /> {t.danger_zone}
                 </h3>
 
                 <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -1160,7 +1160,7 @@ export default function StatsPage() {
               <div className="mb-8">
                 {/* Header Section */}
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span>🔊</span> {t.audio_prefs}
+                  <Volume2 size={15} className="text-slate-400" /> {t.audio_prefs}
                 </h3>
 
                 {/* Settings Grid */}
@@ -1281,7 +1281,7 @@ export default function StatsPage() {
 
               <div>
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-2 flex items-center gap-2">
-                  <span>🚫</span> {t.word_filters}
+                  <Ban size={15} className="text-slate-400" /> {t.word_filters}
                 </h3>
                 <div className="flex flex-wrap gap-2 mb-6 p-4 bg-slate-50 rounded-2xl min-h-[60px] border border-slate-100">
                   {userBlocklist.map((word) => (
@@ -1330,7 +1330,7 @@ export default function StatsPage() {
               {/* BUG & FEEDBACK SECTION - NEW */}
               <div className="mb-4">
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span>💬</span> {t.feedback_title}
+                  <MessageSquare size={15} className="text-slate-400" /> {t.feedback_title}
                 </h3>
 
                 {sent ? (
@@ -1433,13 +1433,13 @@ export default function StatsPage() {
                       href="/admin"
                       className="flex-1 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2"
                     >
-                      <span className="text-sm">🚩</span> {t.admin_title}
+                      <Flag size={14} /> {t.admin_title}
                     </Link>
                     <Link
                       href="/admin/users"
                       className="flex-1 bg-indigo-600 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
                     >
-                      <span className="text-sm">📊</span> {t.admin_user_stats}
+                      <BarChart3 size={14} /> {t.admin_user_stats}
                     </Link>
                   </div>
                 </>
@@ -1473,7 +1473,7 @@ export default function StatsPage() {
                     onClick={() => setIsEditingTitle(false)}
                     className="bg-slate-200 text-slate-600 px-3 py-1 rounded-lg text-xs font-bold hover:bg-slate-300 transition-colors"
                   >
-                    ✕
+                    <X size={13} />
                   </button>
                 </div>
               ) : (
@@ -1516,7 +1516,7 @@ export default function StatsPage() {
                   href="/minigames"
                   className="flex-1 md:flex-none md:px-5 bg-indigo-50 py-3 rounded-2xl shadow-sm font-bold text-indigo-700 border border-indigo-100 hover:bg-indigo-100 transition-all text-sm whitespace-nowrap flex items-center justify-center gap-2"
                 >
-                  <span className="text-lg">🎮</span> {t.mini_games}
+                  <Gamepad2 size={17} /> {t.mini_games}
                 </Link>
 
               </div>
@@ -1666,7 +1666,7 @@ export default function StatsPage() {
               className="w-full flex items-center justify-between bg-white px-6 py-4 rounded-2xl shadow-sm border border-slate-100 font-black text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.99]"
             >
               <span className="flex items-center gap-2 text-sm">
-                <span className="text-lg">📈</span> Advanced Stats
+                <TrendingUp size={16} className="text-slate-400" /> Advanced Stats
               </span>
               <span className="text-slate-400 text-xs">View →</span>
             </Link>
@@ -1780,9 +1780,8 @@ export default function StatsPage() {
                 <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-white/80 backdrop-blur-sm sticky top-0 z-10">
                   <div>
                     <h3 className="text-2xl font-black text-slate-800 uppercase italic tracking-tight flex items-center gap-3">
-                      {viewMode === "mastered"
-                        ? `🏆 ${t.mastered}`
-                        : `🎯 ${t.struggling}`}
+                      {viewMode === "mastered" ? <Trophy size={20} className="text-emerald-500" /> : <TrendingDown size={20} className="text-rose-500" />}
+                      {viewMode === "mastered" ? t.mastered : t.struggling}
                       <span
                         className={`text-[10px] not-italic px-3 py-1 rounded-full font-black tracking-widest ${viewMode === "mastered" ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600"}`}
                       >
@@ -2101,15 +2100,15 @@ export default function StatsPage() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => setHistoryTab("flashcards")}
-                        className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${historyTab === "flashcards" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${historyTab === "flashcards" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
                       >
-                        🃏 Flashcards
+                        <Layers size={11} /> Flashcards
                       </button>
                       <button
                         onClick={() => setHistoryTab("quizzes")}
-                        className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${historyTab === "quizzes" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${historyTab === "quizzes" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
                       >
-                        📊 Quizzes
+                        <BarChart3 size={11} /> Quizzes
                       </button>
                     </div>
                   </div>
@@ -2117,7 +2116,7 @@ export default function StatsPage() {
                     onClick={() => setShowHistory(false)}
                     className="h-10 w-10 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-800 hover:shadow-sm transition-all active:scale-90 shrink-0 ml-3"
                   >
-                    ✕
+                    <X size={16} />
                   </button>
                 </div>
 
@@ -2245,16 +2244,18 @@ export default function StatsPage() {
                         const listenVals = [...quizHistory].reverse().map((d) => d.listening);
                         const grammarVals = [...quizHistory].reverse().map((d) => d.grammar);
                         const tiles = [
-                          { key: "vocab",   label: "🃏 Vocab",   color: "#6366f1", values: vocabVals,   today: dailyHistory[0]?.count ?? 0,      unit: "" },
-                          { key: "read",    label: "📖 Read",    color: "#4f46e5", values: readVals,    today: quizHistory[0]?.reading,           unit: "%" },
-                          { key: "listen",  label: "🎧 Listen",  color: "#7c3aed", values: listenVals,  today: quizHistory[0]?.listening,         unit: "%" },
-                          { key: "grammar", label: "📝 Grammar", color: "#d97706", values: grammarVals, today: quizHistory[0]?.grammar,           unit: "%" },
+                          { key: "vocab",   label: "Vocab",   icon: Layers,      color: "#6366f1", values: vocabVals,   today: dailyHistory[0]?.count ?? 0,      unit: "" },
+                          { key: "read",    label: "Read",    icon: BookOpen,    color: "#4f46e5", values: readVals,    today: quizHistory[0]?.reading,           unit: "%" },
+                          { key: "listen",  label: "Listen",  icon: Headphones,  color: "#7c3aed", values: listenVals,  today: quizHistory[0]?.listening,         unit: "%" },
+                          { key: "grammar", label: "Grammar", icon: PenTool,     color: "#d97706", values: grammarVals, today: quizHistory[0]?.grammar,           unit: "%" },
                         ];
                         return (
                           <div className="grid grid-cols-2 gap-3 mb-6">
                             {tiles.map((tile) => (
                               <div key={tile.key} className="bg-white rounded-2xl border border-slate-100 px-3 pt-3 pb-2.5 flex flex-col gap-1">
-                                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: tile.color }}>{tile.label}</p>
+                                <p className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1" style={{ color: tile.color }}>
+                                  <tile.icon size={10} /> {tile.label}
+                                </p>
                                 <SparkLine values={tile.values} color={tile.color} />
                                 <p className="text-sm font-black text-slate-700 leading-none">
                                   {tile.today !== null && tile.today !== undefined
@@ -2273,9 +2274,9 @@ export default function StatsPage() {
                       {/* Column headers */}
                       <div className="flex items-center gap-3 mb-1 px-2">
                         <span className="w-20 shrink-0" />
-                        <span className="flex-1 text-center text-[10px] font-black text-indigo-400">📖</span>
-                        <span className="flex-1 text-center text-[10px] font-black text-violet-400">🎧</span>
-                        <span className="flex-1 text-center text-[10px] font-black text-amber-400">📝</span>
+                        <span className="flex-1 flex justify-center text-indigo-400"><BookOpen size={12} /></span>
+                        <span className="flex-1 flex justify-center text-violet-400"><Headphones size={12} /></span>
+                        <span className="flex-1 flex justify-center text-amber-400"><PenTool size={12} /></span>
                       </div>
                       {/* Rows */}
                       <div className="space-y-0.5">
@@ -2358,7 +2359,7 @@ export default function StatsPage() {
                     onClick={() => setPreviewPack(null)}
                     className="h-12 w-12 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-800 hover:shadow-sm transition-all active:scale-90"
                   >
-                    ✕
+                    <X size={18} />
                   </button>
                 </div>
 
@@ -2446,7 +2447,7 @@ export default function StatsPage() {
           <div className="flex items-center gap-2 mb-6">
             <div className="relative flex-1">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
-                🔍
+                <Search size={16} />
               </div>
               <input
                 type="text"
@@ -2609,7 +2610,7 @@ export default function StatsPage() {
                     onClick={() => setScoreDetailCard(null)}
                     className="h-9 w-9 shrink-0 flex items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:bg-slate-100 active:scale-90 transition-all"
                   >
-                    ✕
+                    <X size={15} />
                   </button>
                 </div>
                 <div className="mb-4 p-4 bg-slate-50 rounded-2xl">
@@ -2667,7 +2668,7 @@ export default function StatsPage() {
                   }}
                   className="w-full mt-4 pt-4 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-600 active:scale-95 transition-all"
                 >
-                  <span>🚩</span> Report a Problem
+                  <Flag size={12} /> Report a Problem
                 </button>
               </div>
             </div>
@@ -2779,7 +2780,7 @@ export default function StatsPage() {
                             className="p-2 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors group relative"
                             title={t.report_issue}
                           >
-                            <span className="text-lg">🚩</span>
+                            <Flag size={16} />
                           </button>
 
                           {/* DELETE BUTTON (Existing) */}
