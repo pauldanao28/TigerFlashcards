@@ -264,6 +264,11 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   // Reflex Mode: when the current card became "live" for timing purposes (no
   // deadline — just a stopwatch start, read back on a Pass to measure recall speed).
   const reflexStartRef = useRef<number | null>(null);
+  // The recall moment is flipping to check the answer, not the eventual swipe — time
+  // spent reading the back (example sentence, te-form, etc.) before grading shouldn't
+  // count as "recall time". Frozen once per card, the instant isFlipped goes true.
+  // Stays null if the card is swiped without ever flipping (a valid, common move).
+  const reflexFlipMsRef = useRef<number | null>(null);
   // Cards already attempted, persisted to localStorage via getGrammarFillCache (see
   // module scope above) — avoids re-fetching Jisho on every redraw, in every session,
   // of a word it simply has no usable data for.
@@ -656,11 +661,14 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       const newScores = { ...s, [mode]: updatedStats };
 
       // Reflex time — only a Pass is a "how long did recall take" data point; a Fail
-      // isn't (you didn't recall it). Unbounded — Reflex Mode no longer enforces a
-      // deadline, it just measures. Never touches scores_json/mastery at all.
+      // isn't (you didn't recall it). Prefers the time frozen at flip (the actual
+      // recall moment) over the live elapsed time, so lingering on the back face
+      // before grading doesn't inflate it; falls back to live elapsed only when the
+      // card was swiped without ever flipping. Unbounded — Reflex Mode no longer
+      // enforces a deadline, it just measures. Never touches scores_json/mastery.
       const reflexElapsedMs =
         reflexMode && isPass && reflexStartRef.current != null
-          ? Math.max(0, Date.now() - reflexStartRef.current)
+          ? reflexFlipMsRef.current ?? Math.max(0, Date.now() - reflexStartRef.current)
           : null;
 
       // 2. Trigger UI Feedback (Floating Percentage)
@@ -843,7 +851,16 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   // Mode is turned on for the card already showing.
   useEffect(() => {
     reflexStartRef.current = reflexMode ? Date.now() : null;
+    reflexFlipMsRef.current = null;
   }, [reflexMode, currentCard?.id]);
+
+  // Freezes the elapsed time the instant the card is flipped — that's the recall
+  // moment; everything after (reading the back, deciding how to grade) isn't.
+  useEffect(() => {
+    if (reflexMode && isFlipped && reflexStartRef.current != null && reflexFlipMsRef.current == null) {
+      reflexFlipMsRef.current = Date.now() - reflexStartRef.current;
+    }
+  }, [reflexMode, isFlipped]);
 
   // Fast-track for cards never reviewed before — skips the flip/grade ritual
   // and immediately seeds a high-confidence score in both directions so it
