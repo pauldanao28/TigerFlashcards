@@ -791,8 +791,9 @@ export default function StatsPage() {
     for (const c of cards) { forms.add(c.japanese); if (c.japanese !== c.reading) forms.add(c.reading); }
     return forms;
   }, [cards]);
-  const packWordsMissing = (pack: any): any[] =>
-    cards.length === 0 ? [] : ((pack.card_data ?? []) as any[]).filter((w) => !deckForms.has(w.japanese));
+  type PackWord = Record<string, unknown> & { japanese: string };
+  const packWordsMissing = (pack: { card_data?: PackWord[] }): PackWord[] =>
+    cards.length === 0 ? [] : (pack.card_data ?? []).filter((w) => !deckForms.has(w.japanese));
 
   const importPack = async (pack: any) => {
     if (!defaultDeckId) {
@@ -807,7 +808,7 @@ export default function StatsPage() {
 
     // 1. An owned pack is only re-imported for words added to it since (packWordsMissing)
     const isUpdate = !!ownedPacks?.includes(pack.id);
-    const nWords: any[] = isUpdate ? packWordsMissing(pack) : pack.card_data;
+    const nWords: PackWord[] = isUpdate ? packWordsMissing(pack) : pack.card_data;
     if (nWords.length === 0) return;
 
     setLoading(true);
