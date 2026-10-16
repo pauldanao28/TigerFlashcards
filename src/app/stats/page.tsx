@@ -166,7 +166,7 @@ export default function StatsPage() {
   const [swipeOnly, setSwipeOnly] = useState(false);
   const [reflexMode, setReflexMode] = useState(false);
   const [dailyStruggles, setDailyStruggles] = useState<
-    { card_id: string; fail_count: number; japanese: string; reading: string; english: string; jlpt_level: string | null }[]
+    { card_id: string; fail_count: number; japanese: string; reading: string; english: string; jlpt_level: string | null; partOfSpeech: string | null }[]
   >([]);
   const [showDailyStruggles, setShowDailyStruggles] = useState(false);
   const [dailyExplainedLines, setDailyExplainedLines] = useState<
@@ -486,7 +486,7 @@ export default function StatsPage() {
 
     const { data: cardRows, error: cardErr } = await supabase
       .from("master_cards")
-      .select("id, japanese, reading, english, jlpt_level")
+      .select("id, japanese, reading, english, jlpt_level, partOfSpeech")
       .in("id", struggles.map((s) => s.card_id));
     if (cardErr) { console.error("Error fetching struggling cards:", cardErr); return; }
 
@@ -495,7 +495,7 @@ export default function StatsPage() {
       struggles
         .map((s) => {
           const card = cardById.get(s.card_id);
-          return card ? { card_id: s.card_id, fail_count: s.fail_count, japanese: card.japanese, reading: card.reading, english: card.english, jlpt_level: card.jlpt_level } : null;
+          return card ? { card_id: s.card_id, fail_count: s.fail_count, japanese: card.japanese, reading: card.reading, english: card.english, jlpt_level: card.jlpt_level, partOfSpeech: card.partOfSpeech } : null;
         })
         .filter((row): row is NonNullable<typeof row> => !!row),
     );
@@ -2611,6 +2611,20 @@ export default function StatsPage() {
                                   {w.japanese} <span className="text-slate-400 font-medium">{w.reading !== w.japanese ? w.reading : ""}</span>
                                 </p>
                                 <p className="text-xs text-slate-500 truncate">{w.english}</p>
+                                {(w.partOfSpeech || w.jlpt_level) && (
+                                  <div className="flex items-center gap-1 mt-1">
+                                    {w.partOfSpeech && (
+                                      <span className={`text-[9px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(w.partOfSpeech)}`}>
+                                        {w.partOfSpeech}
+                                      </span>
+                                    )}
+                                    {w.jlpt_level && (
+                                      <span className={`text-[9px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getJlptColor(w.jlpt_level)}`}>
+                                        {w.jlpt_level}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                               <div className="shrink-0 flex items-center gap-2">
                                 <span className="text-[10px] font-black text-rose-500 bg-rose-50 border border-rose-100 rounded-full px-2 py-1">
