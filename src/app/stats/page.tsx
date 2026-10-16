@@ -172,7 +172,6 @@ export default function StatsPage() {
   const [dailyExplainedLines, setDailyExplainedLines] = useState<
     { source: "reader" | "watch"; line_text: string; source_title: string | null; explain_count: number }[]
   >([]);
-  const [showDailyExplained, setShowDailyExplained] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
@@ -1811,10 +1810,10 @@ export default function StatsPage() {
             </Link>
           </div>
 
-          {/* Struggling Today — cards you've gotten wrong DAILY_STRUGGLE_THRESHOLD+ times
-              today (not the all-time accuracy metric). Hidden on a clean day, same as
-              Starter Packs. */}
-          {dailyStruggles.length > 0 && (
+          {/* Struggling Today — one entry point for both today-only signals: cards
+              failed DAILY_STRUGGLE_THRESHOLD+ times, and Reader/Watch lines tapped
+              "Explain". Hidden on a clean day, same as Starter Packs. */}
+          {(dailyStruggles.length > 0 || dailyExplainedLines.length > 0) && (
             <div className="mb-10">
               <button
                 onClick={() => setShowDailyStruggles(true)}
@@ -1824,25 +1823,7 @@ export default function StatsPage() {
                   <TrendingDown size={16} className="text-rose-400" /> Struggling Today
                 </span>
                 <span className="flex items-center gap-2 text-slate-400 text-xs">
-                  {dailyStruggles.length} {dailyStruggles.length === 1 ? "word" : "words"} <span>→</span>
-                </span>
-              </button>
-            </div>
-          )}
-
-          {/* Explained Today — Reader sentences / Watch caption lines tapped "Explain"
-              today. Hidden on a clean day, same as Struggling Today. */}
-          {dailyExplainedLines.length > 0 && (
-            <div className="mb-10">
-              <button
-                onClick={() => setShowDailyExplained(true)}
-                className="w-full flex items-center justify-between bg-white px-6 py-4 rounded-2xl shadow-sm border border-slate-100 font-black text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.99]"
-              >
-                <span className="flex items-center gap-2 text-sm">
-                  <Sparkles size={16} className="text-indigo-400" /> Explained Today
-                </span>
-                <span className="flex items-center gap-2 text-slate-400 text-xs">
-                  {dailyExplainedLines.length} {dailyExplainedLines.length === 1 ? "line" : "lines"} <span>→</span>
+                  {dailyStruggles.length + dailyExplainedLines.length} items <span>→</span>
                 </span>
               </button>
             </div>
@@ -2606,87 +2587,70 @@ export default function StatsPage() {
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="p-6 border-b border-slate-50 flex justify-between items-center shrink-0">
-                  <div>
-                    <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
-                      <TrendingDown size={18} className="text-rose-500" /> Struggling Today
-                    </h3>
-                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">
-                      Words you&apos;ve missed {DAILY_STRUGGLE_THRESHOLD}+ times today — resets tomorrow.
-                    </p>
-                  </div>
+                  <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                    <TrendingDown size={18} className="text-rose-500" /> Struggling Today
+                  </h3>
                   <button onClick={() => setShowDailyStruggles(false)} className="text-slate-300 hover:text-slate-500 shrink-0">
                     <X size={18} />
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                  {dailyStruggles.map((w) => (
-                    <div key={w.card_id} className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3">
-                      <div className="min-w-0">
-                        <p className="font-black text-slate-800 truncate">
-                          {w.japanese} <span className="text-slate-400 font-medium">{w.reading !== w.japanese ? w.reading : ""}</span>
+                <div className="flex-1 overflow-y-auto p-4">
+                  {dailyStruggles.length > 0 && (
+                    <div className="mb-5">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                        Words you&apos;ve missed {DAILY_STRUGGLE_THRESHOLD}+ times
+                      </p>
+                      <div className="space-y-2">
+                        {dailyStruggles.map((w) => (
+                          <div key={w.card_id} className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3">
+                            <div className="min-w-0">
+                              <p className="font-black text-slate-800 truncate">
+                                {w.japanese} <span className="text-slate-400 font-medium">{w.reading !== w.japanese ? w.reading : ""}</span>
+                              </p>
+                              <p className="text-xs text-slate-500 truncate">{w.english}</p>
+                            </div>
+                            <span className="shrink-0 text-[10px] font-black text-rose-500 bg-rose-50 border border-rose-100 rounded-full px-2 py-1">
+                              ×{w.fail_count}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {dailyExplainedLines.length > 0 && (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                          Reader/Watch lines you tapped Explain on
                         </p>
-                        <p className="text-xs text-slate-500 truncate">{w.english}</p>
+                        <button
+                          onClick={copyDailyExplainedLinesForGemini}
+                          className="text-[9px] font-black uppercase tracking-widest text-indigo-500 hover:text-indigo-700 active:scale-95 transition-all shrink-0"
+                        >
+                          Copy
+                        </button>
                       </div>
-                      <span className="shrink-0 text-[10px] font-black text-rose-500 bg-rose-50 border border-rose-100 rounded-full px-2 py-1">
-                        ×{w.fail_count}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {showDailyExplained && (
-            <div
-              className="fixed inset-0 z-[220] flex items-center justify-center p-4 sm:p-6"
-              onClick={() => setShowDailyExplained(false)}
-            >
-              <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" />
-              <div
-                className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl border border-white/20 flex flex-col max-h-[80vh] overflow-hidden"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="p-6 border-b border-slate-50 flex justify-between items-center shrink-0">
-                  <div>
-                    <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
-                      <Sparkles size={18} className="text-indigo-500" /> Explained Today
-                    </h3>
-                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">
-                      Reader/Watch lines you tapped Explain on today — resets tomorrow.
-                    </p>
-                  </div>
-                  <button onClick={() => setShowDailyExplained(false)} className="text-slate-300 hover:text-slate-500 shrink-0">
-                    <X size={18} />
-                  </button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                  {dailyExplainedLines.map((l, i) => (
-                    <div key={i} className="bg-slate-50 rounded-2xl px-4 py-3">
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500">
-                          {l.source}{l.source_title ? ` · ${l.source_title}` : ""}
-                        </span>
-                        {l.explain_count > 1 && (
-                          <span className="shrink-0 text-[10px] font-black text-indigo-500 bg-indigo-50 border border-indigo-100 rounded-full px-2 py-0.5">
-                            ×{l.explain_count}
-                          </span>
-                        )}
+                      <div className="space-y-2">
+                        {dailyExplainedLines.map((l, i) => (
+                          <div key={i} className="bg-slate-50 rounded-2xl px-4 py-3">
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500">
+                                {l.source}{l.source_title ? ` · ${l.source_title}` : ""}
+                              </span>
+                              {l.explain_count > 1 && (
+                                <span className="shrink-0 text-[10px] font-black text-indigo-500 bg-indigo-50 border border-indigo-100 rounded-full px-2 py-0.5">
+                                  ×{l.explain_count}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm font-bold text-slate-800 leading-snug">{l.line_text}</p>
+                          </div>
+                        ))}
                       </div>
-                      <p className="text-sm font-bold text-slate-800 leading-snug">{l.line_text}</p>
                     </div>
-                  ))}
-                </div>
-
-                <div className="p-4 border-t border-slate-50 shrink-0">
-                  <button
-                    onClick={copyDailyExplainedLinesForGemini}
-                    className="w-full bg-slate-900 text-white py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-all active:scale-95"
-                  >
-                    Copy for Gemini
-                  </button>
+                  )}
                 </div>
               </div>
             </div>
