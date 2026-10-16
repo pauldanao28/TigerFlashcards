@@ -505,6 +505,9 @@ export default function Flashcard({
 
               {(card?.transitivity || card?.verb_type || card?.adjective_type) && (
                 <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3">
+                  {card?.partOfSpeech === "noun" && (card?.transitivity || card?.verb_type) && (
+                    <span className="text-indigo-200 text-[10px] font-bold">{card.japanese}する:</span>
+                  )}
                   {card?.transitivity && (
                     <span className="px-2.5 py-1 bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10">
                       {card.transitivity === "transitive" ? "Transitive" : "Intransitive"}

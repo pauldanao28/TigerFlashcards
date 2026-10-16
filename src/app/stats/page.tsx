@@ -2852,6 +2852,9 @@ export default function StatsPage() {
 
                 {(scoreDetailCard.transitivity || scoreDetailCard.verb_type || scoreDetailCard.adjective_type || scoreDetailCard.te_form) && (
                   <div className="flex flex-wrap items-center gap-1.5 mb-4">
+                    {scoreDetailCard.partOfSpeech === "noun" && (scoreDetailCard.transitivity || scoreDetailCard.verb_type) && (
+                      <span className="text-slate-400 text-[10px] font-bold">{scoreDetailCard.japanese}する:</span>
+                    )}
                     {scoreDetailCard.transitivity && (
                       <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-indigo-100">
                         {scoreDetailCard.transitivity === "transitive" ? "Transitive" : "Intransitive"}

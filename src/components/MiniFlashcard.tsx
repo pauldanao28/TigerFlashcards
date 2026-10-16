@@ -137,6 +137,9 @@ export default function MiniFlashcard({ card, language, isFlipped, onFlip, onSwi
             </h2>
             {(card.transitivity || card.verb_type || card.adjective_type) && (
               <div className="flex flex-wrap items-center justify-center gap-1">
+                {card.partOfSpeech === "noun" && (card.transitivity || card.verb_type) && (
+                  <span className="text-indigo-200 text-[7px] font-bold">{card.japanese}する:</span>
+                )}
                 {card.transitivity && (
                   <span className="px-1.5 py-0.5 bg-white/15 rounded-full text-[7px] font-black uppercase tracking-widest">
                     {card.transitivity === "transitive" ? "Trans." : "Intrans."}
