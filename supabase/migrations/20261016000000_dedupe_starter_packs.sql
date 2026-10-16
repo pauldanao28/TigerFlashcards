@@ -6,17 +6,21 @@
 update starter_packs set card_data = (
   select coalesce(jsonb_agg(c order by i), '[]'::jsonb) from jsonb_array_elements(card_data) with ordinality as e(c, i)
   where c->>'japanese' not in ('私は', '何を', 'いつ')
-), description = regexp_replace(description, '\(316 words\)', '(313 words)') where id = '7b5da3be-8987-4b95-9c51-ff3fd858bb94';
+) where id = '7b5da3be-8987-4b95-9c51-ff3fd858bb94';
 
 -- JLPT N5 Kickstart Vol. 5: 315 → 310
 update starter_packs set card_data = (
   select coalesce(jsonb_agg(c order by i), '[]'::jsonb) from jsonb_array_elements(card_data) with ordinality as e(c, i)
   where c->>'japanese' not in ('けさ', 'みっか', 'みなさん', 'ください', 'はたち')
-), description = regexp_replace(description, '\(315 words\)', '(310 words)') where id = 'a7dffbee-871d-47d5-aa6f-d7cffb4ff624';
+) where id = 'a7dffbee-871d-47d5-aa6f-d7cffb4ff624';
 
 -- JLPT N4 Kickstart Vol. 2: 363 → 350
 update starter_packs set card_data = (
   select coalesce(jsonb_agg(c order by i), '[]'::jsonb) from jsonb_array_elements(card_data) with ordinality as e(c, i)
   where c->>'japanese' not in ('だめ', 'つかまえる', 'つたえる', 'てら', 'でんとう', 'とおく', 'とくべつ', 'とどける', 'ひどい', 'やわらかい', 'よごれる', 'ほとんど', 'まず')
-), description = regexp_replace(description, '\(363 words\)', '(350 words)') where id = '71b8eafe-1c6b-4c12-a57f-f13d6d00a08c';
+) where id = '71b8eafe-1c6b-4c12-a57f-f13d6d00a08c';
 
+-- Word counts in the descriptions (a separate statement, so it sees the new card_data)
+update starter_packs
+set description = regexp_replace(description, '\(\d+ words\)', '(' || jsonb_array_length(card_data) || ' words)')
+where id in ('7b5da3be-8987-4b95-9c51-ff3fd858bb94', 'a7dffbee-871d-47d5-aa6f-d7cffb4ff624', '71b8eafe-1c6b-4c12-a57f-f13d6d00a08c');
