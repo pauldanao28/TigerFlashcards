@@ -296,6 +296,9 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const [reflexSecondsLeft, setReflexSecondsLeft] = useState<number | null>(null);
   const [showStillThere, setShowStillThere] = useState(false);
   const [showMiniFilters, setShowMiniFilters] = useState(false);
+  // Same big PASS/FAIL text the card shows for an actual swipe, triggered without one —
+  // specifically for a Reflex Mode timeout, so a silent auto-fail doesn't feel silent.
+  const [forcedCardFeedback, setForcedCardFeedback] = useState<"pass" | "fail" | null>(null);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const [swipeFeedback, setSwipeFeedback] = useState<{
@@ -810,6 +813,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       setShowStillThere(true);
       return;
     }
+    setForcedCardFeedback("fail");
+    setTimeout(() => setForcedCardFeedback(null), 700);
     handleScore(false, { isTimeout: true });
   }, [handleScore, clearReflexTimer]);
 
@@ -1427,8 +1432,15 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
 
         <div className="relative w-full flex-1 min-h-0 flex items-center justify-center">
           {reflexMode && reflexSecondsLeft !== null && !isFlipped && (
-            <div className="absolute top-2 right-2 z-[90] flex items-center justify-center w-6 h-6 rounded-full bg-black/70 backdrop-blur-sm pointer-events-none">
-              <span className="text-white font-black text-[11px] tabular-nums">{reflexSecondsLeft}</span>
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[90] pointer-events-none">
+              <div
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full shadow-lg transition-colors duration-300 ${
+                  reflexSecondsLeft <= 1 ? "bg-rose-500" : reflexSecondsLeft === 2 ? "bg-amber-500" : "bg-slate-900/85"
+                }`}
+              >
+                <Zap size={10} className="text-white" fill="currentColor" />
+                <span className="text-white font-black text-xs tabular-nums leading-none">{reflexSecondsLeft}</span>
+              </div>
             </div>
           )}
           <AnimatePresence>
@@ -1459,6 +1471,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               isFlipped={isFlipped}
               onFlip={setIsFlipped}
               onSwipe={onSwipe}
+              forcedFeedback={forcedCardFeedback}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-slate-300 text-xs font-bold">
@@ -2300,10 +2313,17 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 </AnimatePresence>
                 {/* REFLEX MODE COUNTDOWN */}
                 {reflexMode && reflexSecondsLeft !== null && !isFlipped && (
-                  <div className="absolute top-3 right-3 z-[90] flex items-center justify-center w-9 h-9 rounded-full bg-black/70 backdrop-blur-sm pointer-events-none">
-                    <span className="text-white font-black text-sm tabular-nums">
-                      {reflexSecondsLeft}
-                    </span>
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[90] pointer-events-none">
+                    <div
+                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full shadow-lg transition-colors duration-300 ${
+                        reflexSecondsLeft <= 1 ? "bg-rose-500" : reflexSecondsLeft === 2 ? "bg-amber-500" : "bg-slate-900/85"
+                      }`}
+                    >
+                      <Zap size={13} className="text-white" fill="currentColor" />
+                      <span className="text-white font-black text-base tabular-nums leading-none">
+                        {reflexSecondsLeft}
+                      </span>
+                    </div>
                   </div>
                 )}
                 {/* SWIPE FEEDBACK OVERLAY */}
@@ -2370,6 +2390,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     isPriority={!!currentCard.is_priority}
                     onTogglePriority={() => togglePriority(currentCard)}
                     onMnemonicGenerated={handleMnemonicGenerated}
+                    forcedFeedback={forcedCardFeedback}
                   />
                 ) : !dataLoading && cards.length === 0 && hasLoadedOnce ? (
                   <div className="w-full h-full flex flex-col items-center justify-center bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 p-8 text-center">

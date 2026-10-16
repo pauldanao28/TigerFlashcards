@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { motion, useMotionValue, useTransform } from "framer-motion";
+import { motion, useMotionValue, useTransform, AnimatePresence } from "framer-motion";
 import { Star, Lightbulb, Loader2, X } from "lucide-react";
 import { FlashcardData, KanjiMnemonic } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
@@ -36,6 +36,9 @@ interface FlashcardProps {
   isPriority?: boolean;
   onTogglePriority?: () => void;
   onMnemonicGenerated?: (cardId: string, mnemonic: KanjiMnemonic) => void;
+  // Shows the same big PASS/FAIL overlay the drag gesture shows, without needing an
+  // actual drag — for a grade that happened another way (e.g. a Reflex Mode timeout).
+  forcedFeedback?: "pass" | "fail" | null;
 }
 
 const triggerHaptic = (ms = 10) => {
@@ -59,6 +62,7 @@ export default function Flashcard({
   isPriority,
   onTogglePriority,
   onMnemonicGenerated,
+  forcedFeedback,
 }: FlashcardProps) {
   const t = translations.en;
   const { showAlert, showConfirm } = useAppAlert();
@@ -381,6 +385,30 @@ export default function Flashcard({
               {t.fail}
             </span>
           </motion.div>
+
+          {/* Forced PASS/FAIL — same look as the drag tint above, for a grade that
+              didn't come from an actual swipe (e.g. a Reflex Mode timeout). */}
+          <AnimatePresence>
+            {forcedFeedback && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className={`absolute inset-0 flex items-center justify-center ${
+                  forcedFeedback === "pass" ? "bg-emerald-500/10" : "bg-rose-500/10"
+                }`}
+              >
+                <span
+                  className={`text-7xl font-black uppercase tracking-tighter ${
+                    forcedFeedback === "pass" ? "text-emerald-600/30 -rotate-12" : "text-rose-600/30 rotate-12"
+                  }`}
+                >
+                  {forcedFeedback === "pass" ? t.pass : t.fail}
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
         {/* -------------------------------------- */}
 
