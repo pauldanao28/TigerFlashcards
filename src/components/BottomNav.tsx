@@ -6,6 +6,7 @@ import { Home, BookOpen, ScrollText, BarChart2 } from "lucide-react";
 import { useUploadGuard } from "@/context/UploadGuardContext";
 import { useAppAlert } from "@/context/AlertContext";
 import { useAuth } from "@/context/AuthContext";
+import { useIsMiniViewport } from "@/lib/useMiniViewport";
 
 type Tab = {
   href: string;
@@ -28,11 +29,17 @@ function BottomNavInner() {
   const path = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const autoMiniViewport = useIsMiniViewport();
   const { isBusy } = useUploadGuard();
   const { showConfirm } = useAppAlert();
   const { user, loading } = useAuth();
   if (!SHOW_ON.has(path)) return null;
-  if (searchParams.get("mini") === "1") return null; // hidden in the mini popup player
+  // Hidden in the mini popup player, and on Study specifically once a desktop
+  // browser window has been resized down small enough to trigger its Mini Mode
+  // layout — other pages have no compact layout to fall back on, so they keep
+  // their normal nav even on a narrow desktop window.
+  if (searchParams.get("mini") === "1") return null;
+  if (path === "/study" && autoMiniViewport) return null;
   if (loading || !user) return null;
 
   return (

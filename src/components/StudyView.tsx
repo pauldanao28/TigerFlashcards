@@ -24,6 +24,7 @@ import SentenceQuiz from "@/components/SentenceQuiz";
 import ListeningQuiz from "@/components/ListeningQuiz";
 import AddWordsSheet from "@/components/AddWordsSheet";
 import { FlashcardData, KanjiMnemonic } from "@/lib/types";
+import { useIsMiniViewport } from "@/lib/useMiniViewport";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, History, Star, TrendingDown, Lightbulb, Loader2, X, Menu, Zap, ExternalLink } from "lucide-react";
 const DAILY_GOAL = 10;
@@ -135,6 +136,10 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const { user, loading } = useAuth();
   const { showAlert, showConfirm } = useAppAlert();
   const shownGenerateLimitAlertRef = useRef(false);
+  // Auto-switches to Mini Mode when a desktop browser window gets resized small —
+  // separate from `compact`, which is forced on by the ?mini=1 popup player.
+  const autoMiniViewport = useIsMiniViewport();
+  const isMiniMode = compact || autoMiniViewport;
   // --- 1. State Management ---
   const [hasOnboarded, setHasOnboarded] = useState<boolean | null>(null);
 
@@ -1295,11 +1300,12 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     return <LoadingScreen />;
   }
 
-  // Mini Mode — a stripped-down layout meant for a small popup window (see the
-  // "Pop out" button in the full view) so flashcards can run discreetly in a
+  // Mini Mode — a stripped-down layout so flashcards can run discreetly in a
   // corner of the screen: just the card, the language/reflex toggles, and
-  // Pass/Fail. No header, stats, modals, or starter-pack chrome.
-  if (compact) {
+  // Pass/Fail. No header, stats, modals, or starter-pack chrome. Triggered either
+  // by the "Pop out" popup player (?mini=1 → `compact`) or by shrinking the main
+  // window itself on a desktop (`autoMiniViewport`).
+  if (isMiniMode) {
     return (
       <main className="fixed inset-0 h-[100dvh] w-full bg-slate-50 flex flex-col items-center justify-between p-3 gap-3 touch-none select-none overflow-hidden">
         <div className="w-full flex items-center justify-between gap-2 shrink-0">
