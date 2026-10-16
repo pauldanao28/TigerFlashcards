@@ -5,6 +5,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { useAppAlert } from "@/context/AlertContext";
 import { useUploadGuard } from "@/context/UploadGuardContext";
 import { translations } from "@/lib/languages";
+import { skipDeckDuplicates } from "@/lib/duplicates";
 
 const t = translations.en;
 const DAILY_LIMIT = 100;
@@ -45,8 +46,15 @@ export function useAddWords({
   const [addedWordsSummary, setAddedWordsSummary] = useState<AddedWordSummary[]>([]);
   const [showSummary, setShowSummary] = useState(false);
 
-  const performLinking = async (cardIds: string[]) => {
-    if (cardIds.length === 0 || !deckId || !userId) return;
+  // Duplicates skipped while linking (みず when 水 is in the deck): removed card id → the
+  // deck card it duplicates, shown in the summary as "already in deck" instead.
+  const skippedFor = new Map<string, AddedWordSummary>();
+
+  const performLinking = async (rawIds: string[]) => {
+    if (rawIds.length === 0 || !deckId || !userId) return;
+    const { ids: cardIds, skipped } = await skipDeckDuplicates(deckId, rawIds);
+    skipped.forEach((d) => skippedFor.set(d.remove.id, { ...d.keep, alreadyInDeck: true }));
+    if (cardIds.length === 0) return;
     const [deckRes, scoreRes] = await Promise.all([
       supabase.from("deck_cards").upsert(
         cardIds.map((id) => ({ deck_id: deckId, card_id: id })),
@@ -240,9 +248,11 @@ export function useAddWords({
       }
 
       if (allProcessedCards.length > 0) {
-        const finalSummary = Array.from(
+        const summaryCards = Array.from(
           new Map(allProcessedCards.map((c) => [c.japanese, c])).values(),
-        ).map((c) => ({ ...c, alreadyInDeck: preLinkedIds.has(c.id) }));
+        ).map((c) => skippedFor.get(c.id) ?? { ...c, alreadyInDeck: preLinkedIds.has(c.id) });
+        // A skipped duplicate shows as its deck card — which may also be in the list itself.
+        const finalSummary = Array.from(new Map(summaryCards.map((c) => [c.id, c])).values());
         setAddedWordsSummary(finalSummary);
         setShowSummary(true);
         onAdded?.();

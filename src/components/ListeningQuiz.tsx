@@ -12,6 +12,7 @@ import { useAppAlert } from "@/context/AlertContext";
 import TappableText, { kanjiRe, getSegmenter, stripFurigana, type WordTapHandler } from "@/components/TappableText";
 import WordLookupSheet from "@/components/WordLookupSheet";
 import { useWordLookup } from "@/hooks/useWordLookup";
+import { skipDeckDuplicates } from "@/lib/duplicates";
 
 interface ListeningQuestion {
   word: string;
@@ -292,7 +293,10 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     setBatchAdding(true);
 
-    const performLinking = async (cardIds: string[]) => {
+    const performLinking = async (rawIds: string[]) => {
+      // Skip duplicates of cards already in the deck (みず when 水 is there) — lib/duplicates
+      const { ids: cardIds } = await skipDeckDuplicates(defaultDeckId, rawIds);
+      if (cardIds.length === 0) return;
       await Promise.all([
         supabase.from("deck_cards").upsert(cardIds.map(id => ({ deck_id: defaultDeckId, card_id: id })), { onConflict: "deck_id,card_id" }),
         supabase.from("user_scores").upsert(cardIds.map(id => ({ user_id: userId, card_id: id, scores_json: { jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 }, en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 } } })), { onConflict: "user_id,card_id" }),

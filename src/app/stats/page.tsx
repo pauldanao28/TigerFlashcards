@@ -15,7 +15,7 @@ import LoadingScreen from "@/components/LoadingScreen";
 import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
 import AddWordsSheet from "@/components/AddWordsSheet";
 import DuplicatesSheet from "@/components/DuplicatesSheet";
-import { findDuplicates } from "@/lib/duplicates";
+import { findDuplicates, skipDeckDuplicates } from "@/lib/duplicates";
 import { List, Plus, RefreshCw, Star } from "lucide-react";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
@@ -835,7 +835,12 @@ export default function StatsPage() {
         insertedCards = inserted;
       }
 
-      const uploadedCards = [...existingByJapanese.values(), ...insertedCards];
+      // Leave out the pack's duplicates of cards already in the deck (みず when 水 is
+      // there, 私は when 私 is) — lib/duplicates
+      const packCards = [...existingByJapanese.values(), ...insertedCards];
+      const { ids: linkIds } = await skipDeckDuplicates(defaultDeckId, packCards.map((c) => c.id));
+      const linkSet = new Set(linkIds);
+      const uploadedCards = packCards.filter((c) => linkSet.has(c.id));
       const cardIds = uploadedCards.map((c) => c.id);
 
       // 3. Find which of these cards you're already studying (e.g. an

@@ -121,3 +121,52 @@ export async function resolveDuplicate(userId: string, deckId: string, d: Duplic
   ]);
   if (linkErr || scoreErr) throw linkErr || scoreErr;
 }
+
+const DUP_COLUMNS = "id, japanese, reading, english, jlpt_level, partOfSpeech";
+const CHUNK = 150;
+
+async function selectChunked(column: string, values: string[], deckId?: string): Promise<FlashcardData[]> {
+  const out: FlashcardData[] = [];
+  for (let i = 0; i < values.length; i += CHUNK) {
+    const chunk = values.slice(i, i + CHUNK);
+    const { data, error } = deckId
+      ? await supabase.from("master_cards").select(`${DUP_COLUMNS}, deck_cards!inner(deck_id)`).eq("deck_cards.deck_id", deckId).in(column, chunk)
+      : await supabase.from("master_cards").select(DUP_COLUMNS).in(column, chunk);
+    if (error) throw error;
+    out.push(...((data ?? []) as unknown as FlashcardData[]));
+  }
+  return out;
+}
+
+/**
+ * Run before linking cards into a deck (adding words, importing a pack): drops the ones
+ * that duplicate a card already in the deck — or another card in the same batch — by the
+ * same rules as findDuplicates. Returns the ids to link and what was skipped (with the
+ * card it duplicates). If the check itself fails, nothing is skipped.
+ */
+export async function skipDeckDuplicates(deckId: string, cardIds: string[]): Promise<{ ids: string[]; skipped: Duplicate[] }> {
+  if (cardIds.length === 0) return { ids: cardIds, skipped: [] };
+  try {
+    const candidates = await selectChunked("id", cardIds);
+    const kana = candidates.map((c) => norm(c.japanese)).filter((jp) => kanaOnlyRe.test(jp));
+    const bases = candidates.flatMap((c) => {
+      const jp = norm(c.japanese);
+      const p = CASE_PARTICLES.find((x) => jp.length > x.length && jp.endsWith(x));
+      return p ? [jp.slice(0, -p.length)] : [];
+    });
+    const inDeck = [
+      ...(kana.length ? await selectChunked("reading", kana, deckId) : []),
+      ...(bases.length ? await selectChunked("japanese", bases, deckId) : []),
+    ];
+    const inDeckIds = new Set(inDeck.map((c) => c.id));
+    const pool = [...new Map([...inDeck, ...candidates].map((c) => [c.id, c])).values()];
+    const candidateIds = new Set(cardIds);
+    // Only skip cards this call would newly link — one already in the deck is the review's job.
+    const skipped = findDuplicates(pool).filter((d) => candidateIds.has(d.remove.id) && !inDeckIds.has(d.remove.id));
+    const skippedIds = new Set(skipped.map((d) => d.remove.id));
+    return { ids: cardIds.filter((id) => !skippedIds.has(id)), skipped };
+  } catch (err) {
+    console.error("[duplicates] check failed, linking everything:", err);
+    return { ids: cardIds, skipped: [] };
+  }
+}

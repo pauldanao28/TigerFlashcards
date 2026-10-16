@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppAlert } from "@/context/AlertContext";
 import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
+import { skipDeckDuplicates } from "@/lib/duplicates";
 
 interface OnboardingProps {
   userId: string;
@@ -156,7 +157,7 @@ export default function OnboardingModal({
         insertedCards = inserted;
       }
 
-      const cardIds = [...existingByJapanese.values(), ...insertedCards].map((c) => c.id);
+      const packIds = [...existingByJapanese.values(), ...insertedCards].map((c) => c.id);
 
       // Create Default Deck
       const { data: deck, error: dErr } = await supabase
@@ -168,6 +169,9 @@ export default function OnboardingModal({
         .single();
 
       if (dErr) throw dErr;
+
+      // Leave out the pack's own duplicates (みず next to 水) — lib/duplicates
+      const { ids: cardIds } = await skipDeckDuplicates(deck.id, packIds);
 
       // Batch link
       await Promise.all([
