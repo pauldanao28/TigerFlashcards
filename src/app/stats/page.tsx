@@ -16,7 +16,7 @@ import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
 import AddWordsSheet from "@/components/AddWordsSheet";
 import DuplicatesSheet from "@/components/DuplicatesSheet";
 import { findDuplicates, skipDeckDuplicates } from "@/lib/duplicates";
-import { List, Plus, RefreshCw, Star } from "lucide-react";
+import { BookOpen, List, Plus, RefreshCw, Star, Target, TrendingDown, Trophy } from "lucide-react";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
 
@@ -1528,25 +1528,33 @@ export default function StatsPage() {
             <StatCard
               label={t.vocabulary}
               value={totalCards}
-              color="bg-indigo-500"
+              bgColor="bg-indigo-50"
+              iconColor="text-indigo-500"
+              icon={BookOpen}
             />
             <StatCard
               label={t.mastered}
               value={masteredCount}
-              color="bg-emerald-500"
+              bgColor="bg-emerald-50"
+              iconColor="text-emerald-500"
+              icon={Trophy}
               onClick={() => setShowMasteredCelebration(true)}
             />
             <StatCard
               label={t.struggling}
               value={strugglingCount}
-              color="bg-rose-500"
+              bgColor="bg-rose-50"
+              iconColor="text-rose-500"
+              icon={TrendingDown}
               onClick={() => setShowStrugglingCelebration(true)}
             />
 
             <StatCard
               label={t.daily_progress}
               value={reviewsToday}
-              color="bg-amber-400"
+              bgColor="bg-amber-50"
+              iconColor="text-amber-500"
+              icon={Target}
               onClick={() => {
                 fetchHistory();
                 setShowCelebration(true);
@@ -2847,12 +2855,16 @@ export default function StatsPage() {
 function StatCard({
   label,
   value,
-  color,
+  bgColor,
+  iconColor,
+  icon: Icon,
   onClick,
 }: {
   label: string;
   value: number;
-  color: string;
+  bgColor: string;
+  iconColor: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
   onClick?: () => void;
 }) {
   const controls = useAnimationControls();
@@ -2888,16 +2900,8 @@ function StatCard({
       </div>
 
       {/* Visual Icon Box */}
-      <div
-        className={`w-12 h-12 rounded-2xl ${color} opacity-20 flex items-center justify-center`}
-      >
-        {onClick && (
-          <span
-            className={`text-xl font-black ${color.replace("bg-", "text-")} opacity-100`}
-          >
-            →
-          </span>
-        )}
+      <div className={`w-12 h-12 rounded-2xl ${bgColor} flex items-center justify-center`}>
+        <Icon size={20} className={iconColor} />
       </div>
     </motion.div>
   );
