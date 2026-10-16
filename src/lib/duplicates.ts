@@ -6,6 +6,8 @@ import type { FlashcardData, ModeStats } from "@/lib/types";
 // - "kana":     a kana-only card (みず) whose kanji card (水) is in the deck at the same or an
 //               easier JLPT level — the kanji card already teaches the reading. A kana card
 //               is only worth keeping while its kanji is above the learner's level.
+//               Words normally written in kana (ある, たくさん — USUALLY_KANA) go the other
+//               way at any level: the kana card stays and the kanji card (有る, 沢山) goes.
 // - "particle": a card that is another card plus one grammar particle (私は, 何を, 海に) with
 //               the same meaning. Adverbs and set words (本当に, いつも, それから) are left alone.
 // Either way `remove` is merged into `keep`: scores combined, then `remove` leaves the deck.
@@ -19,6 +21,11 @@ export interface Duplicate {
 }
 
 const kanaOnlyRe = /^[ぁ-ゖァ-ヺー]+$/;
+// Kanji spellings Jisho marks "usually written using kana alone" — for these the kana card
+// is the one to keep. From the starter packs' kana/kanji pairs; add more as they turn up.
+export const USUALLY_KANA = new Set([
+  "有る", "貴方", "何時", "眼鏡", "沢山", "下さい", "大体", "駄目", "酷い", "貰う", "殆ど", "先ず", "勿論",
+]);
 const CASE_PARTICLES = ["は", "が", "を", "に", "で", "へ", "と"];
 const NOT_A_PARTICLE_COPY = /adverb|conjunction|particle|verb|adjective/i;
 const STOP_WORDS = new Set(["the", "and", "for", "with", "something", "someone", "one", "get", "a", "an", "to", "of"]);
@@ -54,10 +61,14 @@ export function findDuplicates(cards: FlashcardData[]): Duplicate[] {
   for (const c of cards) {
     const jp = norm(c.japanese);
 
-    // Kana-only copy of a kanji card at the same or an easier level
     if (kanaOnlyRe.test(jp)) {
-      const keep = (kanjiByReading.get(jp) ?? []).find((k) => {
-        if (!sameMeaning(k, c)) return false;
+      const kanjiCards = (kanjiByReading.get(jp) ?? []).filter((k) => sameMeaning(k, c));
+      // Normally written in kana: the kanji card is the copy, whatever the levels
+      const rareKanji = kanjiCards.find((k) => USUALLY_KANA.has(norm(k.japanese)));
+      if (rareKanji) { out.push({ kind: "kana", keep: c, remove: rareKanji }); claimed.add(rareKanji.id); continue; }
+
+      // Kana-only copy of a kanji card at the same or an easier level
+      const keep = kanjiCards.find((k) => {
         const kl = levelNum(k), cl = levelNum(c);
         return kl === null || cl === null || kl >= cl;
       });
@@ -154,9 +165,12 @@ export async function skipDeckDuplicates(deckId: string, cardIds: string[]): Pro
       const p = CASE_PARTICLES.find((x) => jp.length > x.length && jp.endsWith(x));
       return p ? [jp.slice(0, -p.length)] : [];
     });
+    // Kanji normally written in kana (有る) → is the kana card (ある) in the deck?
+    const kanaForms = candidates.filter((c) => USUALLY_KANA.has(norm(c.japanese))).map((c) => norm(c.reading));
     const inDeck = [
       ...(kana.length ? await selectChunked("reading", kana, deckId) : []),
       ...(bases.length ? await selectChunked("japanese", bases, deckId) : []),
+      ...(kanaForms.length ? await selectChunked("japanese", kanaForms, deckId) : []),
     ];
     const inDeckIds = new Set(inDeck.map((c) => c.id));
     const pool = [...new Map([...inDeck, ...candidates].map((c) => [c.id, c])).values()];
