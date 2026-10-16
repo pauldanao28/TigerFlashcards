@@ -1,7 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 
-const MINI_WIDTH = 460;
+// Matches the app's own `md:` breakpoint (768px) on purpose — anywhere narrower than
+// that, the rest of the UI already switches to its "mobile" CSS layout, so a desktop
+// window dragged into that range should land straight in Mini Mode instead of a gap
+// where it shows the phone-style header with nothing to get back to Mini Mode from.
+const MINI_WIDTH = 768;
 
 // True when the window looks like a desktop/laptop browser window that's been resized
 // down small (a fine mouse pointer, narrow width) — distinct from an actual phone,
