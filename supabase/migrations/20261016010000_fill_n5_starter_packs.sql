@@ -1,12 +1,13 @@
--- New starter pack: JLPT N5 Kickstart Vol. 6 — 114 N5 words that no other pack has.
--- 7 were added by hand to a deck before (降る, 思う, 旅行, 日本人, 単語, 本当, 週); the rest are
--- from Jisho's #jlpt-n5 list, missing from every pack (持つ, 住む, 結婚, 動物, 果物 …).
--- Brings the N5 packs to 896 distinct words (target 800, src/lib/scoring.ts).
--- Example sentences: run the backfill-examples admin endpoint after importing.
-insert into starter_packs (name, description, card_data)
-select 'JLPT N5 Kickstart Vol. 6',
-       'Everyday nouns, verbs, and expressions the other N5 packs leave out. (114 words)',
-       '[
+-- Fill the N5 gap in the existing starter packs (no new pack): 114 N5 words no pack had.
+-- 7 had been added to a deck by hand (降る, 思う, 旅行, 日本人, 単語, 本当, 週); the rest are from
+-- Jisho's #jlpt-n5 list (持つ, 住む, 結婚, 動物 …), in kana where Jisho says it's usually written so.
+-- Verbs and adjectives → N5 Vol. 4, everything else → N5 Vol. 5. Takes the N5 packs from 782 to
+-- 896 distinct words (target 800, src/lib/scoring.ts). Run after 20261016000000. Safe to re-run.
+-- People who already imported these packs get an "Add new words" button on the Cards page.
+-- Example sentences: run the backfill-examples admin endpoint once the words are in decks.
+
+-- JLPT N5 Kickstart Vol. 4: +19 (降る, 思う, 強い, 上る, 止まる, 弱い, 丈夫, 細い, 太い, 住む, 死ぬ, 渡る, 晴れる, 並ぶ, うるさい, つまらない, こんな, ぬるい, 持つ)
+update starter_packs set card_data = card_data || '[
  {
   "japanese": "降る",
   "reading": "ふる",
@@ -25,6 +26,130 @@ select 'JLPT N5 Kickstart Vol. 6',
    "jp": "そのように思います。"
   }
  },
+ {
+  "japanese": "強い",
+  "reading": "つよい",
+  "english": "strong / potent / competent",
+  "jlpt_level": "N5",
+  "partOfSpeech": "adjective"
+ },
+ {
+  "japanese": "上る",
+  "reading": "のぼる",
+  "english": "to ascend / to go up / to climb",
+  "jlpt_level": "N5",
+  "partOfSpeech": "verb"
+ },
+ {
+  "japanese": "止まる",
+  "reading": "とまる",
+  "english": "to stop (moving) / to come to a stop",
+  "jlpt_level": "N5",
+  "partOfSpeech": "verb"
+ },
+ {
+  "japanese": "弱い",
+  "reading": "よわい",
+  "english": "weak / frail / delicate",
+  "jlpt_level": "N5",
+  "partOfSpeech": "adjective"
+ },
+ {
+  "japanese": "丈夫",
+  "reading": "じょうぶ",
+  "english": "healthy / robust / strong",
+  "jlpt_level": "N5",
+  "partOfSpeech": "adjective"
+ },
+ {
+  "japanese": "細い",
+  "reading": "ほそい",
+  "english": "thin / slender / fine",
+  "jlpt_level": "N5",
+  "partOfSpeech": "adjective"
+ },
+ {
+  "japanese": "太い",
+  "reading": "ふとい",
+  "english": "fat / thick",
+  "jlpt_level": "N5",
+  "partOfSpeech": "adjective"
+ },
+ {
+  "japanese": "住む",
+  "reading": "すむ",
+  "english": "to live (of humans) / to reside / to inhabit",
+  "jlpt_level": "N5",
+  "partOfSpeech": "verb"
+ },
+ {
+  "japanese": "死ぬ",
+  "reading": "しぬ",
+  "english": "to die / to pass away",
+  "jlpt_level": "N5",
+  "partOfSpeech": "verb"
+ },
+ {
+  "japanese": "渡る",
+  "reading": "わたる",
+  "english": "to cross over / to go across",
+  "jlpt_level": "N5",
+  "partOfSpeech": "verb"
+ },
+ {
+  "japanese": "晴れる",
+  "reading": "はれる",
+  "english": "to clear up / to clear away / to be sunny",
+  "jlpt_level": "N5",
+  "partOfSpeech": "verb"
+ },
+ {
+  "japanese": "並ぶ",
+  "reading": "ならぶ",
+  "english": "to line up / to stand in a line",
+  "jlpt_level": "N5",
+  "partOfSpeech": "verb"
+ },
+ {
+  "japanese": "うるさい",
+  "reading": "うるさい",
+  "english": "noisy / loud",
+  "jlpt_level": "N5",
+  "partOfSpeech": "adjective"
+ },
+ {
+  "japanese": "つまらない",
+  "reading": "つまらない",
+  "english": "dull / uninteresting / boring",
+  "jlpt_level": "N5",
+  "partOfSpeech": "adjective"
+ },
+ {
+  "japanese": "こんな",
+  "reading": "こんな",
+  "english": "this sort of / this kind of / like this",
+  "jlpt_level": "N5",
+  "partOfSpeech": "adjective"
+ },
+ {
+  "japanese": "ぬるい",
+  "reading": "ぬるい",
+  "english": "lukewarm / tepid",
+  "jlpt_level": "N5",
+  "partOfSpeech": "adjective"
+ },
+ {
+  "japanese": "持つ",
+  "reading": "もつ",
+  "english": "to hold (in one''s hand) / to take / to carry",
+  "jlpt_level": "N5",
+  "partOfSpeech": "verb"
+ }
+]'::jsonb
+where id = '7b5da3be-8987-4b95-9c51-ff3fd858bb94' and not card_data @> '[{"japanese": "降る"}]'::jsonb;
+
+-- JLPT N5 Kickstart Vol. 5: +95 (旅行, 日本人, 単語, 本当, 週, タバコ, 年, 昨夜, 庭, 警官, 隣, 番号, 果物, 洋服, 横, 留学生, 一昨年, 結婚, どなた, なぜ, しかし, 奥さん, だんだん, 夕飯, はがき, ワイシャツ, おまわりさん, 二十日, キロメートル, 再来年, マッチ, 背, プール, ニュース, カメラ, ラジオ, レストラン, ナイフ, ネクタイ, ギター, メートル, セーター, バター, レコード, ポスト, コピー, シャワー, ハンカチ, テープ, ストーブ, カップ, スリッパ, ペット, テープレコーダー, 動物, 九日, 門, もっと, パーティー, 誰か, どうぞ, ゆっくり, さあ, どうも, じゃあ, それでは, では, フィルム, カレンダー, そうして, グラム, キログラム, 字引, コート, フォーク, ラジカセ, 村, 自動車, 雑誌, 塩, 夏休み, 切手, 作文, 紅茶, 風呂, 封筒, 牛肉, 交差点, 茶碗, 万年筆, 灰皿, 豚肉, 交番, 花瓶, 八百屋)
+update starter_packs set card_data = card_data || '[
  {
   "japanese": "旅行",
   "reading": "りょこう",
@@ -95,25 +220,11 @@ select 'JLPT N5 Kickstart Vol. 6',
   "partOfSpeech": "noun"
  },
  {
-  "japanese": "強い",
-  "reading": "つよい",
-  "english": "strong / potent / competent",
-  "jlpt_level": "N5",
-  "partOfSpeech": "adjective"
- },
- {
   "japanese": "昨夜",
   "reading": "ゆうべ",
   "english": "last night / yesterday evening",
   "jlpt_level": "N5",
   "partOfSpeech": "adverb"
- },
- {
-  "japanese": "上る",
-  "reading": "のぼる",
-  "english": "to ascend / to go up / to climb",
-  "jlpt_level": "N5",
-  "partOfSpeech": "verb"
  },
  {
   "japanese": "庭",
@@ -130,13 +241,6 @@ select 'JLPT N5 Kickstart Vol. 6',
   "partOfSpeech": "noun"
  },
  {
-  "japanese": "止まる",
-  "reading": "とまる",
-  "english": "to stop (moving) / to come to a stop",
-  "jlpt_level": "N5",
-  "partOfSpeech": "verb"
- },
- {
   "japanese": "隣",
   "reading": "となり",
   "english": "next (to) / adjoining / adjacent",
@@ -149,13 +253,6 @@ select 'JLPT N5 Kickstart Vol. 6',
   "english": "number / series of digits",
   "jlpt_level": "N5",
   "partOfSpeech": "noun"
- },
- {
-  "japanese": "弱い",
-  "reading": "よわい",
-  "english": "weak / frail / delicate",
-  "jlpt_level": "N5",
-  "partOfSpeech": "adjective"
  },
  {
   "japanese": "果物",
@@ -179,27 +276,6 @@ select 'JLPT N5 Kickstart Vol. 6',
   "partOfSpeech": "noun"
  },
  {
-  "japanese": "丈夫",
-  "reading": "じょうぶ",
-  "english": "healthy / robust / strong",
-  "jlpt_level": "N5",
-  "partOfSpeech": "adjective"
- },
- {
-  "japanese": "細い",
-  "reading": "ほそい",
-  "english": "thin / slender / fine",
-  "jlpt_level": "N5",
-  "partOfSpeech": "adjective"
- },
- {
-  "japanese": "太い",
-  "reading": "ふとい",
-  "english": "fat / thick",
-  "jlpt_level": "N5",
-  "partOfSpeech": "adjective"
- },
- {
   "japanese": "留学生",
   "reading": "りゅうがくせい",
   "english": "overseas student / exchange student",
@@ -218,21 +294,7 @@ select 'JLPT N5 Kickstart Vol. 6',
   "reading": "けっこん",
   "english": "marriage",
   "jlpt_level": "N5",
-  "partOfSpeech": "verb"
- },
- {
-  "japanese": "住む",
-  "reading": "すむ",
-  "english": "to live (of humans) / to reside / to inhabit",
-  "jlpt_level": "N5",
-  "partOfSpeech": "verb"
- },
- {
-  "japanese": "死ぬ",
-  "reading": "しぬ",
-  "english": "to die / to pass away",
-  "jlpt_level": "N5",
-  "partOfSpeech": "verb"
+  "partOfSpeech": "noun"
  },
  {
   "japanese": "どなた",
@@ -256,20 +318,6 @@ select 'JLPT N5 Kickstart Vol. 6',
   "partOfSpeech": "conjunction"
  },
  {
-  "japanese": "渡る",
-  "reading": "わたる",
-  "english": "to cross over / to go across",
-  "jlpt_level": "N5",
-  "partOfSpeech": "verb"
- },
- {
-  "japanese": "晴れる",
-  "reading": "はれる",
-  "english": "to clear up / to clear away / to be sunny",
-  "jlpt_level": "N5",
-  "partOfSpeech": "verb"
- },
- {
   "japanese": "奥さん",
   "reading": "おくさん",
   "english": "wife / your wife / his wife",
@@ -282,27 +330,6 @@ select 'JLPT N5 Kickstart Vol. 6',
   "english": "gradually / by degrees / little by little",
   "jlpt_level": "N5",
   "partOfSpeech": "adverb"
- },
- {
-  "japanese": "並ぶ",
-  "reading": "ならぶ",
-  "english": "to line up / to stand in a line",
-  "jlpt_level": "N5",
-  "partOfSpeech": "verb"
- },
- {
-  "japanese": "うるさい",
-  "reading": "うるさい",
-  "english": "noisy / loud",
-  "jlpt_level": "N5",
-  "partOfSpeech": "adjective"
- },
- {
-  "japanese": "つまらない",
-  "reading": "つまらない",
-  "english": "dull / uninteresting / boring",
-  "jlpt_level": "N5",
-  "partOfSpeech": "adjective"
  },
  {
   "japanese": "夕飯",
@@ -463,7 +490,7 @@ select 'JLPT N5 Kickstart Vol. 6',
   "reading": "コピー",
   "english": "copy / photocopy",
   "jlpt_level": "N5",
-  "partOfSpeech": "verb"
+  "partOfSpeech": "noun"
  },
  {
   "japanese": "シャワー",
@@ -571,13 +598,6 @@ select 'JLPT N5 Kickstart Vol. 6',
   "partOfSpeech": "adverb"
  },
  {
-  "japanese": "こんな",
-  "reading": "こんな",
-  "english": "this sort of / this kind of / like this",
-  "jlpt_level": "N5",
-  "partOfSpeech": "adjective"
- },
- {
   "japanese": "ゆっくり",
   "reading": "ゆっくり",
   "english": "slowly / unhurriedly / without haste",
@@ -625,13 +645,6 @@ select 'JLPT N5 Kickstart Vol. 6',
   "english": "film",
   "jlpt_level": "N5",
   "partOfSpeech": "noun"
- },
- {
-  "japanese": "ぬるい",
-  "reading": "ぬるい",
-  "english": "lukewarm / tepid",
-  "jlpt_level": "N5",
-  "partOfSpeech": "adjective"
  },
  {
   "japanese": "カレンダー",
@@ -736,7 +749,7 @@ select 'JLPT N5 Kickstart Vol. 6',
   "reading": "さくぶん",
   "english": "writing (an essay, prose, etc.) / composition",
   "jlpt_level": "N5",
-  "partOfSpeech": "verb"
+  "partOfSpeech": "noun"
  },
  {
   "japanese": "紅茶",
@@ -821,13 +834,11 @@ select 'JLPT N5 Kickstart Vol. 6',
   "english": "greengrocer / fruit and vegetable shop",
   "jlpt_level": "N5",
   "partOfSpeech": "noun"
- },
- {
-  "japanese": "持つ",
-  "reading": "もつ",
-  "english": "to hold (in one''s hand) / to take / to carry",
-  "jlpt_level": "N5",
-  "partOfSpeech": "verb"
  }
 ]'::jsonb
-where not exists (select 1 from starter_packs where name = 'JLPT N5 Kickstart Vol. 6');
+where id = 'a7dffbee-871d-47d5-aa6f-d7cffb4ff624' and not card_data @> '[{"japanese": "旅行"}]'::jsonb;
+
+-- Word counts in the descriptions
+update starter_packs
+set description = regexp_replace(description, '\(\d+ words\)', '(' || jsonb_array_length(card_data) || ' words)')
+where id in ('7b5da3be-8987-4b95-9c51-ff3fd858bb94', 'a7dffbee-871d-47d5-aa6f-d7cffb4ff624');

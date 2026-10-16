@@ -80,6 +80,7 @@ export const translations = {
     delete: "Delete",
     already_in_deck: "Already in Deck",
     add_to_deck: "Add to Deck +",
+    add_new_words: "Add new words +",
     reset_password: "Reset Password",
     create_account: "Create Account",
     welcome_message: "Welcome to FlashKado!",
@@ -278,6 +279,7 @@ export const translations = {
     delete: "削除",                 // Sakujo
     already_in_deck: "追加済み",       // Tsuika-zumi
     add_to_deck: "デッキに追加 +",    // Dekki ni tsuika +
+    add_new_words: "新しい単語を追加 +", // Atarashii tango o tsuika +
     reset_password: "パスワードを再設定",
     create_account: "アカウント作成",
     welcome_message: "FlashKadoへようこそ！",

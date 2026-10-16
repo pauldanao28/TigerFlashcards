@@ -784,6 +784,16 @@ export default function StatsPage() {
     }
   };
 
+  // Words in a pack that aren't in the deck yet — for packs that gained words after you
+  // imported them. A kana word counts as present when its kanji card is in the deck.
+  const deckForms = useMemo(() => {
+    const forms = new Set<string>();
+    for (const c of cards) { forms.add(c.japanese); if (c.japanese !== c.reading) forms.add(c.reading); }
+    return forms;
+  }, [cards]);
+  const packWordsMissing = (pack: any): any[] =>
+    cards.length === 0 ? [] : ((pack.card_data ?? []) as any[]).filter((w) => !deckForms.has(w.japanese));
+
   const importPack = async (pack: any) => {
     if (!defaultDeckId) {
       showAlert(
@@ -795,12 +805,13 @@ export default function StatsPage() {
 
     if (!user || !defaultDeckId) return;
 
-    // 1. Safety check: prevent double-adding
-    if (ownedPacks?.includes(pack.id)) return;
+    // 1. An owned pack is only re-imported for words added to it since (packWordsMissing)
+    const isUpdate = !!ownedPacks?.includes(pack.id);
+    const nWords: any[] = isUpdate ? packWordsMissing(pack) : pack.card_data;
+    if (nWords.length === 0) return;
 
     setLoading(true);
     try {
-      const nWords = pack.card_data as any[];
 
       // 2. Reuse existing master_cards rows untouched (never overwrite a
       // shared card's data just because a pack happens to include the same
@@ -882,7 +893,7 @@ export default function StatsPage() {
       ]);
 
       // 4. Update Profile with the ID ONLY
-      const updatedPacks = [...(ownedPacks || []), pack.id];
+      const updatedPacks = isUpdate ? ownedPacks : [...(ownedPacks || []), pack.id];
 
       const { error: pErr } = await supabase
         .from("profiles")
@@ -1654,7 +1665,7 @@ export default function StatsPage() {
 
           {/* Starter Packs Section — hidden once every pack has been added, so it's not
               permanent real estate for users with nothing left to add. */}
-          {starterPacks.some((pack) => !ownedPacks?.includes(pack.id)) && (
+          {starterPacks.some((pack) => !ownedPacks?.includes(pack.id) || packWordsMissing(pack).length > 0) && (
           <div className="mb-10">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">
@@ -1669,6 +1680,7 @@ export default function StatsPage() {
               {starterPacks.map((pack) => {
                 // Pure ID comparison
                 const isOwned = ownedPacks?.includes(pack.id);
+                const missingCount = isOwned ? packWordsMissing(pack).length : 0;
 
                 return (
                   <div
@@ -1716,21 +1728,23 @@ export default function StatsPage() {
                     {/* Bottom Section: Action */}
                     <button
                       onClick={async () => {
-                        const count = pack.card_data?.length || 0;
+                        const count = missingCount || pack.card_data?.length || 0;
                         const ok = await showConfirm(
-                          `Add "${pack.name}" (${count} words) to your deck? This can't be undone.`,
+                          missingCount
+                            ? `"${pack.name}" has ${count} new words since you added it. Add them to your deck?`
+                            : `Add "${pack.name}" (${count} words) to your deck? This can't be undone.`,
                           { title: "Add to Deck", confirmLabel: "Add" }
                         );
                         if (ok) importPack(pack);
                       }}
-                      disabled={loading || isOwned}
+                      disabled={loading || (isOwned && missingCount === 0)}
                       className={`w-full py-3 rounded-xl text-xs font-bold transition-all ${
-                        isOwned
+                        isOwned && missingCount === 0
                           ? "bg-slate-200 text-slate-400"
                           : "bg-indigo-600 text-white hover:bg-indigo-700"
                       }`}
                     >
-                      {isOwned ? t.already_in_deck : t.add_to_deck}
+                      {isOwned ? (missingCount ? `${t.add_new_words} (${missingCount})` : t.already_in_deck) : t.add_to_deck}
                     </button>
                   </div>
                 );
