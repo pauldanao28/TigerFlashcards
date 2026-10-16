@@ -14,6 +14,8 @@ import { calculateGlobalStats } from "@/lib/stats";
 import LoadingScreen from "@/components/LoadingScreen";
 import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
 import AddWordsSheet from "@/components/AddWordsSheet";
+import DuplicatesSheet from "@/components/DuplicatesSheet";
+import { findDuplicates } from "@/lib/duplicates";
 import { List, Plus, RefreshCw, Star } from "lucide-react";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
@@ -148,6 +150,7 @@ export default function StatsPage() {
   const [autoPlayEn, setAutoPlayEn] = useState(false);
   const [maxStreak, setMaxStreak] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showDuplicates, setShowDuplicates] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(50);
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
   const [deckTitle, setDeckTitle] = useState("Main Deck");
@@ -651,6 +654,8 @@ export default function StatsPage() {
   // }, [cards]);
 
   // Mastered = max(jp_to_en, en_to_jp) ≥ 70% with at least one attempt
+  const duplicates = useMemo(() => findDuplicates(cards), [cards]);
+
   const masteredList = useMemo(() => {
     return cards.filter((c) => {
       const s = c.scores;
@@ -2383,6 +2388,27 @@ export default function StatsPage() {
               packName={triage.packName}
               cards={triage.cards}
               onDone={() => setTriage(null)}
+            />
+          )}
+
+          {/* Duplicate cards (kana copies of kanji cards, word + particle) — see lib/duplicates */}
+          {duplicates.length > 0 && (
+            <button
+              onClick={() => setShowDuplicates(true)}
+              className="w-full mb-3 flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 border border-amber-100 rounded-2xl text-left active:scale-[0.99] transition-transform"
+            >
+              <span className="text-sm font-bold text-amber-800">{duplicates.length} {t.duplicates_found}</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-amber-700">{t.duplicates_review} →</span>
+            </button>
+          )}
+          {showDuplicates && user && defaultDeckId && (
+            <DuplicatesSheet
+              duplicates={duplicates}
+              userId={user.id}
+              deckId={defaultDeckId}
+              t={t}
+              onClose={() => setShowDuplicates(false)}
+              onMerged={() => fetchCards()}
             />
           )}
 

@@ -55,6 +55,15 @@ export const translations = {
     swipe_to_start: "Swipe the card to start",
     word_filters: "Word Filters",
     search_placeholder: "Search kanji, reading, or meaning...",
+    duplicates_found: "possible duplicate cards",
+    duplicates_review: "Review",
+    duplicates_title: "Duplicate cards",
+    duplicates_desc: "Each extra card is merged into the one on the left: its scores are added in, then it leaves your deck.",
+    duplicates_kana: "Kana copies of a kanji card at the same or an easier level",
+    duplicates_particle: "A word with a particle stuck on",
+    duplicates_merge: "Merge",
+    duplicates_merging: "Merging…",
+    duplicates_none: "No duplicates left.",
     app_language: "App Language",
     app_language_desc: "Toggle between English and Japanese",
     kanji_reading: "Kanji / Reading",
@@ -244,6 +253,15 @@ export const translations = {
     swipe_to_start: "スワイプで開始", // Suwaipu de kaishi
     word_filters: "単語フィルター",              // Tango firutā
     search_placeholder: "漢字、読み、意味で検索...", // Kanji, yomi, imi de kensaku...
+    duplicates_found: "件の重複カードの可能性",
+    duplicates_review: "確認",
+    duplicates_title: "重複カード",
+    duplicates_desc: "余分なカードは左のカードに統合されます：スコアを合算してから、デッキから外します。",
+    duplicates_kana: "同じかやさしいレベルの漢字カードがある仮名カード",
+    duplicates_particle: "助詞が付いたままの単語",
+    duplicates_merge: "統合",
+    duplicates_merging: "統合中…",
+    duplicates_none: "重複はもうありません。",
     app_language: "アプリの言語",               // Apuri no gengo
     app_language_desc: "英語と日本語を切り替えます", // Eigo to Nihongo o kirikaemasu
     kanji_reading: "漢字 / 読み",               // Kanji / Yomi
