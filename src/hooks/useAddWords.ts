@@ -198,6 +198,10 @@ export function useAddWords({
               partOfSpeech: String(item.partOfSpeech || "noun").trim().toLowerCase(),
               jlpt_level: item.jlpt_level ?? null,
               exampleSentence: item.exampleSentence || { jp: "", en: "" },
+              te_form: item.te_form ?? null,
+              transitivity: item.transitivity ?? null,
+              verb_type: item.verb_type ?? null,
+              adjective_type: item.adjective_type ?? null,
               creator_id: userId,
             }))
             .filter((item: any) => {

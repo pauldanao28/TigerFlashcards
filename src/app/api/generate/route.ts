@@ -45,6 +45,13 @@ Rules for the "exampleSentence" field:
 - "en": a natural English translation of that exact sentence — not a restatement of the word's dictionary definition.
 - Keep both short (roughly 5-15 words) and don't lean on grammar harder than the word's own JLPT level.
 
+Rules for the verb/adjective grammar fields (te_form, transitivity, verb_type, adjective_type):
+- These only apply to verbs (including a suru-compound tagged "noun", e.g. 勉強する) and adjectives. For every other word, set all four to null.
+- "verb_type": for a verb or suru-compound only — EXACTLY ONE of "godan", "ichidan", "irregular" (する, 来る, and any suru-compound are "irregular"). null otherwise.
+- "transitivity": for a verb or suru-compound only — EXACTLY ONE of "transitive", "intransitive", whichever the word actually is. If it genuinely has both senses, pick its more common usage. null otherwise.
+- "te_form": for a verb or suru-compound only — its て-form (食べる→食べて, 飲む→飲んで, 勉強する→勉強して, 来る→来て). null otherwise.
+- "adjective_type": for an adjective only — EXACTLY ONE of "i", "na" (い-adjective vs な-adjective — some words ending in い are actually na-adjectives, e.g. きれい, きらい, ゆうめい; don't be fooled by the spelling). null otherwise.
+
 Output ONLY raw JSON as an ARRAY of objects:
 [
   {
@@ -54,7 +61,11 @@ Output ONLY raw JSON as an ARRAY of objects:
     "partOfSpeech": "noun",
     "jlpt_level": "N5",
     "alternatives": [],
-    "exampleSentence": { "jp": "...", "en": "..." }
+    "exampleSentence": { "jp": "...", "en": "..." },
+    "te_form": null,
+    "transitivity": null,
+    "verb_type": null,
+    "adjective_type": null
   }
 ]`;
 
@@ -110,11 +121,17 @@ export async function POST(req: Request) {
 
   try {
     const parsedData = JSON.parse(cleanJson);
+    const asEnum = <T extends string>(value: unknown, allowed: readonly T[]): T | null =>
+      typeof value === "string" && (allowed as readonly string[]).includes(value) ? (value as T) : null;
     const cleaned = parsedData.map((item: Record<string, unknown>) => ({
       ...item,
       english: typeof item.english === "string" ? normalizeEnglish(item.english) : item.english,
       reading: typeof item.reading === "string" ? stripParens(item.reading) : item.reading,
       partOfSpeech: typeof item.partOfSpeech === "string" ? normalizePartOfSpeech(item.partOfSpeech) : item.partOfSpeech,
+      te_form: typeof item.te_form === "string" && item.te_form.trim() ? item.te_form.trim() : null,
+      transitivity: asEnum(item.transitivity, ["transitive", "intransitive"] as const),
+      verb_type: asEnum(item.verb_type, ["godan", "ichidan", "irregular"] as const),
+      adjective_type: asEnum(item.adjective_type, ["i", "na"] as const),
     }));
     return NextResponse.json(cleaned);
   } catch (e) {
