@@ -401,6 +401,23 @@ export default function StatsPage() {
     fetchCards();
   }, [user, defaultDeckId]);
 
+  // Struggling/Explained Today are both written to from Study (a different page) —
+  // a client-side nav back to Cards doesn't remount this component, so without this
+  // they'd keep showing whatever they looked like the first time this page loaded this
+  // session. Refetch whenever the tab/app becomes visible again, not just on first mount.
+  useEffect(() => {
+    if (!user) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        fetchDailyStruggles();
+        fetchDailyExplainedLines();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   const fetchProfile = async () => {
     const { data } = await supabase
       .from("profiles")
