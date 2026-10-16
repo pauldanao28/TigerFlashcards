@@ -586,7 +586,7 @@ export default function StatsPage() {
       for (let from = 0; ; from += PAGE_SIZE) {
         const { data: page, error: pageErr } = await supabase
           .from("master_cards")
-          .select(`*, deck_cards!inner(deck_id, added_at), user_scores(scores_json, is_priority, prioritized_at)`)
+          .select(`*, deck_cards!inner(deck_id, added_at), user_scores(scores_json, is_priority, prioritized_at, reflex_time_total_ms, reflex_attempts)`)
           .eq("deck_cards.deck_id", defaultDeckId)
           .eq("user_scores.user_id", user.id)
           .order("added_at", { foreignTable: "deck_cards", ascending: false })
@@ -614,6 +614,8 @@ export default function StatsPage() {
         },
         is_priority: card.user_scores?.[0]?.is_priority || false,
         prioritized_at: card.user_scores?.[0]?.prioritized_at || null,
+        reflex_time_total_ms: card.user_scores?.[0]?.reflex_time_total_ms ?? 0,
+        reflex_attempts: card.user_scores?.[0]?.reflex_attempts ?? 0,
       }));
 
       setCards(flattened);
@@ -788,6 +790,19 @@ export default function StatsPage() {
 
   const masteredCount = (quickStats && cards.length === 0) ? quickStats.mastered : masteredList.length;
   const strugglingCount = (quickStats && cards.length === 0) ? quickStats.struggling : strugglingList.length;
+
+  // Average seconds to recall a word under Reflex Mode, across the whole deck — same
+  // per-card math as Study's Slow Recall list, just summed over every card instead of
+  // ranked one by one. null until at least one Reflex Mode pass exists anywhere.
+  const avgReflexSeconds = useMemo(() => {
+    let totalMs = 0;
+    let totalAttempts = 0;
+    for (const c of cards) {
+      totalMs += c.reflex_time_total_ms ?? 0;
+      totalAttempts += c.reflex_attempts ?? 0;
+    }
+    return totalAttempts > 0 ? totalMs / totalAttempts / 1000 : null;
+  }, [cards]);
 
   const filteredCards = useMemo(() => {
     const query = searchQuery.toLowerCase();
@@ -1699,6 +1714,16 @@ export default function StatsPage() {
                 setShowCelebration(true);
               }}
             />
+
+            {avgReflexSeconds != null && (
+              <StatCard
+                label="Avg Reflex Speed"
+                value={`${avgReflexSeconds.toFixed(1)}s`}
+                bgColor="bg-amber-50"
+                iconColor="text-amber-500"
+                icon={Zap}
+              />
+            )}
 
             {/* Directional Comparison Dashboard */}
             <div className="col-span-2 md:col-span-3 bg-slate-800 rounded-[2.5rem] p-6 text-white shadow-xl border border-slate-700 relative overflow-hidden">
@@ -3179,7 +3204,7 @@ function StatCard({
   onClick,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   bgColor: string;
   iconColor: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;

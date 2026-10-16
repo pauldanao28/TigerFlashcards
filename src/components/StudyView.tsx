@@ -76,7 +76,10 @@ let _studyCache: StudyCacheEntry | null = null;
 // Bumped to -v2 when suru_meaning was added — cards already checked under -v1 have
 // their other grammar fields filled but never got a chance at suru_meaning, so this
 // forces one clean re-sweep per device rather than leaving them stuck forever.
-const GRAMMAR_FILL_CACHE_KEY = "flashkado-grammar-fill-checked-v2";
+// Bumped to -v3 when suru_meaning's format was fixed (capped length, "/" separator) —
+// cards already checked under -v2 had a stale long/comma-joined value cached as
+// "filled" and would never retry, so this forces one more clean re-sweep per device.
+const GRAMMAR_FILL_CACHE_KEY = "flashkado-grammar-fill-checked-v3";
 let _grammarFillCache: Set<string> | null = null;
 function getGrammarFillCache(): Set<string> {
   if (_grammarFillCache) return _grammarFillCache;
