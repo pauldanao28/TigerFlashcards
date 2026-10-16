@@ -160,6 +160,7 @@ export default function StatsPage() {
   const [ownedPacks, setOwnedPacks] = useState<string[]>([]);
   const [triage, setTriage] = useState<{ packName: string; cards: TriageCard[] } | null>(null);
   const [swipeOnly, setSwipeOnly] = useState(false);
+  const [reflexMode, setReflexMode] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
@@ -390,7 +391,7 @@ export default function StatsPage() {
     const { data } = await supabase
       .from("profiles")
       .select(
-        "full_name, avatar_url, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, sfx_enabled, swipe_only, imported_packs, is_admin, is_premium, referral_code, stats_visible_to_friends",
+        "full_name, avatar_url, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, sfx_enabled, swipe_only, reflex_mode, imported_packs, is_admin, is_premium, referral_code, stats_visible_to_friends",
       )
       .eq("id", user?.id)
       .single();
@@ -402,6 +403,7 @@ export default function StatsPage() {
       setAutoPlayEn(data.auto_play_en);
       setSfxEnabled(data.sfx_enabled);
       setSwipeOnly(data.swipe_only ?? false);
+      setReflexMode(data.reflex_mode ?? false);
       setOwnedPacks(data.imported_packs);
       setIsAdmin(data.is_admin);
       setIsPremium(data.is_premium ?? false);
@@ -778,6 +780,7 @@ export default function StatsPage() {
       // Add this line:
       if (column === "sfx_enabled") setSfxEnabled(value);
       if (column === "swipe_only") setSwipeOnly(value);
+      if (column === "reflex_mode") setReflexMode(value);
       if (column === "stats_visible_to_friends") setStatsVisible(value);
     } else {
       console.error("Error updating setting:", error.message);
@@ -1249,6 +1252,28 @@ export default function StatsPage() {
                     >
                       <div
                         className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${swipeOnly ? "left-7" : "left-1"}`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Reflex Mode Toggle */}
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
+                    <div>
+                      <p className="text-sm font-bold text-slate-700">
+                        Reflex Mode
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-medium leading-tight">
+                        Auto-fails a card if you don&apos;t grade it within 3 seconds — drills quick recall. Pauses automatically if you leave the app mid-session.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        updateAudioSetting("reflex_mode", !reflexMode)
+                      }
+                      className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${reflexMode ? "bg-indigo-600" : "bg-slate-300"}`}
+                    >
+                      <div
+                        className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${reflexMode ? "left-7" : "left-1"}`}
                       />
                     </button>
                   </div>

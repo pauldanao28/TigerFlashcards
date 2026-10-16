@@ -219,6 +219,12 @@ export default function StudyView() {
   const vocabSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentCardRef = useRef<FlashcardData | null>(null);
   const jlptFilterInitialized = useRef(false);
+  // Reflex Mode: consecutive timeout-fails with zero real interaction in between —
+  // hits 3 and we stop auto-failing and ask "Still there?" instead (the AFK guard).
+  const reflexAutoFailStreakRef = useRef(0);
+  const reflexDeadlineRef = useRef<number | null>(null);
+  const reflexTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reflexTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Animate recap stats from 0 when the modal opens
   useEffect(() => {
@@ -252,6 +258,9 @@ export default function StudyView() {
   const [autoPlayEn, setAutoPlayEn] = useState(false);
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [swipeOnly, setSwipeOnly] = useState(false);
+  const [reflexMode, setReflexMode] = useState(false);
+  const [reflexSecondsLeft, setReflexSecondsLeft] = useState<number | null>(null);
+  const [showStillThere, setShowStillThere] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const [swipeFeedback, setSwipeFeedback] = useState<{
@@ -351,6 +360,7 @@ export default function StudyView() {
         setAutoPlayEn(p.auto_play_en ?? false);
         setSfxEnabled(p.sfx_enabled ?? true);
         setSwipeOnly(p.swipe_only ?? false);
+        setReflexMode(p.reflex_mode ?? false);
         setPrefsLoaded(true);
         setHasOnboarded(p.has_onboarded);
         setProfileName(p.full_name);
@@ -537,9 +547,25 @@ export default function StudyView() {
     if (error) console.error("Error incrementing daily count:", error);
   };
   const handleScore = useCallback(
-    async (isPass: boolean) => {
+    async (isPass: boolean, opts?: { isTimeout?: boolean }) => {
       if (!currentCard || !user) return;
       hasInteracted.current = true;
+
+      // Reflex Mode: any grade the user actually triggered clears the AFK streak;
+      // a timeout-triggered auto-fail (opts.isTimeout) leaves it for the caller to bump.
+      if (!opts?.isTimeout) {
+        reflexAutoFailStreakRef.current = 0;
+      }
+      if (reflexTimeoutRef.current) {
+        clearTimeout(reflexTimeoutRef.current);
+        reflexTimeoutRef.current = null;
+      }
+      if (reflexTickRef.current) {
+        clearInterval(reflexTickRef.current);
+        reflexTickRef.current = null;
+      }
+      reflexDeadlineRef.current = null;
+      setReflexSecondsLeft(null);
 
       // Dismiss the swipe-tutorial overlay on the first graded card, regardless of
       // whether it was graded by swipe, button, or keyboard shortcut.
@@ -715,6 +741,81 @@ export default function StudyView() {
     ],
   );
   // Add the dependencies used inside the function
+
+  const REFLEX_WINDOW_MS = 3000;
+
+  const clearReflexTimer = useCallback(() => {
+    if (reflexTimeoutRef.current) {
+      clearTimeout(reflexTimeoutRef.current);
+      reflexTimeoutRef.current = null;
+    }
+    if (reflexTickRef.current) {
+      clearInterval(reflexTickRef.current);
+      reflexTickRef.current = null;
+    }
+    reflexDeadlineRef.current = null;
+    setReflexSecondsLeft(null);
+  }, []);
+
+  // Timed out without a flip — counts as a miss. 3 in a row with no real interaction
+  // in between means the user is probably AFK, not just slow, so we stop auto-failing
+  // and ask them to confirm they're still here instead of silently torching the deck.
+  const handleReflexTimeout = useCallback(() => {
+    reflexAutoFailStreakRef.current += 1;
+    clearReflexTimer();
+    if (reflexAutoFailStreakRef.current >= 3) {
+      setShowStillThere(true);
+      return;
+    }
+    handleScore(false, { isTimeout: true });
+  }, [handleScore, clearReflexTimer]);
+
+  // Always a fresh full window — resuming after the app was backgrounded (or after the
+  // "Still there?" prompt) never grants a partial countdown.
+  const startReflexTimer = useCallback(() => {
+    clearReflexTimer();
+    if (typeof document !== "undefined" && document.hidden) return;
+    reflexDeadlineRef.current = Date.now() + REFLEX_WINDOW_MS;
+    setReflexSecondsLeft(3);
+    reflexTickRef.current = setInterval(() => {
+      if (reflexDeadlineRef.current == null) return;
+      setReflexSecondsLeft(Math.max(0, Math.ceil((reflexDeadlineRef.current - Date.now()) / 1000)));
+    }, 100);
+    reflexTimeoutRef.current = setTimeout(handleReflexTimeout, REFLEX_WINDOW_MS);
+  }, [clearReflexTimer, handleReflexTimeout]);
+
+  const handleReflexResume = useCallback(() => {
+    reflexAutoFailStreakRef.current = 0;
+    setShowStillThere(false);
+  }, []);
+
+  // Runs the countdown only while a card is actually waiting to be flipped — flipping
+  // is the "I responded" signal, so the timer has nothing left to enforce once it happens.
+  useEffect(() => {
+    if (!reflexMode || !prefsLoaded || !currentCard || isFlipped || showStillThere) {
+      clearReflexTimer();
+      return;
+    }
+    startReflexTimer();
+    return () => clearReflexTimer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reflexMode, prefsLoaded, currentCard?.id, isFlipped, showStillThere, startReflexTimer, clearReflexTimer]);
+
+  // Pausing on visibility change is the AFK safety net: a backgrounded tab/locked phone
+  // stops the clock instead of silently auto-failing cards no one looked at.
+  useEffect(() => {
+    if (!reflexMode) return;
+    const onVisibility = () => {
+      if (document.hidden) {
+        clearReflexTimer();
+      } else if (!isFlipped && currentCard && !showStillThere) {
+        startReflexTimer();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reflexMode, isFlipped, currentCard?.id, showStillThere, startReflexTimer, clearReflexTimer]);
 
   // Fast-track for cards never reviewed before — skips the flip/grade ritual
   // and immediately seeds a high-confidence score in both directions so it
@@ -1874,6 +1975,14 @@ export default function StudyView() {
                 <AnimatePresence>
                   {showHints && !dataLoading && <CoachMarks />}
                 </AnimatePresence>
+                {/* REFLEX MODE COUNTDOWN */}
+                {reflexMode && reflexSecondsLeft !== null && !isFlipped && (
+                  <div className="absolute top-3 right-3 z-[90] flex items-center justify-center w-9 h-9 rounded-full bg-black/70 backdrop-blur-sm pointer-events-none">
+                    <span className="text-white font-black text-sm tabular-nums">
+                      {reflexSecondsLeft}
+                    </span>
+                  </div>
+                )}
                 {/* SWIPE FEEDBACK OVERLAY */}
                 <AnimatePresence>
                   {swipeFeedback && (
@@ -2145,6 +2254,38 @@ export default function StudyView() {
                 className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
               >
                 Keep Going →
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showStillThere && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] bg-slate-900/95 backdrop-blur-md flex flex-col items-center justify-center p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0, y: 40 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 26 }}
+              className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 flex flex-col items-center gap-5 text-center shadow-2xl"
+            >
+              <div className="text-5xl">⏸️</div>
+              <div>
+                <p className="text-xl font-black text-slate-900">Still there?</p>
+                <p className="text-sm text-slate-400 font-medium mt-1">
+                  Reflex Mode paused itself after 3 cards timed out with no response.
+                </p>
+              </div>
+              <button
+                onClick={handleReflexResume}
+                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
+              >
+                I&apos;m Here — Keep Going
               </button>
             </motion.div>
           </motion.div>
