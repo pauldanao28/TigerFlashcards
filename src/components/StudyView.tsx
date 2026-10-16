@@ -25,7 +25,7 @@ import ListeningQuiz from "@/components/ListeningQuiz";
 import AddWordsSheet from "@/components/AddWordsSheet";
 import { FlashcardData, KanjiMnemonic } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, History, Star, TrendingDown, Lightbulb, Loader2, X, Menu, Zap } from "lucide-react";
+import { Plus, History, Star, TrendingDown, Lightbulb, Loader2, X, Menu, Zap, ExternalLink } from "lucide-react";
 const DAILY_GOAL = 10;
 const MASTERY_MIN_TRIES = 5;
 const PRIORITY_CAP = 30;
@@ -131,7 +131,7 @@ function cardOverallPercent(c: FlashcardData): number {
   return total > 0 ? Math.round((pass / total) * 100) : 0;
 }
 
-export default function StudyView() {
+export default function StudyView({ compact = false }: { compact?: boolean } = {}) {
   const { user, loading } = useAuth();
   const { showAlert, showConfirm } = useAppAlert();
   const shownGenerateLimitAlertRef = useRef(false);
@@ -792,6 +792,13 @@ export default function StudyView() {
 
   // Quick toggle beside the language pill — mirrors the Settings switch so Reflex
   // Mode doesn't require a trip to Cards > Settings to turn on mid-session.
+  // Opens Mini Mode (see the `compact` branch of the render below) in a small
+  // standalone window the user can drag to the side of their monitor — the point
+  // being a tiny, boring-looking window for studying flashcards at work.
+  const openMiniPlayer = useCallback(() => {
+    window.open("/study?mini=1", "tiger-mini-study", "width=320,height=580,resizable=yes");
+  }, []);
+
   const toggleReflexMode = useCallback(async () => {
     const next = !reflexMode;
     setReflexMode(next);
@@ -1288,6 +1295,117 @@ export default function StudyView() {
     return <LoadingScreen />;
   }
 
+  // Mini Mode — a stripped-down layout meant for a small popup window (see the
+  // "Pop out" button in the full view) so flashcards can run discreetly in a
+  // corner of the screen: just the card, the language/reflex toggles, and
+  // Pass/Fail. No header, stats, modals, or starter-pack chrome.
+  if (compact) {
+    return (
+      <main className="fixed inset-0 h-[100dvh] w-full bg-slate-50 flex flex-col items-center justify-between p-3 gap-3 touch-none select-none overflow-hidden">
+        <div className="w-full flex items-center justify-between gap-2 shrink-0">
+          <button
+            onClick={toggleReflexMode}
+            title="Reflex Mode"
+            className={`shrink-0 flex items-center justify-center w-8 h-8 rounded-xl border transition-all active:scale-95 ${
+              reflexMode
+                ? "bg-indigo-600 border-indigo-600 text-white"
+                : "bg-white border-slate-200 text-slate-400"
+            }`}
+          >
+            <Zap size={13} fill={reflexMode ? "currentColor" : "none"} />
+          </button>
+          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">
+            {currentCard?.scores?.[language === "jp" ? "jp_to_en" : "en_to_jp"]?.percent ?? 0}% {t.accuracy}
+          </span>
+          <button
+            onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
+            title={language === "jp" ? t.recognition : t.recall}
+            className="shrink-0 flex items-center justify-center w-8 h-8 rounded-xl border border-slate-200 bg-white active:scale-95 transition-all"
+          >
+            <span className="text-sm leading-none">{language === "jp" ? "🇯🇵" : "🇺🇸"}</span>
+          </button>
+        </div>
+
+        <div className="relative w-full flex-1 min-h-0 flex items-center justify-center">
+          {reflexMode && reflexSecondsLeft !== null && !isFlipped && (
+            <div className="absolute top-2 right-2 z-[90] flex items-center justify-center w-6 h-6 rounded-full bg-black/70 backdrop-blur-sm pointer-events-none">
+              <span className="text-white font-black text-[11px] tabular-nums">{reflexSecondsLeft}</span>
+            </div>
+          )}
+          <AnimatePresence>
+            {swipeFeedback && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.5, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: -14 }}
+                exit={{ opacity: 0, scale: 1.1, y: -40 }}
+                className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-none"
+              >
+                <div
+                  className={`px-4 py-2 rounded-full font-black text-base shadow-xl border-2 ${
+                    swipeFeedback.isPass
+                      ? "bg-emerald-500 text-white border-emerald-400"
+                      : "bg-rose-500 text-white border-rose-400"
+                  }`}
+                >
+                  {swipeFeedback.percent}%
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          {cards.length > 0 && currentCard ? (
+            <Flashcard
+              key={currentCard.id}
+              card={currentCard}
+              language={language}
+              userId={user?.id || ""}
+              onSwipe={onSwipe}
+              autoPlayJp={autoPlayJp && hasInteracted.current}
+              autoPlayEn={autoPlayEn && hasInteracted.current}
+              sfxEnabled={sfxEnabled}
+              isFlipped={isFlipped}
+              onFlip={setIsFlipped}
+              audioPulse={audioPulse}
+              isPriority={!!currentCard.is_priority}
+              onTogglePriority={() => togglePriority(currentCard)}
+              onMnemonicGenerated={handleMnemonicGenerated}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-slate-300 text-xs font-bold">
+              {t.syncing_deck}
+            </div>
+          )}
+        </div>
+
+        <div className="w-full flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => onSwipe("left")}
+            className="flex-1 py-3 rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
+          >
+            {t.fail}
+          </button>
+          <button
+            onClick={() => onSwipe("right")}
+            className="flex-1 py-3 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-600 font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
+          >
+            {t.pass}
+          </button>
+        </div>
+
+        {showStillThere && (
+          <div className="fixed inset-0 z-[300] bg-slate-900/95 flex flex-col items-center justify-center p-4 gap-3 text-center">
+            <p className="text-white font-black text-sm">Still there?</p>
+            <button
+              onClick={handleReflexResume}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
+            >
+              I&apos;m Here
+            </button>
+          </div>
+        )}
+      </main>
+    );
+  }
+
   return (
     <>
       {/* 1. Add the opening fragment here */}
@@ -1668,6 +1786,13 @@ export default function StudyView() {
                     className="absolute top-full right-0 mt-2 flex flex-col items-end gap-2 z-[60]"
                   >
                     <button
+                      onClick={() => { openMiniPlayer(); setShowQuickMenu(false); }}
+                      className="flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
+                      title="Pop Out Mini Player"
+                    >
+                      <ExternalLink size={18} className="text-slate-500" />
+                    </button>
+                    <button
                       onClick={() => { setIsSocialOpen(true); setShowQuickMenu(false); }}
                       className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
                     >
@@ -1775,6 +1900,13 @@ export default function StudyView() {
                   transition={{ duration: 0.15 }}
                   className="flex flex-col items-end gap-3"
                 >
+                  <button
+                    onClick={() => { openMiniPlayer(); setShowQuickMenu(false); }}
+                    className="flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+                    title="Pop Out Mini Player"
+                  >
+                    <ExternalLink size={20} className="text-slate-500" />
+                  </button>
                   <button
                     onClick={() => { setIsSocialOpen(true); setShowQuickMenu(false); }}
                     className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"

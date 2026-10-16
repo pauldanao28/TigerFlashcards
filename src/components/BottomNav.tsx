@@ -1,6 +1,7 @@
 "use client";
+import { Suspense } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Home, BookOpen, ScrollText, BarChart2 } from "lucide-react";
 import { useUploadGuard } from "@/context/UploadGuardContext";
 import { useAppAlert } from "@/context/AlertContext";
@@ -23,13 +24,15 @@ const TABS: Tab[] = [
 
 const SHOW_ON = new Set(["/", "/study", "/quizzes", "/sensei", "/stats"]);
 
-export default function BottomNav() {
+function BottomNavInner() {
   const path = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { isBusy } = useUploadGuard();
   const { showConfirm } = useAppAlert();
   const { user, loading } = useAuth();
   if (!SHOW_ON.has(path)) return null;
+  if (searchParams.get("mini") === "1") return null; // hidden in the mini popup player
   if (loading || !user) return null;
 
   return (
@@ -71,5 +74,13 @@ export default function BottomNav() {
         })}
       </div>
     </nav>
+  );
+}
+
+export default function BottomNav() {
+  return (
+    <Suspense fallback={null}>
+      <BottomNavInner />
+    </Suspense>
   );
 }
