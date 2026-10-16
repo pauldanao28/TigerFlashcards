@@ -193,6 +193,7 @@ export default function StudyView() {
   const [recapAnimAccuracy, setRecapAnimAccuracy] = useState(0);
   const [recapAnimMastered, setRecapAnimMastered] = useState(0);
   const [comboToast, setComboToast] = useState<string | null>(null);
+  const [reflexToggleToast, setReflexToggleToast] = useState<string | null>(null);
   const [milestoneToast, setMilestoneToast] = useState<{ label: string; count: number } | null>(null);
   const [cardMasteryToast, setCardMasteryToast] = useState<{ word: string; level: string; levelMastered: number; direction: "up" | "down" } | null>(null);
   const [jlptFilterToast, setJlptFilterToast] = useState<string | null>(null);
@@ -794,6 +795,12 @@ export default function StudyView() {
   const toggleReflexMode = useCallback(async () => {
     const next = !reflexMode;
     setReflexMode(next);
+    setReflexToggleToast(
+      next
+        ? "⚡ Reflex Mode ON — answer within 3 seconds or it auto-fails"
+        : "Reflex Mode off",
+    );
+    setTimeout(() => setReflexToggleToast(null), next ? 3500 : 2000);
     if (user) {
       await supabase.from("profiles").update({ reflex_mode: next }).eq("id", user.id);
     }
@@ -1436,6 +1443,25 @@ export default function StudyView() {
                   </div>
                   <span className="text-slate-400 text-[10px] font-bold leading-none">mastered</span>
                 </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Reflex Mode Toggle Toast */}
+        <AnimatePresence>
+          {reflexToggleToast && (
+            <motion.div
+              initial={{ opacity: 0, y: -20, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -16, scale: 0.92 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed top-24 md:top-8 left-0 right-0 z-[200] flex justify-center pointer-events-none px-6"
+            >
+              <div className="bg-slate-900 text-white rounded-2xl shadow-2xl px-5 py-3 flex items-center gap-2 max-w-sm">
+                <p className="font-bold text-xs text-center leading-snug">
+                  {reflexToggleToast}
+                </p>
               </div>
             </motion.div>
           )}
