@@ -68,6 +68,11 @@ export type FlashcardData = MasterCard & {
   is_priority?: boolean;
   prioritized_at?: string | null;
   last_reviewed_at?: string | null;
+  // Separate from `scores` above — only moves on a grade made while Reflex Mode is
+  // on (+20 pass / -10 fail, unbounded, never touches the real pass/fail accuracy).
+  // null/0 attempts means never graded under Reflex Mode yet.
+  reflex_score?: number | null;
+  reflex_attempts?: number;
 };
 
 export type StudyMode = 'recognition' | 'production';

@@ -207,6 +207,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showWeakModal, setShowWeakModal] = useState(false);
+  const [showSlowRecallModal, setShowSlowRecallModal] = useState(false);
   const [showQuickMenu, setShowQuickMenu] = useState(false);
   // Mnemonic sheet nested inside the Weak Words modal — same generate/cache logic as
   // Flashcard.tsx's "Remember this kanji" button on the card back, just reachable
@@ -468,7 +469,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           `
           *,
           deck_cards!inner (deck_id),
-          user_scores (scores_json, is_priority, prioritized_at, updated_at)
+          user_scores (scores_json, is_priority, prioritized_at, updated_at, reflex_score, reflex_attempts)
         `,
         )
         .eq("deck_cards.deck_id", defaultDeckId)
@@ -494,6 +495,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         is_priority: card.user_scores?.[0]?.is_priority || false,
         prioritized_at: card.user_scores?.[0]?.prioritized_at || null,
         last_reviewed_at: card.user_scores?.[0]?.updated_at || null,
+        reflex_score: card.user_scores?.[0]?.reflex_score ?? null,
+        reflex_attempts: card.user_scores?.[0]?.reflex_attempts ?? 0,
       }));
       setCards(flattened);
       if (flattened.length > 0) {
@@ -697,6 +700,15 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           .eq("id", user?.id);
       }
 
+      // Reflex score — a second, separate signal (+20 pass / -10 fail, unbounded).
+      // Only moves while Reflex Mode is actually on; never touches scores_json/mastery.
+      const reflexPatch = reflexMode
+        ? {
+            reflex_score: (currentCard.reflex_score ?? 0) + (isPass ? 20 : -10),
+            reflex_attempts: (currentCard.reflex_attempts ?? 0) + 1,
+          }
+        : null;
+
       // 5. Database Sync (Upsert Score)
       await supabase.from("user_scores").upsert(
         {
@@ -704,6 +716,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           card_id: currentCard.id,
           scores_json: newScores,
           updated_at: new Date().toISOString(),
+          ...(reflexPatch ?? {}),
         },
         { onConflict: "user_id,card_id" },
       );
@@ -711,7 +724,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       // 5b. Update local card scores and recompute mastery from full deck
       {
         const updatedCards = cards.map((c) =>
-          c.id === currentCard.id ? { ...c, scores: newScores } : c
+          c.id === currentCard.id ? { ...c, scores: newScores, ...(reflexPatch ?? {}) } : c
         );
         setCards(updatedCards);
         const modeKey = language === "jp" ? "jp_to_en" : "en_to_jp";
@@ -745,7 +758,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       }
 
       const updatedCards = cards.map((c) =>
-        c.id === currentCard.id ? { ...c, scores: newScores } : c,
+        c.id === currentCard.id ? { ...c, scores: newScores, ...(reflexPatch ?? {}) } : c,
       );
 
       setCards(updatedCards);
@@ -805,6 +818,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       jlptFilters,
       posFilters,
       showHints,
+      reflexMode,
     ],
   );
   // Add the dependencies used inside the function
@@ -1373,6 +1387,16 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         return total >= 10 && cardOverallPercent(c) < 30;
       })
       .sort((a, b) => cardOverallPercent(a) - cardOverallPercent(b))
+      .slice(0, 20);
+  }, [cards]);
+
+  // Words that are consistently slow/shaky specifically under Reflex Mode's time
+  // pressure — separate from weakWordsList, which is about not knowing a word at all.
+  // 3+ reflex attempts before trusting the number, same spirit as weakWordsList's 10+.
+  const slowRecallList = useMemo(() => {
+    return cards
+      .filter((c) => (c.reflex_attempts ?? 0) >= 3 && (c.reflex_score ?? 0) < 0)
+      .sort((a, b) => (a.reflex_score ?? 0) - (b.reflex_score ?? 0))
       .slice(0, 20);
   }, [cards]);
 
@@ -2009,6 +2033,13 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     >
                       <TrendingDown size={18} className="text-rose-500" />
                     </button>
+                    <button
+                      onClick={() => { setShowSlowRecallModal(true); setShowQuickMenu(false); }}
+                      className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
+                      title="Slow Recall (Reflex Mode)"
+                    >
+                      <Zap size={18} className="text-amber-500" />
+                    </button>
                     <motion.button
                       onClick={() => { setIsQuickAddOpen(true); setShowQuickMenu(false); }}
                       whileTap={{ scale: 0.88 }}
@@ -2123,6 +2154,13 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     title="Weak Words"
                   >
                     <TrendingDown size={20} className="text-rose-500" />
+                  </button>
+                  <button
+                    onClick={() => { setShowSlowRecallModal(true); setShowQuickMenu(false); }}
+                    className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+                    title="Slow Recall (Reflex Mode)"
+                  >
+                    <Zap size={20} className="text-amber-500" />
                   </button>
                   <motion.button
                     onClick={() => { setIsQuickAddOpen(true); setShowQuickMenu(false); }}
@@ -3038,6 +3076,90 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                       </div>
                     );
                   })
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+
+        {showSlowRecallModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[220] bg-black/20"
+              onClick={() => setShowSlowRecallModal(false)}
+            />
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[221] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm max-h-[80vh] flex flex-col"
+              style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+            >
+              <div className="flex items-center justify-between mb-4 shrink-0">
+                <div className="flex items-center gap-2">
+                  <Zap size={16} className="text-amber-500" />
+                  <p className="text-slate-800 font-black text-sm uppercase tracking-tight">Slow Recall</p>
+                </div>
+                <button onClick={() => setShowSlowRecallModal(false)} className="text-slate-300 hover:text-slate-500">✕</button>
+              </div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3 shrink-0">
+                Net negative Reflex Mode score (3+ attempts) — you know these, you&apos;re just slow
+              </p>
+              <div className="flex-1 overflow-y-auto space-y-2 -mx-1 px-1">
+                {slowRecallList.length === 0 ? (
+                  <p className="text-center text-slate-400 text-xs font-bold py-8">
+                    No slow-recall words with enough Reflex Mode attempts yet.
+                  </p>
+                ) : (
+                  slowRecallList.map((c) => (
+                    <div
+                      key={c.id}
+                      className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-black text-slate-800 text-sm truncate">{c.japanese}</p>
+                          {c.jlpt_level && (
+                            <span className={`shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-md border uppercase tracking-tighter ${JLPT_BADGE_COLOR[c.jlpt_level]}`}>
+                              {c.jlpt_level}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-slate-400 text-[11px] font-medium truncate">
+                          {c.reading} • {c.english}
+                        </p>
+                      </div>
+                      <div className="shrink-0 flex items-center gap-2">
+                        <span className="text-[10px] font-black px-2 py-1 rounded-full bg-amber-100 text-amber-700">
+                          {c.reflex_score} ×{c.reflex_attempts}
+                        </span>
+                        {KANJI_RE.test(c.japanese) && (
+                          <button
+                            onClick={() => handleWeakWordMnemonic(c)}
+                            className="p-1.5 rounded-full hover:bg-amber-100 active:scale-90 transition-all"
+                            title="Remember this kanji"
+                          >
+                            <Lightbulb size={16} className={c.mnemonic ? "text-amber-500" : "text-slate-300"} />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => togglePriority(c)}
+                          className="p-1.5 rounded-full hover:bg-amber-100 active:scale-90 transition-all"
+                          title={c.is_priority ? "Remove from Priority" : "Add to Priority"}
+                        >
+                          <Star
+                            size={16}
+                            className={c.is_priority ? "text-amber-500" : "text-slate-300"}
+                            fill={c.is_priority ? "currentColor" : "none"}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  ))
                 )}
               </div>
             </motion.div>
