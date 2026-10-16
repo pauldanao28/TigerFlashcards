@@ -459,7 +459,8 @@ export default function StatsPage() {
       .eq("struggle_date", sgToday)
       .gte("fail_count", DAILY_STRUGGLE_THRESHOLD)
       .order("fail_count", { ascending: false });
-    if (error || !data) return;
+    if (error) { console.error("Error fetching daily struggles:", error); return; }
+    if (!data) return;
     setDailyStruggles(
       data
         .map((row) => ({ ...row, card: row.master_cards?.[0] }))
@@ -486,7 +487,8 @@ export default function StatsPage() {
       .eq("user_id", user.id)
       .eq("explain_date", sgToday)
       .order("first_explained_at", { ascending: true });
-    if (error || !data) return;
+    if (error) { console.error("Error fetching daily explained lines:", error); return; }
+    if (!data) return;
     setDailyExplainedLines(data);
   };
 
