@@ -401,20 +401,23 @@ export default function StatsPage() {
     fetchCards();
   }, [user, defaultDeckId]);
 
-  // Struggling/Explained Today are both written to from Study (a different page) —
-  // a client-side nav back to Cards doesn't remount this component, so without this
-  // they'd keep showing whatever they looked like the first time this page loaded this
-  // session. Refetch whenever the tab/app becomes visible again, not just on first mount.
+  // Struggling/Explained Today are both written to from Study — often a *separate*
+  // window (the Mini Mode popup), not just a different in-app page. visibilitychange
+  // alone doesn't reliably fire across separate windows (it's really meant for
+  // tab-switching/minimizing within one), so also listen for window focus, which does.
   useEffect(() => {
     if (!user) return;
-    const onVisible = () => {
-      if (document.visibilityState === "visible") {
-        fetchDailyStruggles();
-        fetchDailyExplainedLines();
-      }
+    const refetch = () => {
+      fetchDailyStruggles();
+      fetchDailyExplainedLines();
     };
+    const onVisible = () => { if (document.visibilityState === "visible") refetch(); };
     document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", refetch);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", refetch);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
@@ -466,30 +469,36 @@ export default function StatsPage() {
   // "Struggling Today" — cards graded Fail at least DAILY_STRUGGLE_THRESHOLD times today
   // (daily_struggles, written by StudyView's handleScore on every Fail grade), not the
   // all-time accuracy-based metric. A single slip doesn't count; a repeated one does.
+  // Two plain queries + a client-side join, rather than an embedded
+  // daily_struggles → master_cards select — sidesteps any PostgREST schema-cache lag
+  // on the foreign key relationship (e.g. right after running the migration by hand).
   const fetchDailyStruggles = async () => {
     if (!user) return;
     const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
-    const { data, error } = await supabase
+    const { data: struggles, error } = await supabase
       .from("daily_struggles")
-      .select("card_id, fail_count, master_cards(japanese, reading, english, jlpt_level)")
+      .select("card_id, fail_count")
       .eq("user_id", user.id)
       .eq("struggle_date", sgToday)
       .gte("fail_count", DAILY_STRUGGLE_THRESHOLD)
       .order("fail_count", { ascending: false });
     if (error) { console.error("Error fetching daily struggles:", error); return; }
-    if (!data) return;
+    if (!struggles || struggles.length === 0) { setDailyStruggles([]); return; }
+
+    const { data: cardRows, error: cardErr } = await supabase
+      .from("master_cards")
+      .select("id, japanese, reading, english, jlpt_level")
+      .in("id", struggles.map((s) => s.card_id));
+    if (cardErr) { console.error("Error fetching struggling cards:", cardErr); return; }
+
+    const cardById = new Map((cardRows ?? []).map((c) => [c.id, c]));
     setDailyStruggles(
-      data
-        .map((row) => ({ ...row, card: row.master_cards?.[0] }))
-        .filter((row): row is typeof row & { card: NonNullable<typeof row.card> } => !!row.card)
-        .map((row) => ({
-          card_id: row.card_id,
-          fail_count: row.fail_count,
-          japanese: row.card.japanese,
-          reading: row.card.reading,
-          english: row.card.english,
-          jlpt_level: row.card.jlpt_level,
-        })),
+      struggles
+        .map((s) => {
+          const card = cardById.get(s.card_id);
+          return card ? { card_id: s.card_id, fail_count: s.fail_count, japanese: card.japanese, reading: card.reading, english: card.english, jlpt_level: card.jlpt_level } : null;
+        })
+        .filter((row): row is NonNullable<typeof row> => !!row),
     );
   };
 
