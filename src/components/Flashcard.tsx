@@ -530,6 +530,11 @@ export default function Flashcard({
                   Te-form: <span className="text-white font-bold">{card.te_form}</span>
                 </p>
               )}
+              {card?.suru_meaning && (
+                <p className="text-indigo-200 text-xs font-medium mt-1.5">
+                  {card.japanese}する: <span className="text-white font-bold">{card.suru_meaning}</span>
+                </p>
+              )}
             </div>
 
             {/* Footer Area */}

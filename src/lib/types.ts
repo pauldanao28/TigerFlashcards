@@ -22,6 +22,9 @@ export interface MasterCard {
   transitivity?: 'transitive' | 'intransitive' | null;
   verb_type?: 'godan' | 'ichidan' | 'irregular' | null;
   adjective_type?: 'i' | 'na' | null;
+  // Only set for a suru-capable noun — the English meaning of its する usage, which can
+  // genuinely differ from "english" above (急行 "express train" vs 急行する "to rush to").
+  suru_meaning?: string | null;
 }
 
 export interface KanjiMnemonicEntry {

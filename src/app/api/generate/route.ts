@@ -45,12 +45,11 @@ Rules for the "exampleSentence" field:
 - "en": a natural English translation of that exact sentence — not a restatement of the word's dictionary definition.
 - Keep both short (roughly 5-15 words) and don't lean on grammar harder than the word's own JLPT level.
 
-Rules for the verb/adjective grammar fields (te_form, transitivity, verb_type, adjective_type):
+Rules for the verb/adjective grammar fields (te_form, transitivity, verb_type, adjective_type, suru_meaning):
 - These apply to verbs, adjectives, AND any noun capable of taking する to become a verb
   (e.g. 勉強, 結婚, 料理) — note that per the partOfSpeech rule above, such a word is
   still tagged "noun" and its "japanese" field stays the bare noun (勉強, never 勉強する);
-  only these four extra fields describe its する-usage. For every other word, set all
-  four to null.
+  only these fields describe its する-usage. For every other word, set all five to null.
 - "verb_type": EXACTLY ONE of "godan", "ichidan", "irregular". する itself, 来る, and any
   suru-capable noun (勉強, 結婚, etc.) are all "irregular". null for non-verbs/non-suru-nouns.
 - "transitivity": EXACTLY ONE of "transitive", "intransitive", whichever the word (or its
@@ -59,6 +58,12 @@ Rules for the verb/adjective grammar fields (te_form, transitivity, verb_type, a
 - "te_form": the て-form AS IF する were conjugated onto it — 食べる→食べて, 飲む→飲んで,
   来る→来て, 勉強 (suru-capable noun)→勉強して. null otherwise.
 - "adjective_type": for an adjective only — EXACTLY ONE of "i", "na" (い-adjective vs な-adjective — some words ending in い are actually na-adjectives, e.g. きれい, きらい, ゆうめい; don't be fooled by the spelling). null otherwise.
+- "suru_meaning": ONLY for a suru-capable noun whose する-usage means something genuinely
+  different from the noun's own "english" field above — e.g. 急行 ("english": "express
+  train") → "suru_meaning": "to rush / proceed directly" (its する-usage is a different
+  concept, not just a form change). If the する-usage means essentially the same thing as
+  the noun (e.g. 勉強 "study" → 勉強する "to study"), set this to null — it would be
+  redundant with "english". null for everything else too.
 
 Output ONLY raw JSON as an ARRAY of objects:
 [
@@ -73,7 +78,8 @@ Output ONLY raw JSON as an ARRAY of objects:
     "te_form": null,
     "transitivity": null,
     "verb_type": null,
-    "adjective_type": null
+    "adjective_type": null,
+    "suru_meaning": null
   }
 ]`;
 
@@ -140,6 +146,7 @@ export async function POST(req: Request) {
       transitivity: asEnum(item.transitivity, ["transitive", "intransitive"] as const),
       verb_type: asEnum(item.verb_type, ["godan", "ichidan", "irregular"] as const),
       adjective_type: asEnum(item.adjective_type, ["i", "na"] as const),
+      suru_meaning: typeof item.suru_meaning === "string" && item.suru_meaning.trim() ? item.suru_meaning.trim() : null,
     }));
     return NextResponse.json(cleaned);
   } catch (e) {

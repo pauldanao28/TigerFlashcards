@@ -73,7 +73,10 @@ let _studyCache: StudyCacheEntry | null = null;
 // re-checked against Jisho every single session. Module-level cache avoids re-parsing
 // localStorage on every StudyView re-render; only the first call per page load actually
 // touches localStorage.
-const GRAMMAR_FILL_CACHE_KEY = "flashkado-grammar-fill-checked";
+// Bumped to -v2 when suru_meaning was added — cards already checked under -v1 have
+// their other grammar fields filled but never got a chance at suru_meaning, so this
+// forces one clean re-sweep per device rather than leaving them stuck forever.
+const GRAMMAR_FILL_CACHE_KEY = "flashkado-grammar-fill-checked-v2";
 let _grammarFillCache: Set<string> | null = null;
 function getGrammarFillCache(): Set<string> {
   if (_grammarFillCache) return _grammarFillCache;
@@ -259,6 +262,9 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   // module scope above) — avoids re-fetching Jisho on every redraw, in every session,
   // of a word it simply has no usable data for.
   const grammarFillAttemptedRef = useRef<Set<string>>(getGrammarFillCache());
+  // Shared by handleScore and handleAlreadyKnow — see the race-guard comment in
+  // handleScore for why this exists.
+  const lastGradeAtRef = useRef(0);
 
   // Animate recap stats from 0 when the modal opens
   useEffect(() => {
@@ -587,6 +593,15 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const handleScore = useCallback(
     async (isPass: boolean, opts?: { isTimeout?: boolean }) => {
       if (!currentCard || !user) return;
+      // Race guard: a Reflex Mode timeout and a manual grade (swipe/button/key) can
+      // both fire for the same card within milliseconds of each other — a setTimeout
+      // callback that's already due to run isn't stoppable by clearTimeout once it's
+      // started, so clearing the timer elsewhere in this function isn't enough on its
+      // own. A short self-resetting window (not a lock that could stick if some future
+      // early-return were added) means only the first of the two actually counts.
+      const now = Date.now();
+      if (now - lastGradeAtRef.current < 400) return;
+      lastGradeAtRef.current = now;
       hasInteracted.current = true;
 
       // Reflex Mode: any grade the user actually triggered clears the AFK streak;
@@ -901,6 +916,9 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     const existingEn = currentCard.scores?.en_to_jp?.total ?? 0;
     if (existingJp > 0 || existingEn > 0) return;
 
+    const now = Date.now();
+    if (now - lastGradeAtRef.current < 400) return;
+    lastGradeAtRef.current = now;
     hasInteracted.current = true;
 
     if (showHints) {
@@ -1008,7 +1026,11 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
 
     const needsFill = isAdjective
       ? currentCard.adjective_type == null
-      : currentCard.te_form == null || currentCard.transitivity == null || currentCard.verb_type == null;
+      : currentCard.te_form == null || currentCard.transitivity == null || currentCard.verb_type == null
+        // Nouns specifically also need suru_meaning — a suru-capable noun's する usage
+        // can mean something different from the noun itself, so it's worth a dedicated
+        // check even once the other three fields are already filled.
+        || (partOfSpeech === "noun" && currentCard.suru_meaning == null);
     if (!needsFill || grammarFillAttemptedRef.current.has(cardId)) return;
     grammarFillAttemptedRef.current.add(cardId);
     persistGrammarFillCache(grammarFillAttemptedRef.current);
@@ -1022,6 +1044,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         if (d.transitivity) patch.transitivity = d.transitivity;
         if (d.verbType) patch.verb_type = d.verbType;
         if (d.adjectiveType) patch.adjective_type = d.adjectiveType;
+        if (d.suruMeaning) patch.suru_meaning = d.suruMeaning;
         if (Object.keys(patch).length === 0) return;
         const { error } = await supabase.from("master_cards").update(patch).eq("id", cardId);
         if (error) { console.error("Error saving verb/adjective grammar info:", error); return; }

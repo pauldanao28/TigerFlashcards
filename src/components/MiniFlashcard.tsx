@@ -162,6 +162,11 @@ export default function MiniFlashcard({ card, language, isFlipped, onFlip, onSwi
                 Te: <span className="text-white font-bold">{card.te_form}</span>
               </p>
             )}
+            {card.suru_meaning && (
+              <p className="text-indigo-200 text-[10px] font-medium">
+                {card.japanese}する: <span className="text-white font-bold">{card.suru_meaning}</span>
+              </p>
+            )}
           </div>
         </motion.div>
       </motion.div>

@@ -2877,6 +2877,11 @@ export default function StatsPage() {
                     )}
                   </div>
                 )}
+                {scoreDetailCard.suru_meaning && (
+                  <p className="text-slate-500 text-xs font-medium mb-4 -mt-2">
+                    {scoreDetailCard.japanese}する: <span className="text-slate-800 font-bold">{scoreDetailCard.suru_meaning}</span>
+                  </p>
+                )}
                 <div className="mb-4 p-4 bg-slate-50 rounded-2xl">
                   <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Example</p>
                   {scoreDetailCard.exampleSentence?.jp ? (

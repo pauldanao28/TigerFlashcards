@@ -5,7 +5,7 @@ const CACHE = { headers: { "Cache-Control": "public, max-age=86400" } };
 
 interface JishoEntry {
   japanese?: { word?: string; reading?: string }[];
-  senses?: { parts_of_speech?: string[] }[];
+  senses?: { parts_of_speech?: string[]; english_definitions?: string[] }[];
 }
 
 export async function GET(req: Request) {
@@ -34,10 +34,20 @@ export async function GET(req: Request) {
       const entries: JishoEntry[] = data.data ?? [];
       const entry = entries.find((e) => e.japanese?.some((j) => j.word === word)) ?? entries[0];
       if (!entry) return NextResponse.json({ found: false });
-      const tags: string[] = (entry.senses ?? []).flatMap((s) => s.parts_of_speech ?? []);
+      const senses = entry.senses ?? [];
+      const tags: string[] = senses.flatMap((s) => s.parts_of_speech ?? []);
       const { verbType, transitivity, adjectiveType, isSuruCapable } = classifyFromTags(tags);
       const teForm = verbType ? computeTeForm(word, verbType, isSuruCapable) : null;
-      return NextResponse.json({ found: true, teForm, transitivity, verbType, adjectiveType }, CACHE);
+      // The sense that actually carries the suru tag has its own english_definitions —
+      // for a suru-capable noun these describe the する usage, not the noun's own
+      // meaning (急行 "express train" vs 急行する "to rush/proceed directly").
+      const suruSense = isSuruCapable
+        ? senses.find((s) => (s.parts_of_speech ?? []).some((t) => t.toLowerCase().includes("suru")))
+        : undefined;
+      const suruMeaning = suruSense?.english_definitions?.length
+        ? suruSense.english_definitions.join(", ")
+        : null;
+      return NextResponse.json({ found: true, teForm, transitivity, verbType, adjectiveType, suruMeaning }, CACHE);
     }
 
     if (compounds) {

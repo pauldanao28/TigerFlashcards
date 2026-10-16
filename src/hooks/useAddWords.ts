@@ -202,6 +202,7 @@ export function useAddWords({
               transitivity: item.transitivity ?? null,
               verb_type: item.verb_type ?? null,
               adjective_type: item.adjective_type ?? null,
+              suru_meaning: item.suru_meaning ?? null,
               creator_id: userId,
             }))
             .filter((item: any) => {
