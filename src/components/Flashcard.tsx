@@ -461,7 +461,13 @@ export default function Flashcard({
               </div>
             )}
 
-            <div className="flex-1 flex flex-col items-center justify-center w-full overflow-hidden">
+            {/* overflow-y-auto (not -hidden) + justify-start (not -center): with enough
+                optional fields (badges, te-form, suru_meaning) this block can be taller
+                than the available space. justify-center + overflow-hidden silently
+                clipped the bottom in that case (and clipped symmetrically from a
+                centered box, which can hide content from either end); starting from the
+                top and scrolling means nothing is ever lost, just reachable by scroll. */}
+            <div className="flex-1 flex flex-col items-center justify-start w-full overflow-y-auto">
               {(language === "jp" || language === "en") && card?.reading && (
                 <p className="text-indigo-200 text-lg mb-2 font-medium tracking-wide animate-fade-in truncate w-full">
                   {card?.reading}
