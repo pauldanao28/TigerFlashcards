@@ -477,12 +477,12 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
   const repeatLine = () => playLineIndex(currentLine());
 
   // ── Explain this line (AI) — pauses the video; ‹ › in the sheet step through lines ──
-  const { explain, openExplain, closeExplain } = useLineExplain();
+  const { explain, openExplain, closeExplain } = useLineExplain(userId);
   const explainLine = (i: number) => {
     if (!lines[i]) return;
     playerRef.current?.pauseVideo();
     const context = [...lines.slice(Math.max(0, i - 2), i), ...lines.slice(i + 1, i + 3)].map((l) => l.text).join("\n");
-    openExplain(i, lines[i].text, context);
+    openExplain(i, lines[i].text, context, { source: "watch", sourceTitle: videoTitle });
   };
 
   // Already queued in "Not in your deck", or fully added.

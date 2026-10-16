@@ -169,6 +169,10 @@ export default function StatsPage() {
     { card_id: string; fail_count: number; japanese: string; reading: string; english: string; jlpt_level: string | null }[]
   >([]);
   const [showDailyStruggles, setShowDailyStruggles] = useState(false);
+  const [dailyExplainedLines, setDailyExplainedLines] = useState<
+    { source: "reader" | "watch"; line_text: string; source_title: string | null; explain_count: number }[]
+  >([]);
+  const [showDailyExplained, setShowDailyExplained] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
@@ -374,6 +378,7 @@ export default function StatsPage() {
             fetchDefaultDeck(),
             fetchStarterPacks(),
             fetchDailyStruggles(),
+            fetchDailyExplainedLines(),
           ]);
           // Nothing to wait for (no deck → fetchCards never runs) — reveal now. Otherwise
           // leave the gate to fetchCards's own first-page handler, so the page doesn't
@@ -470,12 +475,37 @@ export default function StatsPage() {
     );
   };
 
+  // Raw data, no English wrapper sentence — this gets pasted straight into a chat
+  // (e.g. a Gemini diary), which can read the shorthand fine on its own.
   const copyDailyStrugglesForGemini = async () => {
-    const today = new Date().toLocaleDateString("en-US", { timeZone: "Asia/Singapore", month: "long", day: "numeric", year: "numeric" });
-    const lines = dailyStruggles.map((w) => `- ${w.japanese} (${w.reading}) — ${w.english}${w.jlpt_level ? ` [${w.jlpt_level}]` : ""}, missed ${w.fail_count}x`);
-    const text = `Words I struggled with today (${today}):\n${lines.join("\n")}`;
+    const text = dailyStruggles
+      .map((w) => `${w.japanese} (${w.reading}) - ${w.english}${w.jlpt_level ? ` [${w.jlpt_level}]` : ""} x${w.fail_count}`)
+      .join("\n");
     await navigator.clipboard.writeText(text);
-    showAlert("Copied! Paste it into your diary chat.");
+    showAlert("Copied!");
+  };
+
+  // "Explained Today" — Reader sentences / Watch caption lines tapped "Explain" today
+  // (daily_explained_lines, written by useLineExplain on a successful explain fetch).
+  const fetchDailyExplainedLines = async () => {
+    if (!user) return;
+    const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+    const { data, error } = await supabase
+      .from("daily_explained_lines")
+      .select("source, line_text, source_title, explain_count")
+      .eq("user_id", user.id)
+      .eq("explain_date", sgToday)
+      .order("first_explained_at", { ascending: true });
+    if (error || !data) return;
+    setDailyExplainedLines(data);
+  };
+
+  const copyDailyExplainedLinesForGemini = async () => {
+    const text = dailyExplainedLines
+      .map((l) => `[${l.source}${l.source_title ? ` — ${l.source_title}` : ""}] ${l.line_text}`)
+      .join("\n");
+    await navigator.clipboard.writeText(text);
+    showAlert("Copied!");
   };
 
   // 3. Add the update function
@@ -1782,6 +1812,24 @@ export default function StatsPage() {
             </div>
           )}
 
+          {/* Explained Today — Reader sentences / Watch caption lines tapped "Explain"
+              today. Hidden on a clean day, same as Struggling Today. */}
+          {dailyExplainedLines.length > 0 && (
+            <div className="mb-10">
+              <button
+                onClick={() => setShowDailyExplained(true)}
+                className="w-full flex items-center justify-between bg-white px-6 py-4 rounded-2xl shadow-sm border border-slate-100 font-black text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.99]"
+              >
+                <span className="flex items-center gap-2 text-sm">
+                  <Sparkles size={16} className="text-indigo-400" /> Explained Today
+                </span>
+                <span className="flex items-center gap-2 text-slate-400 text-xs">
+                  {dailyExplainedLines.length} {dailyExplainedLines.length === 1 ? "line" : "lines"} <span>→</span>
+                </span>
+              </button>
+            </div>
+          )}
+
           {/* Starter Packs Section — hidden once every pack has been added, so it's not
               permanent real estate for users with nothing left to add. */}
           {starterPacks.some((pack) => !ownedPacks?.includes(pack.id) || packWordsMissing(pack).length > 0) && (
@@ -2572,6 +2620,60 @@ export default function StatsPage() {
                 <div className="p-4 border-t border-slate-50 shrink-0">
                   <button
                     onClick={copyDailyStrugglesForGemini}
+                    className="w-full bg-slate-900 text-white py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-all active:scale-95"
+                  >
+                    Copy for Gemini
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showDailyExplained && (
+            <div
+              className="fixed inset-0 z-[220] flex items-center justify-center p-4 sm:p-6"
+              onClick={() => setShowDailyExplained(false)}
+            >
+              <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" />
+              <div
+                className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl border border-white/20 flex flex-col max-h-[80vh] overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-6 border-b border-slate-50 flex justify-between items-center shrink-0">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                      <Sparkles size={18} className="text-indigo-500" /> Explained Today
+                    </h3>
+                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">
+                      Reader/Watch lines you tapped Explain on today — resets tomorrow.
+                    </p>
+                  </div>
+                  <button onClick={() => setShowDailyExplained(false)} className="text-slate-300 hover:text-slate-500 shrink-0">
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                  {dailyExplainedLines.map((l, i) => (
+                    <div key={i} className="bg-slate-50 rounded-2xl px-4 py-3">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500">
+                          {l.source}{l.source_title ? ` · ${l.source_title}` : ""}
+                        </span>
+                        {l.explain_count > 1 && (
+                          <span className="shrink-0 text-[10px] font-black text-indigo-500 bg-indigo-50 border border-indigo-100 rounded-full px-2 py-0.5">
+                            ×{l.explain_count}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-bold text-slate-800 leading-snug">{l.line_text}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="p-4 border-t border-slate-50 shrink-0">
+                  <button
+                    onClick={copyDailyExplainedLinesForGemini}
                     className="w-full bg-slate-900 text-white py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-all active:scale-95"
                   >
                     Copy for Gemini

@@ -285,14 +285,14 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
   const repeatSentence = () => speakAt(readPos < 0 ? speakable[0] : readIdx);
 
   // ── Explain this sentence (AI) — `pos` indexes speakable sentences; ‹ › step through them ──
-  const { explain, openExplain, closeExplain } = useLineExplain();
+  const { explain, openExplain, closeExplain } = useLineExplain(userId);
   const explainSentence = (pos: number) => {
     const i = speakable[pos];
     if (i === undefined) return;
     stopReading();
     setReadIdx(i); // highlight the sentence being explained
     const near = [...speakable.slice(Math.max(0, pos - 2), pos), ...speakable.slice(pos + 1, pos + 3)];
-    openExplain(pos, sentences[i].text, near.map((j) => sentences[j].text.trim()).join("\n"));
+    openExplain(pos, sentences[i].text, near.map((j) => sentences[j].text.trim()).join("\n"), { source: "reader" });
   };
 
   const reset = () => {
