@@ -52,6 +52,10 @@ function savePersistedCardsCache(cache: StatsCardsCache) {
 // Keep in sync with StudyView.tsx's rolling priority cap.
 const PRIORITY_CAP = 30;
 
+// A card needs this many Fail grades on the same day to show up in "Struggling
+// Today" — a single slip doesn't count, a repeated one does.
+const DAILY_STRUGGLE_THRESHOLD = 3;
+
 interface QuickStats {
   total: number;
   mastered: number;
@@ -437,8 +441,9 @@ export default function StatsPage() {
     return null;
   };
 
-  // "Struggling Today" — cards graded Fail at least once today (daily_struggles,
-  // written by StudyView's handleScore), not the all-time accuracy-based metric.
+  // "Struggling Today" — cards graded Fail at least DAILY_STRUGGLE_THRESHOLD times today
+  // (daily_struggles, written by StudyView's handleScore on every Fail grade), not the
+  // all-time accuracy-based metric. A single slip doesn't count; a repeated one does.
   const fetchDailyStruggles = async () => {
     if (!user) return;
     const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
@@ -447,6 +452,7 @@ export default function StatsPage() {
       .select("card_id, fail_count, master_cards(japanese, reading, english, jlpt_level)")
       .eq("user_id", user.id)
       .eq("struggle_date", sgToday)
+      .gte("fail_count", DAILY_STRUGGLE_THRESHOLD)
       .order("fail_count", { ascending: false });
     if (error || !data) return;
     setDailyStruggles(
@@ -1757,8 +1763,9 @@ export default function StatsPage() {
             </Link>
           </div>
 
-          {/* Struggling Today — cards you've gotten wrong at least once today (not the
-              all-time accuracy metric). Hidden on a clean day, same as Starter Packs. */}
+          {/* Struggling Today — cards you've gotten wrong DAILY_STRUGGLE_THRESHOLD+ times
+              today (not the all-time accuracy metric). Hidden on a clean day, same as
+              Starter Packs. */}
           {dailyStruggles.length > 0 && (
             <div className="mb-10">
               <button
@@ -2538,7 +2545,7 @@ export default function StatsPage() {
                       <TrendingDown size={18} className="text-rose-500" /> Struggling Today
                     </h3>
                     <p className="text-[10px] font-bold text-slate-400 mt-0.5">
-                      Words you missed at least once today — resets tomorrow.
+                      Words you&apos;ve missed {DAILY_STRUGGLE_THRESHOLD}+ times today — resets tomorrow.
                     </p>
                   </div>
                   <button onClick={() => setShowDailyStruggles(false)} className="text-slate-300 hover:text-slate-500 shrink-0">
