@@ -631,12 +631,14 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       // from the cumulative scores_json, so "what did I get wrong today" survives
       // independently of all-time accuracy. Fire-and-forget, same pattern as mastery counts.
       if (!isPass) {
-        supabase.rpc("record_daily_struggle", {
-          target_user_id: user.id,
-          target_card_id: currentCard.id,
-          is_reflex_timeout: !!opts?.isTimeout,
-        })
+        supabase.rpc("record_daily_struggle", { target_user_id: user.id, target_card_id: currentCard.id })
           .then(({ error }) => { if (error) console.error("Error recording daily struggle:", error); });
+        // Separate call, not a param on record_daily_struggle — keeps that function's
+        // signature untouched. Purely informational tag; doesn't affect fail_count.
+        if (opts?.isTimeout) {
+          supabase.rpc("bump_reflex_struggle", { target_user_id: user.id, target_card_id: currentCard.id })
+            .then(({ error }) => { if (error) console.error("Error bumping reflex struggle:", error); });
+        }
       }
 
       // 1. Calculate Score Updates
