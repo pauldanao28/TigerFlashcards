@@ -2602,19 +2602,40 @@ export default function StatsPage() {
                         Words you&apos;ve missed {DAILY_STRUGGLE_THRESHOLD}+ times
                       </p>
                       <div className="space-y-2">
-                        {dailyStruggles.map((w) => (
-                          <div key={w.card_id} className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3">
-                            <div className="min-w-0">
-                              <p className="font-black text-slate-800 truncate">
-                                {w.japanese} <span className="text-slate-400 font-medium">{w.reading !== w.japanese ? w.reading : ""}</span>
-                              </p>
-                              <p className="text-xs text-slate-500 truncate">{w.english}</p>
+                        {dailyStruggles.map((w) => {
+                          const liveCard = cards.find((c) => c.id === w.card_id);
+                          return (
+                            <div key={w.card_id} className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3">
+                              <div className="min-w-0">
+                                <p className="font-black text-slate-800 truncate">
+                                  {w.japanese} <span className="text-slate-400 font-medium">{w.reading !== w.japanese ? w.reading : ""}</span>
+                                </p>
+                                <p className="text-xs text-slate-500 truncate">{w.english}</p>
+                              </div>
+                              <div className="shrink-0 flex items-center gap-2">
+                                <span className="text-[10px] font-black text-rose-500 bg-rose-50 border border-rose-100 rounded-full px-2 py-1">
+                                  ×{w.fail_count}
+                                </span>
+                                {liveCard && (
+                                  // Star it into Priority so it gets pulled into Study's weighted
+                                  // rotation more often — the way to actually drill a struggling
+                                  // word (including a slow Reflex Mode one) back up.
+                                  <button
+                                    onClick={() => toggleCardPriority(liveCard)}
+                                    className="w-7 h-7 flex items-center justify-center active:scale-90 transition-all"
+                                    title={liveCard.is_priority ? "Remove from Priority" : "Add to Priority"}
+                                  >
+                                    <Star
+                                      size={15}
+                                      className={liveCard.is_priority ? "text-amber-500" : "text-slate-300"}
+                                      fill={liveCard.is_priority ? "currentColor" : "none"}
+                                    />
+                                  </button>
+                                )}
+                              </div>
                             </div>
-                            <span className="shrink-0 text-[10px] font-black text-rose-500 bg-rose-50 border border-rose-100 rounded-full px-2 py-1">
-                              ×{w.fail_count}
-                            </span>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
