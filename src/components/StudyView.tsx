@@ -1522,17 +1522,17 @@ export default function StudyView() {
 
         {/* --- 1. MOBILE NAVIGATION --- */}
         <div className="md:hidden sticky top-0 w-full z-50 px-4 py-4 flex justify-between items-start bg-slate-50/80 backdrop-blur-md">
-          <div className="flex flex-col gap-2 pointer-events-auto">
-            <div className="flex items-center gap-3">
-            <Link href="/" className="active:scale-95 transition-transform">
+          <div className="flex flex-col gap-2 pointer-events-auto min-w-0 flex-1">
+            <div className="flex items-center gap-3 min-w-0">
+            <Link href="/" className="active:scale-95 transition-transform shrink-0">
               <Logo className="w-10 h-12" />
             </Link>
-            <div className="flex flex-col gap-1.5 bg-white/80 backdrop-blur-md px-3 py-2 rounded-2xl border border-white shadow-sm min-w-[170px]">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[10px] font-black uppercase tracking-tight text-slate-800 italic leading-none truncate max-w-[80px]">
+            <div className="flex flex-col gap-1.5 bg-white/80 backdrop-blur-md px-3 py-2 rounded-2xl border border-white shadow-sm min-w-0 flex-1 max-w-[170px]">
+              <div className="flex items-center justify-between gap-3 min-w-0">
+                <span className="text-[10px] font-black uppercase tracking-tight text-slate-800 italic leading-none truncate min-w-0">
                   {profileName?.split(" ")[0] || ""}
                 </span>
-                <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">
+                <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap shrink-0">
                   {t.mastery}
                 </span>
               </div>
@@ -1593,12 +1593,12 @@ export default function StudyView() {
             </div>
           </div>
           {/* Top-right controls — Study Circle + Mode toggle */}
-          <div className="flex flex-col items-end gap-2 pointer-events-auto">
-            <div className="relative flex items-center gap-2">
+          <div className="flex flex-col items-end gap-2 pointer-events-auto shrink-0">
+            <div className="relative flex items-center gap-2 shrink-0">
               <button
                 onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
                 title={language === "jp" ? t.recognition : t.recall}
-                className={`flex items-center justify-center w-11 h-11 rounded-2xl border font-black transition-all active:scale-95 ${
+                className={`shrink-0 flex items-center justify-center w-11 h-11 rounded-2xl border font-black transition-all active:scale-95 ${
                   language === "jp"
                     ? "bg-indigo-50 border-indigo-100 text-indigo-600"
                     : "bg-orange-50 border-orange-100 text-orange-600"
@@ -1610,7 +1610,7 @@ export default function StudyView() {
               <button
                 onClick={toggleReflexMode}
                 title="Reflex Mode"
-                className={`relative flex items-center justify-center w-11 h-11 rounded-2xl border shadow-sm active:scale-95 transition-all ${
+                className={`shrink-0 relative flex items-center justify-center w-11 h-11 rounded-2xl border shadow-sm active:scale-95 transition-all ${
                   reflexMode
                     ? "bg-indigo-600 border-indigo-600 text-white"
                     : "bg-white/80 backdrop-blur-md border-white text-slate-400"
@@ -1622,7 +1622,7 @@ export default function StudyView() {
                   positioned so opening it never pushes the card/content down. */}
               <button
                 onClick={() => setShowQuickMenu((v) => !v)}
-                className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
+                className="shrink-0 relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-white/80 backdrop-blur-md border-white shadow-sm active:scale-95 transition-all"
                 title="More"
               >
                 {showQuickMenu ? <X size={18} className="text-slate-500" /> : <Menu size={18} className="text-slate-500" />}
