@@ -349,11 +349,13 @@ export default function Flashcard({
   // Use optional chaining here too
   const isBackJapanese = card ? backText === card.japanese : false;
 
-  // Only verbs/adjectives/suru-nouns carry this extra block (badges, te-form,
-  // suru_meaning) — most cards (plain nouns) don't, and for those the back content
-  // should stay centered like before, not top-aligned with a big empty gap underneath.
+  // Only verbs/suru-nouns can stack up enough here (transitivity + verb_type badge +
+  // te-form + suru_meaning) to risk overflowing — that's what needs the scrollable
+  // layout. adjective_type alone is a single small badge and never gets tall enough to
+  // need it, so it's deliberately left out here; counting it just left an empty gap
+  // under a card that was never at risk of overflowing in the first place.
   const hasGrammarInfo = !!(
-    card?.transitivity || card?.verb_type || card?.adjective_type || card?.te_form || card?.suru_meaning
+    card?.transitivity || card?.verb_type || card?.te_form || card?.suru_meaning
   );
 
   return (
