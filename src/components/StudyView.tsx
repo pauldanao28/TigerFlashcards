@@ -9,6 +9,7 @@ import { calculateGlobalStats } from "@/lib/stats";
 import { processReferral } from "@/lib/social";
 import { rollingAvg, vocabMastery, JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
 import { ALLOWED_PARTS_OF_SPEECH } from "@/lib/textNormalize";
+import { isRedundantSuruMeaning } from "@/lib/verbConjugation";
 import { useFriends } from "@/hooks/useFriends";
 import { authedFetch } from "@/lib/authedFetch";
 import { useAppAlert } from "@/context/AlertContext";
@@ -79,7 +80,10 @@ let _studyCache: StudyCacheEntry | null = null;
 // Bumped to -v3 when suru_meaning's format was fixed (capped length, "/" separator) —
 // cards already checked under -v2 had a stale long/comma-joined value cached as
 // "filled" and would never retry, so this forces one more clean re-sweep per device.
-const GRAMMAR_FILL_CACHE_KEY = "flashkado-grammar-fill-checked-v3";
+// Bumped to -v4 when the redundant-meaning filter (isRedundantSuruMeaning) was added —
+// same reasoning, cards filled under -v3 may have a suru_meaning that's basically a
+// restatement of the noun's own meaning and would otherwise never get re-evaluated.
+const GRAMMAR_FILL_CACHE_KEY = "flashkado-grammar-fill-checked-v4";
 let _grammarFillCache: Set<string> | null = null;
 function getGrammarFillCache(): Set<string> {
   if (_grammarFillCache) return _grammarFillCache;
@@ -1006,7 +1010,9 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         if (d.transitivity) patch.transitivity = d.transitivity;
         if (d.verbType) patch.verb_type = d.verbType;
         if (d.adjectiveType) patch.adjective_type = d.adjectiveType;
-        if (d.suruMeaning) patch.suru_meaning = d.suruMeaning;
+        if (d.suruMeaning && !isRedundantSuruMeaning(currentCard.english, d.suruMeaning)) {
+          patch.suru_meaning = d.suruMeaning;
+        }
         if (Object.keys(patch).length === 0) return;
         const { error } = await supabase.from("master_cards").update(patch).eq("id", cardId);
         if (error) { console.error("Error saving verb/adjective grammar info:", error); return; }

@@ -14,6 +14,23 @@ export function suruLabel(word: string): string {
   return word.endsWith("する") ? word : `${word}する`;
 }
 
+// Jisho has no judgment call like the generate-route prompt does ("only set
+// suru_meaning if the する-usage genuinely differs from the noun — null otherwise, it'd
+// be redundant") — it just returns whatever definitions the suru-tagged sense has,
+// which are often near-synonyms of the noun's own meaning (遅刻 "lateness" vs its
+// する-usage "lateness, tardiness, arriving late"). This approximates that same
+// judgment procedurally: if most of the suru-usage's words already appear in the
+// noun's own English meaning, showing it as a separate line is just redundant clutter.
+export function isRedundantSuruMeaning(nounEnglish: string, suruMeaning: string): boolean {
+  const words = (s: string) =>
+    new Set(s.toLowerCase().replace(/[^a-z\s]/g, " ").split(/\s+/).filter((w) => w.length > 2));
+  const nounWords = words(nounEnglish);
+  const suruWords = [...words(suruMeaning)];
+  if (suruWords.length === 0) return true;
+  const overlap = suruWords.filter((w) => nounWords.has(w)).length;
+  return overlap / suruWords.length >= 0.6;
+}
+
 export function classifyFromTags(tags: string[]): {
   verbType: VerbType | null;
   transitivity: Transitivity | null;
