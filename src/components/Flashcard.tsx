@@ -349,6 +349,13 @@ export default function Flashcard({
   // Use optional chaining here too
   const isBackJapanese = card ? backText === card.japanese : false;
 
+  // Only verbs/adjectives/suru-nouns carry this extra block (badges, te-form,
+  // suru_meaning) — most cards (plain nouns) don't, and for those the back content
+  // should stay centered like before, not top-aligned with a big empty gap underneath.
+  const hasGrammarInfo = !!(
+    card?.transitivity || card?.verb_type || card?.adjective_type || card?.te_form || card?.suru_meaning
+  );
+
   return (
     <>
     <div className="w-full max-w-[320px] h-full [perspective:1000px] touch-none mx-auto">
@@ -461,13 +468,13 @@ export default function Flashcard({
               </div>
             )}
 
-            {/* overflow-y-auto (not -hidden) + justify-start (not -center): with enough
-                optional fields (badges, te-form, suru_meaning) this block can be taller
-                than the available space. justify-center + overflow-hidden silently
-                clipped the bottom in that case (and clipped symmetrically from a
-                centered box, which can hide content from either end); starting from the
-                top and scrolling means nothing is ever lost, just reachable by scroll. */}
-            <div className="flex-1 flex flex-col items-center justify-start w-full overflow-y-auto">
+            {/* Plain cards (no grammar badges/te-form/suru_meaning) stay centered — looks
+                right and never risks overflow. Cards that DO carry that extra block can
+                get taller than the available space; justify-center + overflow-hidden
+                silently clipped the bottom there (symmetrically from a centered box, so
+                it could hide content from either end). Only those switch to top-aligned
+                + scrollable, so nothing is ever lost, just reachable by scroll. */}
+            <div className={`flex-1 flex flex-col items-center w-full ${hasGrammarInfo ? "justify-start overflow-y-auto" : "justify-center overflow-hidden"}`}>
               {(language === "jp" || language === "en") && card?.reading && (
                 <p className="text-indigo-200 text-lg mb-2 font-medium tracking-wide animate-fade-in truncate w-full">
                   {card?.reading}
