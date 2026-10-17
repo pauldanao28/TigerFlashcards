@@ -1,16 +1,40 @@
-"use client";
-import { useAuth } from "@/context/AuthContext";
-import StudyView from "@/components/StudyView"; // Your big flashcard UI
-import WelcomeView from "@/components/WelcomeView"; // Your new landing UI
-import LoadingScreen from "@/components/LoadingScreen";
+import HomeClient from "@/components/HomeClient";
+
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://flashkado.com";
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: "FlashKado",
+  url: siteUrl,
+  description:
+    "AI-powered Japanese flashcard app with spaced repetition, JLPT vocabulary packs, friend streaks, and kana study tools.",
+  applicationCategory: "EducationalApplication",
+  operatingSystem: "Web",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+  },
+  featureList: [
+    "AI-generated Japanese flashcards",
+    "Spaced repetition algorithm",
+    "JLPT N5–N1 vocabulary",
+    "Hiragana and Katakana study",
+    "Friend progress tracking",
+    "Daily study streaks",
+  ],
+  inLanguage: ["en", "ja"],
+};
 
 export default function Home() {
-  const { user, loading } = useAuth();
-
-  // Show a clean loading state while checking Supabase
-  if (loading) {
-    return <LoadingScreen />;
-  }
-
-  return user ? <StudyView /> : <WelcomeView />;
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <HomeClient />
+    </>
+  );
 }

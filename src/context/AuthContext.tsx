@@ -20,11 +20,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     // 1. Check active sessions on load
     const getSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      setLoading(false);
+      const timeout = setTimeout(() => setLoading(false), 5000);
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        setUser(session?.user ?? null);
+      } finally {
+        clearTimeout(timeout);
+        setLoading(false);
+      }
     };
 
     getSession();
