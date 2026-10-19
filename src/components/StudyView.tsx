@@ -429,9 +429,11 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         setBlocklist(p.blocked_words || []);
         if (p.vocab_score != null) vocabScoreRef.current = p.vocab_score;
 
-        // 1. Progress check
-        const today = new Date().toLocaleDateString("en-CA");
-        if (p.last_review_date === today) setDailyProgress(DAILY_GOAL);
+        // 1. Progress check — last_review_date is now always an Asia/Singapore
+        // calendar date (set by the update_streak RPC), so compare against that same
+        // timezone rather than the device's own, or this can silently mismatch too.
+        const todaySg = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+        if (p.last_review_date === todaySg) setDailyProgress(DAILY_GOAL);
 
         // 2. SAFE STREAK DISPLAY (No Auto-Reset)
         // We simply show whatever is in the DB.
@@ -567,30 +569,16 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   }, [user?.id, cards, currentCard, defaultDeckId]);
 
   // --- 6. Interaction Handlers ---
+  // Date math lives server-side (update_streak RPC) now, not here — computing
+  // "today"/"yesterday" from the calling device's own clock meant switching devices
+  // (different timezone/locale/clock) could make last_review_date look like it
+  // matched neither, silently resetting the streak. The RPC uses one fixed timezone
+  // (Asia/Singapore, same as the rest of the app's daily resets) no matter who calls it.
   const updateStreak = async () => {
     if (!user) return;
-    const today = new Date().toLocaleDateString("en-CA");
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toLocaleDateString("en-CA");
-
-    const { data: p } = await supabase
-      .from("profiles")
-      .select("streak_count, last_review_date")
-      .eq("id", user?.id)
-      .single();
-
-    if (!p || p.last_review_date === today) return;
-
-    // The logic only happens here!
-    const isContinuous = p.last_review_date === yesterdayStr;
-    const newStreak = isContinuous ? (p.streak_count || 0) + 1 : 1;
-
-    await supabase
-      .from("profiles")
-      .update({ streak_count: newStreak, last_review_date: today })
-      .eq("id", user?.id);
-
+    const { data, error } = await supabase.rpc("update_streak", { target_user_id: user.id });
+    if (error) { console.error("Error updating streak:", error); return; }
+    const newStreak = data as number;
     setStreak(newStreak);
     return newStreak;
   };
