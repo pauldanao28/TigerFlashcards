@@ -2943,7 +2943,9 @@ export default function StatsPage() {
                         {scoreDetailCard.adjective_type === "i" ? "い-adjective" : "な-adjective"}
                       </span>
                     )}
-                    {scoreDetailCard.te_form && (
+                    {/* Only actual verbs — a suru-noun's te-form is redundant next to
+                        its own badges + suru_meaning line right below. */}
+                    {scoreDetailCard.te_form && scoreDetailCard.partOfSpeech === "verb" && (
                       <span className="px-2.5 py-1 bg-slate-50 text-slate-600 rounded-full text-[9px] font-bold border border-slate-100">
                         Te-form: {scoreDetailCard.te_form}
                       </span>
@@ -3002,6 +3004,16 @@ export default function StatsPage() {
                     </div>
                   </div>
                 </div>
+                {!!scoreDetailCard.reflex_attempts && (
+                  <div className="flex items-center justify-between gap-2 mt-3 px-3.5 py-2 bg-amber-50 rounded-xl border border-amber-100">
+                    <span className="flex items-center gap-1.5 text-[10px] font-bold text-amber-700 uppercase tracking-widest">
+                      <Zap size={11} fill="currentColor" /> Avg Reflex Speed
+                    </span>
+                    <span className="text-sm font-black text-amber-700">
+                      {((scoreDetailCard.reflex_time_total_ms ?? 0) / scoreDetailCard.reflex_attempts / 1000).toFixed(1)}s
+                    </span>
+                  </div>
+                )}
                 <button
                   onClick={() => {
                     const card = scoreDetailCard;

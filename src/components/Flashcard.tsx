@@ -349,14 +349,17 @@ export default function Flashcard({
   // Use optional chaining here too
   const isBackJapanese = card ? backText === card.japanese : false;
 
-  // Only verbs/suru-nouns can stack up enough here (transitivity + verb_type badge +
-  // te-form + suru_meaning) to risk overflowing — that's what needs the scrollable
-  // layout. adjective_type alone is a single small badge and never gets tall enough to
-  // need it, so it's deliberately left out here; counting it just left an empty gap
-  // under a card that was never at risk of overflowing in the first place.
-  const hasGrammarInfo = !!(
-    card?.transitivity || card?.verb_type || card?.te_form || card?.suru_meaning
-  );
+  // Compact footer stats — combined pass-rate across both directions, and average
+  // Reflex Mode recall time for this specific card. Either can be absent (no attempts
+  // yet in that mode), so each renders only when there's something real to show.
+  const scoreJp = card?.scores?.jp_to_en;
+  const scoreEn = card?.scores?.en_to_jp;
+  const totalPass = (scoreJp?.pass ?? 0) + (scoreEn?.pass ?? 0);
+  const totalTries = (scoreJp?.total ?? 0) + (scoreEn?.total ?? 0);
+  const overallPercent = totalTries > 0 ? Math.round((totalPass / totalTries) * 100) : null;
+  const avgReflexSeconds = card?.reflex_attempts
+    ? (card.reflex_time_total_ms ?? 0) / card.reflex_attempts / 1000
+    : null;
 
   return (
     <>
@@ -470,13 +473,7 @@ export default function Flashcard({
               </div>
             )}
 
-            {/* Plain cards (no grammar badges/te-form/suru_meaning) stay centered — looks
-                right and never risks overflow. Cards that DO carry that extra block can
-                get taller than the available space; justify-center + overflow-hidden
-                silently clipped the bottom there (symmetrically from a centered box, so
-                it could hide content from either end). Only those switch to top-aligned
-                + scrollable, so nothing is ever lost, just reachable by scroll. */}
-            <div className={`flex-1 flex flex-col items-center w-full ${hasGrammarInfo ? "justify-start overflow-y-auto" : "justify-center overflow-hidden"}`}>
+            <div className="flex-1 flex flex-col items-center justify-center w-full overflow-hidden">
               {(language === "jp" || language === "en") && card?.reading && (
                 <p className="text-indigo-200 text-lg mb-2 font-medium tracking-wide animate-fade-in truncate w-full">
                   {card?.reading}
@@ -513,7 +510,9 @@ export default function Flashcard({
                   )}
                 </div>
               )}
-              {card?.te_form && (
+              {/* Only actual verbs — a suru-noun's te-form (勉強して) is redundant next
+                  to its own badges + suru_meaning line right below. */}
+              {card?.te_form && card?.partOfSpeech === "verb" && (
                 <p className="text-indigo-200 text-xs font-medium mt-1.5">
                   Te-form: <span className="text-white font-bold">{card.te_form}</span>
                 </p>
@@ -527,6 +526,13 @@ export default function Flashcard({
 
             {/* Footer Area */}
             <div className="mt-auto pt-4 border-t border-indigo-400/50 w-full">
+              {(overallPercent != null || avgReflexSeconds != null) && (
+                <p className="text-indigo-300/70 text-[9px] font-bold uppercase tracking-widest text-center mb-2">
+                  {overallPercent != null && `${overallPercent}%`}
+                  {overallPercent != null && avgReflexSeconds != null && " · "}
+                  {avgReflexSeconds != null && `⚡ ${avgReflexSeconds.toFixed(1)}s avg`}
+                </p>
+              )}
               {card?.exampleSentence?.jp && (
                 <div className="mb-4 px-2 text-center">
                   <p className="text-base italic text-indigo-50 line-clamp-3 overflow-hidden break-words">

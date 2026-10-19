@@ -3021,6 +3021,9 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                         </p>
                       </div>
                       <div className="shrink-0 flex items-center gap-2">
+                        <span className="text-[10px] font-black px-2 py-1 rounded-full bg-slate-100 text-slate-600">
+                          {cardOverallPercent(c)}%
+                        </span>
                         <span className="text-[10px] font-black px-2 py-1 rounded-full bg-amber-100 text-amber-700">
                           {avgReflexSeconds(c)?.toFixed(1)}s avg ×{c.reflex_attempts}
                         </span>
