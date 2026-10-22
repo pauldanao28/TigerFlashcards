@@ -349,6 +349,53 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     [posFilters],
   );
   const posFilterKey = selectedPos.join(",");
+
+  // "Trouble" filters — Leech (same cumulative <40% definition as the Cards page's
+  // Struggling stat), Struggling Today (daily_struggles, 3+ fails today), Slow Reflex
+  // (3+ Reflex Mode attempts). Mutually exclusive with N-level: combining "give me ALL
+  // my leeches" with "...but only N3" usually just empties the pool, so picking one
+  // clears and disables the other rather than silently returning nothing.
+  const [statusFilters, setStatusFilters] = useState<("leech" | "strugglingToday" | "slowReflex")[]>([]);
+  const statusFilterKey = statusFilters.join(",");
+  const [strugglingTodayIds, setStrugglingTodayIds] = useState<Set<string>>(new Set());
+  const leechIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const c of cards) {
+      const jp = c.scores?.jp_to_en;
+      const en = c.scores?.en_to_jp;
+      const totalAttempts = (jp?.total ?? 0) + (en?.total ?? 0);
+      const bestAccuracy = Math.max(jp?.percent ?? 0, en?.percent ?? 0);
+      if (totalAttempts > 0 && bestAccuracy < 40) ids.add(c.id);
+    }
+    return ids;
+  }, [cards]);
+  const slowReflexIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const c of cards) {
+      if ((c.reflex_attempts ?? 0) >= 3) ids.add(c.id);
+    }
+    return ids;
+  }, [cards]);
+  const inStatusFilter = useCallback(
+    (c: FlashcardData) => {
+      if (statusFilters.length === 0) return true;
+      return statusFilters.some((f) =>
+        f === "leech" ? leechIds.has(c.id) : f === "strugglingToday" ? strugglingTodayIds.has(c.id) : slowReflexIds.has(c.id),
+      );
+    },
+    [statusFilters, leechIds, strugglingTodayIds, slowReflexIds],
+  );
+  // Picking a trouble filter overrides N-level (see comment above) — also resets the
+  // toast used by both filter sections so the two don't talk over each other.
+  const toggleStatusFilter = useCallback((f: "leech" | "strugglingToday" | "slowReflex") => {
+    setJlptFilters([]);
+    setStatusFilters((prev) => (prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]));
+  }, []);
+  // The reverse direction — picking an N-level directly while a trouble filter is
+  // active clears it, same mutual-exclusivity rule from the other side.
+  useEffect(() => {
+    if (jlptFilters.length > 0 && statusFilters.length > 0) setStatusFilters([]);
+  }, [jlptFilters, statusFilters.length]);
   const t = translations.en;
 
   useEffect(() => {
@@ -462,6 +509,27 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     };
 
     fetchUserEnvironment();
+  }, [user]);
+
+  // Card ids failed 3+ times today (Asia/Singapore calendar date) — backs the
+  // "Struggling Today" trouble filter. Same table/threshold as the Cards page's
+  // Struggling Today list, just reduced to a Set of ids for the filter check.
+  useEffect(() => {
+    if (!user) return;
+    const fetchStrugglingToday = async () => {
+      const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+      const { data, error } = await supabase
+        .from("daily_struggles")
+        .select("card_id")
+        .eq("user_id", user.id)
+        .eq("struggle_date", sgToday)
+        .gte("fail_count", 3);
+      if (error) { console.error("Error fetching struggling-today ids:", error); return; }
+      setStrugglingTodayIds(new Set((data ?? []).map((d) => d.card_id)));
+    };
+    fetchStrugglingToday();
+    window.addEventListener("focus", fetchStrugglingToday);
+    return () => window.removeEventListener("focus", fetchStrugglingToday);
   }, [user]);
 
   // --- 4. Card Fetching (Triggers when Deck is ready) ---
@@ -796,7 +864,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
 
       const pool = updatedCards.filter(c =>
         (jlptFilters.length === 0 || jlptFilters.includes(c.jlpt_level as "N5" | "N4" | "N3" | "N2" | "N1")) &&
-        (posFilters.length === 0 || posFilters.includes(c.partOfSpeech ?? "noun"))
+        (posFilters.length === 0 || posFilters.includes(c.partOfSpeech ?? "noun")) &&
+        inStatusFilter(c)
       );
       setCurrentCard(getNextPriorityCard(pool.length > 0 ? pool : updatedCards, language, currentCard.id));
       setIsFlipped(false);
@@ -812,6 +881,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       t,
       jlptFilters,
       posFilters,
+      inStatusFilter,
       showHints,
       reflexMode,
     ],
@@ -911,11 +981,12 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
 
     const pool = updatedCards.filter(c =>
       (jlptFilters.length === 0 || jlptFilters.includes(c.jlpt_level as "N5" | "N4" | "N3" | "N2" | "N1")) &&
-      (posFilters.length === 0 || posFilters.includes(c.partOfSpeech ?? "noun"))
+      (posFilters.length === 0 || posFilters.includes(c.partOfSpeech ?? "noun")) &&
+      inStatusFilter(c)
     );
     setCurrentCard(getNextPriorityCard(pool.length > 0 ? pool : updatedCards, language, currentCard.id));
     setIsFlipped(false);
-  }, [currentCard, user, cards, language, jlptFilters, posFilters, showHints, setCardMasteryToast]);
+  }, [currentCard, user, cards, language, jlptFilters, posFilters, inStatusFilter, showHints, setCardMasteryToast]);
 
   // Rolling cap: starring a 31st word bumps whichever one has been starred longest,
   // rather than blocking the action or requiring the user to manage the count by hand.
@@ -1263,9 +1334,10 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const filteredCards = useMemo(
     () => cards.filter(c =>
       (jlptFilters.length === 0 || jlptFilters.includes(c.jlpt_level as "N5" | "N4" | "N3" | "N2" | "N1")) &&
-      (posFilters.length === 0 || posFilters.includes(c.partOfSpeech ?? "noun"))
+      (posFilters.length === 0 || posFilters.includes(c.partOfSpeech ?? "noun")) &&
+      inStatusFilter(c)
     ),
-    [cards, jlptFilters, posFilters],
+    [cards, jlptFilters, posFilters, inStatusFilter],
   );
 
   // No real schedule to check against (no next_review_at tracking), so this isn't a
@@ -1369,7 +1441,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     setCurrentCard(getNextPriorityCard(filteredCards, language));
     setIsFlipped(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jlptFilterKey, posFilterKey]);
+  }, [jlptFilterKey, posFilterKey, statusFilterKey]);
 
   // Show full-screen loading until the first deck fetch completes
   if (!hasLoadedOnce) {
@@ -1471,34 +1543,60 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               </button>
             </div>
 
-            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Level</p>
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Focus</p>
             <div className="flex gap-1.5 flex-wrap mb-5">
-              {(["All", "N5", "N4", "N3", "N2", "N1"] as const).map((lvl) => {
-                const isAll = lvl === "All";
-                const isActive = isAll ? selectedJlptLevels.length === 0 : jlptFilters.includes(lvl);
+              {([
+                ["leech", "Leech"],
+                ["strugglingToday", "Struggling Today"],
+                ["slowReflex", "Slow Reflex"],
+              ] as const).map(([key, label]) => {
+                const isActive = statusFilters.includes(key);
                 return (
                   <button
-                    key={lvl}
-                    onClick={() => {
-                      if (isAll) { setJlptFilters([]); return; }
-                      setJlptFilters(
-                        jlptFilters.includes(lvl)
-                          ? jlptFilters.filter((l) => l !== lvl)
-                          : [...jlptFilters, lvl],
-                      );
-                    }}
+                    key={key}
+                    onClick={() => toggleStatusFilter(key)}
                     className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
-                      isActive
-                        ? isAll
-                          ? "bg-white text-slate-900 border-white"
-                          : JLPT_BADGE_COLOR[lvl]
-                        : "bg-transparent text-slate-500 border-slate-700"
+                      isActive ? "bg-amber-500 text-white border-amber-500" : "bg-transparent text-slate-500 border-slate-700"
                     }`}
                   >
-                    {lvl}
+                    {label}
                   </button>
                 );
               })}
+            </div>
+
+            <div className={statusFilters.length > 0 ? "opacity-40 pointer-events-none" : ""}>
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">
+                Level{statusFilters.length > 0 ? " (unavailable with Focus)" : ""}
+              </p>
+              <div className="flex gap-1.5 flex-wrap mb-5">
+                {(["All", "N5", "N4", "N3", "N2", "N1"] as const).map((lvl) => {
+                  const isAll = lvl === "All";
+                  const isActive = isAll ? selectedJlptLevels.length === 0 : jlptFilters.includes(lvl);
+                  return (
+                    <button
+                      key={lvl}
+                      onClick={() => {
+                        if (isAll) { setJlptFilters([]); return; }
+                        setJlptFilters(
+                          jlptFilters.includes(lvl)
+                            ? jlptFilters.filter((l) => l !== lvl)
+                            : [...jlptFilters, lvl],
+                        );
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                        isActive
+                          ? isAll
+                            ? "bg-white text-slate-900 border-white"
+                            : JLPT_BADGE_COLOR[lvl]
+                          : "bg-transparent text-slate-500 border-slate-700"
+                      }`}
+                    >
+                      {lvl}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Part of Speech</p>
@@ -2599,64 +2697,99 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 <p className="text-slate-800 font-black text-sm uppercase tracking-tight">{t.by_level}</p>
                 <button onClick={() => setShowJlptBreakdown(false)} className="text-slate-300 hover:text-slate-500">✕</button>
               </div>
-              <p className="text-[10px] font-bold text-slate-400 mb-4 leading-relaxed">
-                Tap levels to filter what you study — pick as many as you like. Bars below show your mastery of each level; the number on the right is how many cards you have.
+              <p className="text-slate-800 font-black text-sm uppercase tracking-tight mb-1.5">Focus</p>
+              <p className="text-[10px] font-bold text-slate-400 mb-3 leading-relaxed">
+                Drill a trouble list instead of a level — overrides N-level below while active.
               </p>
-              {/* Filter chips */}
               <div className="flex gap-2 mb-5 flex-wrap">
-                {(["All", "N5", "N4", "N3", "N2", "N1"] as const).map((lvl) => {
-                  const isAll = lvl === "All";
-                  const isActive = isAll ? selectedJlptLevels.length === 0 : jlptFilters.includes(lvl);
+                {([
+                  ["leech", "Leech"],
+                  ["strugglingToday", "Struggling Today"],
+                  ["slowReflex", "Slow Reflex"],
+                ] as const).map(([key, label]) => {
+                  const isActive = statusFilters.includes(key);
                   return (
                     <button
-                      key={lvl}
+                      key={key}
                       onClick={() => {
-                        if (isAll) {
-                          setJlptFilters([]);
-                          setJlptFilterToast("Studying all levels");
-                          setTimeout(() => setJlptFilterToast(null), 2200);
-                          return;
-                        }
-                        const next = jlptFilters.includes(lvl)
-                          ? jlptFilters.filter((l) => l !== lvl)
-                          : [...jlptFilters, lvl];
-                        setJlptFilters(next);
-                        setJlptFilterToast(next.length === 0 ? "Studying all levels" : `Now studying ${next.join(", ")}`);
+                        toggleStatusFilter(key);
+                        setJlptFilterToast(isActive ? "Focus filter off" : `Now studying: ${label}`);
                         setTimeout(() => setJlptFilterToast(null), 2200);
                       }}
                       className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
-                        isActive
-                          ? isAll
-                            ? "bg-slate-800 text-white border-slate-800"
-                            : `${JLPT_BAR_COLOR[lvl]} text-white border-transparent`
-                          : isAll
-                            ? "bg-slate-50 text-slate-500 border-slate-200"
-                            : JLPT_BADGE_COLOR[lvl]
+                        isActive ? "bg-amber-500 text-white border-amber-500" : "bg-slate-50 text-slate-500 border-slate-200"
                       }`}
                     >
-                      {lvl}
+                      {label}
                     </button>
                   );
                 })}
               </div>
-              <div className="space-y-3 mb-5">
-                {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
-                  const count = jlptDistribution[level];
-                  const mastery = jlptLevelMasteryAll[level];
-                  return (
-                    <div key={level} className="flex items-center gap-3">
-                      <span className={`shrink-0 w-9 text-[10px] px-1.5 py-0.5 rounded-md border font-black text-center uppercase tracking-tighter ${JLPT_BADGE_COLOR[level]}`}>
-                        {level}
-                      </span>
-                      <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${JLPT_BAR_COLOR[level]}`} style={{ width: `${mastery}%` }} />
+
+              <div className="h-px bg-slate-100 -mx-6 mb-4" />
+              <p className="text-slate-800 font-black text-sm uppercase tracking-tight mb-1.5">
+                Level{statusFilters.length > 0 ? " (unavailable with Focus)" : ""}
+              </p>
+              <p className="text-[10px] font-bold text-slate-400 mb-4 leading-relaxed">
+                Tap levels to filter what you study — pick as many as you like. Bars below show your mastery of each level; the number on the right is how many cards you have.
+              </p>
+              <div className={statusFilters.length > 0 ? "opacity-40 pointer-events-none" : ""}>
+                {/* Filter chips */}
+                <div className="flex gap-2 mb-5 flex-wrap">
+                  {(["All", "N5", "N4", "N3", "N2", "N1"] as const).map((lvl) => {
+                    const isAll = lvl === "All";
+                    const isActive = isAll ? selectedJlptLevels.length === 0 : jlptFilters.includes(lvl);
+                    return (
+                      <button
+                        key={lvl}
+                        onClick={() => {
+                          if (isAll) {
+                            setJlptFilters([]);
+                            setJlptFilterToast("Studying all levels");
+                            setTimeout(() => setJlptFilterToast(null), 2200);
+                            return;
+                          }
+                          const next = jlptFilters.includes(lvl)
+                            ? jlptFilters.filter((l) => l !== lvl)
+                            : [...jlptFilters, lvl];
+                          setJlptFilters(next);
+                          setJlptFilterToast(next.length === 0 ? "Studying all levels" : `Now studying ${next.join(", ")}`);
+                          setTimeout(() => setJlptFilterToast(null), 2200);
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                          isActive
+                            ? isAll
+                              ? "bg-slate-800 text-white border-slate-800"
+                              : `${JLPT_BAR_COLOR[lvl]} text-white border-transparent`
+                            : isAll
+                              ? "bg-slate-50 text-slate-500 border-slate-200"
+                              : JLPT_BADGE_COLOR[lvl]
+                        }`}
+                      >
+                        {lvl}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="space-y-3 mb-5">
+                  {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
+                    const count = jlptDistribution[level];
+                    const mastery = jlptLevelMasteryAll[level];
+                    return (
+                      <div key={level} className="flex items-center gap-3">
+                        <span className={`shrink-0 w-9 text-[10px] px-1.5 py-0.5 rounded-md border font-black text-center uppercase tracking-tighter ${JLPT_BADGE_COLOR[level]}`}>
+                          {level}
+                        </span>
+                        <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${JLPT_BAR_COLOR[level]}`} style={{ width: `${mastery}%` }} />
+                        </div>
+                        <span className="shrink-0 w-14 text-right text-xs font-black text-slate-600">
+                          {count}
+                        </span>
                       </div>
-                      <span className="shrink-0 w-14 text-right text-xs font-black text-slate-600">
-                        {count}
-                      </span>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="h-px bg-slate-100 -mx-6 mb-4" />
