@@ -361,6 +361,14 @@ export default function Flashcard({
     ? (card.reflex_time_total_ms ?? 0) / card.reflex_attempts / 1000
     : null;
 
+  // Every real report of the centered content overflowing (急行, 記録, 交通, 予習, 準備)
+  // has been this exact category — a suru-capable noun, where reading + an English
+  // meaning that often wraps to 2 lines + the badge row + suru_meaning adds up to just
+  // enough height to clip. Real verbs and adjectives have never had this problem, so
+  // scoping the scroll-safe layout to only suru-nouns avoids reintroducing the empty
+  // gap they got stuck with last time this was tried as a broader "hasGrammarInfo" check.
+  const isSuruNoun = card?.partOfSpeech === "noun" && !!(card?.transitivity || card?.verb_type);
+
   return (
     <>
     <div className="w-full max-w-[320px] h-full [perspective:1000px] touch-none mx-auto">
@@ -473,16 +481,14 @@ export default function Flashcard({
               </div>
             )}
 
-            {/* overflow-y-auto, not -hidden: justify-center is unconditional (see
-                commit history — conditionally switching to justify-start left an
-                ugly gap on the common case of short content), so a card whose content
-                happens to run slightly tall (e.g. a 2-line English meaning + badge
-                row) needs somewhere for the overflow to go other than getting
-                silently clipped from a centered box — that clipped exactly the first
-                line's top half on 予習, looking like corrupted text. Scrollable beats
-                losing content; for the vast majority of cards where everything fits,
-                this is visually identical to before. */}
-            <div className="flex-1 flex flex-col items-center justify-center w-full overflow-y-auto">
+            {/* justify-center + overflow-y-auto together don't actually fix overflow —
+                confirmed on 準備: a centered box that overflows still shows scrolled
+                past its own start by default in practice, so the symptom (the first
+                line's top sliced off) looked identical even with overflow no longer
+                literally "hidden". Only justify-start reliably shows everything from
+                the top; scoped to isSuruNoun (see above) so the common case (every
+                other card) stays centered with no gap. */}
+            <div className={`flex-1 flex flex-col items-center w-full overflow-y-auto ${isSuruNoun ? "justify-start" : "justify-center"}`}>
               {(language === "jp" || language === "en") && card?.reading && (
                 <p className="text-indigo-200 text-lg mb-2 font-medium tracking-wide animate-fade-in truncate w-full">
                   {card?.reading}
