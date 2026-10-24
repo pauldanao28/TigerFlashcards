@@ -2007,7 +2007,8 @@ export default function StatsPage() {
                     ).map((word) => (
                       <div
                         key={word.id}
-                        className="p-5 rounded-3xl border border-white bg-white shadow-sm flex justify-between items-center hover:shadow-md hover:scale-[1.01] transition-all group"
+                        onClick={() => setScoreDetailCard(word)}
+                        className="p-5 rounded-3xl border border-white bg-white shadow-sm flex justify-between items-center hover:shadow-md hover:scale-[1.01] transition-all group cursor-pointer active:scale-[0.99]"
                       >
                         <div>
                           <p className="text-xl font-black text-slate-800 group-hover:text-indigo-600 transition-colors">
