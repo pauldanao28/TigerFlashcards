@@ -25,6 +25,7 @@ import { SocialDock } from "@/components/SocialDock";
 import SentenceQuiz from "@/components/SentenceQuiz";
 import ListeningQuiz from "@/components/ListeningQuiz";
 import AddWordsSheet from "@/components/AddWordsSheet";
+import CardDetailModal from "@/components/CardDetailModal";
 import { FlashcardData, KanjiMnemonic } from "@/lib/types";
 import { useIsMiniViewport } from "@/lib/useMiniViewport";
 import { motion, AnimatePresence } from "framer-motion";
@@ -223,6 +224,9 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showWeakModal, setShowWeakModal] = useState(false);
   const [showSlowRecallModal, setShowSlowRecallModal] = useState(false);
+  // Tapping a word in Weak Words / Slow Recall opens the exact same detail view as
+  // the Cards page grid — one shared component (CardDetailModal), not a lookalike.
+  const [detailCard, setDetailCard] = useState<FlashcardData | null>(null);
   const [showQuickMenu, setShowQuickMenu] = useState(false);
   // Mnemonic sheet nested inside the Weak Words modal — same generate/cache logic as
   // Flashcard.tsx's "Remember this kanji" button on the card back, just reachable
@@ -3041,7 +3045,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     return (
                       <div
                         key={c.id}
-                        className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3"
+                        onClick={() => setDetailCard(c)}
+                        className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3 cursor-pointer active:opacity-70 transition-opacity"
                       >
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
@@ -3062,7 +3067,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                           </span>
                           {KANJI_RE.test(c.japanese) && (
                             <button
-                              onClick={() => handleWeakWordMnemonic(c)}
+                              onClick={(e) => { e.stopPropagation(); handleWeakWordMnemonic(c); }}
                               className="p-1.5 rounded-full hover:bg-amber-100 active:scale-90 transition-all"
                               title="Remember this kanji"
                             >
@@ -3070,7 +3075,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                             </button>
                           )}
                           <button
-                            onClick={() => togglePriority(c)}
+                            onClick={(e) => { e.stopPropagation(); togglePriority(c); }}
                             className="p-1.5 rounded-full hover:bg-amber-100 active:scale-90 transition-all"
                             title={c.is_priority ? "Remove from Priority" : "Add to Priority"}
                           >
@@ -3126,7 +3131,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                   slowRecallList.map((c) => (
                     <div
                       key={c.id}
-                      className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3"
+                      onClick={() => setDetailCard(c)}
+                      className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3 cursor-pointer active:opacity-70 transition-opacity"
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
@@ -3150,7 +3156,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                         </span>
                         {KANJI_RE.test(c.japanese) && (
                           <button
-                            onClick={() => handleWeakWordMnemonic(c)}
+                            onClick={(e) => { e.stopPropagation(); handleWeakWordMnemonic(c); }}
                             className="p-1.5 rounded-full hover:bg-amber-100 active:scale-90 transition-all"
                             title="Remember this kanji"
                           >
@@ -3158,7 +3164,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                           </button>
                         )}
                         <button
-                          onClick={() => togglePriority(c)}
+                          onClick={(e) => { e.stopPropagation(); togglePriority(c); }}
                           className="p-1.5 rounded-full hover:bg-amber-100 active:scale-90 transition-all"
                           title={c.is_priority ? "Remove from Priority" : "Add to Priority"}
                         >
@@ -3177,6 +3183,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           </>
         )}
       </AnimatePresence>
+
+      {detailCard && <CardDetailModal card={detailCard} onClose={() => setDetailCard(null)} />}
 
       {/* Mnemonic sheet for a Weak Words entry — sits above the Weak Words modal
           (z-[220]/[221]) with the same content/style as Flashcard.tsx's own sheet. */}

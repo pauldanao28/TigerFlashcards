@@ -3,7 +3,6 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FlashcardData } from "@/lib/types";
-import { suruLabel } from "@/lib/verbConjugation";
 import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
 import { translations } from "@/lib/languages";
@@ -16,6 +15,7 @@ import LoadingScreen from "@/components/LoadingScreen";
 import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
 import AddWordsSheet from "@/components/AddWordsSheet";
 import DuplicatesSheet from "@/components/DuplicatesSheet";
+import CardDetailModal from "@/components/CardDetailModal";
 import { findDuplicates, skipDeckDuplicates } from "@/lib/duplicates";
 import { AlertTriangle, Ban, BarChart3, BookOpen, ChevronLeft, Flag, Gamepad2, Gift, Headphones, ImageIcon, Layers, List, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Volume2, X, Zap } from "lucide-react";
 import { AVATAR_PRESETS } from "@/lib/avatars";
@@ -2900,132 +2900,7 @@ export default function StatsPage() {
           {/* JP→EN / EN→JP detail — tap a card above to see it, instead of every card
               carrying two bars inline all the time. */}
           {scoreDetailCard && (
-            <div
-              className="fixed inset-0 z-[230] flex items-center justify-center p-4"
-              onClick={() => setScoreDetailCard(null)}
-            >
-              <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200" />
-              <div
-                className="relative w-full max-w-sm bg-white rounded-[2rem] shadow-2xl p-6 animate-in zoom-in-95 duration-200"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-start justify-between gap-3 mb-4">
-                  <div className="min-w-0">
-                    <p className="text-2xl font-black text-slate-800 truncate">{scoreDetailCard.japanese}</p>
-                    <p className="text-sm font-bold text-indigo-500">{scoreDetailCard.reading}</p>
-                    <p className="text-slate-600 text-sm mt-0.5">{scoreDetailCard.english}</p>
-                  </div>
-                  <button
-                    onClick={() => setScoreDetailCard(null)}
-                    className="h-9 w-9 shrink-0 flex items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:bg-slate-100 active:scale-90 transition-all"
-                  >
-                    <X size={15} />
-                  </button>
-                </div>
-
-                {(scoreDetailCard.transitivity || scoreDetailCard.verb_type || scoreDetailCard.adjective_type || scoreDetailCard.te_form) && (
-                  <div className="flex flex-wrap items-center gap-1.5 mb-4">
-                    {scoreDetailCard.partOfSpeech === "noun" && (scoreDetailCard.transitivity || scoreDetailCard.verb_type) && (
-                      <span className="text-slate-400 text-[10px] font-bold">{suruLabel(scoreDetailCard.japanese)}:</span>
-                    )}
-                    {scoreDetailCard.transitivity && (
-                      <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-indigo-100">
-                        {scoreDetailCard.transitivity === "transitive" ? "Transitive" : "Intransitive"}
-                      </span>
-                    )}
-                    {scoreDetailCard.verb_type && (
-                      <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-indigo-100">
-                        {scoreDetailCard.verb_type === "godan" ? "Godan" : scoreDetailCard.verb_type === "ichidan" ? "Ichidan" : "Irregular"}
-                      </span>
-                    )}
-                    {scoreDetailCard.adjective_type && (
-                      <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-indigo-100">
-                        {scoreDetailCard.adjective_type === "i" ? "い-adjective" : "な-adjective"}
-                      </span>
-                    )}
-                    {/* Only actual verbs — a suru-noun's te-form is redundant next to
-                        its own badges + suru_meaning line right below. */}
-                    {scoreDetailCard.te_form && scoreDetailCard.partOfSpeech === "verb" && (
-                      <span className="px-2.5 py-1 bg-slate-50 text-slate-600 rounded-full text-[9px] font-bold border border-slate-100">
-                        Te-form: {scoreDetailCard.te_form}
-                      </span>
-                    )}
-                  </div>
-                )}
-                {scoreDetailCard.suru_meaning && (
-                  <p className="text-slate-500 text-xs font-medium mb-4 -mt-2 line-clamp-2" title={scoreDetailCard.suru_meaning}>
-                    {suruLabel(scoreDetailCard.japanese)}: <span className="text-slate-800 font-bold">{scoreDetailCard.suru_meaning}</span>
-                  </p>
-                )}
-                <div className="mb-4 p-4 bg-slate-50 rounded-2xl">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Example</p>
-                  {scoreDetailCard.exampleSentence?.jp ? (
-                    <>
-                      <p className="text-slate-800 font-bold leading-relaxed">{scoreDetailCard.exampleSentence.jp}</p>
-                      {scoreDetailCard.exampleSentence.en && (
-                        <p className="text-slate-500 text-sm mt-1 leading-relaxed">{scoreDetailCard.exampleSentence.en}</p>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-slate-400 text-sm italic">No sentence example</p>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">
-                      🇯🇵 → 🇺🇸
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold">
-                        {scoreDetailCard.scores?.jp_to_en?.percent || 0}%
-                      </span>
-                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-emerald-400"
-                          style={{ width: `${scoreDetailCard.scores?.jp_to_en?.percent || 0}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">
-                      🇺🇸 → 🇯🇵
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold">
-                        {scoreDetailCard.scores?.en_to_jp?.percent || 0}%
-                      </span>
-                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-orange-400"
-                          style={{ width: `${scoreDetailCard.scores?.en_to_jp?.percent || 0}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                {!!scoreDetailCard.reflex_attempts && (
-                  <div className="flex items-center justify-between gap-2 mt-3 px-3.5 py-2 bg-amber-50 rounded-xl border border-amber-100">
-                    <span className="flex items-center gap-1.5 text-[10px] font-bold text-amber-700 uppercase tracking-widest">
-                      <Zap size={11} fill="currentColor" /> Avg Reflex Speed
-                    </span>
-                    <span className="text-sm font-black text-amber-700">
-                      {((scoreDetailCard.reflex_time_total_ms ?? 0) / scoreDetailCard.reflex_attempts / 1000).toFixed(1)}s
-                    </span>
-                  </div>
-                )}
-                <button
-                  onClick={() => {
-                    const card = scoreDetailCard;
-                    setScoreDetailCard(null);
-                    handleReport(card.id, card.english);
-                  }}
-                  className="w-full mt-4 pt-4 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-600 active:scale-95 transition-all"
-                >
-                  <Flag size={12} /> Report a Problem
-                </button>
-              </div>
-            </div>
+            <CardDetailModal card={scoreDetailCard} onClose={() => setScoreDetailCard(null)} />
           )}
 
           <div className="hidden md:block bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
