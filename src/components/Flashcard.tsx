@@ -473,7 +473,16 @@ export default function Flashcard({
               </div>
             )}
 
-            <div className="flex-1 flex flex-col items-center justify-center w-full overflow-hidden">
+            {/* overflow-y-auto, not -hidden: justify-center is unconditional (see
+                commit history — conditionally switching to justify-start left an
+                ugly gap on the common case of short content), so a card whose content
+                happens to run slightly tall (e.g. a 2-line English meaning + badge
+                row) needs somewhere for the overflow to go other than getting
+                silently clipped from a centered box — that clipped exactly the first
+                line's top half on 予習, looking like corrupted text. Scrollable beats
+                losing content; for the vast majority of cards where everything fits,
+                this is visually identical to before. */}
+            <div className="flex-1 flex flex-col items-center justify-center w-full overflow-y-auto">
               {(language === "jp" || language === "en") && card?.reading && (
                 <p className="text-indigo-200 text-lg mb-2 font-medium tracking-wide animate-fade-in truncate w-full">
                   {card?.reading}
