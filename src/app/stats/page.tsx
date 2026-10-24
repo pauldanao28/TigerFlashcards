@@ -804,6 +804,26 @@ export default function StatsPage() {
     return totalAttempts > 0 ? totalMs / totalAttempts / 1000 : null;
   }, [cards]);
 
+  // Average best-direction accuracy across every attempted card — same "whichever
+  // side is higher" philosophy as Struggling/Mastered's own per-card classification,
+  // just averaged instead of thresholded. Cards with zero attempts in either
+  // direction are excluded (an untried 0% would just measure how much of the deck
+  // is unstarted, not how well those cards are actually known); null with no
+  // attempted cards at all.
+  const avgBestAccuracy = useMemo(() => {
+    let sum = 0;
+    let count = 0;
+    for (const c of cards) {
+      const jp = c.scores?.jp_to_en;
+      const en = c.scores?.en_to_jp;
+      const totalAttempts = (jp?.total ?? 0) + (en?.total ?? 0);
+      if (totalAttempts === 0) continue;
+      sum += Math.max(jp?.percent ?? 0, en?.percent ?? 0);
+      count += 1;
+    }
+    return count > 0 ? Math.round(sum / count) : null;
+  }, [cards]);
+
   const filteredCards = useMemo(() => {
     const query = searchQuery.toLowerCase();
     return cards
@@ -1722,6 +1742,16 @@ export default function StatsPage() {
                 bgColor="bg-amber-50"
                 iconColor="text-amber-500"
                 icon={Zap}
+              />
+            )}
+
+            {avgBestAccuracy != null && (
+              <StatCard
+                label="Avg Accuracy"
+                value={`${avgBestAccuracy}%`}
+                bgColor="bg-emerald-50"
+                iconColor="text-emerald-500"
+                icon={TrendingUp}
               />
             )}
 
