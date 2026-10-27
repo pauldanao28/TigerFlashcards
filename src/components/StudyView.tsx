@@ -2372,7 +2372,10 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               )}
             </div>
 
-            {/* Accuracy info */}
+            {/* Accuracy info — card's avg Reflex Mode speed tacked on here too, rather
+                than on the card's own back face, which is tight on vertical space
+                (badges + te-form can already run close to the limit without also
+                reserving a line for this). */}
             {!dataLoading && cards.length > 0 && currentCard && (
               <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] text-center">
                 {language === "jp" ? `🇯🇵 ${t.recognition}` : `🇺🇸 ${t.recall}`}
@@ -2380,6 +2383,11 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 <span className="font-black text-slate-300">
                   {currentCard.scores?.[language === "jp" ? "jp_to_en" : "en_to_jp"]?.percent || 0}% {t.accuracy}
                 </span>
+                {!!currentCard.reflex_attempts && (
+                  <span className="font-black text-amber-500">
+                    {" "}· ⚡{((currentCard.reflex_time_total_ms ?? 0) / currentCard.reflex_attempts / 1000).toFixed(1)}s
+                  </span>
+                )}
               </span>
             )}
           </div>

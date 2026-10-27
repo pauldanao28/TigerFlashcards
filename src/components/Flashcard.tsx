@@ -349,25 +349,18 @@ export default function Flashcard({
   // Use optional chaining here too
   const isBackJapanese = card ? backText === card.japanese : false;
 
-  // Compact footer stats — combined pass-rate across both directions, and average
-  // Reflex Mode recall time for this specific card. Either can be absent (no attempts
-  // yet in that mode), so each renders only when there's something real to show.
-  const scoreJp = card?.scores?.jp_to_en;
-  const scoreEn = card?.scores?.en_to_jp;
-  const totalPass = (scoreJp?.pass ?? 0) + (scoreEn?.pass ?? 0);
-  const totalTries = (scoreJp?.total ?? 0) + (scoreEn?.total ?? 0);
-  const overallPercent = totalTries > 0 ? Math.round((totalPass / totalTries) * 100) : null;
-  const avgReflexSeconds = card?.reflex_attempts
-    ? (card.reflex_time_total_ms ?? 0) / card.reflex_attempts / 1000
-    : null;
+  // Per-card accuracy/reflex-speed now lives in the header above the card (StudyView),
+  // not here — this card's own vertical space is tight enough already (badges +
+  // te-form can run close to the limit on their own) that reserving a line for it here
+  // was part of what made the furigana-clipping problem worse, not just a symptom of it.
 
-  // Every real report of the centered content overflowing (急行, 記録, 交通, 予習, 準備)
-  // has been this exact category — a suru-capable noun, where reading + an English
-  // meaning that often wraps to 2 lines + the badge row + suru_meaning adds up to just
-  // enough height to clip. Real verbs and adjectives have never had this problem, so
-  // scoping the scroll-safe layout to only suru-nouns avoids reintroducing the empty
-  // gap they got stuck with last time this was tried as a broader "hasGrammarInfo" check.
-  const isSuruNoun = card?.partOfSpeech === "noun" && !!(card?.transitivity || card?.verb_type);
+  // Every real report of the centered content overflowing (急行, 記録, 交通, 予習, 準備,
+  // 協力) has been a card whose verb_type is "irregular" — that covers every
+  // suru-capable noun (always classified irregular) and irregular verbs like 協力する,
+  // 来る-compounds, etc. Godan/ichidan verbs and adjectives have never shown this, so
+  // scoping the scroll-safe layout to exactly this one field avoids reintroducing the
+  // empty gap they got stuck with from a broader "hasGrammarInfo" check.
+  const needsScrollSafeLayout = card?.verb_type === "irregular";
 
   return (
     <>
@@ -484,11 +477,12 @@ export default function Flashcard({
             {/* justify-center + overflow-y-auto together don't actually fix overflow —
                 confirmed on 準備: a centered box that overflows still shows scrolled
                 past its own start by default in practice, so the symptom (the first
-                line's top sliced off) looked identical even with overflow no longer
-                literally "hidden". Only justify-start reliably shows everything from
-                the top; scoped to isSuruNoun (see above) so the common case (every
+                line's top sliced off, or on 協力, the whole reading line not showing
+                at all) looked identical even with overflow no longer literally
+                "hidden". Only justify-start reliably shows everything from the top;
+                scoped to needsScrollSafeLayout (see above) so the common case (every
                 other card) stays centered with no gap. */}
-            <div className={`flex-1 flex flex-col items-center w-full overflow-y-auto ${isSuruNoun ? "justify-start" : "justify-center"}`}>
+            <div className={`flex-1 flex flex-col items-center w-full overflow-y-auto ${needsScrollSafeLayout ? "justify-start" : "justify-center"}`}>
               {(language === "jp" || language === "en") && card?.reading && (
                 <p className="text-indigo-200 text-lg mb-2 font-medium tracking-wide animate-fade-in truncate w-full">
                   {card?.reading}
@@ -541,13 +535,6 @@ export default function Flashcard({
 
             {/* Footer Area */}
             <div className="mt-auto pt-4 border-t border-indigo-400/50 w-full">
-              {(overallPercent != null || avgReflexSeconds != null) && (
-                <p className="text-indigo-300/70 text-[9px] font-bold uppercase tracking-widest text-center mb-2">
-                  {overallPercent != null && `${overallPercent}%`}
-                  {overallPercent != null && avgReflexSeconds != null && " · "}
-                  {avgReflexSeconds != null && `⚡ ${avgReflexSeconds.toFixed(1)}s avg`}
-                </p>
-              )}
               {card?.exampleSentence?.jp && (
                 <div className="mb-4 px-2 text-center">
                   <p className="text-base italic text-indigo-50 line-clamp-3 overflow-hidden break-words">
