@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 import { getAuthedUser } from "@/lib/apiAuth";
 import { checkAndRecordUsage } from "@/lib/rateLimit";
+import { grammarLabelForLevel } from "@/lib/scoring";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
@@ -10,6 +11,7 @@ interface PatternInput {
   pattern: string;
   meaning: string;
   example_jp?: string | null;
+  jlpt_level?: "N5" | "N4" | "N3" | "N2" | "N1";
 }
 
 // Cycle question types across the pool so every question is still anchored to a specific
@@ -42,13 +44,22 @@ export async function POST(req: Request) {
     const pool = (patterns as PatternInput[]).slice(0, 25);
 
     const list = pool
-      .map((p, i) => `${i + 1}. id=${p.id} | type=${assignType(i)} | pattern=${p.pattern} | meaning=${p.meaning}${p.example_jp ? ` | example=${p.example_jp}` : ""}`)
+      .map((p, i) => {
+        const level = p.jlpt_level ? ` | level=${grammarLabelForLevel(p.jlpt_level)}` : "";
+        return `${i + 1}. id=${p.id} | type=${assignType(i)} | pattern=${p.pattern} | meaning=${p.meaning}${p.example_jp ? ` | example=${p.example_jp}` : ""}${level}`;
+      })
       .join("\n");
 
     const prompt = `You are a Japanese grammar quiz generator. For each grammar pattern below, write ONE question of the given type that specifically tests whether the learner knows THAT pattern — not a different pattern, not just vocabulary.
 
-Patterns (with assigned question type):
+Patterns (with assigned question type and grammar level):
 ${list}
+
+IMPORTANT — grammar difficulty, not just vocabulary: each pattern lists its own level
+(e.g. "N4 — て-form, たい, polite/plain switching, simple compound sentences"). Keep
+EVERYTHING ELSE in that question's sentence — not just the tested pattern itself — at
+that same grammar level. Don't let a harder structure sneak into the rest of the
+sentence just because it reads naturally; pick simpler phrasing that still stays natural.
 
 Question type formats:
 - type "grammar": fill-in-the-blank. "sentence" is a natural Japanese sentence with the pattern's key part replaced by ___（アンダースコア3つ）, furigana on other non-trivial kanji in parentheses. "choices": exactly 4 (correct + 3 plausible confusable forms/particles). "answer": exact match of one choice.

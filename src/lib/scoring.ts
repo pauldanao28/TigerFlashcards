@@ -182,11 +182,27 @@ export function tierScoreCap(currentScore: number): number {
   return 100;
 }
 
+// Real grammar points per level, not just a vocabulary tier — quiz prompts inject this
+// text directly so Gemini constrains sentence *grammar* to the level, not only word
+// choice. Keyed by level string so both difficultyLabel (score-based) and
+// grammarLabelForLevel (level-based, e.g. when a specific item already carries its own
+// jlpt_level) stay in sync off one source of truth.
+const JLPT_GRAMMAR_DESCRIPTIONS: Record<"N5" | "N4" | "N3" | "N2" | "N1", string> = {
+  N1: "N1 / advanced — complex grammar, keigo, classical patterns, long compound sentences",
+  N2: "N2 — passive, causative, potential, complex conditionals, keigo basics",
+  N3: "N3 — て-form chains, たら/ば conditionals, て-verb compounds, plain form embedding",
+  N4: "N4 — て-form, たい, polite/plain switching, simple compound sentences",
+  N5: "N5 — extremely simple, present/past tense only, common verbs and nouns, short sentences",
+};
+
 // Difficulty label for quiz API prompts.
 export function difficultyLabel(score: number): string {
-  if (score >= 80) return "N1 / advanced — complex grammar, keigo, classical patterns, long compound sentences";
-  if (score >= 60) return "N2 — passive, causative, potential, complex conditionals, keigo basics";
-  if (score >= 40) return "N3 — て-form chains, たら/ば conditionals, て-verb compounds, plain form embedding";
-  if (score >= 20) return "N4 — て-form, たい, polite/plain switching, simple compound sentences";
-  return "N5 — extremely simple, present/past tense only, common verbs and nouns, short sentences";
+  return JLPT_GRAMMAR_DESCRIPTIONS[jlptLevel(score) as keyof typeof JLPT_GRAMMAR_DESCRIPTIONS];
+}
+
+// Same grammar-point text as difficultyLabel, keyed directly by level — for callers
+// that already have a specific item's own jlpt_level (e.g. one grammar pattern in a
+// mixed-level quiz round) rather than a single 0-100 skill score for the whole round.
+export function grammarLabelForLevel(level: "N5" | "N4" | "N3" | "N2" | "N1"): string {
+  return JLPT_GRAMMAR_DESCRIPTIONS[level];
 }

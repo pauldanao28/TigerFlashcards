@@ -355,6 +355,7 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
       // the final question list at PATTERNS_PER_ROUND to keep the quiz at exactly 20.
       const pool = weighted.slice(0, PATTERNS_PER_ROUND + 5).map(({ pattern }) => ({
         id: pattern.id, pattern: pattern.pattern, meaning: pattern.meaning, example_jp: pattern.example_jp,
+        jlpt_level: pattern.jlpt_level,
       }));
 
       const res = await authedFetch("/api/quiz/grammar-patterns", {
