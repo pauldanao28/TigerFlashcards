@@ -4,7 +4,7 @@ import { motion, AnimatePresence, useAnimationControls } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
-import { getLevel, jlptLevel, JLPT_VOCAB_INCREMENT, grammarPatternScore } from "@/lib/scoring";
+import { getLevel, jlptLevel, JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
 import { ALLOWED_PARTS_OF_SPEECH } from "@/lib/textNormalize";
 import LoadingScreen from "@/components/LoadingScreen";
 import { SocialDock } from "@/components/SocialDock";
@@ -280,168 +280,37 @@ export default function Dashboard() {
     const load = async () => {
       const today = new Date().toLocaleDateString("en-CA");
 
-      // Round 1: profile + deck + today's review count + today's mastery count + today's quiz completions
-      const [profileRes, deckRes, reviewRes, masteryRes, quizRes] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("full_name, referral_code, streak_count, max_streak, reading_score, listening_score, grammar_score")
-          .eq("id", user.id)
-          .single(),
-        supabase.from("decks").select("id").eq("user_id", user.id).eq("is_default", true).single(),
-        supabase.from("user_review_counts").select("count").eq("user_id", user.id).eq("study_date", today).maybeSingle(),
-        supabase.from("user_mastery_counts").select("count").eq("user_id", user.id).eq("mastery_date", today).maybeSingle(),
-        supabase.from("quiz_daily_stats").select("quiz_type").eq("user_id", user.id).eq("study_date", today),
-      ]);
+      // Everything Dashboard needs (profile fields, today's counters, deck-wide
+      // JLPT/part-of-speech mastery stats, vocab/grammar score + their N-level
+      // determination) in one round trip — get_dashboard_data does the same
+      // per-card aggregation server-side (see its migration for why that's also
+      // immune to PostgREST's 1000-row cap, not just faster) and persists the
+      // recomputed vocab/grammar scores itself.
+      const { data: raw, error } = await supabase.rpc("get_dashboard_data", { p_today: today });
+      if (error || !raw) { console.error("[dashboard load]", error?.code, error?.message); return; }
 
-      const doneTypes = new Set((quizRes.data ?? []).map((r: { quiz_type: string }) => r.quiz_type));
-      setDoneTodayQuizzes({ reading: doneTypes.has("reading"), listening: doneTypes.has("listening"), grammar: doneTypes.has("grammar") });
-
-      const p = profileRes.data;
-      const deckId = deckRes.data?.id;
-
-      // Round 2: paginate deck_cards and user_scores in parallel
-      const PAGE = 1000;
-      const fetchAllDeckCards = async (): Promise<{ card_id: string }[]> => {
-        if (!deckId) return [];
-        const rows: { card_id: string }[] = [];
-        for (let from = 0; ; from += PAGE) {
-          const { data } = await supabase
-            .from("deck_cards")
-            .select("card_id")
-            .eq("deck_id", deckId)
-            .order("card_id")
-            .range(from, from + PAGE - 1);
-          if (data) rows.push(...data);
-          if (!data || data.length < PAGE) break;
-        }
-        return rows;
-      };
-      const fetchAllScores = async (): Promise<{ card_id: string; scores_json: any }[]> => {
-        const rows: { card_id: string; scores_json: any }[] = [];
-        for (let from = 0; ; from += PAGE) {
-          const { data } = await supabase
-            .from("user_scores")
-            .select("card_id, scores_json")
-            .eq("user_id", user.id)
-            .order("card_id")
-            .range(from, from + PAGE - 1);
-          if (data) rows.push(...data);
-          if (!data || data.length < PAGE) break;
-        }
-        return rows;
-      };
-      const fetchCardMeta = async (): Promise<{ id: string; jlpt_level: JlptLevel | null; partOfSpeech: string | null }[]> => {
-        if (!deckId) return [];
-        const rows: { id: string; jlpt_level: JlptLevel | null; partOfSpeech: string | null }[] = [];
-        for (let from = 0; ; from += PAGE) {
-          const { data } = await supabase
-            .from("master_cards")
-            .select("id, jlpt_level, partOfSpeech, deck_cards!inner(deck_id)")
-            .eq("deck_cards.deck_id", deckId)
-            .order("id")
-            .range(from, from + PAGE - 1);
-          if (data) rows.push(...(data as unknown as { id: string; jlpt_level: JlptLevel | null; partOfSpeech: string | null }[]));
-          if (!data || data.length < PAGE) break;
-        }
-        return rows;
-      };
-
-      const [deckCards, scoreRows, cardMeta] = await Promise.all([fetchAllDeckCards(), fetchAllScores(), fetchCardMeta()]);
-
-      // Build score map
-      const scoreMap = new Map(scoreRows.map((s) => [s.card_id, s.scores_json]));
-      const deckSize = deckCards.length;
-
-      // Per-level stats: total cards and mastered (≥5 tries, ≥70%) for breakdown UI and scores.
-      const jlptStats: Record<JlptLevel, { total: number; mastered: number }> = {
-        N5: { total: 0, mastered: 0 },
-        N4: { total: 0, mastered: 0 },
-        N3: { total: 0, mastered: 0 },
-        N2: { total: 0, mastered: 0 },
-        N1: { total: 0, mastered: 0 },
-      };
-      // Per-tag stats (same ≥5 tries, ≥70% mastered rule) — unset defaults to "noun" to
-      // match the generator's own default, so nothing silently falls out of every bucket.
-      const posStats: Record<string, { total: number; mastered: number }> = {};
-      for (const pos of ALLOWED_PARTS_OF_SPEECH) posStats[pos] = { total: 0, mastered: 0 };
-      let stillLearning = 0; // mirrors Study's "still learning" count — deck-wide, not mastered yet
-      for (const card of cardMeta) {
-        const sc = scoreMap.get(card.id);
-        const jpM = (sc?.jp_to_en?.pass ?? 0) >= 5 && (sc?.jp_to_en?.percent ?? 0) >= 70;
-        const enM = (sc?.en_to_jp?.pass ?? 0) >= 5 && (sc?.en_to_jp?.percent ?? 0) >= 70;
-        const mastered = jpM || enM;
-        if (!mastered) stillLearning++;
-
-        if (card.jlpt_level && card.jlpt_level in jlptStats) {
-          const lvl = card.jlpt_level as JlptLevel;
-          jlptStats[lvl].total++;
-          if (mastered) jlptStats[lvl].mastered++;
-        }
-
-        const pos = card.partOfSpeech ?? "noun";
-        if (pos in posStats) {
-          posStats[pos].total++;
-          if (mastered) posStats[pos].mastered++;
-        }
-      }
-
-      // Vocab score: either jp or en mastered per N level (both directions count).
-      let rawVocabScore = 0;
-      for (const lvl of ["N5", "N4", "N3", "N2", "N1"] as JlptLevel[]) {
-        rawVocabScore += Math.min(jlptStats[lvl].mastered / JLPT_VOCAB_INCREMENT[lvl], 1) * 20;
-      }
-      const vocabScore = Math.round(rawVocabScore);
-
-      // Determine vocab N-level: highest N-level (N1 > N2 > … > N5) where mastery % is greatest.
-      // A level qualifies only when you have ≥50% of its JLPT vocab target in your deck
-      // (e.g. N5 needs ≥400 cards, N4 ≥350). Guards tiny-sample inflation. Falls back to N5.
-      const NLEVEL_ORDER: JlptLevel[] = ["N1", "N2", "N3", "N4", "N5"];
-      let vocabNLevel: JlptLevel = "N5";
-      let bestRatio = -1;
-      for (const lvl of NLEVEL_ORDER) {
-        const { total, mastered } = jlptStats[lvl];
-        if (total < Math.floor(JLPT_VOCAB_INCREMENT[lvl] / 2)) continue;
-        const ratio = mastered / total;
-        if (ratio > bestRatio) {
-          bestRatio = ratio;
-          vocabNLevel = lvl;
-        }
-      }
-
-      const profileUpdates: Record<string, number> = { vocab_score: vocabScore };
-
-      let grammarScore = p?.grammar_score ?? null;
-      if (!grammarScore) {
-        const [{ data: allPatterns }, { data: allGrammarScores }] = await Promise.all([
-          supabase.from("grammar_patterns").select("id, jlpt_level"),
-          supabase.from("user_grammar_scores").select("pattern_id, total, percent").eq("user_id", user.id),
-        ]);
-        if (allGrammarScores && allGrammarScores.length > 0) {
-          const gScoreMap = new Map(allGrammarScores.map(s => [s.pattern_id, { total: s.total, percent: s.percent }]));
-          grammarScore = grammarPatternScore(allPatterns ?? [], gScoreMap);
-          profileUpdates.grammar_score = grammarScore;
-        }
-      }
-
-      supabase.from("profiles").update(profileUpdates).eq("id", user.id);
-      supabase.rpc("upsert_score_snapshot", { p_vocab: vocabScore, ...(grammarScore != null ? { p_grammar: grammarScore } : {}) });
+      setDoneTodayQuizzes({
+        reading: !!raw.done_today_quizzes?.reading,
+        listening: !!raw.done_today_quizzes?.listening,
+        grammar: !!raw.done_today_quizzes?.grammar,
+      });
 
       const fresh: ProfileScores = {
-        name: p?.full_name ?? null,
-        referral_code: p?.referral_code ?? null,
-        streak: p?.streak_count ?? 0,
-        max_streak: p?.max_streak ?? 0,
-        daily_count: reviewRes.data?.count ?? 0,
-        mastered_today: masteryRes.data?.count ?? 0,
-        still_learning: stillLearning,
-        vocab_score: vocabScore,
-        reading_score: p?.reading_score ?? null,
-        listening_score: p?.listening_score ?? null,
-        grammar_score: grammarScore,
-        deck_size: deckSize,
-        jlpt_stats: jlptStats,
-        pos_stats: posStats,
-        vocab_nlevel: vocabNLevel,
+        name: raw.name ?? null,
+        referral_code: raw.referral_code ?? null,
+        streak: raw.streak ?? 0,
+        max_streak: raw.max_streak ?? 0,
+        daily_count: raw.daily_count ?? 0,
+        mastered_today: raw.mastered_today ?? 0,
+        still_learning: raw.still_learning ?? 0,
+        vocab_score: raw.vocab_score ?? 0,
+        reading_score: raw.reading_score ?? null,
+        listening_score: raw.listening_score ?? null,
+        grammar_score: raw.grammar_score ?? null,
+        deck_size: raw.deck_size ?? 0,
+        jlpt_stats: raw.jlpt_stats,
+        pos_stats: raw.pos_stats,
+        vocab_nlevel: raw.vocab_nlevel ?? "N5",
       };
       _dashboardCache.set(user.id, fresh);
       setData(fresh);
