@@ -118,6 +118,12 @@ export default function CardDetailModal({ card, onClose }: { card: FlashcardData
                 />
               </div>
             </div>
+            {/* Percent is lifetime pass/total, not a rolling average — showing the
+                count makes it clear why a well-reviewed card moves slowly: each new
+                correct answer only nudges an already-large denominator. */}
+            <p className="text-[9px] text-slate-400 font-bold mt-0.5">
+              {card.scores?.jp_to_en?.pass || 0}/{card.scores?.jp_to_en?.total || 0} correct
+            </p>
           </div>
           <div>
             <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">
@@ -134,6 +140,9 @@ export default function CardDetailModal({ card, onClose }: { card: FlashcardData
                 />
               </div>
             </div>
+            <p className="text-[9px] text-slate-400 font-bold mt-0.5">
+              {card.scores?.en_to_jp?.pass || 0}/{card.scores?.en_to_jp?.total || 0} correct
+            </p>
           </div>
         </div>
         {!!card.reflex_attempts && (
