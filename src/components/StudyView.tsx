@@ -199,9 +199,14 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const [language, setLanguage] = useState<"en" | "jp">("jp");
   const [streak, setStreak] = useState(0);
   const [sessionStreak, setSessionStreak] = useState(0);
-  const _today = new Date().toLocaleDateString("en-CA");
+  // Asia/Singapore, not device-local — same fixed day boundary the update_streak RPC
+  // and the rest of the app's daily resets already use, so this doesn't drift out of
+  // sync with the server's idea of "today" depending on the device's own timezone.
+  const _todaySg = typeof window !== "undefined"
+    ? new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" })
+    : "";
   const _storedProgress = typeof window !== "undefined"
-    ? parseInt(localStorage.getItem("daily_progress_" + _today) ?? "0", 10) || 0
+    ? parseInt(localStorage.getItem("daily_progress_" + _todaySg) ?? "0", 10) || 0
     : 0;
   const [dailyProgress, setDailyProgress] = useState(Math.min(_storedProgress, DAILY_GOAL));
   // Mastered Today and Review Target both have a real server-side source of truth
@@ -266,6 +271,13 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   }, [cardMasteryToast]);
 
   const goalFired = useRef(_storedProgress >= DAILY_GOAL);
+  // Which Asia/Singapore calendar day dailyProgress/goalFired currently apply to.
+  // Needed because this component can stay mounted across a real midnight rollover —
+  // a backgrounded tab/PWA doesn't necessarily remount, and without this, dailyProgress
+  // just keeps counting up from wherever it was and never drops back to 0, so the
+  // `=== DAILY_GOAL` check in handleScore could never fire again — permanently
+  // freezing the streak at whatever it was the last time the page actually reloaded.
+  const progressDayRef = useRef(_todaySg);
   const maxComboRef = useRef(0); // all-time best consecutive-correct streak, from DB
   const hasInteracted = useRef(false); // suppresses autoplay on first mount (tab switch)
   const vocabScoreRef = useRef<number>(0);
@@ -806,10 +818,19 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
 
       // 6. Progress & Daily Goal
       if (isPass) {
-        const prog = dailyProgress + 1;
+        // Detect a real midnight rollover that happened while this tab stayed open
+        // (see progressDayRef's comment) — reset local daily-goal tracking before
+        // counting this pass, or today's first pass could never trigger the
+        // goal-met/streak check at all.
+        const todaySg = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+        const dayRolled = todaySg !== progressDayRef.current;
+        if (dayRolled) {
+          progressDayRef.current = todaySg;
+          goalFired.current = false;
+        }
+        const prog = (dayRolled ? 0 : dailyProgress) + 1;
         setDailyProgress(prog);
-        const todayKey = "daily_progress_" + new Date().toLocaleDateString("en-CA");
-        localStorage.setItem(todayKey, String(prog));
+        localStorage.setItem("daily_progress_" + todaySg, String(prog));
         if (prog === DAILY_GOAL && !goalFired.current) {
           goalFired.current = true;
           const newStreak = await updateStreak();
