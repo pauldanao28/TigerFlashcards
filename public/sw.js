@@ -18,14 +18,60 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// Opening the installed app (or any navigation) races the network against this
+// timeout — whichever answers first wins. On a slow connection or a cold function,
+// that caps "time to see something" instead of making every launch wait out however
+// long the network takes; the network fetch keeps running in the background either
+// way and refreshes the cache for next time, so a fast connection still always gets
+// perfectly fresh HTML (the timeout only ever matters when the network is the
+// slower of the two).
+const NAV_TIMEOUT_MS = 900;
+
+function navigateFast(event) {
+  const { request } = event;
+  const networkFetch = fetch(request).then((response) => {
+    if (response.ok) {
+      const clone = response.clone();
+      event.waitUntil(caches.open(STATIC_CACHE).then((cache) => cache.put(request, clone)));
+    }
+    return response;
+  });
+  // Keep the service worker alive for the background cache refresh even once we've
+  // already answered from cache below.
+  event.waitUntil(networkFetch.catch(() => {}));
+
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (value) => { if (!done && value) { done = true; resolve(value); } };
+
+    networkFetch.then(finish).catch(() => {});
+
+    setTimeout(() => {
+      if (done) return;
+      // Nothing cached yet (e.g. first-ever visit) just keeps waiting on networkFetch above.
+      caches.match(request).then(finish);
+    }, NAV_TIMEOUT_MS);
+
+    // Network failed outright (offline) and nothing resolved yet — last resort.
+    networkFetch.catch(() => {
+      if (done) return;
+      caches.match(request).then((cached) => { done = true; resolve(cached ?? Response.error()); });
+    });
+  });
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Always network-first for navigation (HTML pages) and API calls.
-  // This ensures the browser always gets fresh HTML with correct asset hashes
-  // after a new Vercel deploy, preventing stale CSS/JS references.
-  if (request.mode === "navigate" || url.pathname.startsWith("/api/")) {
+  if (request.mode === "navigate") {
+    event.respondWith(navigateFast(event));
+    return;
+  }
+
+  // API calls always wait for the network — their response is never static HTML/
+  // assets, so there's nothing stale-but-useful to race against.
+  if (url.pathname.startsWith("/api/")) {
     event.respondWith(
       fetch(request).catch(() => caches.match(request).then(r => r ?? Response.error()))
     );
