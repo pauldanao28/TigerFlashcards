@@ -119,8 +119,20 @@ function getNextPriorityCard(
     return priorityCards[Math.floor(Math.random() * priorityCards.length)];
   }
 
-  const sorted = [...allCards].sort((a, b) => getScore(a) - getScore(b));
-  const weakestCards = sorted.slice(0, 10);
+  // Random tiebreaker, not just score — Array.sort is stable, and ties at the same
+  // score (overwhelmingly 0%, for the many never-tried/deeply-struggling cards) are
+  // extremely common in a large deck. Without this, whichever cards happened to sort
+  // first by original array order would always win the weakest-pool cutoff below,
+  // permanently shutting the rest of an equally-weak tie group out of it.
+  const sorted = [...allCards].sort((a, b) => getScore(a) - getScore(b) || Math.random() - 0.5);
+  // Scales with deck size instead of a flat 10 — a fixed count made sense for a small
+  // deck, but on a few-thousand-card deck it meant only ~10 cards (often the same ones
+  // every session, since Array.sort is stable and ties are extremely common at 0%)
+  // ever got the "weakest" 50%-of-rolls boost, while every other unmastered or
+  // never-tried card — hundreds or thousands of them — was stuck splitting the much
+  // smaller "regular" bucket's 25%, making any single one of them rare to ever see.
+  const weakestPoolSize = Math.max(10, Math.ceil(allCards.length * 0.1));
+  const weakestCards = sorted.slice(0, weakestPoolSize);
   const weakestIds = new Set(weakestCards.map((c) => c.id));
 
   const easyCards = allCards.filter(
