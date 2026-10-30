@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Send, Trash2, X, Loader2, List, Plus, Volume2, VolumeX, BookOpen, SlidersHorizontal, ChevronLeft } from "lucide-react";
-import { playTTS, stopTTS, getVoice, setVoice, VOICE_OPTIONS, VoiceId } from "@/lib/tts";
+import { playTTS, stopTTS, getVoice, setVoice, VOICE_OPTIONS, VoiceId, primeTtsEligibility } from "@/lib/tts";
 import { rollingAvg } from "@/lib/scoring";
 import { useAppAlert } from "@/context/AlertContext";
 import { authedFetch } from "@/lib/authedFetch";
@@ -91,6 +91,8 @@ export default function AdminChat({ userId }: { userId: string }) {
     if (saved && PERSONA_ORDER.includes(saved) && saved !== activePersona) setActivePersona(saved);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Resolve once, well before the first speaker tap — see primeTtsEligibility.
+  useEffect(() => { primeTtsEligibility(userId); }, [userId]);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");

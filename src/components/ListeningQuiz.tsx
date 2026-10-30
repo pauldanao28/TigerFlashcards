@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, List, Volume2, ChevronLeft, Ear } from "lucide-react";
-import { playTTS, stopTTS } from "@/lib/tts";
+import { playTTS, stopTTS, primeTtsEligibility } from "@/lib/tts";
 import { levelQuizScore, jlptLevel } from "@/lib/scoring";
 import LevelUpModal from "@/components/LevelUpModal";
 import { authedFetch } from "@/lib/authedFetch";
@@ -110,6 +110,9 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
     getTodayUsage(userId, "quiz_listening").then(setUsage);
   }, [userId]);
   useEffect(() => { refreshUsage(); }, [refreshUsage]);
+  // Resolve once, well before the user reaches the "tap to listen" screen, so the
+  // actual play tap can route to the right TTS path synchronously — see primeTtsEligibility.
+  useEffect(() => { primeTtsEligibility(userId); }, [userId]);
 
   useEffect(() => {
     if (phase !== "done" || results.length === 0) { setAnimatedPct(0); return; }
