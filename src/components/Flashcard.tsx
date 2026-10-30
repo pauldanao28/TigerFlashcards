@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, useMotionValue, useTransform } from "framer-motion";
 import { Star, Lightbulb, Loader2, X } from "lucide-react";
@@ -354,13 +354,21 @@ export default function Flashcard({
   // te-form can run close to the limit on their own) that reserving a line for it here
   // was part of what made the furigana-clipping problem worse, not just a symptom of it.
 
-  // Every real report of the centered content overflowing (急行, 記録, 交通, 予習, 準備,
-  // 協力) has been a card whose verb_type is "irregular" — that covers every
-  // suru-capable noun (always classified irregular) and irregular verbs like 協力する,
-  // 来る-compounds, etc. Godan/ichidan verbs and adjectives have never shown this, so
-  // scoping the scroll-safe layout to exactly this one field avoids reintroducing the
-  // empty gap they got stuck with from a broader "hasGrammarInfo" check.
-  const needsScrollSafeLayout = card?.verb_type === "irregular";
+  // Whether to top-anchor instead of center the back face's content used to be a
+  // static guess keyed off verb_type === "irregular" (every real clipping report —
+  // 急行, 記録, 交通, 予習, 準備, 協力 — happened to be one), but that blanket-applied
+  // top-anchoring to every irregular card whether or not its content was actually
+  // tall enough to need it, leaving a big empty gap above the example-sentence
+  // footer on short-content cards like a plain 急行 with no suru_meaning line.
+  // Measuring the real content height instead fixes both: only cards whose content
+  // genuinely doesn't fit get top-anchored, regardless of verb_type.
+  const backContentRef = useRef<HTMLDivElement>(null);
+  const [needsScrollSafeLayout, setNeedsScrollSafeLayout] = useState(false);
+  useLayoutEffect(() => {
+    const el = backContentRef.current;
+    if (!el) return;
+    setNeedsScrollSafeLayout(el.scrollHeight > el.clientHeight);
+  }, [card?.id]);
 
   return (
     <>
@@ -480,9 +488,9 @@ export default function Flashcard({
                 line's top sliced off, or on 協力, the whole reading line not showing
                 at all) looked identical even with overflow no longer literally
                 "hidden". Only justify-start reliably shows everything from the top;
-                scoped to needsScrollSafeLayout (see above) so the common case (every
-                other card) stays centered with no gap. */}
-            <div className={`flex-1 flex flex-col items-center w-full overflow-y-auto ${needsScrollSafeLayout ? "justify-start" : "justify-center"}`}>
+                needsScrollSafeLayout is measured against this same ref (see above) so
+                it only applies when this content actually doesn't fit. */}
+            <div ref={backContentRef} className={`flex-1 flex flex-col items-center w-full overflow-y-auto ${needsScrollSafeLayout ? "justify-start" : "justify-center"}`}>
               {(language === "jp" || language === "en") && card?.reading && (
                 <p className="text-indigo-200 text-lg mb-2 font-medium tracking-wide animate-fade-in truncate w-full">
                   {card?.reading}
