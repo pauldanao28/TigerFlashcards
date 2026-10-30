@@ -169,11 +169,15 @@ export async function playTTS(
     return;
   }
 
-  // Known-ineligible (the common case — free tier's daily Gemini-TTS cap is 0) — go
-  // straight to the browser fallback, synchronously, instead of awaiting a network
-  // call that's guaranteed to fail first. See primeTtsEligibility's comment for why
-  // that delay itself was the bug.
-  if (ttsEligible === false) {
+  // Default to the free-tier path (robotic browser voice, synchronous, no network call)
+  // unless eligibility has positively resolved to premium/admin — not just when it's
+  // resolved to false. Free tier's daily Gemini-TTS cap is 0 anyway, so there's nothing
+  // to gain by ever attempting the network call for it; defaulting the other way (try
+  // Gemini first, fall back later) reopens the exact race this was built to close —
+  // a tap landing before primeTtsEligibility's one-time profile check resolves would
+  // still take the awaited-fetch-then-fallback path, which is the one Safari/iOS drops
+  // silently. See primeTtsEligibility's comment for the full explanation.
+  if (ttsEligible !== true) {
     speechSynthFallback(text, lang, 0.85, opts.onEnd);
     return;
   }
