@@ -489,7 +489,17 @@ export default function Flashcard({
                 at all) looked identical even with overflow no longer literally
                 "hidden". Only justify-start reliably shows everything from the top;
                 needsScrollSafeLayout is measured against this same ref (see above) so
-                it only applies when this content actually doesn't fit. */}
+                it only applies when this content actually doesn't fit.
+
+                The footer (example sentence + buttons) used to be a separate mt-auto
+                sibling pinned to the bottom, outside this scrollable box — on a card
+                whose badges/suru_meaning already filled the box, that put the footer's
+                own top border right where the last line of content was still rendering,
+                looking like the text was cut off mid-line (接続). Folding everything
+                into one scrollable column means there's always a real boundary between
+                content and footer: either everything fits and it's visually identical
+                to before, or it doesn't and you scroll to see the rest — nothing ever
+                overlaps. */}
             <div ref={backContentRef} className={`flex-1 flex flex-col items-center w-full overflow-y-auto ${needsScrollSafeLayout ? "justify-start" : "justify-center"}`}>
               {(language === "jp" || language === "en") && card?.reading && (
                 <p className="text-indigo-200 text-lg mb-2 font-medium tracking-wide animate-fade-in truncate w-full">
@@ -539,47 +549,48 @@ export default function Flashcard({
                   {suruLabel(card.japanese)}: <span className="text-white font-bold">{card.suru_meaning}</span>
                 </p>
               )}
-            </div>
 
-            {/* Footer Area */}
-            <div className="mt-auto pt-4 border-t border-indigo-400/50 w-full">
-              {card?.exampleSentence?.jp && (
-                <div className="mb-4 px-2 text-center">
-                  <p className="text-base italic text-indigo-50 line-clamp-3 overflow-hidden break-words">
-                    "{card.exampleSentence.jp}"
-                  </p>
-                  {card.exampleSentence.en && (
-                    <p className="text-xs text-indigo-200/80 mt-1 line-clamp-2 overflow-hidden break-words">
-                      {card.exampleSentence.en}
+              {/* Was a separate mt-auto footer outside this scrollable box — see the
+                  comment above on why that's now folded in here instead. */}
+              <div className="mt-4 pt-4 border-t border-indigo-400/50 w-full shrink-0">
+                {card?.exampleSentence?.jp && (
+                  <div className="mb-4 px-2 text-center">
+                    <p className="text-base italic text-indigo-50 line-clamp-3 overflow-hidden break-words">
+                      "{card.exampleSentence.jp}"
                     </p>
-                  )}
-                </div>
-              )}
-
-              <div className="flex justify-center items-center gap-4 relative">
-                <button
-                  onClick={(e) => handlePlayAudio(e, true)}
-                  className="p-3 bg-white/10 hover:bg-white/20 rounded-full transition-all border border-white/20 active:scale-95"
-                >
-                  🔊
-                </button>
-
-                {card?.japanese && KANJI_RE.test(card.japanese) && (
-                  <button
-                    onClick={handleOpenMnemonic}
-                    className="p-3 bg-white/10 hover:bg-white/20 rounded-full transition-all border border-white/20 active:scale-95"
-                    title="Remember this kanji"
-                  >
-                    <Lightbulb size={18} />
-                  </button>
+                    {card.exampleSentence.en && (
+                      <p className="text-xs text-indigo-200/80 mt-1 line-clamp-2 overflow-hidden break-words">
+                        {card.exampleSentence.en}
+                      </p>
+                    )}
+                  </div>
                 )}
 
-                <button
-                  onClick={handleReport}
-                  className="absolute right-[-10px] bottom-[-10px] text-[9px] font-black uppercase tracking-widest text-indigo-300/40 hover:text-white transition-colors p-2"
-                >
-                  {t.report_issue}
-                </button>
+                <div className="flex justify-center items-center gap-4 relative">
+                  <button
+                    onClick={(e) => handlePlayAudio(e, true)}
+                    className="p-3 bg-white/10 hover:bg-white/20 rounded-full transition-all border border-white/20 active:scale-95"
+                  >
+                    🔊
+                  </button>
+
+                  {card?.japanese && KANJI_RE.test(card.japanese) && (
+                    <button
+                      onClick={handleOpenMnemonic}
+                      className="p-3 bg-white/10 hover:bg-white/20 rounded-full transition-all border border-white/20 active:scale-95"
+                      title="Remember this kanji"
+                    >
+                      <Lightbulb size={18} />
+                    </button>
+                  )}
+
+                  <button
+                    onClick={handleReport}
+                    className="absolute right-[-10px] bottom-[-10px] text-[9px] font-black uppercase tracking-widest text-indigo-300/40 hover:text-white transition-colors p-2"
+                  >
+                    {t.report_issue}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
