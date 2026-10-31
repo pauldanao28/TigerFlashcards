@@ -9,10 +9,14 @@ export type FriendCandidate = { id: string; full_name: string };
 const REFERRAL_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{8}$/i;
 
 type FriendActionResult =
-  | { success: true; name: string; error?: undefined; needsDisambiguation?: undefined }
+  | { success: true; name: string; autoAccepted?: boolean; error?: undefined; needsDisambiguation?: undefined }
   | { error: string; success?: undefined; needsDisambiguation?: undefined }
   | { needsDisambiguation: true; matches: FriendCandidate[]; success?: undefined; error?: undefined };
 
+// Goes through send_friend_request (see its migration) rather than a raw insert —
+// friendships' unique constraint is only on (user_id, friend_id), not symmetric, so a
+// raw insert can't detect "they already sent me a request" and would create a second,
+// crossed-direction row instead of just accepting theirs. The RPC decides atomically.
 const sendFriendRequest = async (
   currentUserId: string,
   target: FriendCandidate,
@@ -21,25 +25,25 @@ const sendFriendRequest = async (
     return { error: "You can't add yourself" };
   }
 
-  const { error: insertError } = await supabase
-    .from('friendships')
-    .insert([
-      {
-        user_id: currentUserId,   // You (the sender)
-        friend_id: target.id,     // Them (the receiver)
-        status: 'pending',
-      },
-    ]);
+  const { data, error } = await supabase.rpc('send_friend_request', { p_target_id: target.id });
+  if (error) return { error: error.message };
 
-  if (insertError) {
-    // Unique constraint violation (already friends or pending)
-    if (insertError.code === '23505') {
-      return { error: "Request already exists or you are already friends" };
-    }
-    return { error: insertError.message };
+  switch (data as string) {
+    case 'sent':
+      return { success: true, name: target.full_name };
+    case 'accepted':
+      // They'd already sent us a request — this call accepted it instead of
+      // creating a duplicate, so the outcome is "friends now", not "request sent".
+      return { success: true, name: target.full_name, autoAccepted: true };
+    case 'already_pending':
+      return { error: "Request already exists" };
+    case 'already_friends':
+      return { error: "You're already friends" };
+    case 'self':
+      return { error: "You can't add yourself" };
+    default:
+      return { error: "Something went wrong" };
   }
-
-  return { success: true, name: target.full_name };
 };
 
 // Single entry point for the "add friend" box — accepts either a display

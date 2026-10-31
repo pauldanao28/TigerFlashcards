@@ -86,7 +86,7 @@ export const SocialDock = ({
       return;
     }
     if (result.success) {
-      showAlert(`Success! Request sent to ${result.name}`);
+      showAlert(result.autoAccepted ? `You're now friends with ${result.name}! 🎉` : `Success! Request sent to ${result.name}`);
       if (typeof fetchFriends === "function") {
         await fetchFriends();
       }
@@ -100,7 +100,7 @@ export const SocialDock = ({
   const handlePickCandidate = async (candidate: FriendCandidate) => {
     const result = await addFriendById(candidate);
     if (result.success) {
-      showAlert(`Success! Request sent to ${result.name}`);
+      showAlert(result.autoAccepted ? `You're now friends with ${result.name}! 🎉` : `Success! Request sent to ${result.name}`);
       if (typeof fetchFriends === "function") {
         await fetchFriends();
       }
