@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -126,6 +127,13 @@ export const FriendProfileModal = ({ friendId, onClose }: { friendId: string; on
                   )}
                 </div>
               )}
+
+              <Link
+                href={`/friends/${friendId}`}
+                className="block w-full mt-5 py-3 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] text-center active:scale-95 transition-all"
+              >
+                View Full Profile
+              </Link>
             </div>
           )}
         </div>
