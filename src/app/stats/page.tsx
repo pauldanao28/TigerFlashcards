@@ -1197,26 +1197,16 @@ export default function StatsPage() {
                   </p>
                   <div className="flex items-center gap-2">
                     <div className="flex-1 px-4 py-3 bg-white rounded-xl border border-slate-200 font-black text-sm text-slate-700 tracking-widest truncate">
-                      {referralCode ? `${typeof window !== "undefined" ? window.location.host : ""}/join/${referralCode}` : "…"}
+                      {referralCode ?? "…"}
                     </div>
                     <button
                       onClick={async () => {
                         if (!referralCode) return;
-                        const shareUrl = `${window.location.origin}/join/${referralCode}`;
-                        const shareMessage = `Join me on FlashKado! I'm learning Japanese with AI-powered flashcards 🇯🇵 ${shareUrl}`;
-                        if (navigator.share) {
-                          try {
-                            await navigator.share({ text: shareMessage, url: shareUrl });
-                          } catch {
-                            // cancelled — no-op
-                          }
-                          return;
-                        }
                         try {
-                          await navigator.clipboard.writeText(shareMessage);
-                          showAlert("Invite message copied to clipboard!");
+                          await navigator.clipboard.writeText(referralCode);
+                          showAlert("Code copied!");
                         } catch {
-                          showAlert("Failed to copy link.");
+                          showAlert("Failed to copy code.");
                         }
                       }}
                       disabled={!referralCode}
