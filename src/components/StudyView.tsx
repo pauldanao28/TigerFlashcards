@@ -22,7 +22,7 @@ import OnboardingModal from "@/components/OnboardingModal";
 import LoadingScreen from "@/components/LoadingScreen";
 import CoachMarks from "@/components/CoachMarks";
 import { SocialDock } from "@/components/SocialDock";
-import FriendRequestToast from "@/components/FriendRequestToast";
+import SocialToast from "@/components/SocialToast";
 import SentenceQuiz from "@/components/SentenceQuiz";
 import ListeningQuiz from "@/components/ListeningQuiz";
 import AddWordsSheet from "@/components/AddWordsSheet";
@@ -252,7 +252,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const [weakMnemonicCard, setWeakMnemonicCard] = useState<FlashcardData | null>(null);
   const [weakMnemonicLoading, setWeakMnemonicLoading] = useState(false);
   const [weakMnemonicError, setWeakMnemonicError] = useState<string | null>(null);
-  const { friends, fetchFriends, incomingRequestToast, dismissIncomingRequestToast } = useFriends();
+  const { friends, fetchFriends, socialToast, dismissSocialToast } = useFriends();
   const [showStreakBanner, setShowStreakBanner] = useState(false);
   const [goalStreak, setGoalStreak] = useState(0);
   const [sessionCards, setSessionCards] = useState(0);
@@ -2628,10 +2628,10 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           </div>
         </div>
       </main>
-      <FriendRequestToast
-        name={incomingRequestToast?.name ?? null}
+      <SocialToast
+        toast={socialToast}
         onTap={() => setIsSocialOpen(true)}
-        onDismiss={dismissIncomingRequestToast}
+        onDismiss={dismissSocialToast}
       />
       {/* 2. Move AnimatePresence here, now it's a sibling to <main> */}
       <AnimatePresence>

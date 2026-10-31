@@ -29,7 +29,7 @@ export async function getPushSubscriptionState(): Promise<"subscribed" | "unsubs
 
 // Requests Notification permission (must be called from a user gesture — a click
 // handler — not on page load) and, once granted, subscribes this browser/device and
-// saves the subscription server-side so /api/push/notify-friend-request can reach it.
+// saves the subscription server-side so /api/push/notify can reach it.
 export async function subscribeToPush(): Promise<{ success: boolean; error?: string }> {
   if (!isPushSupported()) return { success: false, error: "Not supported on this device/browser" };
 
@@ -67,16 +67,28 @@ export async function unsubscribeFromPush(): Promise<void> {
   await authedFetch("/api/push/subscribe", { method: "DELETE", body: JSON.stringify({ endpoint }) });
 }
 
-// Fire-and-forget — called right after a friend request is actually sent (not on an
-// auto-accepted mutual match). Failure here should never block the UI's own success
-// state, so callers don't await this.
-export async function notifyFriendRequest(targetUserId: string): Promise<void> {
+// Fire-and-forget — failure here should never block the UI's own success state, so
+// callers don't await these. Both go through the one consolidated /api/push/notify
+// route (see its comment) rather than a separate endpoint per notification type.
+async function sendPushNotification(type: "friend_request" | "friend_accepted", targetUserId: string): Promise<void> {
   try {
-    await authedFetch("/api/push/notify-friend-request", {
+    await authedFetch("/api/push/notify", {
       method: "POST",
-      body: JSON.stringify({ target_user_id: targetUserId }),
+      body: JSON.stringify({ type, target_user_id: targetUserId }),
     });
   } catch {
     // best-effort
   }
+}
+
+// Called right after a friend request is actually sent (not on an auto-accepted
+// mutual match, which is a different outcome — see notifyFriendAccepted).
+export function notifyFriendRequest(targetUserId: string): void {
+  sendPushNotification("friend_request", targetUserId);
+}
+
+// Called when someone accepts a request that was sent to them — notifies the
+// original sender.
+export function notifyFriendAccepted(targetUserId: string): void {
+  sendPushNotification("friend_accepted", targetUserId);
 }

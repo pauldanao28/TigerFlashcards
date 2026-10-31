@@ -1,6 +1,6 @@
 // src/lib/social.ts
 import { supabase } from './supabase';
-import { notifyFriendRequest } from './push';
+import { notifyFriendRequest, notifyFriendAccepted } from './push';
 
 export type FriendCandidate = { id: string; full_name: string };
 
@@ -38,6 +38,8 @@ const sendFriendRequest = async (
     case 'accepted':
       // They'd already sent us a request — this call accepted it instead of
       // creating a duplicate, so the outcome is "friends now", not "request sent".
+      // Notify them the same way an explicit Accept-button tap would.
+      notifyFriendAccepted(target.id);
       return { success: true, name: target.full_name, autoAccepted: true };
     case 'already_pending':
       return { error: "Request already exists" };
@@ -117,6 +119,7 @@ export const handleAcceptRequest = async (senderId: string) => {
     .match({ user_id: senderId, friend_id: user.id });
 
   if (error) console.error("Accept Error:", error.message);
+  else notifyFriendAccepted(senderId);
   return { error };
 };
 

@@ -8,7 +8,7 @@ import { getLevel, jlptLevel, JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
 import { ALLOWED_PARTS_OF_SPEECH } from "@/lib/textNormalize";
 import LoadingScreen from "@/components/LoadingScreen";
 import { SocialDock } from "@/components/SocialDock";
-import FriendRequestToast from "@/components/FriendRequestToast";
+import SocialToast from "@/components/SocialToast";
 import { useFriends } from "@/hooks/useFriends";
 
 type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
@@ -274,7 +274,7 @@ export default function Dashboard() {
   const [doneTodayQuizzes, setDoneTodayQuizzes] = useState({ reading: false, listening: false, grammar: false });
   const [isSocialOpen, setIsSocialOpen] = useState(false);
   const [selectedPos, setSelectedPos] = useState<string | null>(null);
-  const { friends, fetchFriends, incomingRequestToast, dismissIncomingRequestToast } = useFriends();
+  const { friends, fetchFriends, socialToast, dismissSocialToast } = useFriends();
 
   useEffect(() => {
     if (!user) return;
@@ -588,10 +588,10 @@ export default function Dashboard() {
         })()}
       </AnimatePresence>
 
-      <FriendRequestToast
-        name={incomingRequestToast?.name ?? null}
+      <SocialToast
+        toast={socialToast}
         onTap={() => setIsSocialOpen(true)}
-        onDismiss={dismissIncomingRequestToast}
+        onDismiss={dismissSocialToast}
       />
 
       <AnimatePresence>

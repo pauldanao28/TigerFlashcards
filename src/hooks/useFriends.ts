@@ -7,13 +7,13 @@ import { jlptLevel } from "@/lib/scoring";
 // subscriptions aren't duplicated per page.
 export function useFriends() {
   const [friends, setFriends] = useState<any[]>([]);
-  const [incomingRequestToast, setIncomingRequestToast] = useState<{ name: string } | null>(null);
+  const [socialToast, setSocialToast] = useState<{ name: string; kind: "request" | "accepted" } | null>(null);
   const userIdRef = useRef<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const dismissIncomingRequestToast = useCallback(() => {
+  const dismissSocialToast = useCallback(() => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    setIncomingRequestToast(null);
+    setSocialToast(null);
   }, []);
 
   const fetchFriends = useCallback(async () => {
@@ -133,11 +133,12 @@ export function useFriends() {
       )
       .subscribe();
 
-    // REALTIME: Friendship Changes (New requests/Accepts) — also surfaces a toast
-    // the moment someone else's INSERT lands a new pending request addressed to us,
-    // so it's visible even if the social panel isn't open. This is the in-app half of
-    // "notify me about friend requests" — not a push notification (nothing reaches you
-    // if the app/tab isn't open), just immediate feedback while you're using it.
+    // REALTIME: Friendship Changes (New requests/Accepts) — also surfaces a toast for
+    // the two events worth interrupting whatever you're doing for: someone else's
+    // INSERT landing a new pending request addressed to us, or an UPDATE where a
+    // request *we* sent just became accepted. Visible even if the social panel isn't
+    // open. This is the in-app half of "notify me" — not a push notification (nothing
+    // reaches you if the app/tab isn't open), just immediate feedback while using it.
     const friendshipChannel = supabase
       .channel("friendship-changes")
       .on(
@@ -145,17 +146,27 @@ export function useFriends() {
         { event: "*", schema: "public", table: "friendships" },
         async (payload) => {
           const updated = await fetchFriends();
+          const showToast = (id: string, kind: "request" | "accepted") => {
+            const match = updated.find((f) => f.id === id);
+            if (!match) return;
+            if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+            setSocialToast({ name: match.name, kind });
+            toastTimerRef.current = setTimeout(() => setSocialToast(null), 5000);
+          };
+
           if (
             payload.eventType === "INSERT" &&
             payload.new?.status === "pending" &&
             payload.new?.friend_id === userIdRef.current
           ) {
-            const sender = updated.find((f) => f.id === payload.new.user_id);
-            if (sender) {
-              if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-              setIncomingRequestToast({ name: sender.name });
-              toastTimerRef.current = setTimeout(() => setIncomingRequestToast(null), 5000);
-            }
+            showToast(payload.new.user_id, "request");
+          } else if (
+            payload.eventType === "UPDATE" &&
+            payload.new?.status === "accepted" &&
+            payload.new?.user_id === userIdRef.current
+          ) {
+            // We were the original sender (user_id) — friend_id just accepted.
+            showToast(payload.new.friend_id, "accepted");
           }
         },
       )
@@ -169,5 +180,5 @@ export function useFriends() {
     };
   }, [fetchFriends]);
 
-  return { friends, fetchFriends, incomingRequestToast, dismissIncomingRequestToast };
+  return { friends, fetchFriends, socialToast, dismissSocialToast };
 }

@@ -16,11 +16,27 @@ if (vapidPublicKey && vapidPrivateKey) {
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 }
 
-// Called client-side right after a successful send_friend_request — not via a
-// Supabase Database Webhook, to avoid needing manual dashboard configuration for
-// this to work. Message content is looked up server-side from the caller's own
-// profile (never taken from the request body), so this can't be used to push
-// arbitrary text to a stranger — only "<your real name> wants to be friends".
+// One consolidated send path for every push notification type in the app, instead of
+// a near-duplicate route per type — add a new case here as new notification types come
+// up (e.g. a future cron-triggered "streak at risk" would also call this, passing
+// whatever target/type it needs). Called directly from the client at the moment an
+// action happens (not via a Supabase Database Webhook, which would need manual
+// dashboard configuration this can't do).
+//
+// Message text for every type is built server-side from data this route looks up
+// itself (the caller's own profile) — never taken from the request body — so it can't
+// be used to push arbitrary text to a stranger.
+type NotifyType = "friend_request" | "friend_accepted";
+
+async function buildMessage(type: NotifyType, callerName: string): Promise<{ title: string; body: string }> {
+  switch (type) {
+    case "friend_request":
+      return { title: "New friend request", body: `${callerName} wants to be friends` };
+    case "friend_accepted":
+      return { title: "Friend request accepted", body: `${callerName} accepted your friend request!` };
+  }
+}
+
 export async function POST(req: Request) {
   const user = await getAuthedUser(req);
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
@@ -29,7 +45,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Push not configured" }, { status: 503 });
   }
 
-  const { target_user_id } = await req.json();
+  const { type, target_user_id } = await req.json();
+  if (type !== "friend_request" && type !== "friend_accepted") {
+    return NextResponse.json({ error: "Unknown notification type" }, { status: 400 });
+  }
   if (!target_user_id) return NextResponse.json({ error: "Missing target_user_id" }, { status: 400 });
 
   const { data: callerProfile } = await supabaseAdmin
@@ -46,11 +65,8 @@ export async function POST(req: Request) {
 
   if (!subs || subs.length === 0) return NextResponse.json({ sent: 0 });
 
-  const payload = JSON.stringify({
-    title: "New friend request",
-    body: `${callerName} wants to be friends`,
-    url: "/",
-  });
+  const { title, body } = await buildMessage(type as NotifyType, callerName);
+  const payload = JSON.stringify({ title, body, url: "/" });
 
   let sent = 0;
   await Promise.all(
