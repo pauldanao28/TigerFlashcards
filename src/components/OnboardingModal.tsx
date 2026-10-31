@@ -214,23 +214,30 @@ export default function OnboardingModal({
   const skipToManual = async () => {
     setLoading(true);
     try {
-      await supabase
+      // Both calls' errors used to be silently discarded — a failed deck insert
+      // (RLS denial, constraint violation, etc.) left the account "onboarded" with
+      // no default deck at all, which the Study page couldn't recover from on its
+      // own (infinite loading screen — see fetchInitialData's hasLoadedOnce fix).
+      const { error: deckErr } = await supabase
         .from("decks")
         .insert([
           { user_id: userId, title: CONST_DEFAULT_DECK_NAME, is_default: true },
         ]);
-      await supabase
+      if (deckErr) throw deckErr;
+
+      const { error: profileErr } = await supabase
         .from("profiles")
         .update({
           full_name: name.trim(),
           has_onboarded: true,
         })
         .eq("id", userId);
+      if (profileErr) throw profileErr;
 
       localStorage.setItem("show_first_timer_hint", "true");
       router.push("/stats");
     } catch (err) {
-      showAlert("Initialization failed.");
+      showAlert(err instanceof Error ? err.message : "Initialization failed.");
     } finally {
       setLoading(false);
     }

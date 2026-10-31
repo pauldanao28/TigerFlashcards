@@ -565,6 +565,14 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const fetchInitialData = useCallback(async () => {
     if (!user || !defaultDeckId) {
       setDataLoading(false);
+      // A genuinely deckless-but-onboarded account (deck creation failed during
+      // onboarding — see OnboardingModal's skipToManual) used to get stuck here
+      // forever: hasLoadedOnce never became true, and the page gates its entire
+      // render behind it, so the user saw an infinite "Loading deck" screen with
+      // no way out. hasOnboarded only resolves to a real true/false once the
+      // profile fetch completes (it starts null) — only mark the load "done" once
+      // we actually know this isn't just "still waiting on that fetch".
+      if (hasOnboarded === true) setHasLoadedOnce(true);
       return;
     }
     // 🔥 FIX 1: Only show the "Syncing Deck" spinner if we have NO cards.
@@ -632,7 +640,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     }
     setDataLoading(false);
     setHasLoadedOnce(true);
-  }, [user, defaultDeckId]);
+  }, [user, defaultDeckId, hasOnboarded]);
 
   useEffect(() => {
     fetchInitialData();
