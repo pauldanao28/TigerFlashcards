@@ -28,7 +28,7 @@ export const SocialDock = ({
   referralCode: string | null;
   friends: any[];
   onClose: () => void;
-  fetchFriends?: () => Promise<void>;
+  fetchFriends?: () => Promise<unknown>;
 }) => {
   const { showAlert } = useAppAlert();
   const [newFriend, setNewFriend] = useState("");

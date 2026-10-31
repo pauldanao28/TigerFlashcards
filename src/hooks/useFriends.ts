@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { jlptLevel } from "@/lib/scoring";
 
@@ -7,12 +7,21 @@ import { jlptLevel } from "@/lib/scoring";
 // subscriptions aren't duplicated per page.
 export function useFriends() {
   const [friends, setFriends] = useState<any[]>([]);
+  const [incomingRequestToast, setIncomingRequestToast] = useState<{ name: string } | null>(null);
+  const userIdRef = useRef<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const dismissIncomingRequestToast = useCallback(() => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setIncomingRequestToast(null);
+  }, []);
 
   const fetchFriends = useCallback(async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) return [];
+    userIdRef.current = user.id;
 
     const today = new Date().toISOString().split("T")[0];
 
@@ -38,52 +47,53 @@ export function useFriends() {
       .eq("sender.stats.study_date", today)
       .eq("receiver.stats.study_date", today);
 
-    if (data) {
-      const formatted = data
-        .map((row: any) => {
-          // A row's 'user_id' is ALWAYS the person who clicked "Add Friend"
-          const isSentByMe = row.user_id === user.id;
-          const friendProfile = isSentByMe ? row.receiver : row.sender;
-          if (!friendProfile) return null;
+    if (!data) return [];
 
-          // Same "weakest pillar" rule Dashboard.tsx uses for your own
-          // overall level — mirrors real JLPT rules (a level requires all
-          // skills, not just your best one).
-          const friendScores = [
-            friendProfile.vocab_score,
-            friendProfile.grammar_score,
-            friendProfile.reading_score,
-            friendProfile.listening_score,
-          ].filter((s): s is number => s != null);
-          // No activity yet defaults to N5, same as your own Dashboard's
-          // overall-level badge (weakestScore falls back to 0 there too).
-          const nLevel = jlptLevel(friendScores.length > 0 ? Math.min(...friendScores) : 0);
+    const formatted = data
+      .map((row: any) => {
+        // A row's 'user_id' is ALWAYS the person who clicked "Add Friend"
+        const isSentByMe = row.user_id === user.id;
+        const friendProfile = isSentByMe ? row.receiver : row.sender;
+        if (!friendProfile) return null;
 
-          return {
-            friendshipId: row.id,
-            id: friendProfile.id,
-            name: friendProfile.full_name,
-            avatar:
-              friendProfile.avatar_url ||
-              `https://api.dicebear.com/7.x/avataaars/svg?seed=${friendProfile.id}`,
-            status: row.status,
-            isSentByMe: isSentByMe,
-            dailyProgress: friendProfile.stats?.[0]?.count || 0,
-            goal: friendProfile.daily_goal || 10,
-            streak: friendProfile.streak_count || 0,
-            isOnline: friendProfile.is_online,
-            nLevel,
-          };
-        })
-        .filter((f): f is any => f !== null)
-        // If there's a duplicate ID, keep only the one we need
-        .filter(
-          (item, index, self) =>
-            index === self.findIndex((t) => t.id === item.id),
-        );
+        // Same "weakest pillar" rule Dashboard.tsx uses for your own
+        // overall level — mirrors real JLPT rules (a level requires all
+        // skills, not just your best one).
+        const friendScores = [
+          friendProfile.vocab_score,
+          friendProfile.grammar_score,
+          friendProfile.reading_score,
+          friendProfile.listening_score,
+        ].filter((s): s is number => s != null);
+        // No activity yet defaults to N5, same as your own Dashboard's
+        // overall-level badge (weakestScore falls back to 0 there too).
+        const nLevel = jlptLevel(friendScores.length > 0 ? Math.min(...friendScores) : 0);
 
-      setFriends(formatted);
-    }
+        return {
+          friendshipId: row.id,
+          id: friendProfile.id,
+          name: friendProfile.full_name,
+          avatar:
+            friendProfile.avatar_url ||
+            `https://api.dicebear.com/7.x/avataaars/svg?seed=${friendProfile.id}`,
+          status: row.status,
+          isSentByMe: isSentByMe,
+          dailyProgress: friendProfile.stats?.[0]?.count || 0,
+          goal: friendProfile.daily_goal || 10,
+          streak: friendProfile.streak_count || 0,
+          isOnline: friendProfile.is_online,
+          nLevel,
+        };
+      })
+      .filter((f): f is any => f !== null)
+      // If there's a duplicate ID, keep only the one we need
+      .filter(
+        (item, index, self) =>
+          index === self.findIndex((t) => t.id === item.id),
+      );
+
+    setFriends(formatted);
+    return formatted;
   }, []);
 
   useEffect(() => {
@@ -123,14 +133,30 @@ export function useFriends() {
       )
       .subscribe();
 
-    // REALTIME: Friendship Changes (New requests/Accepts)
+    // REALTIME: Friendship Changes (New requests/Accepts) — also surfaces a toast
+    // the moment someone else's INSERT lands a new pending request addressed to us,
+    // so it's visible even if the social panel isn't open. This is the in-app half of
+    // "notify me about friend requests" — not a push notification (nothing reaches you
+    // if the app/tab isn't open), just immediate feedback while you're using it.
     const friendshipChannel = supabase
       .channel("friendship-changes")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "friendships" },
-        () => {
-          fetchFriends();
+        async (payload) => {
+          const updated = await fetchFriends();
+          if (
+            payload.eventType === "INSERT" &&
+            payload.new?.status === "pending" &&
+            payload.new?.friend_id === userIdRef.current
+          ) {
+            const sender = updated.find((f) => f.id === payload.new.user_id);
+            if (sender) {
+              if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+              setIncomingRequestToast({ name: sender.name });
+              toastTimerRef.current = setTimeout(() => setIncomingRequestToast(null), 5000);
+            }
+          }
         },
       )
       .subscribe();
@@ -139,8 +165,9 @@ export function useFriends() {
       supabase.removeChannel(profileChannel);
       supabase.removeChannel(progressChannel);
       supabase.removeChannel(friendshipChannel);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, [fetchFriends]);
 
-  return { friends, fetchFriends };
+  return { friends, fetchFriends, incomingRequestToast, dismissIncomingRequestToast };
 }
