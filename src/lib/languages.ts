@@ -6,6 +6,7 @@ export const translations = {
     pass: "Pass",
     fail_caps: "FAIL",
     pass_caps: "PASS",
+    already_know: "I already know this",
     empty_deck: "Empty Deck",
     recall: "Recall",
     recognition: "Recognition",
@@ -16,7 +17,6 @@ export const translations = {
     syncing_deck: "Syncing Deck...",
     days: "Days",
     back: "Back",
-    back_to_study: "Back to Study",
     signout: "Sign Out",
     active_collection: "Active Collection",
     save: "Save",
@@ -26,6 +26,7 @@ export const translations = {
     vocabulary: "Vocabulary",
     mastered: "Mastered",
     struggling: "Struggling",
+    by_level: "Vocabulary by Level",
     settings: "Settings",
     close: "Close",
     close_settings: "Close Settings",
@@ -40,6 +41,7 @@ export const translations = {
     format_list: "1. List: word, meaning (one per line)",
     format_lyrics: "2. Lyrics: Paste a whole song or text. I'll pick out the new words for you!",
     add_new_word: "Add New Word...",
+    quick_add: "Add Words",
     success_added: "Successfully added {{count}} words!",
     in_a_row: "in a row",
     loading: "LOADING...",
@@ -53,6 +55,15 @@ export const translations = {
     swipe_to_start: "Swipe the card to start",
     word_filters: "Word Filters",
     search_placeholder: "Search kanji, reading, or meaning...",
+    duplicates_found: "possible duplicate cards",
+    duplicates_review: "Review",
+    duplicates_title: "Duplicate cards",
+    duplicates_desc: "Each extra card is merged into the one on the left: its scores are added in, then it leaves your deck.",
+    duplicates_kana: "Same word in kana and kanji",
+    duplicates_particle: "A word with a particle stuck on",
+    duplicates_merge: "Merge",
+    duplicates_merging: "Merging…",
+    duplicates_none: "No duplicates left.",
     app_language: "App Language",
     app_language_desc: "Toggle between English and Japanese",
     kanji_reading: "Kanji / Reading",
@@ -69,6 +80,7 @@ export const translations = {
     delete: "Delete",
     already_in_deck: "Already in Deck",
     add_to_deck: "Add to Deck +",
+    add_new_words: "Add new words +",
     reset_password: "Reset Password",
     create_account: "Create Account",
     welcome_message: "Welcome to FlashKado!",
@@ -155,6 +167,8 @@ export const translations = {
   delete_btn: "Delete Forever",
   sfx_title: "Sound Effects",
     sfx_desc: "Play sound on pass/fail",
+    swipe_only_title: "Swipe Only",
+    swipe_only_desc: "Hide the Fail/Pass buttons, grade cards by swiping only",
     update_password: "Update Password",
     change_password: "Change Password",
     account_security: "Account Security",
@@ -173,8 +187,8 @@ export const translations = {
     update_password_desc: "Change your login password to keep your account secure.",
     social_login_msg: "Your account is managed via Google/Facebook.",
     limit_reached_title: "DAILY LIMIT REACHED",
-    limit_reached_msg: "You've added {{current}}/{{limit}} cards today. Come back tomorrow or upgrade to Premium for unlimited access!",
-    partial_limit_msg: "Daily limit almost reached! Adding the first {{count}} words only.",
+    limit_reached_msg: "You've reached today's limit for adding new words. Come back tomorrow!",
+    partial_limit_msg: "Daily limit almost reached — only some of these words were added. Try the rest again tomorrow.",
     upgrade_now: "UPGRADE TO PREMIUM",
     daily_usage: "Daily Usage",
     added_summary_limit: "Summary (Daily Limit Applied)",
@@ -191,6 +205,7 @@ export const translations = {
     pass: "わかった",
     fail_caps: "わからない",
     pass_caps: "わかった",
+    already_know: "もう知っている",
     empty_deck: "デッキが空です",
     recall: "想起", 
     recognition: "認識", 
@@ -201,7 +216,6 @@ export const translations = {
     syncing_deck: "デッキを同期中...", // Dekki o dōkichū...
     days: "日", // Hi/Nichi
     back: "戻る",
-    back_to_study: "学習に戻る", // Gakushū ni modoru (Return to learning)
     signout: "ログアウト", // Log-out (Standard katakana)
     active_collection: "現在のコレクション", // Genzai no korekushon (Current Collection)
     save: "保存する", // Hozon suru (To Save/Preserve)
@@ -211,6 +225,7 @@ export const translations = {
     vocabulary: "語彙力", // Goiryoku (or simply ボキャブラリー)
     mastered: "習得済み", // Shūtoku-zumi (Completed/Learned)
     struggling: "要復習", // Yō-fukushū (Needs Review - sounds better than "failing")
+    by_level: "レベル別語彙", // Reberu-betsu goi (Vocabulary by level)
     settings: "設定", // Settei
     close: "閉じる",
     close_settings: "設定を閉じる", // Settei o tojiru
@@ -225,6 +240,7 @@ export const translations = {
     format_list: "1. リスト形式: 単語, 意味 (1行に1項目)", // Risto keishiki: Tango, imi (1 item per line)
     format_lyrics: "2. 歌詞・長文: 歌詞や文章を貼り付けると、AIが新しい単語を抽出します！", // Kashi/Chōbun... (Paste lyrics/text and AI will extract words!)
     add_new_word: "単語を追加...", // Tango o tsuika
+    quick_add: "単語を追加", // Tango o tsuika (nav button)
     success_added: "{{count}}語を追加しました！", // {{count}}-go o tsuika shimashita!
     in_a_row: "連続",           // Renzoku (Consecutive)
     loading: "読み込み中...",       // "Yomikomi-chū"
@@ -238,6 +254,15 @@ export const translations = {
     swipe_to_start: "スワイプで開始", // Suwaipu de kaishi
     word_filters: "単語フィルター",              // Tango firutā
     search_placeholder: "漢字、読み、意味で検索...", // Kanji, yomi, imi de kensaku...
+    duplicates_found: "件の重複カードの可能性",
+    duplicates_review: "確認",
+    duplicates_title: "重複カード",
+    duplicates_desc: "余分なカードは左のカードに統合されます：スコアを合算してから、デッキから外します。",
+    duplicates_kana: "仮名と漢字で同じ単語",
+    duplicates_particle: "助詞が付いたままの単語",
+    duplicates_merge: "統合",
+    duplicates_merging: "統合中…",
+    duplicates_none: "重複はもうありません。",
     app_language: "アプリの言語",               // Apuri no gengo
     app_language_desc: "英語と日本語を切り替えます", // Eigo to Nihongo o kirikaemasu
     kanji_reading: "漢字 / 読み",               // Kanji / Yomi
@@ -254,6 +279,7 @@ export const translations = {
     delete: "削除",                 // Sakujo
     already_in_deck: "追加済み",       // Tsuika-zumi
     add_to_deck: "デッキに追加 +",    // Dekki ni tsuika +
+    add_new_words: "新しい単語を追加 +", // Atarashii tango o tsuika +
     reset_password: "パスワードを再設定",
     create_account: "アカウント作成",
     welcome_message: "FlashKadoへようこそ！",
@@ -340,6 +366,8 @@ export const translations = {
   delete_btn: "永久に削除する",
   sfx_title: "効果音",
     sfx_desc: "正解・不正解時に音を鳴らす",
+    swipe_only_title: "スワイプのみ",
+    swipe_only_desc: "「わかった」「わからない」ボタンを隠し、スワイプのみで判定する",
     update_password: "パスワード更新",
     change_password: "パスワード変更",
     account_security: "アカウントセキュリティ",
@@ -358,8 +386,8 @@ export const translations = {
     update_password_desc: "セキュリティ向上のため、ログインパスワードを変更します。",
     social_login_msg: "このアカウントはGoogle/Facebookで管理されています。",
     limit_reached_title: "一日の上限に達しました",
-    limit_reached_msg: "本日は {{current}}/{{limit}} 枚のカードを追加しました。明日また戻ってくるか、プレミアムにアップグレードして無制限に利用しましょう！",
-    partial_limit_msg: "一日の上限に近いいため、最初の {{count}} 語のみを追加します。",
+    limit_reached_msg: "本日の追加上限に達しました。明日また戻ってきてください！",
+    partial_limit_msg: "一日の上限に近づいています。一部の単語のみ追加されました。残りは明日また試してください。",
     upgrade_now: "プレミアムに移行",
     daily_usage: "今日の使用量",
     added_summary_limit: "追加済みリスト（一日の上限適用）",
