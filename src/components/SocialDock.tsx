@@ -176,14 +176,17 @@ export const SocialDock = ({
         }}
         exit={{ y: "100%" }} // Slide down on close
         // Desktop Overrides:
-        className="fixed bottom-0 left-0 right-0 h-[70vh] w-full bg-white z-[241] p-6 rounded-t-[32px] shadow-2xl flex flex-col
-                   md:top-0 md:right-0 md:left-auto md:bottom-auto md:h-full md:w-80 md:rounded-none md:translate-y-0"
+        // Mobile sheet sizes to its own content (capped at 85vh for a long list)
+        // instead of always claiming a fixed 70% of the screen — a short Circle
+        // shouldn't leave a big empty gap above the Refer button.
+        className="fixed bottom-0 left-0 right-0 max-h-[85vh] w-full bg-white z-[241] p-6 rounded-t-[32px] shadow-2xl flex flex-col
+                   md:top-0 md:right-0 md:left-auto md:bottom-auto md:h-full md:max-h-none md:w-80 md:rounded-none md:translate-y-0"
       >
         {/* Mobile "Handle" - Visual cue that you can swipe down */}
-        <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 md:hidden" />
+        <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-5 md:hidden" />
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-5">
           <h2 className="text-xs font-black uppercase tracking-[0.4em] text-black">
             Study Circle
           </h2>
@@ -209,20 +212,20 @@ export const SocialDock = ({
                 showAlert(`Your code: ${referralCode}`);
               }
             }}
-            className="w-full mb-4 flex items-center justify-between px-4 py-3 bg-slate-50 rounded-2xl active:scale-[0.98] transition-all"
+            className="w-full mb-3 flex items-center justify-between px-4 py-2.5 bg-slate-50 rounded-2xl active:scale-[0.98] transition-all"
           >
             <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Your code</span>
             <span className="text-[12px] font-black tracking-[0.15em] text-black">{referralCode}</span>
           </button>
         )}
 
-        <form onSubmit={handleQuickAdd} className="mb-2 group">
+        <form onSubmit={handleQuickAdd} className="mb-3 group">
           <div className="relative">
             <input
               value={newFriend}
               onChange={(e) => { setNewFriend(e.target.value); setCandidates(null); }}
               placeholder="ADD BY NAME OR CODE..."
-              className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-4 text-[10px] font-black uppercase tracking-[0.2em] focus:bg-white focus:border-black outline-none transition-all placeholder:text-slate-300"
+              className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-3.5 text-[10px] font-black uppercase tracking-[0.2em] focus:bg-white focus:border-black outline-none transition-all placeholder:text-slate-300"
             />
             <button
               type="submit"
@@ -251,7 +254,7 @@ export const SocialDock = ({
           </div>
         )}
 
-        <div className="flex gap-2 mb-6 p-1 bg-slate-50 rounded-2xl">
+        <div className="flex gap-2 mb-4 p-1 bg-slate-50 rounded-2xl">
           <button
             onClick={() => setActiveTab("friends")}
             className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === "friends" ? "bg-white shadow-sm text-black" : "text-slate-400"}`}
@@ -301,7 +304,13 @@ export const SocialDock = ({
         </div>
 
         {/* Friends List / Leaderboard */}
-        <div className="flex-1 overflow-y-auto space-y-6 pr-2 custom-scrollbar">
+        {/* Sizes to its own content on mobile (min 140px so a near-empty list/empty
+            state still has some presence, capped at 46vh so a long list scrolls
+            internally instead of growing the whole sheet) — the old flex-1 always
+            filled the fixed-height sheet above even when there were only 2-3 rows to
+            show, leaving a big empty gap before the Refer button. Desktop's sidebar
+            keeps the original flex-1-fills-remaining-height behavior. */}
+        <div className="min-h-[140px] max-h-[46vh] md:min-h-0 md:max-h-none md:flex-1 overflow-y-auto space-y-6 pr-2 custom-scrollbar">
           {activeTab === "leaderboard" ? (
             rankedFriends.length > 1 ? (
               <div className="space-y-2">
