@@ -18,6 +18,40 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// Web Push — payload comes from /api/push/notify-friend-request as JSON
+// {title, body, url}. Falls back to generic text if the payload is missing/malformed
+// (a push can arrive with no data at all per the spec).
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : "" };
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || "FlashKado", {
+      body: data.body || "",
+      icon: "/apple-icon.png",
+      badge: "/apple-icon.png",
+      data: { url: data.url || "/" },
+    })
+  );
+});
+
+// Focuses an already-open tab on this origin instead of always opening a new one.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
+      for (const client of windowClients) {
+        if ("focus" in client) return client.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
+    })
+  );
+});
+
 // Opening the installed app (or any navigation) races the network against this
 // timeout — whichever answers first wins. On a slow connection or a cold function,
 // that caps "time to see something" instead of making every launch wait out however

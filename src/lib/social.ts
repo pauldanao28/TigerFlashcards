@@ -1,5 +1,6 @@
 // src/lib/social.ts
 import { supabase } from './supabase';
+import { notifyFriendRequest } from './push';
 
 export type FriendCandidate = { id: string; full_name: string };
 
@@ -30,6 +31,9 @@ const sendFriendRequest = async (
 
   switch (data as string) {
     case 'sent':
+      // Fire-and-forget — a push failure (not configured, permission never
+      // granted, etc.) shouldn't block or fail the request-sent flow itself.
+      notifyFriendRequest(target.id);
       return { success: true, name: target.full_name };
     case 'accepted':
       // They'd already sent us a request — this call accepted it instead of

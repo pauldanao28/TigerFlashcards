@@ -17,7 +17,8 @@ import AddWordsSheet from "@/components/AddWordsSheet";
 import DuplicatesSheet from "@/components/DuplicatesSheet";
 import CardDetailModal from "@/components/CardDetailModal";
 import { findDuplicates, skipDeckDuplicates } from "@/lib/duplicates";
-import { AlertTriangle, Ban, BarChart3, BookOpen, ChevronLeft, Flag, Gamepad2, Gift, Headphones, ImageIcon, Layers, List, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Volume2, X, Zap } from "lucide-react";
+import { AlertTriangle, Ban, BarChart3, Bell, BookOpen, ChevronLeft, Flag, Gamepad2, Gift, Headphones, ImageIcon, Layers, List, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Volume2, X, Zap } from "lucide-react";
+import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from "@/lib/push";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
 
@@ -179,6 +180,7 @@ export default function StatsPage() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [statsVisible, setStatsVisible] = useState(true);
+  const [pushState, setPushState] = useState<"subscribed" | "unsubscribed" | "unsupported" | "loading">("loading");
   const [feedbackForm, setFeedbackForm] = useState({
     type: "feedback",
     subject: "",
@@ -211,6 +213,26 @@ export default function StatsPage() {
   // Safety net: don't let the nav-guard get stuck "busy" forever if this page unmounts
   // some other way (browser back/forward) while a batch upload was mid-flight.
   useEffect(() => () => setUploadBusy(false), [setUploadBusy]);
+
+  useEffect(() => {
+    getPushSubscriptionState().then(setPushState);
+  }, []);
+
+  const handleTogglePush = async () => {
+    if (pushState === "subscribed") {
+      await unsubscribeFromPush();
+      setPushState("unsubscribed");
+      return;
+    }
+    setPushState("loading");
+    const result = await subscribeToPush();
+    if (result.success) {
+      setPushState("subscribed");
+    } else {
+      setPushState("unsubscribed");
+      showAlert(result.error || "Couldn't enable notifications.");
+    }
+  };
 
   // Block browser-level navigation (tab close, URL bar, browser back/forward) during upload.
   useEffect(() => {
@@ -1438,6 +1460,32 @@ export default function StatsPage() {
                       />
                     </button>
                   </div>
+
+                  {/* Push Notifications Toggle */}
+                  {pushState !== "unsupported" && (
+                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
+                      <div className="flex items-start gap-2.5">
+                        <Bell size={15} className="text-slate-400 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-bold text-slate-700">
+                            Friend request notifications
+                          </p>
+                          <p className="text-[10px] text-slate-400 font-medium leading-tight">
+                            Get notified on this device when someone sends you a friend request, even when the app is closed.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleTogglePush}
+                        disabled={pushState === "loading"}
+                        className={`w-12 h-6 rounded-full transition-all relative shrink-0 disabled:opacity-50 ${pushState === "subscribed" ? "bg-indigo-600" : "bg-slate-300"}`}
+                      >
+                        <div
+                          className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${pushState === "subscribed" ? "left-7" : "left-1"}`}
+                        />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
