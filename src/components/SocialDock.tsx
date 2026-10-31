@@ -16,6 +16,7 @@ import { FriendProfileModal } from "@/components/FriendProfileModal";
 export const SocialDock = ({
   userId, // Added your unique ID
   username,
+  myStreak,
   referralCode,
   friends,
   onClose,
@@ -23,6 +24,7 @@ export const SocialDock = ({
 }: {
   userId: string;
   username: string; // Add this prop
+  myStreak?: number;
   referralCode: string | null;
   friends: any[];
   onClose: () => void;
@@ -30,7 +32,7 @@ export const SocialDock = ({
 }) => {
   const { showAlert } = useAppAlert();
   const [newFriend, setNewFriend] = useState("");
-  const [activeTab, setActiveTab] = useState<"friends" | "pending">("friends");
+  const [activeTab, setActiveTab] = useState<"friends" | "pending" | "leaderboard">("friends");
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [candidates, setCandidates] = useState<FriendCandidate[] | null>(null);
@@ -143,6 +145,15 @@ export const SocialDock = ({
 
   const acceptedCount = friends.filter((f) => f.status === "accepted").length;
   const pendingCount = friends.filter((f) => f.status === "pending").length;
+
+  // Friends-only ranking by current streak, including yourself so you can see where
+  // you stand — never shows anyone outside your own circle (no public leaderboard).
+  const rankedFriends = [
+    { id: userId, name: username, avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`, streak: myStreak ?? 0, isMe: true },
+    ...friends
+      .filter((f) => f.status === "accepted")
+      .map((f) => ({ id: f.id, name: f.name, avatar: f.avatar, streak: f.streak ?? 0, isMe: false })),
+  ].sort((a, b) => b.streak - a.streak);
 
   return (
     <>
@@ -281,11 +292,51 @@ export const SocialDock = ({
               <span className="absolute top-1 right-2 w-1.5 h-1.5 bg-orange-500 rounded-full" />
             )}
           </button>
+          <button
+            onClick={() => setActiveTab("leaderboard")}
+            className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === "leaderboard" ? "bg-white shadow-sm text-black" : "text-slate-400"}`}
+          >
+            🔥 Rank
+          </button>
         </div>
 
-        {/* Friends List */}
+        {/* Friends List / Leaderboard */}
         <div className="flex-1 overflow-y-auto space-y-6 pr-2 custom-scrollbar">
-          {displayFriends.length > 0 ? (
+          {activeTab === "leaderboard" ? (
+            rankedFriends.length > 1 ? (
+              <div className="space-y-2">
+                {rankedFriends.map((f, i) => {
+                  const rank = i + 1;
+                  const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
+                  return (
+                    <div
+                      key={f.id}
+                      onClick={() => { if (!f.isMe) setSelectedFriendId(f.id); }}
+                      className={`flex items-center gap-3 p-2.5 rounded-2xl animate-in fade-in slide-in-from-bottom-2 ${f.isMe ? "bg-indigo-50" : ""} ${!f.isMe ? "cursor-pointer active:opacity-70" : ""}`}
+                    >
+                      <span className="w-6 text-center text-xs font-black text-slate-400 shrink-0">
+                        {medal ?? `#${rank}`}
+                      </span>
+                      <div className="w-10 h-10 rounded-full border-2 border-slate-100 overflow-hidden bg-slate-50 shrink-0">
+                        <img src={f.avatar} alt={f.name} className="w-full h-full object-cover" />
+                      </div>
+                      <p className="flex-1 text-[12px] font-black uppercase text-black italic leading-none truncate">
+                        {f.name}{f.isMe ? " (You)" : ""}
+                      </p>
+                      <span className="text-[11px] flex items-center gap-0.5 font-bold text-orange-500 shrink-0">
+                        🔥 {f.streak}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center px-4 opacity-40">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Circle Empty</p>
+                <p className="text-[10px] text-slate-400 lowercase italic">Add friends to start a leaderboard</p>
+              </div>
+            )
+          ) : displayFriends.length > 0 ? (
             displayFriends.map((friend) => (
               <div
                 key={`${friend.id}-${friend.status}`}

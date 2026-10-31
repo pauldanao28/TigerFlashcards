@@ -2633,6 +2633,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           <SocialDock
             userId={user.id}
             username={profileName}
+            myStreak={streak}
             referralCode={referralCode}
             friends={friends}
             onClose={() => setIsSocialOpen(false)}

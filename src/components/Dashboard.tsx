@@ -592,6 +592,7 @@ export default function Dashboard() {
           <SocialDock
             userId={user.id}
             username={name || ""}
+            myStreak={streak}
             referralCode={data.referral_code}
             friends={friends}
             onClose={() => setIsSocialOpen(false)}
