@@ -117,7 +117,7 @@ export const SocialDock = ({
       return; // Stop the function here
     }
 
-    const shareUrl = `https://flashkado.com/join/${referralCode}`;
+    const shareUrl = `${window.location.origin}/join/${referralCode}`;
     const shareMessage = `Join me on FlashKado! I'm learning Japanese with AI-powered flashcards 🇯🇵 ${shareUrl}`;
 
     // Prefer the native share sheet (lets them pick Messages/WhatsApp/etc
@@ -183,6 +183,27 @@ export const SocialDock = ({
             <span className="text-xl text-black">✕</span>
           </button>
         </div>
+
+        {/* Your own code, shown plainly so it can be read aloud/texted/copied
+            without going through the native share sheet — the input box below
+            already accepts a code typed in directly (addFriend auto-detects
+            the 8-char pattern), this is just the other half: giving yours out. */}
+        {referralCode && (
+          <button
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(referralCode);
+                showAlert("Code copied!");
+              } catch {
+                showAlert(`Your code: ${referralCode}`);
+              }
+            }}
+            className="w-full mb-4 flex items-center justify-between px-4 py-3 bg-slate-50 rounded-2xl active:scale-[0.98] transition-all"
+          >
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Your code</span>
+            <span className="text-[12px] font-black tracking-[0.15em] text-black">{referralCode}</span>
+          </button>
+        )}
 
         <form onSubmit={handleQuickAdd} className="mb-2 group">
           <div className="relative">
