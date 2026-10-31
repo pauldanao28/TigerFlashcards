@@ -1197,12 +1197,12 @@ export default function StatsPage() {
                   </p>
                   <div className="flex items-center gap-2">
                     <div className="flex-1 px-4 py-3 bg-white rounded-xl border border-slate-200 font-black text-sm text-slate-700 tracking-widest truncate">
-                      {referralCode ? `flashkado.com/join/${referralCode}` : "…"}
+                      {referralCode ? `${typeof window !== "undefined" ? window.location.host : ""}/join/${referralCode}` : "…"}
                     </div>
                     <button
                       onClick={async () => {
                         if (!referralCode) return;
-                        const shareUrl = `https://flashkado.com/join/${referralCode}`;
+                        const shareUrl = `${window.location.origin}/join/${referralCode}`;
                         const shareMessage = `Join me on FlashKado! I'm learning Japanese with AI-powered flashcards 🇯🇵 ${shareUrl}`;
                         if (navigator.share) {
                           try {

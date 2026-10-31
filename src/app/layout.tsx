@@ -7,7 +7,7 @@ import BottomNav from "@/components/BottomNav";
 import Sidebar from "@/components/Sidebar";
 import SidebarOffsetWrapper from "@/components/SidebarOffsetWrapper";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://flashkado.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://flashkado.app";
 
 export const viewport = {
   width: "device-width",

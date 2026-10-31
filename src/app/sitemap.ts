@@ -1,6 +1,6 @@
 import { MetadataRoute } from "next";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://flashkado.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://flashkado.app";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const jlptLevels = ["n5", "n4", "n3", "n2", "n1"];
