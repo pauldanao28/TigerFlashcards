@@ -5,6 +5,8 @@ import Link from "next/link";
 import { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { notifyFriendsGoalMet } from "@/lib/push";
+import { STREAK_MILESTONES } from "@/lib/notificationText";
+import ShareButton from "@/components/ShareButton";
 import { translations } from "@/lib/languages";
 import { calculateGlobalStats } from "@/lib/stats";
 import { processReferral } from "@/lib/social";
@@ -2731,12 +2733,29 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 </div>
               </div>
 
-              <button
-                onClick={() => setShowRecap(false)}
-                className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
-              >
-                Keep Going →
-              </button>
+              <div className="w-full flex flex-col gap-3">
+                {goalStreak > 0 && (
+                  <ShareButton
+                    params={{
+                      kind: "streak",
+                      cards: sessionCards,
+                      accuracy: sessionCards > 0 ? Math.round((sessionPass / sessionCards) * 100) : 0,
+                    }}
+                    caption={
+                      STREAK_MILESTONES.includes(goalStreak)
+                        ? `🏆 I just hit a ${goalStreak}-day streak learning Japanese on FlashKado! Join me:`
+                        : `🔥 Day ${goalStreak} of learning Japanese on FlashKado! Join me:`
+                    }
+                    className="bg-indigo-600 text-white shadow-lg shadow-indigo-200"
+                  />
+                )}
+                <button
+                  onClick={() => setShowRecap(false)}
+                  className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
+                >
+                  Keep Going →
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

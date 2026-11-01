@@ -1,5 +1,6 @@
 "use client";
 import { motion } from "framer-motion";
+import ShareButton from "@/components/ShareButton";
 
 const CONFETTI_PARTICLES = [
   { color: "#6366f1", left: 8,  delay: 0,    drift: -40, h: 10, w: 10, round: true  },
@@ -145,6 +146,13 @@ export default function LevelUpModal({ from, to, quizType, onDismiss }: LevelUpM
         >
           See Results →
         </motion.button>
+        <div className="mt-3">
+          <ShareButton
+            params={{ kind: "levelup", from, to, skill: quizType }}
+            caption={`🎉 I just leveled up to ${to} in Japanese ${quizType} on FlashKado! Join me:`}
+            className="bg-slate-100 text-slate-700"
+          />
+        </div>
       </motion.div>
     </div>
   );
