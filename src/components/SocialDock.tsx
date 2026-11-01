@@ -37,6 +37,19 @@ export const SocialDock = ({
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [candidates, setCandidates] = useState<FriendCandidate[] | null>(null);
 
+  // The dock sits on top of a normally-scrollable page (Dashboard/StudyView
+  // aren't full-screen-locked like Auth/join are), so without this the page
+  // underneath kept scrolling while the sheet was open — the backdrop only
+  // blocks clicks, not scroll/touch. Lock body scroll for as long as this
+  // component is mounted, restoring whatever the page's own overflow was.
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
   useEffect(() => {
     if (!userId) return;
 
@@ -168,7 +181,7 @@ export const SocialDock = ({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[240] cursor-pointer"
+        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[240] cursor-pointer touch-none overscroll-none"
       />
 
       {/* 2. THE DOCK (Responsive: Bottom Sheet on Mobile, Sidebar on Desktop) */}
