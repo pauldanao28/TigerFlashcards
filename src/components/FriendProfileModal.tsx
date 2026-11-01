@@ -111,8 +111,8 @@ export const FriendProfileModal = ({ friendId, onClose }: { friendId: string; on
               {profile.stats_hidden ? (
                 <div className="py-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                   <p className="text-lg mb-1">🔒</p>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Profile Locked</p>
-                  <p className="text-[10px] text-slate-400 mt-1">{profile.full_name} has hidden their detailed progress.</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Profile Hidden</p>
+                  <p className="text-[10px] text-slate-400 mt-1">{profile.full_name} has chosen to keep their stats private.</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -128,12 +128,14 @@ export const FriendProfileModal = ({ friendId, onClose }: { friendId: string; on
                 </div>
               )}
 
-              <Link
-                href={`/friends/${friendId}`}
-                className="block w-full mt-5 py-3 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] text-center active:scale-95 transition-all"
-              >
-                View Full Profile
-              </Link>
+              {!profile.stats_hidden && (
+                <Link
+                  href={`/friends/${friendId}`}
+                  className="block w-full mt-5 py-3 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] text-center active:scale-95 transition-all"
+                >
+                  View Full Profile
+                </Link>
+              )}
             </div>
           )}
         </div>

@@ -147,8 +147,8 @@ export default function FriendDashboard({ friendId }: { friendId: string }) {
         {data.stats_hidden ? (
           <div className="py-10 text-center bg-white rounded-2xl border border-dashed border-slate-200">
             <p className="text-2xl mb-2">🔒</p>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Profile Locked</p>
-            <p className="text-xs text-slate-400 mt-1">{data.name ?? "This person"} has hidden their detailed progress.</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Profile Hidden</p>
+            <p className="text-xs text-slate-400 mt-1">{data.name ?? "This person"} has chosen to keep their stats private.</p>
           </div>
         ) : (
           <>
