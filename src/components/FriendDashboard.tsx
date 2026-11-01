@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
 import { ALLOWED_PARTS_OF_SPEECH } from "@/lib/textNormalize";
 import LoadingScreen from "@/components/LoadingScreen";
+import { SKILL_TILE, type SkillKey } from "@/lib/skillTheme";
 
 type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
 
@@ -51,17 +52,17 @@ const JLPT_BADGE_COLOR: Record<JlptLevel, string> = {
   N1: "bg-rose-100 text-rose-700 border-rose-200",
 };
 
-function ScoreTile({ emoji, label, score, sub }: { emoji: string; label: string; score: number | null | undefined; sub?: string }) {
+function ScoreTile({ emoji, label, score, sub, skill }: { emoji: string; label: string; score: number | null | undefined; sub?: string; skill: SkillKey }) {
   return (
-    <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+    <div className={`rounded-2xl p-4 border shadow-sm ${SKILL_TILE[skill].tile}`}>
       <div className="flex items-center justify-between mb-1">
         <span className="text-lg">{emoji}</span>
         <span className="text-xl font-black text-slate-800 tabular-nums">
           {score ?? "—"}{score != null ? "%" : ""}
         </span>
       </div>
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p>
-      {sub && <p className="text-[9px] text-slate-400 mt-0.5">{sub}</p>}
+      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{label}</p>
+      {sub && <p className="text-[9px] text-slate-500 mt-0.5">{sub}</p>}
     </div>
   );
 }
@@ -138,7 +139,7 @@ export default function FriendDashboard({ friendId }: { friendId: string }) {
                 <span className="text-[10px] font-bold text-orange-500 flex items-center gap-0.5">🔥 {data.streak} day streak</span>
               )}
               {data.max_streak > 0 && (
-                <span className="text-[10px] font-bold text-slate-400">Best: {data.max_streak}</span>
+                <span className="text-[10px] font-bold text-slate-500">Best: {data.max_streak}</span>
               )}
             </div>
           </div>
@@ -147,23 +148,23 @@ export default function FriendDashboard({ friendId }: { friendId: string }) {
         {data.stats_hidden ? (
           <div className="py-10 text-center bg-white rounded-2xl border border-dashed border-slate-200">
             <p className="text-2xl mb-2">🔒</p>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Profile Hidden</p>
-            <p className="text-xs text-slate-400 mt-1">{data.name ?? "This person"} has chosen to keep their stats private.</p>
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Profile Hidden</p>
+            <p className="text-xs text-slate-500 mt-1">{data.name ?? "This person"} has chosen to keep their stats private.</p>
           </div>
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3">
-              <ScoreTile emoji="🃏" label="Vocabulary" score={data.vocab_score} sub={`${(data.deck_size ?? 0).toLocaleString()} cards in deck`} />
-              <ScoreTile emoji="📝" label="Grammar" score={data.grammar_score} />
-              <ScoreTile emoji="📖" label="Reading" score={data.reading_score} />
-              <ScoreTile emoji="🎧" label="Listening" score={data.listening_score} />
+              <ScoreTile skill="vocab" emoji="🃏" label="Vocabulary" score={data.vocab_score} sub={`${(data.deck_size ?? 0).toLocaleString()} cards in deck`} />
+              <ScoreTile skill="grammar" emoji="📝" label="Grammar" score={data.grammar_score} />
+              <ScoreTile skill="reading" emoji="📖" label="Reading" score={data.reading_score} />
+              <ScoreTile skill="listening" emoji="🎧" label="Listening" score={data.listening_score} />
             </div>
 
             {(data.deck_size ?? 0) === 0 && (
               <div className="mt-3 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm text-center">
                 <p className="text-2xl mb-1">🃏</p>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No cards yet</p>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">No cards yet</p>
+                <p className="text-xs text-slate-500 mt-1">
                   {data.name ?? "They"} hasn&apos;t added any cards to their deck. Vocabulary breakdowns will show up here once they do.
                 </p>
               </div>
@@ -172,8 +173,8 @@ export default function FriendDashboard({ friendId }: { friendId: string }) {
             {(data.deck_size ?? 0) > 0 && data.jlpt_stats && (
               <div className="mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vocabulary by Level</p>
-                  <p className="text-[10px] font-black text-slate-400">{(data.deck_size ?? 0).toLocaleString()} cards</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Vocabulary by Level</p>
+                  <p className="text-[10px] font-black text-slate-500">{(data.deck_size ?? 0).toLocaleString()} cards</p>
                 </div>
                 <div className="space-y-3.5">
                   {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
@@ -194,7 +195,7 @@ export default function FriendDashboard({ friendId }: { friendId: string }) {
                             <div className={`h-full ${JLPT_BAR_LIGHT_COLOR[level]}`} style={{ width: `${addedNotMasteredOfFloorPct}%` }} />
                           </div>
                         </div>
-                        <div className="flex items-center justify-between pl-12 text-[10px] font-bold text-slate-400">
+                        <div className="flex items-center justify-between pl-12 text-[10px] font-bold text-slate-500">
                           <span>{total}/{floor} = {floorPct}%</span>
                           <span>{mastered}/{total} Mastered ({masteryPct}%)</span>
                         </div>
@@ -207,7 +208,7 @@ export default function FriendDashboard({ friendId }: { friendId: string }) {
 
             {(data.deck_size ?? 0) > 0 && data.pos_stats && (
               <div className="mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Vocabulary by Part of Speech</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Vocabulary by Part of Speech</p>
                 <div className="flex gap-2 flex-wrap">
                   {ALLOWED_PARTS_OF_SPEECH.map((pos) => {
                     const { total, mastered } = data.pos_stats![pos] ?? { total: 0, mastered: 0 };
@@ -227,19 +228,19 @@ export default function FriendDashboard({ friendId }: { friendId: string }) {
             )}
 
             <div className="mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Today</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Today</p>
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div>
                   <p className="text-xl font-black text-slate-800 tabular-nums">{data.daily_count ?? 0}</p>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Reviews</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Reviews</p>
                 </div>
                 <div>
                   <p className="text-xl font-black text-slate-800 tabular-nums">{data.mastered_today ?? 0}</p>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Mastered</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Mastered</p>
                 </div>
                 <div>
                   <p className="text-xl font-black text-slate-800 tabular-nums">{data.still_learning ?? 0}</p>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Still Learning</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Still Learning</p>
                 </div>
               </div>
               <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t border-slate-100">

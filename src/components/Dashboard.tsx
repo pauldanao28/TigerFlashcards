@@ -11,6 +11,7 @@ import { SocialDock } from "@/components/SocialDock";
 import SocialToast from "@/components/SocialToast";
 import NotificationBell from "@/components/NotificationBell";
 import ShareButton from "@/components/ShareButton";
+import { SKILL_TILE, type SkillKey } from "@/lib/skillTheme";
 import { Share2 } from "lucide-react";
 import { useFriends } from "@/hooks/useFriends";
 
@@ -93,6 +94,7 @@ function ScoreTile({
   score,
   sub,
   nlevelOverride,
+  skill,
 }: {
   href: string;
   emoji: string;
@@ -100,6 +102,7 @@ function ScoreTile({
   score: number | null;
   sub?: string;
   nlevelOverride?: JlptLevel;
+  skill: SkillKey;
 }) {
   const s = score ?? 0;
   const displayScore = useCountUp(s);
@@ -107,31 +110,31 @@ function ScoreTile({
   const nlevel = nlevelOverride ?? jlptLevel(s);
   const barColor = s >= 80 ? "bg-red-400" : s >= 60 ? "bg-orange-400" : s >= 40 ? "bg-amber-400" : s >= 20 ? "bg-emerald-400" : "bg-indigo-400";
   return (
-    <Link href={href} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm active:scale-95 transition-all flex flex-col gap-2">
+    <Link href={href} className={`rounded-2xl p-4 border shadow-sm active:scale-95 transition-all flex flex-col gap-2 ${SKILL_TILE[skill].tile}`}>
       <div className="flex items-center justify-between">
         <span className="text-2xl">{emoji}</span>
         <div className="flex items-center gap-1">
           <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${JLPT_BADGE_COLOR[nlevel as JlptLevel]}`}>
             {nlevel}
           </span>
-          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-500`}>
+          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-white/70 text-slate-500">
             {level.nameJp}
           </span>
         </div>
       </div>
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p>
+      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{label}</p>
       <div>
         <div className="flex items-end justify-between mb-1">
           <span className={`text-2xl font-black tabular-nums ${JLPT_TEXT_COLOR[nlevel as JlptLevel]}`}>{displayScore}%</span>
         </div>
-        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+        <div className={`h-2 rounded-full overflow-hidden ${SKILL_TILE[skill].track}`}>
           <div
             className={`h-full rounded-full transition-all ${barColor}`}
             style={{ width: `${s}%` }}
           />
         </div>
       </div>
-      {sub && <p className="text-[10px] text-slate-400">{sub}</p>}
+      {sub && <p className="text-[10px] text-slate-500">{sub}</p>}
     </Link>
   );
 }
@@ -354,8 +357,8 @@ export default function Dashboard() {
       <div className="bg-white border-b border-slate-100 px-5 pt-14 md:pt-8 pb-6">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{greeting}</p>
-            <h1 className="text-2xl font-black text-slate-900 italic mt-0.5 leading-tight">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{greeting}</p>
+            <h1 className={`${(name?.length || 10) > 12 ? "text-xl" : "text-3xl"} font-black text-slate-800 italic uppercase tracking-tighter leading-none mt-1`}>
               {name || "Learner"} 👋
             </h1>
           </div>
@@ -429,7 +432,7 @@ export default function Dashboard() {
       <div className="max-w-2xl mx-auto">
       {/* Section label + today's activity pills */}
       <div className="px-5 pt-5 pb-2 flex items-center justify-between">
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Your Skills</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Your Skills</p>
         <div className="flex items-center gap-1.5">
           {/* Vocab: shows daily progress */}
           {(() => {
@@ -457,18 +460,18 @@ export default function Dashboard() {
 
       {/* 2×2 skill tiles */}
       <div className="px-4 grid grid-cols-2 gap-3">
-        <ScoreTile href="/study"                   emoji="🃏" label="Vocabulary" score={data.vocab_score}     sub={`${data.deck_size.toLocaleString()} cards in deck`} nlevelOverride={data.vocab_nlevel} />
-        <ScoreTile href="/quizzes?open=grammar"    emoji="📝" label="Grammar"    score={data.grammar_score} />
-        <ScoreTile href="/quizzes?open=sentence"   emoji="📖" label="Reading"    score={data.reading_score}   sub="Sentence quiz" />
-        <ScoreTile href="/quizzes?open=listening"  emoji="🎧" label="Listening"  score={data.listening_score} sub="Listening quiz" />
+        <ScoreTile href="/study"                   skill="vocab"     emoji="🃏" label="Vocabulary" score={data.vocab_score}     sub={`${data.deck_size.toLocaleString()} cards in deck`} nlevelOverride={data.vocab_nlevel} />
+        <ScoreTile href="/quizzes?open=grammar"    skill="grammar"   emoji="📝" label="Grammar"    score={data.grammar_score} />
+        <ScoreTile href="/quizzes?open=sentence"   skill="reading"   emoji="📖" label="Reading"    score={data.reading_score}   sub="Sentence quiz" />
+        <ScoreTile href="/quizzes?open=listening"  skill="listening" emoji="🎧" label="Listening"  score={data.listening_score} sub="Listening quiz" />
       </div>
 
       {/* Vocabulary by JLPT level */}
       {data.deck_size > 0 && (
         <div className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vocabulary by Level</p>
-            <p className="text-[10px] font-black text-slate-400">{data.deck_size.toLocaleString()} cards</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Vocabulary by Level</p>
+            <p className="text-[10px] font-black text-slate-500">{data.deck_size.toLocaleString()} cards</p>
           </div>
           <div className="space-y-3.5">
             {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
@@ -489,7 +492,7 @@ export default function Dashboard() {
                       <div className={`h-full ${JLPT_BAR_LIGHT_COLOR[level]}`} style={{ width: `${addedNotMasteredOfFloorPct}%` }} />
                     </div>
                   </div>
-                  <div className="flex items-center justify-between pl-12 text-[10px] font-bold text-slate-400">
+                  <div className="flex items-center justify-between pl-12 text-[10px] font-bold text-slate-500">
                     <span>{total}/{floor} = {floorPct}%</span>
                     <span>{mastered}/{total} Mastered ({masteryPct}%)</span>
                   </div>
@@ -503,7 +506,7 @@ export default function Dashboard() {
       {/* Vocabulary by Part of Speech — not a filter (that lives in Practice), tap a tag for its numbers */}
       {data.deck_size > 0 && (
         <div className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Vocabulary by Part of Speech</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Vocabulary by Part of Speech</p>
           <div className="flex gap-2 flex-wrap">
             {ALLOWED_PARTS_OF_SPEECH.map((pos) => {
               const { total, mastered } = data.pos_stats[pos] ?? { total: 0, mastered: 0 };
@@ -526,23 +529,23 @@ export default function Dashboard() {
       {/* Today — same three daily chips shown in Study, just as a card here */}
       {data.deck_size > 0 && (
         <div className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Today</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Today</p>
           <div className="grid grid-cols-3 gap-3 text-center">
             <div>
               <p className="text-xl font-black text-slate-800 tabular-nums">
                 {daily_count}<span className="text-slate-300 text-sm">/{REVIEW_TARGET}</span>
               </p>
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Reviews</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Reviews</p>
             </div>
             <div>
               <p className={`text-xl font-black tabular-nums ${mastered_today >= MASTERED_GOAL ? "text-emerald-600" : "text-slate-800"}`}>
                 {mastered_today}<span className="text-slate-300 text-sm">/{MASTERED_GOAL}</span>
               </p>
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Mastered</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Mastered</p>
             </div>
             <div>
               <p className="text-xl font-black text-slate-800 tabular-nums">{still_learning}</p>
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Not Yet Mastered</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Not Yet Mastered</p>
             </div>
           </div>
         </div>
@@ -583,15 +586,15 @@ export default function Dashboard() {
                 <div className="grid grid-cols-3 gap-3 text-center">
                   <div>
                     <p className="text-2xl font-black text-slate-800 tabular-nums">{total}</p>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">In Deck</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">In Deck</p>
                   </div>
                   <div>
                     <p className="text-2xl font-black text-emerald-600 tabular-nums">{mastered}</p>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Mastered</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Mastered</p>
                   </div>
                   <div>
                     <p className="text-2xl font-black text-indigo-600 tabular-nums">{pct}%</p>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Mastery</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Mastery</p>
                   </div>
                 </div>
               </motion.div>
@@ -637,7 +640,7 @@ export default function Dashboard() {
               onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-[2rem] w-full max-w-xs p-6 flex flex-col gap-3 shadow-2xl"
             >
-              <p className="text-center text-[10px] font-black uppercase tracking-widest text-slate-400">Share your streak</p>
+              <p className="text-center text-[10px] font-black uppercase tracking-widest text-slate-500">Share your streak</p>
               <ShareButton
                 preview
                 params={{ kind: "streak", cards: daily_count }}
@@ -646,7 +649,7 @@ export default function Dashboard() {
               />
               <button
                 onClick={() => setIsStreakShareOpen(false)}
-                className="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400"
+                className="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-500"
               >
                 Close
               </button>

@@ -1214,7 +1214,7 @@ export default function StatsPage() {
                   <Gift size={15} className="text-slate-400" /> Invite Friends
                 </h3>
                 <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] text-slate-400 font-medium leading-tight mb-3">
+                  <p className="text-[10px] text-slate-500 font-medium leading-tight mb-3">
                     Share your link — new friends who sign up through it are added to your circle automatically.
                   </p>
                   <div className="flex items-center gap-2">
@@ -1253,7 +1253,7 @@ export default function StatsPage() {
                     <p className="text-sm font-bold text-slate-700 leading-tight">
                       {t.update_password || "Update Password"}
                     </p>
-                    <p className="text-[9px] text-slate-400 font-medium mt-0.5 leading-relaxed">
+                    <p className="text-[9px] text-slate-500 font-medium mt-0.5 leading-relaxed">
                       {user?.app_metadata?.provider === "email"
                         ? t.update_password_desc ||
                           "Change your login password to keep your account secure."
@@ -1270,7 +1270,7 @@ export default function StatsPage() {
                       <RefreshCw size={13} /> {t.change_btn || "Change"}
                     </button>
                   ) : (
-                    <div className="px-4 py-2 bg-slate-100 rounded-lg text-[9px] font-black text-slate-400 uppercase tracking-widest border border-slate-200">
+                    <div className="px-4 py-2 bg-slate-100 rounded-lg text-[9px] font-black text-slate-500 uppercase tracking-widest border border-slate-200">
                       Social Auth
                     </div>
                   )}
@@ -1335,7 +1335,7 @@ export default function StatsPage() {
                       <p className="text-sm font-bold text-slate-700">
                         {t.auto_play_jp}
                       </p>
-                      <p className="text-[10px] text-slate-400 font-medium leading-tight">
+                      <p className="text-[10px] text-slate-500 font-medium leading-tight">
                         {t.audio_desc_jp}
                       </p>
                     </div>
@@ -1357,7 +1357,7 @@ export default function StatsPage() {
                       <p className="text-sm font-bold text-slate-700">
                         {t.auto_play_en}
                       </p>
-                      <p className="text-[10px] text-slate-400 font-medium leading-tight">
+                      <p className="text-[10px] text-slate-500 font-medium leading-tight">
                         {t.audio_desc_en}
                       </p>
                     </div>
@@ -1379,7 +1379,7 @@ export default function StatsPage() {
                       <p className="text-sm font-bold text-slate-700">
                         {t.sfx_title}
                       </p>
-                      <p className="text-[10px] text-slate-400 font-medium leading-tight">
+                      <p className="text-[10px] text-slate-500 font-medium leading-tight">
                         {t.sfx_desc}
                       </p>
                     </div>
@@ -1401,7 +1401,7 @@ export default function StatsPage() {
                       <p className="text-sm font-bold text-slate-700">
                         {t.swipe_only_title}
                       </p>
-                      <p className="text-[10px] text-slate-400 font-medium leading-tight">
+                      <p className="text-[10px] text-slate-500 font-medium leading-tight">
                         {t.swipe_only_desc}
                       </p>
                     </div>
@@ -1423,7 +1423,7 @@ export default function StatsPage() {
                       <p className="text-sm font-bold text-slate-700">
                         Reflex Mode
                       </p>
-                      <p className="text-[10px] text-slate-400 font-medium leading-tight">
+                      <p className="text-[10px] text-slate-500 font-medium leading-tight">
                         Times how fast you recall each word, from card shown to flip
                       </p>
                     </div>
@@ -1445,7 +1445,7 @@ export default function StatsPage() {
                       <p className="text-sm font-bold text-slate-700">
                         Show my stats to friends
                       </p>
-                      <p className="text-[10px] text-slate-400 font-medium leading-tight">
+                      <p className="text-[10px] text-slate-500 font-medium leading-tight">
                         Friends can always see your name, streak, overall level, and daily card progress. Turn this off to hide your detailed scores, today&apos;s quizzes, and goal/quiz notifications from them.
                       </p>
                     </div>
@@ -1470,7 +1470,7 @@ export default function StatsPage() {
                           <p className="text-sm font-bold text-slate-700">
                             Notifications
                           </p>
-                          <p className="text-[10px] text-slate-400 font-medium leading-tight">
+                          <p className="text-[10px] text-slate-500 font-medium leading-tight">
                             Get notified on this device about friend requests and other updates, even when the app is closed.
                           </p>
                         </div>
@@ -1715,7 +1715,7 @@ export default function StatsPage() {
                   </button>
                 </div>
               )}
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">
+              <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">
                 {t.active_collection}
               </p>
             </div>
@@ -1805,7 +1805,7 @@ export default function StatsPage() {
                     <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 text-[10px] font-black rounded-md border border-indigo-500/30 uppercase tracking-widest">
                       {t.recognition}
                     </span>
-                    <p className="text-xs font-bold text-slate-400">🇯🇵 → 🇺🇸</p>
+                    <p className="text-xs font-bold text-slate-500">🇯🇵 → 🇺🇸</p>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <div>
@@ -1850,7 +1850,7 @@ export default function StatsPage() {
                     <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 text-[10px] font-black rounded-md border border-orange-500/30 uppercase tracking-widest">
                       {t.recall}
                     </span>
-                    <p className="text-xs font-bold text-slate-400">🇺🇸 → 🇯🇵</p>
+                    <p className="text-xs font-bold text-slate-500">🇺🇸 → 🇯🇵</p>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <div>
@@ -1900,7 +1900,7 @@ export default function StatsPage() {
               <span className="flex items-center gap-2 text-sm">
                 <TrendingUp size={16} className="text-slate-400" /> Advanced Stats
               </span>
-              <span className="text-slate-400 text-xs">View →</span>
+              <span className="text-slate-500 text-xs">View →</span>
             </Link>
           </div>
 
@@ -1916,7 +1916,7 @@ export default function StatsPage() {
                 <span className="flex items-center gap-2 text-sm">
                   <TrendingDown size={16} className="text-rose-400" /> Struggling Today
                 </span>
-                <span className="flex items-center gap-2 text-slate-400 text-xs">
+                <span className="flex items-center gap-2 text-slate-500 text-xs">
                   {dailyStruggles.length + dailyExplainedLines.length} items <span>→</span>
                 </span>
               </button>
@@ -1928,7 +1928,7 @@ export default function StatsPage() {
           {starterPacks.some((pack) => !ownedPacks?.includes(pack.id) || packWordsMissing(pack).length > 0) && (
           <div className="mb-10">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">
+              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">
                 {t.starter_collections}
               </h3>
               <span className="text-[10px] font-bold text-slate-300 uppercase tracking-tighter">
@@ -2041,7 +2041,7 @@ export default function StatsPage() {
                         {t.words}
                       </span>
                     </h3>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
                       {t.dismiss_hint}
                     </p>
                   </div>
@@ -2082,7 +2082,7 @@ export default function StatsPage() {
                           <p className="text-xl font-black text-slate-800 group-hover:text-indigo-600 transition-colors">
                             {word.japanese}
                           </p>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
                             {word.reading} • {word.english}
                           </p>
                         </div>
@@ -2107,7 +2107,7 @@ export default function StatsPage() {
                 <div className="p-6 border-t border-slate-50 text-center bg-white">
                   <button
                     onClick={() => setViewMode("none")}
-                    className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-slate-600"
+                    className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] hover:text-slate-600"
                   >
                     {t.return_to_dashboard}
                   </button>
@@ -2447,7 +2447,7 @@ export default function StatsPage() {
                                   <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
                                 </svg>
                               </div>
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
                                 {t.total}
                               </p>
                             </div>
@@ -2469,7 +2469,7 @@ export default function StatsPage() {
                                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                 </svg>
                               </div>
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
                                 {t.average}
                               </p>
                             </div>
@@ -2519,7 +2519,7 @@ export default function StatsPage() {
                           </div>
                         );
                       })()}
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-3">
                         Last 7 Days
                       </p>
                       {/* Column headers */}
@@ -2561,17 +2561,17 @@ export default function StatsPage() {
                       {/* Legend */}
                       <div className="flex items-center gap-4 mt-5 px-2">
                         <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Key</span>
-                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400"><span className="text-emerald-400">●</span> ≥80%</span>
-                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400"><span className="text-amber-400">●</span> ≥60%</span>
-                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400"><span className="text-rose-400">●</span> &lt;60%</span>
-                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400"><span className="text-slate-200 text-sm">·</span> none</span>
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-500"><span className="text-emerald-400">●</span> ≥80%</span>
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-500"><span className="text-amber-400">●</span> ≥60%</span>
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-500"><span className="text-rose-400">●</span> &lt;60%</span>
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-500"><span className="text-slate-200 text-sm">·</span> none</span>
                       </div>
                     </div>
                   )}
                 </div>
 
                 <div className="p-6 bg-slate-50/50 text-center mt-auto border-t border-slate-50">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] opacity-60">
+                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] opacity-60">
                     {t.motto_focus} • {t.motto_consistency} • {t.motto_mastery}
                   </p>
                 </div>
@@ -2601,7 +2601,7 @@ export default function StatsPage() {
                         {previewPack.name}
                       </h3>
                     </div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
                       {previewPack.card_data?.length} {t.cards} •{" "}
                       {t.starter_collections}
                     </p>
@@ -2618,7 +2618,7 @@ export default function StatsPage() {
                 <div className="p-6 md:p-8 overflow-y-auto custom-scrollbar bg-slate-50/30">
                   {/* Description Card */}
                   <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 mb-6 shadow-sm">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
                       Description
                     </p>
                     <p className="text-slate-600 text-sm leading-relaxed font-medium">
@@ -2693,7 +2693,7 @@ export default function StatsPage() {
                 <div className="flex-1 overflow-y-auto p-4">
                   {dailyStruggles.length > 0 && (
                     <div className="mb-5">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">
                         Words you&apos;ve missed {DAILY_STRUGGLE_THRESHOLD}+ times
                       </p>
                       <div className="space-y-2">
@@ -2764,7 +2764,7 @@ export default function StatsPage() {
                   {dailyExplainedLines.length > 0 && (
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">
                           Reader/Watch lines you tapped Explain on
                         </p>
                         <button
@@ -3190,7 +3190,7 @@ function StatCard({
       }`}
     >
       <div>
-        <p className="text-slate-400 text-[10px] font-black uppercase tracking-tighter">
+        <p className="text-slate-500 text-[10px] font-black uppercase tracking-tighter">
           {label}
         </p>
         <p className={`font-black text-slate-800 ${String(value || 0).length >= 6 ? "text-2xl" : String(value || 0).length >= 5 ? "text-3xl" : "text-4xl"}`}>
