@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { translations } from "@/lib/languages";
@@ -14,6 +14,30 @@ export default function Auth() {
   const router = useRouter();
   const t = translations.en;
   const { showAlert } = useAppAlert();
+
+  // /login renders this unconditionally, with no check of its own for an existing
+  // session — so someone who's already signed in and lands here anyway (e.g.
+  // clicking a referral link while logged in: /join/[code] always redirects to
+  // /login regardless of auth state) would otherwise just see the sign-in form
+  // with no indication anything's wrong. Send them straight home instead; any
+  // referral code is still sitting in localStorage and gets picked up normally by
+  // StudyView's own fallback once they're on the app.
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!active) return;
+      if (session) {
+        router.replace("/");
+        return;
+      }
+      setCheckingSession(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [router]);
 
   // States
   const [loading, setLoading] = useState(false);
@@ -112,6 +136,9 @@ export default function Auth() {
     });
     if (error) await showAlert(error.message);
   };
+
+  // Prevent a flash of the sign-in form before the redirect above fires
+  if (checkingSession) return null;
 
   return (
     <div className="fixed inset-0 h-[100dvh] w-full bg-white flex flex-col items-center justify-center px-6 overflow-hidden">
