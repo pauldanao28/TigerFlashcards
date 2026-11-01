@@ -120,13 +120,18 @@ export const SocialDock = ({
     }
 
     const shareUrl = `${window.location.origin}/join/${referralCode}`;
-    const shareMessage = `Join me on FlashKado! I'm learning Japanese with AI-powered flashcards 🇯🇵 ${shareUrl}`;
+    const shareText = `Join me on FlashKado! I'm learning Japanese with AI-powered flashcards 🇯🇵`;
 
     // Prefer the native share sheet (lets them pick Messages/WhatsApp/etc
-    // directly) — fall back to clipboard copy where it's unavailable.
+    // directly) — fall back to clipboard copy where it's unavailable. The
+    // share sheet gets text/url as separate fields and most targets (SMS,
+    // WhatsApp, etc.) concatenate them themselves, so shareText must NOT
+    // already contain the URL or it ends up duplicated in the composed
+    // message. The clipboard fallback copies a single string, so it builds
+    // its own combined message.
     if (navigator.share) {
       try {
-        await navigator.share({ text: shareMessage, url: shareUrl });
+        await navigator.share({ text: shareText, url: shareUrl });
         return;
       } catch {
         // User cancelled the share sheet — not an error, just stop.
@@ -135,7 +140,7 @@ export const SocialDock = ({
     }
 
     try {
-      await navigator.clipboard.writeText(shareMessage);
+      await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
       showAlert("Invite message copied to clipboard!");
     } catch (err) {
       showAlert("Failed to copy link.");
