@@ -6,8 +6,11 @@ export type FriendCandidate = { id: string; full_name: string };
 
 // Referral codes are always 8 chars from generate_referral_code()'s charset
 // (uppercase letters minus I/L/O, digits minus 0/1) — distinct enough from
-// a display name that we can auto-detect which kind of lookup to do.
-const REFERRAL_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{8}$/i;
+// a display name that we can auto-detect which kind of lookup to do. (The
+// letter ranges exclude L too, not just I/O — A-H,J-K,M-N,P-Z — since any
+// 8-char alphanumeric string, L included, is still a plausible username and
+// addFriend falls back to a name search below if this guess turns out wrong.)
+const REFERRAL_CODE_PATTERN = /^[A-HJKM-NP-Z2-9]{8}$/i;
 
 type FriendActionResult =
   | { success: true; name: string; autoAccepted?: boolean; error?: undefined; needsDisambiguation?: undefined }
@@ -64,13 +67,17 @@ export const addFriend = async (input: string): Promise<FriendActionResult> => {
   if (!cleaned) return { error: "Please enter a name or code" };
 
   if (REFERRAL_CODE_PATTERN.test(cleaned)) {
-    const { data: matches, error } = await supabase
+    const { data: matches } = await supabase
       .rpc('find_user_by_referral_code', { p_code: cleaned });
 
-    if (error || !matches || matches.length === 0) {
-      return { error: "Code not found" };
+    if (matches && matches.length > 0) {
+      return sendFriendRequest(user.id, matches[0]);
     }
-    return sendFriendRequest(user.id, matches[0]);
+    // Fall through to the name search below instead of stopping at "Code not
+    // found" — this pattern is just a heuristic guess at "this looks like a
+    // code", and an 8-char input that happens to match it but isn't a real
+    // code (most plausibly, someone's actual 8-char username) should still be
+    // searchable by name rather than being permanently unfindable this way.
   }
 
   // profiles is no longer publicly readable, so a stranger's row can only
