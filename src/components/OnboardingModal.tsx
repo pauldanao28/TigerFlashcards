@@ -191,7 +191,11 @@ export default function OnboardingModal({
       ]);
 
       // FINAL STEP: Update Profile with Name AND Onboarded Status
-      await supabase
+      // full_name has a unique constraint, and step 1's "is this name taken?" check
+      // isn't atomic with this write — a name claimed by someone else in that gap
+      // fails this update silently if unchecked, leaving has_onboarded stuck false
+      // even though the deck/cards above were already created.
+      const { error: profileErr } = await supabase
         .from("profiles")
         .update({
           full_name: name.trim(),
@@ -199,6 +203,7 @@ export default function OnboardingModal({
           imported_packs: [pack.id],
         })
         .eq("id", userId);
+      if (profileErr) throw profileErr;
 
       localStorage.setItem("show_first_timer_hint", "true");
 
