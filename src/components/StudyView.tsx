@@ -852,7 +852,11 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         const prog = (dayRolled ? 0 : dailyProgress) + 1;
         setDailyProgress(prog);
         localStorage.setItem("daily_progress_" + todaySg, String(prog));
-        if (prog === DAILY_GOAL && !goalFired.current) {
+        // >= rather than === — if prog ever overshoots exactly DAILY_GOAL (a rapid
+        // double-grade race reading stale state, or dailyProgress already past it
+        // from some prior desync), an exact-match check would never fire again for
+        // the rest of the day, leaving the streak stuck.
+        if (prog >= DAILY_GOAL && !goalFired.current) {
           goalFired.current = true;
           const newStreak = await updateStreak();
           setGoalStreak(newStreak ?? streak);
