@@ -10,6 +10,8 @@ import LoadingScreen from "@/components/LoadingScreen";
 import { SocialDock } from "@/components/SocialDock";
 import SocialToast from "@/components/SocialToast";
 import NotificationBell from "@/components/NotificationBell";
+import ShareButton from "@/components/ShareButton";
+import { Share2 } from "lucide-react";
 import { useFriends } from "@/hooks/useFriends";
 
 type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
@@ -274,6 +276,7 @@ export default function Dashboard() {
   );
   const [doneTodayQuizzes, setDoneTodayQuizzes] = useState({ reading: false, listening: false, grammar: false });
   const [isSocialOpen, setIsSocialOpen] = useState(false);
+  const [isStreakShareOpen, setIsStreakShareOpen] = useState(false);
   const [selectedPos, setSelectedPos] = useState<string | null>(null);
   const { friends, fetchFriends, socialToast, dismissSocialToast } = useFriends();
 
@@ -371,10 +374,15 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-3 mt-2">
           {streak > 0 && (
-            <span className="inline-flex items-center gap-1.5 bg-orange-50 border border-orange-100 px-3 py-1 rounded-full">
+            <button
+              onClick={() => setIsStreakShareOpen(true)}
+              aria-label="Share your streak"
+              className="inline-flex items-center gap-1.5 bg-orange-50 border border-orange-100 px-3 py-1 rounded-full active:scale-95 transition-all"
+            >
               <span>🔥</span>
               <span className="text-[10px] font-black text-orange-600">{streak} day streak</span>
-            </span>
+              <Share2 size={10} className="text-orange-400" />
+            </button>
           )}
           {max_streak > 0 && (
             <span className="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-100 px-3 py-1 rounded-full">
@@ -609,6 +617,41 @@ export default function Dashboard() {
             onClose={() => setIsSocialOpen(false)}
             fetchFriends={fetchFriends}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Share your streak any time — tap the 🔥 badge in the header */}
+      <AnimatePresence>
+        {isStreakShareOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsStreakShareOpen(false)}
+            className="fixed inset-0 z-[300] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.92, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-[2rem] w-full max-w-xs p-6 flex flex-col gap-3 shadow-2xl"
+            >
+              <p className="text-center text-[10px] font-black uppercase tracking-widest text-slate-400">Share your streak</p>
+              <ShareButton
+                preview
+                params={{ kind: "streak", cards: daily_count }}
+                caption={`🔥 ${streak}-day streak learning Japanese on FlashKado! Join me:`}
+                className="bg-indigo-600 text-white shadow-lg shadow-indigo-200"
+              />
+              <button
+                onClick={() => setIsStreakShareOpen(false)}
+                className="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400"
+              >
+                Close
+              </button>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

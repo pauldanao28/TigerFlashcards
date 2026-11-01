@@ -13,15 +13,20 @@ export default function ShareButton({
   params,
   caption,
   className = "",
+  preview = false,
 }: {
   params: Record<string, string | number>;
   caption: string;
   className?: string;
+  // Show the generated card above the button (used when sharing from Home, where
+  // there's no celebration screen around it).
+  preview?: boolean;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [shareUrl, setShareUrl] = useState<string>("");
   const [failed, setFailed] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const query = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString();
 
   useEffect(() => {
@@ -33,6 +38,7 @@ export default function ShareButton({
         if (cancelled) return;
         setShareUrl(res.headers.get("X-Share-Url") || window.location.origin);
         setFile(new File([blob], "flashkado.png", { type: "image/png" }));
+        if (preview) setPreviewUrl(URL.createObjectURL(blob));
       })
       .catch(() => {
         if (!cancelled) setFailed(true);
@@ -40,7 +46,11 @@ export default function ShareButton({
     return () => {
       cancelled = true;
     };
-  }, [query]);
+  }, [query, preview]);
+
+  useEffect(() => () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
 
   const flash = (msg: string) => {
     setToast(msg);
@@ -74,10 +84,20 @@ export default function ShareButton({
     }
   };
 
-  if (failed) return null;
+  if (failed) return preview ? <p className="text-center text-xs font-bold text-slate-400 py-6">Couldn&apos;t create the image. Try again later.</p> : null;
 
   return (
     <div className="relative w-full">
+      {preview && (
+        <div className="mb-4 mx-auto w-full max-w-[220px] aspect-[9/16] rounded-2xl overflow-hidden bg-slate-100 flex items-center justify-center">
+          {previewUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={previewUrl} alt="Your share card" className="w-full h-full object-cover" />
+          ) : (
+            <Loader2 size={20} className="animate-spin text-slate-300" />
+          )}
+        </div>
+      )}
       <button
         onClick={handleShare}
         disabled={!file}

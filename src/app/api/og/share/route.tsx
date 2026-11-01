@@ -33,7 +33,7 @@ export async function GET(req: Request) {
 
   const { data: me } = await supabaseAdmin
     .from("profiles")
-    .select("full_name, avatar_url, streak_count, referral_code")
+    .select("full_name, avatar_url, streak_count, referral_code, last_review_date")
     .eq("id", user.id)
     .maybeSingle();
   if (!me) return new Response("Profile not found", { status: 404 });
@@ -52,11 +52,14 @@ export async function GET(req: Request) {
 
   if (kind === "streak") {
     const streak = me.streak_count ?? 0;
-    const milestone = STREAK_MILESTONES.includes(streak);
+    // Shareable any time from Home, not just right after the goal — only claim
+    // "goal complete"/milestone when today's goal (SGT, set by update_streak) is done.
+    const doneToday = me.last_review_date === new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+    const milestone = doneToday && STREAK_MILESTONES.includes(streak);
     const cards = clampInt(searchParams.get("cards"), 9999);
     const accuracy = clampInt(searchParams.get("accuracy"), 100);
     emoji = milestone ? "🏆" : "🔥";
-    eyebrow = milestone ? "Streak Milestone" : "Daily Goal Complete";
+    eyebrow = milestone ? "Streak Milestone" : doneToday ? "Daily Goal Complete" : "Current Streak";
     headline = String(streak);
     headlineSize = streak >= 100 ? 260 : 320;
     subline = "DAY STREAK";
