@@ -141,9 +141,17 @@ export default function OnboardingModal({
       const newWords = n5Words.filter((w) => !existingByJapanese.has(w.japanese));
       let insertedCards: { id: string }[] = [];
       if (newWords.length > 0) {
+        // upsert, not insert — master_cards.japanese is unique, and N5 Kickstart is
+        // the default/recommended path, so any two brand-new users onboarding around
+        // the same time race on inserting the exact same 30 words (none of them exist
+        // yet for either). A plain insert aborts the whole batch with a unique-
+        // violation for whichever one loses the race, failing their entire onboarding
+        // over words someone else was simultaneously adding — upsert with onConflict
+        // makes this collision a no-op instead, same pattern useAddWords.ts already
+        // uses for the equivalent step.
         const { data: inserted, error: mErr } = await supabase
           .from("master_cards")
-          .insert(
+          .upsert(
             newWords.map((w) => ({
               ...w,
               english: typeof w.english === "string" ? normalizeEnglish(w.english) : w.english,
@@ -151,6 +159,7 @@ export default function OnboardingModal({
               partOfSpeech: typeof w.partOfSpeech === "string" ? normalizePartOfSpeech(w.partOfSpeech) : w.partOfSpeech,
               creator_id: userId,
             })),
+            { onConflict: "japanese" },
           )
           .select("id");
         if (mErr || !inserted) throw mErr;
@@ -173,8 +182,12 @@ export default function OnboardingModal({
       // Leave out the pack's own duplicates (みず next to 水) — lib/duplicates
       const { ids: cardIds } = await skipDeckDuplicates(deck.id, packIds);
 
-      // Batch link
-      await Promise.all([
+      // Batch link — errors used to be discarded here too (same class of bug as the
+      // two already fixed below/in skipToManual): a failed insert left the deck
+      // created but empty, and the user — who explicitly chose N5 Kickstart — would
+      // silently land on the generic "Empty Deck" screen instead of their 30 words,
+      // with has_onboarded still getting set true right after as if nothing went wrong.
+      const [deckCardsRes, userScoresRes] = await Promise.all([
         supabase
           .from("deck_cards")
           .insert(cardIds.map((id) => ({ deck_id: deck.id, card_id: id }))),
@@ -189,6 +202,8 @@ export default function OnboardingModal({
           })),
         ),
       ]);
+      if (deckCardsRes.error) throw deckCardsRes.error;
+      if (userScoresRes.error) throw userScoresRes.error;
 
       // FINAL STEP: Update Profile with Name AND Onboarded Status
       // full_name has a unique constraint, and step 1's "is this name taken?" check
