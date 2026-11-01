@@ -22,6 +22,30 @@ export default function UpdatePassword() {
 
   useEffect(() => {
     const initAuth = async () => {
+      // Supabase's recovery link can arrive in two shapes depending on the
+      // project's auth flow type: the legacy implicit flow puts the token in
+      // a #access_token= hash, which onAuthStateChange below detects on its
+      // own and fires PASSWORD_RECOVERY for. The PKCE flow instead puts a
+      // ?code= in the query string — this app already needs exchangeCodeFor
+      // Session for that elsewhere (see /auth/callback, built for Google/
+      // Facebook sign-in), and the same project-wide flow-type setting
+      // governs recovery links too. Without handling it here, a PKCE
+      // recovery link would find no session and the listener below would
+      // just bounce the user straight back to "/" before they ever saw the
+      // form — so check for it first, before relying on the event listener.
+      const code = new URLSearchParams(window.location.search).get("code");
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (!error) {
+          setIsRecovery(true);
+          setCheckingAuth(false);
+          // Drop the code from the URL so a refresh doesn't try to reuse
+          // (and fail to reuse) an already-consumed one-time code.
+          window.history.replaceState({}, "", window.location.pathname);
+          return;
+        }
+      }
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
