@@ -39,7 +39,11 @@ export async function GET(req: Request) {
   if (!me) return new Response("Profile not found", { status: 404 });
 
   const name = (me.full_name || "A FlashKado learner").slice(0, 24);
-  const avatar = me.avatar_url || `https://api.dicebear.com/7.x/avataaars/png?seed=${user.id}`;
+  // Chosen avatars are stored as DiceBear SVG URLs, which the image renderer draws as
+  // an empty circle — DiceBear serves the same avatar as PNG at /png.
+  const avatar = me.avatar_url
+    ? me.avatar_url.replace("/svg?", "/png?")
+    : `https://api.dicebear.com/7.x/avataaars/png?seed=${user.id}`;
   const shareUrl = me.referral_code ? `${origin}/join/${me.referral_code}` : origin;
   const shareHost = shareUrl.replace(/^https?:\/\//, "");
 
