@@ -164,6 +164,12 @@ export const processReferral = async (referralCode: string) => {
         return { success: false, error: "Already referred" };
       case "invalid_code":
         console.error("Referrer not found");
+        // Unlike the other failure cases, an invalid code can never succeed no
+        // matter how many times it's retried — leaving it in localStorage meant
+        // StudyView's fallback effect (see its own comment) re-fired this RPC on
+        // every single mount of the Study tab, forever, for anyone who'd clicked
+        // a broken/mistyped referral link.
+        localStorage.removeItem("tg_referrer");
         return { success: false, error: "Referrer not found" };
       default:
         return { success: false, error: "Something went wrong" };
