@@ -137,51 +137,37 @@ export const handleIgnoreRequest = async (senderId: string) => {
   return { error };
 };
 
-export const processReferral = async (newUserId: string, referralCode: string) => {
+// Goes through process_referral (see its migration) rather than raw client inserts —
+// the mutual-friendship insert needs a row with the REFERRER as user_id, and a plain
+// insert authenticated as the newly-referred user can't satisfy an auth.uid() =
+// user_id RLS check for that row. Doing the whole thing atomically server-side also
+// means the two call sites (Auth.tsx right after signUp, StudyView's fallback for when
+// email confirmation delays that first attempt) can't race into a double-insert.
+export const processReferral = async (referralCode: string) => {
   try {
-    // 1. Find the Referrer via the narrow RPC — matched by referral_code
-    // (stable, unique, opaque), not full_name. profiles is no longer
-    // publicly readable, and this must work for a user who was just
-    // created moments ago and isn't "connected" to the referrer yet.
-    const { data: referrerRows, error: findError } = await supabase
-      .rpc("find_user_by_referral_code", { p_code: referralCode });
-    const referrer = referrerRows?.[0];
-
-    if (findError || !referrer) {
-      console.error("Referrer not found");
-      return { success: false, error: "Referrer not found" };
+    const { data, error } = await supabase.rpc("process_referral", { p_code: referralCode });
+    if (error) {
+      console.error("Referral process failed:", error.message);
+      return { success: false, error: error.message };
     }
 
-    // --- NEW CHECK: Stop self-referral ---
-    if (referrer.id === newUserId) {
-      console.log("Self-referral blocked. You cannot invite yourself!");
-      localStorage.removeItem("tg_referrer"); // Clean up so the error stops popping up
-      return { success: false, error: "Self-referral" };
+    switch (data as string) {
+      case "linked":
+        localStorage.removeItem("tg_referrer");
+        return { success: true };
+      case "self":
+        console.log("Self-referral blocked. You cannot invite yourself!");
+        localStorage.removeItem("tg_referrer"); // Clean up so the error stops popping up
+        return { success: false, error: "Self-referral" };
+      case "already_referred":
+        localStorage.removeItem("tg_referrer");
+        return { success: false, error: "Already referred" };
+      case "invalid_code":
+        console.error("Referrer not found");
+        return { success: false, error: "Referrer not found" };
+      default:
+        return { success: false, error: "Something went wrong" };
     }
-
-    // 2. Insert into the referrals table
-    const { error: refError } = await supabase.from("referrals").insert([
-      {
-        referrer_id: referrer.id,
-        referred_id: newUserId,
-      },
-    ]);
-
-    if (refError) {
-      console.error("Referral record failed:", refError.message);
-      return { success: false, error: refError.message };
-    }
-
-    // 3. Auto-add as friends (Mutual connection)
-    await supabase.from("friendships").insert([
-      { user_id: referrer.id, friend_id: newUserId, status: "accepted" },
-      { user_id: newUserId, friend_id: referrer.id, status: "accepted" }
-    ]);
-
-    // 4. Clean up
-    localStorage.removeItem("tg_referrer");
-    return { success: true };
-
   } catch (e) {
     console.error("Referral process crashed:", e);
     return { success: false, error: "Internal crash" };

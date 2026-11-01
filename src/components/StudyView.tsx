@@ -444,7 +444,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
 
         if (!alreadyReferred) {
           console.log("Found pending referral for:", refCode);
-          await processReferral(user.id, refCode);
+          await processReferral(refCode);
 
           // Optional: Trigger a refresh of your friends list
           // if you have a local state for it

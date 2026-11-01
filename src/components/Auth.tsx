@@ -61,7 +61,7 @@ export default function Auth() {
         // --- REFERRAL LOGIC START ---
         const refCode = localStorage.getItem("tg_referrer");
         if (refCode) {
-          await processReferral(data.user.id, refCode);
+          await processReferral(refCode);
         }
         // --- REFERRAL LOGIC END ---
 
