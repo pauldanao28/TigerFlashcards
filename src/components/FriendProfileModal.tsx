@@ -63,13 +63,13 @@ export const FriendProfileModal = ({ friendId, onClose }: { friendId: string; on
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[210] cursor-pointer"
+        className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[250] cursor-pointer"
       />
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        className="fixed inset-0 z-[220] flex items-center justify-center p-4"
+        className="fixed inset-0 z-[251] flex items-center justify-center p-4"
       >
         <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
           <div className="p-5 border-b border-slate-100 flex justify-between items-center">
