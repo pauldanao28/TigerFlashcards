@@ -33,6 +33,22 @@ export default function UpdatePassword() {
       // recovery link would find no session and the listener below would
       // just bounce the user straight back to "/" before they ever saw the
       // form — so check for it first, before relying on the event listener.
+      // Supabase sends the visitor back here with error/error_description (in
+      // the query string for a PKCE redirect, or the hash for the implicit
+      // flow) when the recovery link itself is expired, already used, or
+      // otherwise invalid — before this check, that case fell through
+      // silently to the "no session" redirect further down with no
+      // indication of what went wrong.
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const linkErrorDescription =
+        new URLSearchParams(window.location.search).get("error_description") ||
+        hashParams.get("error_description");
+      if (linkErrorDescription) {
+        await showAlert(linkErrorDescription.replace(/\+/g, " "));
+        router.push("/");
+        return;
+      }
+
       const code = new URLSearchParams(window.location.search).get("code");
       if (code) {
         const { data, error } = await supabase.auth.exchangeCodeForSession(code);
@@ -53,6 +69,13 @@ export default function UpdatePassword() {
           window.history.replaceState({}, "", window.location.pathname);
           return;
         }
+        // A code was present but exchanging it failed (expired, already used,
+        // tampered with) — say so instead of silently falling through to the
+        // ambiguous "not logged in" path below, which would redirect home
+        // with no explanation at all.
+        await showAlert("This reset link is invalid or has expired. Please request a new one.");
+        router.push("/");
+        return;
       }
 
       const {
@@ -82,7 +105,7 @@ export default function UpdatePassword() {
     };
 
     initAuth();
-  }, [router]);
+  }, [router, showAlert]);
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
