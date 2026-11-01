@@ -159,6 +159,16 @@ export default function FriendDashboard({ friendId }: { friendId: string }) {
               <ScoreTile emoji="🎧" label="Listening" score={data.listening_score} />
             </div>
 
+            {(data.deck_size ?? 0) === 0 && (
+              <div className="mt-3 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm text-center">
+                <p className="text-2xl mb-1">🃏</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No cards yet</p>
+                <p className="text-xs text-slate-400 mt-1">
+                  {data.name ?? "They"} hasn&apos;t added any cards to their deck. Vocabulary breakdowns will show up here once they do.
+                </p>
+              </div>
+            )}
+
             {(data.deck_size ?? 0) > 0 && data.jlpt_stats && (
               <div className="mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
                 <div className="flex items-center justify-between mb-3">
