@@ -1928,7 +1928,7 @@ export default function StatsPage() {
           {starterPacks.some((pack) => !ownedPacks?.includes(pack.id) || packWordsMissing(pack).length > 0) && (
           <div className="mb-10">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">
+              <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
                 {t.starter_collections}
               </h3>
               <span className="text-[10px] font-bold text-slate-300 uppercase tracking-tighter">
@@ -2107,7 +2107,7 @@ export default function StatsPage() {
                 <div className="p-6 border-t border-slate-50 text-center bg-white">
                   <button
                     onClick={() => setViewMode("none")}
-                    className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] hover:text-slate-600"
+                    className="text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-slate-600"
                   >
                     {t.return_to_dashboard}
                   </button>
@@ -2519,7 +2519,7 @@ export default function StatsPage() {
                           </div>
                         );
                       })()}
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-3">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">
                         Last 7 Days
                       </p>
                       {/* Column headers */}
@@ -2601,7 +2601,7 @@ export default function StatsPage() {
                         {previewPack.name}
                       </h3>
                     </div>
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
                       {previewPack.card_data?.length} {t.cards} •{" "}
                       {t.starter_collections}
                     </p>
@@ -2618,7 +2618,7 @@ export default function StatsPage() {
                 <div className="p-6 md:p-8 overflow-y-auto custom-scrollbar bg-slate-50/30">
                   {/* Description Card */}
                   <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 mb-6 shadow-sm">
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">
                       Description
                     </p>
                     <p className="text-slate-600 text-sm leading-relaxed font-medium">
