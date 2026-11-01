@@ -35,9 +35,18 @@ export default function UpdatePassword() {
       // form — so check for it first, before relying on the event listener.
       const code = new URLSearchParams(window.location.search).get("code");
       if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
         if (!error) {
-          setIsRecovery(true);
+          // Same social-provider check as the implicit-flow path below — a
+          // Google/Facebook account has no password to reset, so it should
+          // see the "managed elsewhere" message here too, not the set-new-
+          // password form. This branch returns early (it doesn't reach the
+          // check further down), so it needs its own copy.
+          if (data.session?.user?.app_metadata?.provider !== "email") {
+            setIsSocialUser(true);
+          } else {
+            setIsRecovery(true);
+          }
           setCheckingAuth(false);
           // Drop the code from the URL so a refresh doesn't try to reuse
           // (and fail to reuse) an already-consumed one-time code.

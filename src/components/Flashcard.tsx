@@ -500,13 +500,20 @@ export default function Flashcard({
                 content and footer: either everything fits and it's visually identical
                 to before, or it doesn't and you scroll to see the rest — nothing ever
                 overlaps. */}
-            {/* touch-pan-y: without an explicit touch-action, a touch starting on this
-                scrollable box (on a tall card) could get claimed by the browser's own
-                scroll handling before framer-motion's drag="x" on the outer card ever
-                saw it as a horizontal swipe — pan-y tells the browser this element only
-                wants vertical panning natively, so a horizontal drag still passes through
+            {/* overflow-x-hidden: setting only overflow-y leaves overflow-x at its
+                default "visible", which the CSS spec then auto-promotes to "auto"
+                the moment content is even a pixel wider than the box (long JP text,
+                wrapped badges) — that's what the stray horizontal scrollbar under
+                the card back was. Pinning x shut removes it and, combined with
+                touch-pan-y below, closes off the horizontal-drag-gets-swallowed
+                issue from both the visual and gesture side. touch-pan-y: without an
+                explicit touch-action, a touch starting on this scrollable box (on a
+                tall card) could get claimed by the browser's own scroll handling
+                before framer-motion's drag="x" on the outer card ever saw it as a
+                horizontal swipe — pan-y tells the browser this element only wants
+                vertical panning natively, so a horizontal drag still passes through
                 to the card. */}
-            <div ref={backContentRef} className={`flex-1 flex flex-col items-center w-full overflow-y-auto touch-pan-y ${needsScrollSafeLayout ? "justify-start" : "justify-center"}`}>
+            <div ref={backContentRef} className={`flex-1 flex flex-col items-center w-full overflow-y-auto overflow-x-hidden touch-pan-y ${needsScrollSafeLayout ? "justify-start" : "justify-center"}`}>
               {(language === "jp" || language === "en") && card?.reading && (
                 <p className="text-indigo-200 text-lg mb-2 font-medium tracking-wide animate-fade-in truncate w-full">
                   {card?.reading}
