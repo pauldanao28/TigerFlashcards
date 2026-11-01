@@ -500,7 +500,13 @@ export default function Flashcard({
                 content and footer: either everything fits and it's visually identical
                 to before, or it doesn't and you scroll to see the rest — nothing ever
                 overlaps. */}
-            <div ref={backContentRef} className={`flex-1 flex flex-col items-center w-full overflow-y-auto ${needsScrollSafeLayout ? "justify-start" : "justify-center"}`}>
+            {/* touch-pan-y: without an explicit touch-action, a touch starting on this
+                scrollable box (on a tall card) could get claimed by the browser's own
+                scroll handling before framer-motion's drag="x" on the outer card ever
+                saw it as a horizontal swipe — pan-y tells the browser this element only
+                wants vertical panning natively, so a horizontal drag still passes through
+                to the card. */}
+            <div ref={backContentRef} className={`flex-1 flex flex-col items-center w-full overflow-y-auto touch-pan-y ${needsScrollSafeLayout ? "justify-start" : "justify-center"}`}>
               {(language === "jp" || language === "en") && card?.reading && (
                 <p className="text-indigo-200 text-lg mb-2 font-medium tracking-wide animate-fade-in truncate w-full">
                   {card?.reading}
