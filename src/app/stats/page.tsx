@@ -1468,10 +1468,10 @@ export default function StatsPage() {
                         <Bell size={15} className="text-slate-400 shrink-0 mt-0.5" />
                         <div>
                           <p className="text-sm font-bold text-slate-700">
-                            Friend request notifications
+                            Notifications
                           </p>
                           <p className="text-[10px] text-slate-400 font-medium leading-tight">
-                            Get notified on this device when someone sends you a friend request, even when the app is closed.
+                            Get notified on this device about friend requests and other updates, even when the app is closed.
                           </p>
                         </div>
                       </div>
