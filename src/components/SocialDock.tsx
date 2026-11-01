@@ -177,15 +177,20 @@ export const SocialDock = ({
         animate={{
           y: 0,
           x: 0,
-          transition: { type: "spring", damping: 25, stiffness: 200 },
+          // A spring here (the original damping/stiffness combo) reads as a
+          // slight bounce/overshoot on a sheet this size — a plain ease-out
+          // tween lands cleanly in one motion instead, which feels crisper.
+          transition: { type: "tween", ease: "easeOut", duration: 0.32 },
         }}
-        exit={{ y: "100%" }} // Slide down on close
+        exit={{ y: "100%", transition: { duration: 0.22, ease: "easeIn" } }}
         // Desktop Overrides:
         // Mobile sheet sizes to its own content (capped at 85vh for a long list)
         // instead of always claiming a fixed 70% of the screen — a short Circle
-        // shouldn't leave a big empty gap above the Refer button.
-        className="fixed bottom-0 left-0 right-0 max-h-[85vh] w-full bg-white z-[241] p-6 rounded-t-[32px] shadow-2xl flex flex-col
-                   md:top-0 md:right-0 md:left-auto md:bottom-auto md:h-full md:max-h-none md:w-80 md:rounded-none md:translate-y-0"
+        // shouldn't leave a big empty gap above the Refer button. Slightly less
+        // outer padding on mobile (p-5 vs p-6) buys back ~16px of width for the
+        // tab row and friend rows on narrow phones, where they're tightest.
+        className="fixed bottom-0 left-0 right-0 max-h-[85vh] w-full bg-white z-[241] p-5 rounded-t-[32px] shadow-2xl flex flex-col
+                   md:top-0 md:right-0 md:left-auto md:bottom-auto md:h-full md:max-h-none md:w-80 md:rounded-none md:translate-y-0 md:p-6"
       >
         {/* Mobile "Handle" - Visual cue that you can swipe down */}
         <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-5 md:hidden" />
@@ -259,12 +264,12 @@ export const SocialDock = ({
           </div>
         )}
 
-        <div className="flex gap-2 mb-4 p-1 bg-slate-50 rounded-2xl">
+        <div className="flex gap-1.5 mb-4 p-1 bg-slate-50 rounded-2xl">
           <button
             onClick={() => setActiveTab("friends")}
-            className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === "friends" ? "bg-white shadow-sm text-black" : "text-slate-400"}`}
+            className={`flex-1 flex items-center justify-center gap-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === "friends" ? "bg-white shadow-sm text-black" : "text-slate-400"}`}
           >
-            Circle
+            <span>Circle</span>
             {/* 1. Friends Count Badge (Standardized) */}
             {acceptedCount > 0 && (
               <span
@@ -280,9 +285,9 @@ export const SocialDock = ({
           </button>
           <button
             onClick={() => setActiveTab("pending")}
-            className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all relative ${activeTab === "pending" ? "bg-white shadow-sm text-black" : "text-slate-400"}`}
+            className={`flex-1 flex items-center justify-center gap-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all relative ${activeTab === "pending" ? "bg-white shadow-sm text-black" : "text-slate-400"}`}
           >
-            Pending
+            <span>Pending</span>
             {/* 2. Pending Count Badge (Standardized) */}
             {pendingCount > 0 && (
               <span
@@ -302,9 +307,9 @@ export const SocialDock = ({
           </button>
           <button
             onClick={() => setActiveTab("leaderboard")}
-            className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === "leaderboard" ? "bg-white shadow-sm text-black" : "text-slate-400"}`}
+            className={`flex-1 flex items-center justify-center gap-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === "leaderboard" ? "bg-white shadow-sm text-black" : "text-slate-400"}`}
           >
-            🔥 Rank
+            <span>🔥</span><span>Rank</span>
           </button>
         </div>
 
@@ -375,27 +380,53 @@ export const SocialDock = ({
                   />
                 </div>
 
-                <div className="flex-1">
-                  <div className="flex justify-between items-end mb-1">
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-[12px] font-black uppercase text-black italic leading-none">
-                        {friend.name}
-                      </p>
-                      {friend.nLevel && activeTab === "friends" && (
-                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-600">
-                          {friend.nLevel}
-                        </span>
-                      )}
-                      {friend.streak > 0 && activeTab === "friends" && (
-                        <span className="text-[10px] flex items-center gap-0.5 font-bold text-orange-500">
-                          🔥{friend.streak}
-                        </span>
-                      )}
-                    </div>
-                    {/* UI CHANGE: Conditional text and color for goal completion */}
-                    {activeTab === "friends" && (
+                <div className="flex-1 min-w-0">
+                  {/* Name + badges get the full row to themselves on narrow phones —
+                      the progress text used to share this line via justify-between,
+                      which left very little room once a 10-char name, an N-level
+                      badge, and a streak number were all competing for it. It now
+                      sits under the bar instead (below), on its own line. */}
+                  <div className="flex items-center gap-1.5 mb-1 min-w-0">
+                    <p className="text-[12px] font-black uppercase text-black italic leading-none truncate">
+                      {friend.name}
+                    </p>
+                    {friend.nLevel && activeTab === "friends" && (
+                      <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-600 shrink-0">
+                        {friend.nLevel}
+                      </span>
+                    )}
+                    {friend.streak > 0 && activeTab === "friends" && (
+                      <span className="text-[10px] flex items-center gap-0.5 font-bold text-orange-500 shrink-0">
+                        🔥{friend.streak}
+                      </span>
+                    )}
+                  </div>
+
+                  {activeTab === "friends" ? (
+                    /* --- CIRCLE TAB: Progress Bar --- */
+                    <>
+                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <motion.div
+                          initial={false}
+                          animate={{
+                            width: `${Math.min((friend.dailyProgress / friend.goal) * 100, 100)}%`,
+                            /* UI CHANGE: Bar turns Emerald when goal is met */
+                            backgroundColor:
+                              friend.dailyProgress >= friend.goal
+                                ? "#10b981"
+                                : "#000000",
+                          }}
+                          // framer-motion's `animate` already drives width/color — the
+                          // Tailwind `transition-all duration-500` that used to sit here
+                          // was a second, competing CSS transition on the same
+                          // properties, which is what made the bar's motion stutter
+                          // instead of gliding smoothly.
+                          transition={{ duration: 0.4, ease: "easeOut" }}
+                          className="h-full"
+                        />
+                      </div>
                       <span
-                        className={`text-[9px] font-black uppercase tracking-tighter transition-colors ${
+                        className={`block mt-1 text-right text-[9px] font-black uppercase tracking-tighter transition-colors ${
                           friend.dailyProgress >= friend.goal
                             ? "text-emerald-500"
                             : "text-slate-400"
@@ -405,25 +436,7 @@ export const SocialDock = ({
                           ? `DONE: ${friend.dailyProgress} CARDS`
                           : `${friend.dailyProgress} / ${friend.goal}`}
                       </span>
-                    )}
-                  </div>
-
-                  {activeTab === "friends" ? (
-                    /* --- CIRCLE TAB: Progress Bar --- */
-                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                      <motion.div
-                        initial={false}
-                        animate={{
-                          width: `${Math.min((friend.dailyProgress / friend.goal) * 100, 100)}%`,
-                          /* UI CHANGE: Bar turns Emerald when goal is met */
-                          backgroundColor:
-                            friend.dailyProgress >= friend.goal
-                              ? "#10b981"
-                              : "#000000",
-                        }}
-                        className="h-full transition-all duration-500"
-                      />
-                    </div>
+                    </>
                   ) : (
                     /* --- PENDING TAB: Action Buttons --- */
                     <div className="flex gap-2">
