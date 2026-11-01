@@ -70,11 +70,11 @@ export async function unsubscribeFromPush(): Promise<void> {
 // Fire-and-forget — failure here should never block the UI's own success state, so
 // callers don't await these. Both go through the one consolidated /api/push/notify
 // route (see its comment) rather than a separate endpoint per notification type.
-async function sendPushNotification(type: "friend_request" | "friend_accepted", targetUserId: string): Promise<void> {
+async function sendPushNotification(body: Record<string, string>): Promise<void> {
   try {
     await authedFetch("/api/push/notify", {
       method: "POST",
-      body: JSON.stringify({ type, target_user_id: targetUserId }),
+      body: JSON.stringify(body),
     });
   } catch {
     // best-effort
@@ -84,11 +84,23 @@ async function sendPushNotification(type: "friend_request" | "friend_accepted", 
 // Called right after a friend request is actually sent (not on an auto-accepted
 // mutual match, which is a different outcome — see notifyFriendAccepted).
 export function notifyFriendRequest(targetUserId: string): void {
-  sendPushNotification("friend_request", targetUserId);
+  sendPushNotification({ type: "friend_request", target_user_id: targetUserId });
 }
 
 // Called when someone accepts a request that was sent to them — notifies the
 // original sender.
 export function notifyFriendAccepted(targetUserId: string): void {
-  sendPushNotification("friend_accepted", targetUserId);
+  sendPushNotification({ type: "friend_accepted", target_user_id: targetUserId });
+}
+
+// Called after update_streak succeeds on hitting the daily goal — tells all friends
+// (the server upgrades it to a milestone message on 7/30/100… days).
+export function notifyFriendsGoalMet(): void {
+  sendPushNotification({ type: "friend_goal" });
+}
+
+// Called after log_quiz_daily succeeds — the server checks the quiz was really just
+// logged before telling friends.
+export function notifyFriendsQuizDone(quiz: "reading" | "listening" | "grammar"): void {
+  sendPushNotification({ type: "friend_quiz", quiz });
 }

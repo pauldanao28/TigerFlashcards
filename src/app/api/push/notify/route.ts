@@ -1,94 +1,105 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import webpush from "web-push";
 import { getAuthedUser } from "@/lib/apiAuth";
+import { acceptedFriendIds, deliver, sgDate, supabaseAdmin } from "@/lib/notifyServer";
+import { STREAK_MILESTONES, type QuizKind } from "@/lib/notificationText";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
-const vapidSubject = process.env.VAPID_SUBJECT || "mailto:support@flashkado.app";
-
-if (vapidPublicKey && vapidPrivateKey) {
-  webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
-}
-
-// One consolidated send path for every push notification type in the app, instead of
-// a near-duplicate route per type — add a new case here as new notification types come
-// up (e.g. a future cron-triggered "streak at risk" would also call this, passing
-// whatever target/type it needs). Called directly from the client at the moment an
+// One send path for every client-triggered notification — called at the moment an
 // action happens (not via a Supabase Database Webhook, which would need manual
-// dashboard configuration this can't do).
+// dashboard configuration). The scheduled streak reminder lives in
+// /api/cron/streak-reminder instead.
 //
-// Message text for every type is built server-side from data this route looks up
-// itself (the caller's own profile) — never taken from the request body — so it can't
-// be used to push arbitrary text to a stranger.
-type NotifyType = "friend_request" | "friend_accepted";
-
-async function buildMessage(type: NotifyType, callerName: string): Promise<{ title: string; body: string }> {
-  switch (type) {
-    case "friend_request":
-      return { title: "New friend request", body: `${callerName} wants to be friends` };
-    case "friend_accepted":
-      return { title: "Friend request accepted", body: `${callerName} accepted your friend request!` };
-  }
-}
+// Nothing about the message comes from the request body except which event happened.
+// Each event is checked against the database before anything is sent (the friendship
+// exists, the goal was really hit today, the quiz was really just logged), and the
+// text is built from the caller's own profile, so this can't be used to push arbitrary
+// text to strangers or to spam friends with fake activity.
+const QUIZ_KINDS: QuizKind[] = ["reading", "listening", "grammar"];
 
 export async function POST(req: Request) {
   const user = await getAuthedUser(req);
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
 
-  if (!vapidPublicKey || !vapidPrivateKey) {
-    return NextResponse.json({ error: "Push not configured" }, { status: 503 });
-  }
+  const { type, target_user_id, quiz } = await req.json();
 
-  const { type, target_user_id } = await req.json();
-  if (type !== "friend_request" && type !== "friend_accepted") {
-    return NextResponse.json({ error: "Unknown notification type" }, { status: 400 });
-  }
-  if (!target_user_id) return NextResponse.json({ error: "Missing target_user_id" }, { status: 400 });
-
-  const { data: callerProfile } = await supabaseAdmin
+  const { data: me } = await supabaseAdmin
     .from("profiles")
-    .select("full_name")
+    .select("full_name, streak_count, last_review_date, stats_visible_to_friends")
     .eq("id", user.id)
     .maybeSingle();
-  const callerName = callerProfile?.full_name || "Someone";
+  const name = me?.full_name || "Someone";
 
-  const { data: subs } = await supabaseAdmin
-    .from("push_subscriptions")
-    .select("id, endpoint, p256dh, auth_key")
-    .eq("user_id", target_user_id);
+  switch (type) {
+    case "friend_request":
+    case "friend_accepted": {
+      if (!target_user_id) return NextResponse.json({ error: "Missing target_user_id" }, { status: 400 });
+      const { data: link } = await supabaseAdmin
+        .from("friendships")
+        .select("id")
+        .or(`and(user_id.eq.${user.id},friend_id.eq.${target_user_id}),and(user_id.eq.${target_user_id},friend_id.eq.${user.id})`)
+        .limit(1);
+      if (!link?.length) return NextResponse.json({ error: "Not connected" }, { status: 403 });
 
-  if (!subs || subs.length === 0) return NextResponse.json({ sent: 0 });
+      return NextResponse.json(
+        await deliver([{ user_id: target_user_id, actor_id: user.id, type, data: { name }, dedupe_key: null }])
+      );
+    }
 
-  const { title, body } = await buildMessage(type as NotifyType, callerName);
-  const payload = JSON.stringify({ title, body, url: "/" });
+    case "friend_goal": {
+      // update_streak sets last_review_date to today (SGT) when the goal is hit.
+      const today = sgDate();
+      if (me?.last_review_date !== today) return NextResponse.json({ error: "Goal not met today" }, { status: 409 });
+      // Friends who hid their stats don't broadcast activity either.
+      if (me.stats_visible_to_friends === false) return NextResponse.json({ recorded: 0, pushed: 0 });
 
-  let sent = 0;
-  await Promise.all(
-    subs.map(async (sub) => {
-      try {
-        await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_key } },
-          payload
-        );
-        sent++;
-      } catch (err: unknown) {
-        const statusCode = (err as { statusCode?: number })?.statusCode;
-        // 404/410 = the subscription is gone (browser unsubscribed, site data
-        // cleared, device reset) — stop trying it instead of erroring every time.
-        if (statusCode === 404 || statusCode === 410) {
-          await supabaseAdmin.from("push_subscriptions").delete().eq("id", sub.id);
-        } else {
-          console.error("[push] send failed:", err instanceof Error ? err.message : err);
-        }
-      }
-    })
-  );
+      const streak = me.streak_count ?? 1;
+      const milestone = STREAK_MILESTONES.includes(streak);
+      const friends = await acceptedFriendIds(user.id);
+      return NextResponse.json(
+        await deliver(
+          friends.map((id) => ({
+            user_id: id,
+            actor_id: user.id,
+            type: milestone ? "friend_milestone" : "friend_goal",
+            data: { name, streak },
+            // Same key for both types — at most one goal/milestone notification per
+            // friend per day.
+            dedupe_key: `goal:${user.id}:${today}`,
+          }))
+        )
+      );
+    }
 
-  return NextResponse.json({ sent });
+    case "friend_quiz": {
+      if (!QUIZ_KINDS.includes(quiz)) return NextResponse.json({ error: "Unknown quiz" }, { status: 400 });
+      // log_quiz_daily stamps study_date in UTC, not SGT — check created_at instead so
+      // the day boundary doesn't matter, only that it was logged just now.
+      const since = new Date(Date.now() - 15 * 60_000).toISOString();
+      const { data: logged } = await supabaseAdmin
+        .from("quiz_daily_stats")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("quiz_type", quiz)
+        .gte("created_at", since)
+        .limit(1);
+      if (!logged?.length) return NextResponse.json({ error: "Quiz not logged" }, { status: 409 });
+      if (me?.stats_visible_to_friends === false) return NextResponse.json({ recorded: 0, pushed: 0 });
+
+      const today = sgDate();
+      const friends = await acceptedFriendIds(user.id);
+      return NextResponse.json(
+        await deliver(
+          friends.map((id) => ({
+            user_id: id,
+            actor_id: user.id,
+            type: "friend_quiz" as const,
+            data: { name, quiz },
+            dedupe_key: `quiz:${user.id}:${quiz}:${today}`,
+          }))
+        )
+      );
+    }
+
+    default:
+      return NextResponse.json({ error: "Unknown notification type" }, { status: 400 });
+  }
 }

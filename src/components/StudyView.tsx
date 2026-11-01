@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { notifyFriendsGoalMet } from "@/lib/push";
 import { translations } from "@/lib/languages";
 import { calculateGlobalStats } from "@/lib/stats";
 import { processReferral } from "@/lib/social";
@@ -859,6 +860,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         if (prog >= DAILY_GOAL && !goalFired.current) {
           goalFired.current = true;
           const newStreak = await updateStreak();
+          if (newStreak != null) notifyFriendsGoalMet();
           setGoalStreak(newStreak ?? streak);
           setShowRecap(true);
           navigator.vibrate?.([100, 50, 100, 50, 200]);

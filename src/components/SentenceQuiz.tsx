@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
+import { notifyFriendsQuizDone } from "@/lib/push";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, List, ChevronLeft } from "lucide-react";
 import { levelQuizScore, jlptLevel } from "@/lib/scoring";
@@ -436,7 +437,10 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
       supabase.from("profiles").update({ reading_score: newReadingScore, reading_stats: updatedStats }).eq("id", userId)
         .then(({ error }) => { if (error) console.error("[reading_score save]", error.code, error.message); });
       supabase.rpc("log_quiz_daily", { p_type: "reading", p_n_level: level, p_correct: passedTotal, p_total: newResults.length })
-        .then(({ error }) => { if (error) console.error("[log_quiz_daily reading]", error.code, error.message); });
+        .then(({ error }) => {
+          if (error) console.error("[log_quiz_daily reading]", error.code, error.message);
+          else notifyFriendsQuizDone("reading");
+        });
       supabase.rpc("upsert_score_snapshot", { p_reading: newReadingScore });
       try { localStorage.setItem("flashkado-done-reading", new Date().toLocaleDateString("en-CA")); } catch {}
     } else {

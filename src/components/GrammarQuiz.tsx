@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { notifyFriendsQuizDone } from "@/lib/push";
 import { X, ChevronLeft, Loader2, List } from "lucide-react";
 import { grammarPatternScore, dailySessionWeight, jlptLevel } from "@/lib/scoring";
 import LevelUpModal from "@/components/LevelUpModal";
@@ -412,7 +413,10 @@ export default function GrammarQuiz({ userId, onClose }: GrammarQuizProps) {
     supabase.from("profiles").update({ grammar_score: newGrammarScore }).eq("id", userId)
       .then(({ error }) => { if (error) console.error("[grammar_score save]", error.code, error.message); });
     supabase.rpc("log_quiz_daily", { p_type: "grammar", p_n_level: levelAtStart, p_correct: finalScore, p_total: totalQ })
-      .then(({ error }) => { if (error) console.error("[log_quiz_daily grammar]", error.code, error.message); });
+      .then(({ error }) => {
+        if (error) console.error("[log_quiz_daily grammar]", error.code, error.message);
+        else notifyFriendsQuizDone("grammar");
+      });
     supabase.rpc("upsert_score_snapshot", { p_grammar: newGrammarScore });
     try { localStorage.setItem("flashkado-done-grammar", new Date().toLocaleDateString("en-CA")); } catch {}
   };

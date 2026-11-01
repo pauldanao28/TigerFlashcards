@@ -9,6 +9,7 @@ import { ALLOWED_PARTS_OF_SPEECH } from "@/lib/textNormalize";
 import LoadingScreen from "@/components/LoadingScreen";
 import { SocialDock } from "@/components/SocialDock";
 import SocialToast from "@/components/SocialToast";
+import NotificationBell from "@/components/NotificationBell";
 import { useFriends } from "@/hooks/useFriends";
 
 type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
@@ -355,15 +356,18 @@ export default function Dashboard() {
               {name || "Learner"} 👋
             </h1>
           </div>
-          <button
-            onClick={() => setIsSocialOpen(true)}
-            className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-slate-50 border-slate-100 shadow-sm active:scale-95 transition-all shrink-0"
-          >
-            <span className="text-lg">👥</span>
-            {friends.some((f) => f.status === "pending" && !f.isSentByMe) && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-white" />
-            )}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {user && <NotificationBell userId={user.id} />}
+            <button
+              onClick={() => setIsSocialOpen(true)}
+              className="relative flex items-center justify-center w-11 h-11 rounded-2xl border bg-slate-50 border-slate-100 shadow-sm active:scale-95 transition-all shrink-0"
+            >
+              <span className="text-lg">👥</span>
+              {friends.some((f) => f.status === "pending" && !f.isSentByMe) && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-white" />
+              )}
+            </button>
+          </div>
         </div>
         <div className="flex items-center gap-3 mt-2">
           {streak > 0 && (

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
+import { notifyFriendsQuizDone } from "@/lib/push";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, List, Volume2, ChevronLeft, Ear } from "lucide-react";
 import { playTTS, stopTTS, primeTtsEligibility } from "@/lib/tts";
@@ -390,7 +391,10 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
       supabase.from("profiles").update({ listening_score: newListeningScore, listening_stats: updatedStats }).eq("id", userId)
         .then(({ error }) => { if (error) console.error("[listening_score save]", error.code, error.message); });
       supabase.rpc("log_quiz_daily", { p_type: "listening", p_n_level: level, p_correct: gotCount, p_total: newResults.length })
-        .then(({ error }) => { if (error) console.error("[log_quiz_daily listening]", error.code, error.message); });
+        .then(({ error }) => {
+          if (error) console.error("[log_quiz_daily listening]", error.code, error.message);
+          else notifyFriendsQuizDone("listening");
+        });
       supabase.rpc("upsert_score_snapshot", { p_listening: newListeningScore });
       try { localStorage.setItem("flashkado-done-listening", new Date().toLocaleDateString("en-CA")); } catch {}
       const missed = newResults.filter(r => !r.gotIt).map(r => ({
