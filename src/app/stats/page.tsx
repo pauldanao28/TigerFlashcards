@@ -1424,7 +1424,7 @@ export default function StatsPage() {
                         Reflex Mode
                       </p>
                       <p className="text-[10px] text-slate-400 font-medium leading-tight">
-                        Auto-fails a card if you don&apos;t grade it within 3 seconds
+                        Times how fast you recall each word, from card shown to flip
                       </p>
                     </div>
                     <button
