@@ -25,6 +25,8 @@ export function useFriends() {
 
     const today = new Date().toISOString().split("T")[0];
 
+    const quizTodayPromise = supabase.rpc("get_friends_quiz_today", { p_today: today });
+
     const { data } = await supabase
       .from("friendships")
       .select(
@@ -48,6 +50,13 @@ export function useFriends() {
       .eq("receiver.stats.study_date", today);
 
     if (!data) return [];
+
+    // Best-effort — if the RPC fails, rows just render without quiz badges.
+    const { data: quizToday } = await quizTodayPromise;
+    type QuizToday = { reading: boolean; listening: boolean; grammar: boolean };
+    const quizByFriend = new Map<string, QuizToday>(
+      ((quizToday ?? []) as (QuizToday & { friend_id: string })[]).map(({ friend_id, ...q }) => [friend_id, q]),
+    );
 
     const formatted = data
       .map((row: any) => {
@@ -83,6 +92,7 @@ export function useFriends() {
           streak: friendProfile.streak_count || 0,
           isOnline: friendProfile.is_online,
           nLevel,
+          quizToday: quizByFriend.get(friendProfile.id) ?? null,
         };
       })
       .filter((f): f is any => f !== null)

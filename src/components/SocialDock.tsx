@@ -438,17 +438,34 @@ export const SocialDock = ({
                           className="h-full"
                         />
                       </div>
-                      <span
-                        className={`block mt-1 text-right text-[9px] font-black uppercase tracking-tighter transition-colors ${
-                          friend.dailyProgress >= friend.goal
-                            ? "text-emerald-500"
-                            : "text-slate-400"
-                        }`}
-                      >
-                        {friend.dailyProgress >= friend.goal
-                          ? `DONE: ${friend.dailyProgress} CARDS`
-                          : `${friend.dailyProgress} / ${friend.goal}`}
-                      </span>
+                      <div className="mt-1 flex items-center justify-between gap-2">
+                        {/* Today's quizzes — same 📖 🎧 📝 markers as the friend page */}
+                        <div className="flex items-center gap-1">
+                          {([
+                            ["reading", "📖"],
+                            ["listening", "🎧"],
+                            ["grammar", "📝"],
+                          ] as const).map(([key, emoji]) => (
+                            <span
+                              key={key}
+                              className={`text-[9px] leading-none ${friend.quizToday?.[key] ? "" : "opacity-25 grayscale"}`}
+                            >
+                              {emoji}
+                            </span>
+                          ))}
+                        </div>
+                        <span
+                          className={`text-[9px] font-black uppercase tracking-tighter transition-colors ${
+                            friend.dailyProgress >= friend.goal
+                              ? "text-emerald-500"
+                              : "text-slate-400"
+                          }`}
+                        >
+                          {friend.dailyProgress >= friend.goal
+                            ? `DONE: ${friend.dailyProgress} CARDS`
+                            : `${friend.dailyProgress} / ${friend.goal}`}
+                        </span>
+                      </div>
                     </>
                   ) : (
                     /* --- PENDING TAB: Action Buttons --- */
