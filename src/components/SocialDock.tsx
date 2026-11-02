@@ -17,6 +17,7 @@ export const SocialDock = ({
   userId, // Added your unique ID
   username,
   myStreak,
+  myNLevel,
   referralCode,
   friends,
   onClose,
@@ -25,6 +26,11 @@ export const SocialDock = ({
   userId: string;
   username: string; // Add this prop
   myStreak?: number;
+  // Overall weakest-pillar level (same definition as Dashboard's own banner and
+  // useFriends.ts's per-friend nLevel) — optional since not every caller has the
+  // vocab/grammar/reading/listening scores on hand to compute it; the Rank tab's
+  // "You" row just shows no badge when it's not provided.
+  myNLevel?: string | null;
   referralCode: string | null;
   friends: any[];
   onClose: () => void;
@@ -170,10 +176,10 @@ export const SocialDock = ({
   // Friends-only ranking by current streak, including yourself so you can see where
   // you stand — never shows anyone outside your own circle (no public leaderboard).
   const rankedFriends = [
-    { id: userId, name: username, avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`, streak: myStreak ?? 0, isMe: true },
+    { id: userId, name: username, avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`, streak: myStreak ?? 0, isMe: true, nLevel: myNLevel ?? null },
     ...friends
       .filter((f) => f.status === "accepted")
-      .map((f) => ({ id: f.id, name: f.name, avatar: f.avatar, streak: f.streak ?? 0, isMe: false })),
+      .map((f) => ({ id: f.id, name: f.name, avatar: f.avatar, streak: f.streak ?? 0, isMe: false, nLevel: f.nLevel ?? null })),
   ].sort((a, b) => b.streak - a.streak);
 
   return (
@@ -381,9 +387,16 @@ export const SocialDock = ({
                       <div className="w-10 h-10 rounded-full border-2 border-slate-100 overflow-hidden bg-slate-50 shrink-0">
                         <img src={f.avatar} alt={f.name} className="w-full h-full object-cover" />
                       </div>
-                      <p className="flex-1 text-[12px] font-black uppercase text-black italic leading-none truncate">
-                        {f.name}{f.isMe ? " (You)" : ""}
-                      </p>
+                      <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                        <p className="text-[12px] font-black uppercase text-black italic leading-none truncate">
+                          {f.name}{f.isMe ? " (You)" : ""}
+                        </p>
+                        {f.nLevel && (
+                          <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-600 shrink-0">
+                            {f.nLevel}
+                          </span>
+                        )}
+                      </div>
                       <span className="text-[11px] flex items-center gap-0.5 font-bold text-orange-500 shrink-0">
                         🔥 {f.streak}
                       </span>

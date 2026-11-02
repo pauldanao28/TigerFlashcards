@@ -609,6 +609,7 @@ export default function Dashboard() {
             userId={user.id}
             username={name || ""}
             myStreak={streak}
+            myNLevel={overallLevel}
             referralCode={data.referral_code}
             friends={friends}
             onClose={() => setIsSocialOpen(false)}
