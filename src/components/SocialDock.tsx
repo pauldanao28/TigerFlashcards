@@ -597,41 +597,43 @@ export const SocialDock = ({
           )}
         </div>
 
-        {/* Action Button */}
-        <button
-          onClick={handleSocialAction}
-          className="mt-8 w-full py-5 bg-black text-white rounded-2xl font-black uppercase text-[11px] tracking-[0.3em] active:scale-[0.98] transition-all shadow-xl shadow-black/10"
-        >
-          + Refer a Friend
-        </button>
-
-        {/* Second mode of the same share-card generator (kind=referral) used by
-            streak/level-up cards elsewhere — an image with the code baked in
-            survives a screenshot or a forward that strips the caption text,
-            unlike the link-only Refer a Friend button above. ShareButton fetches
-            its image as soon as IT mounts (needed elsewhere so navigator.share()
-            still fires close enough to the tap on iOS) — gating that mount behind
-            this plain button instead of rendering ShareButton directly means the
-            image is only ever prepared once someone actually taps toward sharing
-            it, not just from opening this sheet. */}
-        {referralCode && (
-          <div className="mt-2">
-            {showReferralShare ? (
-              <ShareButton
-                params={{ kind: "referral" }}
-                caption="Join me on FlashKado! I'm learning Japanese with AI-powered flashcards 🇯🇵"
-                className="bg-slate-50 text-slate-500"
-              />
-            ) : (
-              <button
-                onClick={() => setShowReferralShare(true)}
-                className="w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all bg-slate-50 text-slate-500"
-              >
-                Share Invite Card
-              </button>
-            )}
-          </div>
-        )}
+        {/* Action Buttons — Refer a Friend (link/share-sheet) and Share Invite
+            Card (image, second mode of the same share-card generator used by
+            streak/level-up cards elsewhere) side by side. An image with the
+            code baked in survives a screenshot or a forward that strips the
+            caption text, unlike the link-only button alone. ShareButton
+            fetches its image as soon as IT mounts (needed elsewhere so
+            navigator.share() still fires close enough to the tap on iOS) —
+            gating that mount behind a plain button instead of rendering
+            ShareButton directly means the image is only ever prepared once
+            someone actually taps toward sharing it, not just from opening
+            this sheet. */}
+        <div className="mt-8 flex gap-2">
+          <button
+            onClick={handleSocialAction}
+            className="flex-1 py-5 bg-black text-white rounded-2xl font-black uppercase text-[11px] tracking-[0.3em] active:scale-[0.98] transition-all shadow-xl shadow-black/10"
+          >
+            + Refer a Friend
+          </button>
+          {referralCode && (
+            <div className="flex-1">
+              {showReferralShare ? (
+                <ShareButton
+                  params={{ kind: "referral" }}
+                  caption="Join me on FlashKado! I'm learning Japanese with AI-powered flashcards 🇯🇵"
+                  className="bg-slate-50 text-slate-500"
+                />
+              ) : (
+                <button
+                  onClick={() => setShowReferralShare(true)}
+                  className="w-full h-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all bg-slate-50 text-slate-500"
+                >
+                  Share Invite Card
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </motion.div>
 
       {selectedFriendId && (
