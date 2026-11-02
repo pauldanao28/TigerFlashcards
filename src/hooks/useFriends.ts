@@ -24,6 +24,15 @@ export function useFriends() {
     userIdRef.current = user.id;
 
     const today = new Date().toISOString().split("T")[0];
+    // Asia/Singapore calendar date — separate from `today` above, which is UTC and
+    // only used for the daily-progress/quiz-today joins. streak_count is lazy: it's
+    // only ever updated the next time someone completes their daily goal (see
+    // update_streak), so a friend who stopped studying keeps showing their last
+    // streak number forever instead of it ever resetting to 0 on its own. Treat a
+    // streak as still "alive" only if its last_review_date is today or yesterday —
+    // anything older means at least one full day was missed, so the stored number
+    // is stale and shouldn't be displayed as if it's current.
+    const todaySg = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
 
     const quizTodayPromise = supabase.rpc("get_friends_quiz_today", { p_today: today });
 
@@ -78,6 +87,12 @@ export function useFriends() {
         // overall-level badge (weakestScore falls back to 0 there too).
         const nLevel = jlptLevel(friendScores.length > 0 ? Math.min(...friendScores) : 0);
 
+        const lastReview = friendProfile.last_review_date as string | null;
+        const daysSinceReview = lastReview
+          ? Math.round((Date.parse(todaySg) - Date.parse(lastReview)) / 86_400_000)
+          : Infinity;
+        const streakIsCurrent = daysSinceReview <= 1;
+
         return {
           friendshipId: row.id,
           id: friendProfile.id,
@@ -89,7 +104,7 @@ export function useFriends() {
           isSentByMe: isSentByMe,
           dailyProgress: friendProfile.stats?.[0]?.count || 0,
           goal: friendProfile.daily_goal || 10,
-          streak: friendProfile.streak_count || 0,
+          streak: streakIsCurrent ? (friendProfile.streak_count || 0) : 0,
           isOnline: friendProfile.is_online,
           nLevel,
           quizToday: quizByFriend.get(friendProfile.id) ?? null,
@@ -116,13 +131,25 @@ export function useFriends() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "profiles" },
         (payload) => {
+          // Same staleness check as fetchFriends' initial load — this event fires on
+          // ANY profile update (avatar, scores, etc.), not just an actual streak
+          // change, so blindly trusting streak_count here would un-hide a stale
+          // number the next time the friend's profile changes for an unrelated
+          // reason.
+          const todaySg = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+          const lastReview = payload.new.last_review_date as string | null;
+          const daysSinceReview = lastReview
+            ? Math.round((Date.parse(todaySg) - Date.parse(lastReview)) / 86_400_000)
+            : Infinity;
+          const streakIsCurrent = daysSinceReview <= 1;
+
           setFriends((current) =>
             current.map((friend) =>
               friend.id === payload.new.id
                 ? {
                     ...friend,
                     isOnline: payload.new.is_online,
-                    streak: payload.new.streak_count,
+                    streak: streakIsCurrent ? payload.new.streak_count : 0,
                   }
                 : friend,
             ),
