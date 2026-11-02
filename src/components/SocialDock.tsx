@@ -49,6 +49,7 @@ export const SocialDock = ({
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [candidates, setCandidates] = useState<FriendCandidate[] | null>(null);
+  const [showReferralShare, setShowReferralShare] = useState(false);
 
   // The dock sits on top of a normally-scrollable page (Dashboard/StudyView
   // aren't full-screen-locked like Auth/join are), so without this the page
@@ -607,14 +608,28 @@ export const SocialDock = ({
         {/* Second mode of the same share-card generator (kind=referral) used by
             streak/level-up cards elsewhere — an image with the code baked in
             survives a screenshot or a forward that strips the caption text,
-            unlike the link-only Refer a Friend button above. */}
+            unlike the link-only Refer a Friend button above. ShareButton fetches
+            its image as soon as IT mounts (needed elsewhere so navigator.share()
+            still fires close enough to the tap on iOS) — gating that mount behind
+            this plain button instead of rendering ShareButton directly means the
+            image is only ever prepared once someone actually taps toward sharing
+            it, not just from opening this sheet. */}
         {referralCode && (
           <div className="mt-2">
-            <ShareButton
-              params={{ kind: "referral" }}
-              caption="Join me on FlashKado! I'm learning Japanese with AI-powered flashcards 🇯🇵"
-              className="bg-slate-50 text-slate-500"
-            />
+            {showReferralShare ? (
+              <ShareButton
+                params={{ kind: "referral" }}
+                caption="Join me on FlashKado! I'm learning Japanese with AI-powered flashcards 🇯🇵"
+                className="bg-slate-50 text-slate-500"
+              />
+            ) : (
+              <button
+                onClick={() => setShowReferralShare(true)}
+                className="w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all bg-slate-50 text-slate-500"
+              >
+                Share Invite Card
+              </button>
+            )}
           </div>
         )}
       </motion.div>
