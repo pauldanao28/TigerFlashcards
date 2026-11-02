@@ -88,18 +88,6 @@ Return ONLY a valid JSON array, one entry per pattern, same order:
       return result.response.text();
     };
 
-    let raw: string;
-    try {
-      raw = await tryWithModel("gemini-2.5-flash-lite");
-    } catch {
-      raw = await tryWithModel("gemini-2.5-flash");
-    }
-
-    const cleaned = raw
-      .trimStart()
-      .replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/gm, "")
-      .trim();
-
     const validPatternIds = new Set(pool.map((p) => p.id));
     const validate = (parsed: unknown) => {
       if (!Array.isArray(parsed)) return null;
@@ -131,15 +119,33 @@ Return ONLY a valid JSON array, one entry per pattern, same order:
         Array.isArray(q.choices) ? { ...q, choices: [...q.choices].sort(() => Math.random() - 0.5) } : q
       );
 
-    try {
-      const parsed = validate(JSON.parse(cleaned));
-      if (parsed) return NextResponse.json({ questions: shuffleChoices(parsed) });
-    } catch {}
-
-    const arrMatch = cleaned.match(/\[[\s\S]*\]/);
-    if (arrMatch) {
+    const parseQuestions = (raw: string) => {
+      const cleaned = raw
+        .trimStart()
+        .replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/gm, "")
+        .trim();
       try {
-        const parsed = validate(JSON.parse(arrMatch[0]));
+        const parsed = validate(JSON.parse(cleaned));
+        if (parsed) return parsed;
+      } catch {}
+      const arrMatch = cleaned.match(/\[[\s\S]*\]/);
+      if (arrMatch) {
+        try {
+          const parsed = validate(JSON.parse(arrMatch[0]));
+          if (parsed) return parsed;
+        } catch {}
+      }
+      return null;
+    };
+
+    // A malformed/truncated response is as much a reason to fall back to the
+    // stronger model as the lite model throwing outright — previously only the
+    // latter triggered the fallback, so a bad-JSON response from the lite model
+    // surfaced straight to the user instead of getting a second attempt.
+    for (const modelId of ["gemini-2.5-flash-lite", "gemini-2.5-flash"]) {
+      try {
+        const raw = await tryWithModel(modelId);
+        const parsed = parseQuestions(raw);
         if (parsed) return NextResponse.json({ questions: shuffleChoices(parsed) });
       } catch {}
     }
