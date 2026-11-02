@@ -23,9 +23,16 @@ export function useFriends() {
     if (!user) return [];
     userIdRef.current = user.id;
 
+    // UTC — matches quiz_daily_stats.study_date (log_quiz_daily's documented UTC
+    // exception), so only get_friends_quiz_today below should use this one.
     const today = new Date().toISOString().split("T")[0];
-    // Asia/Singapore calendar date — separate from `today` above, which is UTC and
-    // only used for the daily-progress/quiz-today joins. streak_count is lazy: it's
+    // Asia/Singapore calendar date. increment_daily_review stamps
+    // user_review_counts.study_date in this same timezone, so the stats join below
+    // must filter on this, not the UTC `today` above — using UTC there meant that
+    // during the SGT 12am-8am window (before UTC's own date catches up to SGT's),
+    // a friend's study_date from SGT-yesterday still matched UTC's still-current
+    // "today", showing their already-stale progress as if it were today's.
+    // streak_count is lazy: it's
     // only ever updated the next time someone completes their daily goal (see
     // update_streak), so a friend who stopped studying keeps showing their last
     // streak number forever instead of it ever resetting to 0 on its own. Treat a
@@ -55,8 +62,8 @@ export function useFriends() {
   `,
       )
       .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
-      .eq("sender.stats.study_date", today)
-      .eq("receiver.stats.study_date", today);
+      .eq("sender.stats.study_date", todaySg)
+      .eq("receiver.stats.study_date", todaySg);
 
     if (!data) return [];
 
