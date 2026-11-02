@@ -32,6 +32,7 @@ export const SocialDock = ({
 }) => {
   const { showAlert } = useAppAlert();
   const [newFriend, setNewFriend] = useState("");
+  const [showAddInput, setShowAddInput] = useState(false);
   const [activeTab, setActiveTab] = useState<"friends" | "pending" | "leaderboard">("friends");
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
@@ -104,6 +105,7 @@ export const SocialDock = ({
         await fetchFriends();
       }
       setNewFriend(""); // Clear input
+      setShowAddInput(false);
     } else if (result.error) {
       // This will show "Already in your circle" or "User not found"
       showAlert(result.error);
@@ -119,6 +121,7 @@ export const SocialDock = ({
       }
       setNewFriend("");
       setCandidates(null);
+      setShowAddInput(false);
     } else if (result.error) {
       showAlert(result.error);
     }
@@ -197,12 +200,12 @@ export const SocialDock = ({
         }}
         exit={{ y: "100%", transition: { duration: 0.22, ease: "easeIn" } }}
         // Desktop Overrides:
-        // Mobile sheet sizes to its own content (capped at 85vh for a long list)
+        // Mobile sheet sizes to its own content (capped at 92vh for a long list)
         // instead of always claiming a fixed 70% of the screen — a short Circle
         // shouldn't leave a big empty gap above the Refer button. Slightly less
         // outer padding on mobile (p-5 vs p-6) buys back ~16px of width for the
         // tab row and friend rows on narrow phones, where they're tightest.
-        className="fixed bottom-0 left-0 right-0 max-h-[85vh] w-full bg-white z-[241] p-5 rounded-t-[32px] shadow-2xl flex flex-col
+        className="fixed bottom-0 left-0 right-0 max-h-[92vh] w-full bg-white z-[241] p-5 rounded-t-[32px] shadow-2xl flex flex-col
                    md:top-0 md:right-0 md:left-auto md:bottom-auto md:h-full md:max-h-none md:w-80 md:rounded-none md:translate-y-0 md:p-6"
       >
         {/* Mobile "Handle" - Visual cue that you can swipe down */}
@@ -242,22 +245,37 @@ export const SocialDock = ({
           </button>
         )}
 
-        <form onSubmit={handleQuickAdd} className="mb-3 group">
-          <div className="relative">
-            <input
-              value={newFriend}
-              onChange={(e) => { setNewFriend(e.target.value); setCandidates(null); }}
-              placeholder="ADD BY NAME OR CODE..."
-              className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-3.5 text-[10px] font-black uppercase tracking-[0.2em] focus:bg-white focus:border-black outline-none transition-all placeholder:text-slate-300"
-            />
-            <button
-              type="submit"
-              className="absolute right-3 top-1/2 -translate-y-1/2 bg-black text-white text-[10px] font-bold px-3 py-1.5 rounded-lg opacity-0 group-focus-within:opacity-100 transition-opacity"
-            >
-              ADD
-            </button>
-          </div>
-        </form>
+        {/* Collapsed behind a button rather than always showing the input — on
+            mobile that bought back real vertical room for the list below
+            without losing the feature; it stays open for the rest of this
+            sheet-open session once tapped, and collapses itself again after
+            a successful add (see handleQuickAdd/handlePickCandidate). */}
+        {showAddInput ? (
+          <form onSubmit={handleQuickAdd} className="mb-3 group">
+            <div className="relative">
+              <input
+                autoFocus
+                value={newFriend}
+                onChange={(e) => { setNewFriend(e.target.value); setCandidates(null); }}
+                placeholder="ADD BY NAME OR CODE..."
+                className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-3.5 text-[10px] font-black uppercase tracking-[0.2em] focus:bg-white focus:border-black outline-none transition-all placeholder:text-slate-300"
+              />
+              <button
+                type="submit"
+                className="absolute right-3 top-1/2 -translate-y-1/2 bg-black text-white text-[10px] font-bold px-3 py-1.5 rounded-lg opacity-0 group-focus-within:opacity-100 transition-opacity"
+              >
+                ADD
+              </button>
+            </div>
+          </form>
+        ) : (
+          <button
+            onClick={() => setShowAddInput(true)}
+            className="w-full mb-3 flex items-center justify-center gap-1.5 px-4 py-3 bg-slate-50 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 active:scale-[0.98] transition-all"
+          >
+            + Add Friend
+          </button>
+        )}
 
         {candidates && (
           <div className="mb-6 p-2 bg-slate-50 rounded-2xl border border-slate-100 space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
@@ -328,12 +346,14 @@ export const SocialDock = ({
 
         {/* Friends List / Leaderboard */}
         {/* Sizes to its own content on mobile (min 140px so a near-empty list/empty
-            state still has some presence, capped at 46vh so a long list scrolls
+            state still has some presence, capped at 54vh — raised alongside the
+            sheet's own 85vh->92vh bump so the taller sheet actually shows more
+            rows instead of just more empty space — so a long list scrolls
             internally instead of growing the whole sheet) — the old flex-1 always
             filled the fixed-height sheet above even when there were only 2-3 rows to
             show, leaving a big empty gap before the Refer button. Desktop's sidebar
             keeps the original flex-1-fills-remaining-height behavior. */}
-        <div className="min-h-[140px] max-h-[46vh] md:min-h-0 md:max-h-none md:flex-1 overflow-y-auto space-y-6 pr-2 custom-scrollbar">
+        <div className="min-h-[140px] max-h-[54vh] md:min-h-0 md:max-h-none md:flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
           {activeTab === "leaderboard" ? (
             rankedFriends.length > 1 ? (
               <div className="space-y-2">
@@ -373,10 +393,13 @@ export const SocialDock = ({
               <div
                 key={`${friend.id}-${friend.status}`}
                 onClick={() => { if (activeTab === "friends") setSelectedFriendId(friend.id); }}
-                className={`flex items-center gap-4 animate-in fade-in slide-in-from-bottom-2 ${activeTab === "friends" ? "cursor-pointer active:opacity-70" : ""}`}
+                className={`flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 ${activeTab === "friends" ? "cursor-pointer active:opacity-70" : ""}`}
               >
-                <div className="relative">
-                  <div className="w-12 h-12 rounded-full border-2 border-slate-100 overflow-hidden bg-slate-50">
+                <div className="relative shrink-0">
+                  {/* 40px, matching the leaderboard tab's avatar size — was 48px,
+                      the single biggest lever for a denser list on mobile without
+                      shrinking text below CLAUDE.md's 9px caption floor. */}
+                  <div className="w-10 h-10 rounded-full border-2 border-slate-100 overflow-hidden bg-slate-50">
                     <img
                       src={friend.avatar}
                       alt={friend.name}
@@ -385,7 +408,7 @@ export const SocialDock = ({
                   </div>
                   {/* UI CHANGE: Check against the real-time presence array */}
                   <div
-                    className={`absolute bottom-0 right-0 w-3.5 h-3.5 border-2 border-white rounded-full shadow-sm ${
+                    className={`absolute bottom-0 right-0 w-3 h-3 border-2 border-white rounded-full shadow-sm ${
                       onlineUsers.includes(friend.id)
                         ? "bg-emerald-500" // Online Color
                         : "bg-slate-300" // Offline Color
