@@ -121,8 +121,13 @@ export const FriendProfileModal = ({ friendId, onClose }: { friendId: string; on
                   <SkillBar label="Reading" score={profile.reading_score} />
                   <SkillBar label="Listening" score={profile.listening_score} />
                   {(profile.max_streak ?? 0) > 0 && (
+                    // max_streak is the all-time best consecutive-correct-answers combo
+                    // within a single session (see StudyView's maxComboRef), not a count
+                    // of calendar days — Dashboard already labels the same field "best
+                    // passes" for your own profile; this used to say "days" instead,
+                    // which read as a (much more impressive, and wrong) daily streak.
                     <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest pt-2 border-t border-slate-100">
-                      Best streak: {profile.max_streak} days
+                      Best streak: {profile.max_streak} passes
                     </p>
                   )}
                 </div>
