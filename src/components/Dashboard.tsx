@@ -13,7 +13,7 @@ import NotificationBell from "@/components/NotificationBell";
 import ShareButton from "@/components/ShareButton";
 import { SKILL_TILE, type SkillKey } from "@/lib/skillTheme";
 import { Share2 } from "lucide-react";
-import { useFriends } from "@/hooks/useFriends";
+import { useFriendsContext } from "@/context/FriendsContext";
 
 type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
 
@@ -276,7 +276,7 @@ export default function Dashboard() {
   const [isSocialOpen, setIsSocialOpen] = useState(false);
   const [isStreakShareOpen, setIsStreakShareOpen] = useState(false);
   const [selectedPos, setSelectedPos] = useState<string | null>(null);
-  const { friends, fetchFriends, socialToast, dismissSocialToast } = useFriends();
+  const { friends, fetchFriends, socialToast, dismissSocialToast } = useFriendsContext();
 
   useEffect(() => {
     if (!user) return;

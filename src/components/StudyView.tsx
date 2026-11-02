@@ -12,7 +12,7 @@ import { calculateGlobalStats } from "@/lib/stats";
 import { rollingAvg, vocabMastery, JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
 import { ALLOWED_PARTS_OF_SPEECH } from "@/lib/textNormalize";
 import { isRedundantSuruMeaning } from "@/lib/verbConjugation";
-import { useFriends } from "@/hooks/useFriends";
+import { useFriendsContext } from "@/context/FriendsContext";
 import { authedFetch } from "@/lib/authedFetch";
 import { useAppAlert } from "@/context/AlertContext";
 
@@ -255,7 +255,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const [weakMnemonicCard, setWeakMnemonicCard] = useState<FlashcardData | null>(null);
   const [weakMnemonicLoading, setWeakMnemonicLoading] = useState(false);
   const [weakMnemonicError, setWeakMnemonicError] = useState<string | null>(null);
-  const { friends, fetchFriends, socialToast, dismissSocialToast } = useFriends();
+  const { friends, fetchFriends, socialToast, dismissSocialToast } = useFriendsContext();
   const [showStreakBanner, setShowStreakBanner] = useState(false);
   const [goalStreak, setGoalStreak] = useState(0);
   const [sessionCards, setSessionCards] = useState(0);

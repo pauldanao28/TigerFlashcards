@@ -3,6 +3,7 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { UploadGuardProvider } from "@/context/UploadGuardContext";
 import { AlertProvider } from "@/context/AlertContext";
+import { FriendsProvider } from "@/context/FriendsContext";
 import BottomNav from "@/components/BottomNav";
 import AccountSetupGuard from "@/components/AccountSetupGuard";
 import Sidebar from "@/components/Sidebar";
@@ -110,12 +111,14 @@ export default function RootLayout({
         <AuthProvider>
           <AlertProvider>
             <UploadGuardProvider>
-              <Sidebar />
-              <SidebarOffsetWrapper>
-                {children}
-              </SidebarOffsetWrapper>
-              <BottomNav />
-              <AccountSetupGuard />
+              <FriendsProvider>
+                <Sidebar />
+                <SidebarOffsetWrapper>
+                  {children}
+                </SidebarOffsetWrapper>
+                <BottomNav />
+                <AccountSetupGuard />
+              </FriendsProvider>
             </UploadGuardProvider>
           </AlertProvider>
         </AuthProvider>
