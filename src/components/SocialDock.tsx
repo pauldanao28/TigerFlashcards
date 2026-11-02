@@ -279,14 +279,14 @@ export const SocialDock = ({
         </div>
 
         {showAddInput && (
-          <form onSubmit={handleQuickAdd} className="mb-3 group">
-            <div className="relative">
+          <form onSubmit={handleQuickAdd} className="mb-3 flex items-center gap-2 group">
+            <div className="relative flex-1 min-w-0">
               <input
                 autoFocus
                 value={newFriend}
                 onChange={(e) => { setNewFriend(e.target.value); setCandidates(null); }}
                 placeholder="ADD BY NAME OR CODE..."
-                className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-3.5 text-[10px] font-black uppercase tracking-[0.2em] focus:bg-white focus:border-black outline-none transition-all placeholder:text-slate-300"
+                className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-3.5 pr-14 text-[10px] font-black uppercase tracking-[0.2em] focus:bg-white focus:border-black outline-none transition-all placeholder:text-slate-300"
               />
               <button
                 type="submit"
@@ -295,6 +295,15 @@ export const SocialDock = ({
                 ADD
               </button>
             </div>
+            {/* No way back to the collapsed button once expanded, short of
+                submitting something — this closes it without adding anyone. */}
+            <button
+              type="button"
+              onClick={() => { setShowAddInput(false); setNewFriend(""); setCandidates(null); }}
+              className="shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all"
+            >
+              <span className="text-base text-slate-500">✕</span>
+            </button>
           </form>
         )}
 
