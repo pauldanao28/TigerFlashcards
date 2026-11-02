@@ -32,7 +32,7 @@ import CardDetailModal from "@/components/CardDetailModal";
 import { FlashcardData, KanjiMnemonic } from "@/lib/types";
 import { useIsMiniViewport } from "@/lib/useMiniViewport";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, History, Star, TrendingDown, Lightbulb, Loader2, X, Menu, Zap, ExternalLink, Filter } from "lucide-react";
+import { Plus, History, Star, TrendingDown, Lightbulb, Loader2, X, Menu, Zap, ExternalLink, Filter, Volume2 } from "lucide-react";
 const DAILY_GOAL = 10;
 const MASTERY_MIN_TRIES = 5;
 const PRIORITY_CAP = 30;
@@ -245,6 +245,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [showWeakModal, setShowWeakModal] = useState(false);
   const [showSlowRecallModal, setShowSlowRecallModal] = useState(false);
+  const [showQuickSettings, setShowQuickSettings] = useState(false);
   // Tapping a word in Weak Words / Slow Recall opens the exact same detail view as
   // the Cards page grid — one shared component (CardDetailModal), not a lookalike.
   const [detailCard, setDetailCard] = useState<FlashcardData | null>(null);
@@ -935,6 +936,19 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       await supabase.from("profiles").update({ reflex_mode: next }).eq("id", user.id);
     }
   }, [reflexMode, user]);
+
+  // Mirrors stats/page.tsx's updateAudioSetting — a cut-down quick-settings panel
+  // reachable from the Study page's own menu (sound/behavior toggles only, not the
+  // whole Settings page), so these don't require navigating away mid-session.
+  const updateStudyPref = async (column: "auto_play_jp" | "auto_play_en" | "sfx_enabled" | "swipe_only", value: boolean) => {
+    if (!user) return;
+    const { error } = await supabase.from("profiles").update({ [column]: value }).eq("id", user.id);
+    if (error) return;
+    if (column === "auto_play_jp") setAutoPlayJp(value);
+    if (column === "auto_play_en") setAutoPlayEn(value);
+    if (column === "sfx_enabled") setSfxEnabled(value);
+    if (column === "swipe_only") setSwipeOnly(value);
+  };
 
   // Marks when the current card became "live" for timing purposes — no deadline, just
   // a stopwatch start read back on a Pass. Resets on a new card, or the moment Reflex
@@ -2080,6 +2094,13 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     >
                       <Zap size={18} className="text-amber-500" />
                     </button>
+                    <button
+                      onClick={() => { setShowQuickSettings(true); setShowQuickMenu(false); }}
+                      className="flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
+                      title="Sound & Card Settings"
+                    >
+                      <Volume2 size={18} className="text-slate-500" />
+                    </button>
                     <motion.button
                       onClick={() => { setIsQuickAddOpen(true); setShowQuickMenu(false); }}
                       whileTap={{ scale: 0.88 }}
@@ -2201,6 +2222,13 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     title="Slow Recall (Reflex Mode)"
                   >
                     <Zap size={20} className="text-amber-500" />
+                  </button>
+                  <button
+                    onClick={() => { setShowQuickSettings(true); setShowQuickMenu(false); }}
+                    className="flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
+                    title="Sound & Card Settings"
+                  >
+                    <Volume2 size={20} className="text-slate-500" />
                   </button>
                   <motion.button
                     onClick={() => { setIsQuickAddOpen(true); setShowQuickMenu(false); }}
@@ -2981,6 +3009,90 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     );
                   })
                 )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Quick Settings Modal — sound/card-behavior toggles only (not the whole
+          Settings page), reachable from this page's own menu so they don't require
+          navigating away mid-session. Same 4 toggles and copy as the "Audio
+          Preferences" block on /stats, writing to the same profiles columns. */}
+      <AnimatePresence>
+        {showQuickSettings && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[220] bg-black/20"
+              onClick={() => setShowQuickSettings(false)}
+            />
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[221] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm max-h-[80vh] flex flex-col"
+              style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+            >
+              <div className="flex items-center justify-between mb-4 shrink-0">
+                <div className="flex items-center gap-2">
+                  <Volume2 size={16} className="text-slate-400" />
+                  <p className="text-slate-800 font-black text-sm uppercase tracking-tight">Sound & Card Settings</p>
+                </div>
+                <button onClick={() => setShowQuickSettings(false)} className="text-slate-300 hover:text-slate-500">✕</button>
+              </div>
+              <div className="flex-1 overflow-y-auto space-y-3 -mx-1 px-1">
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div>
+                    <p className="text-sm font-bold text-slate-700">{t.auto_play_jp}</p>
+                    <p className="text-[10px] text-slate-500 font-medium leading-tight">{t.audio_desc_jp}</p>
+                  </div>
+                  <button
+                    onClick={() => updateStudyPref("auto_play_jp", !autoPlayJp)}
+                    className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${autoPlayJp ? "bg-indigo-600" : "bg-slate-300"}`}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${autoPlayJp ? "left-7" : "left-1"}`} />
+                  </button>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div>
+                    <p className="text-sm font-bold text-slate-700">{t.auto_play_en}</p>
+                    <p className="text-[10px] text-slate-500 font-medium leading-tight">{t.audio_desc_en}</p>
+                  </div>
+                  <button
+                    onClick={() => updateStudyPref("auto_play_en", !autoPlayEn)}
+                    className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${autoPlayEn ? "bg-indigo-600" : "bg-slate-300"}`}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${autoPlayEn ? "left-7" : "left-1"}`} />
+                  </button>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div>
+                    <p className="text-sm font-bold text-slate-700">{t.sfx_title}</p>
+                    <p className="text-[10px] text-slate-500 font-medium leading-tight">{t.sfx_desc}</p>
+                  </div>
+                  <button
+                    onClick={() => updateStudyPref("sfx_enabled", !sfxEnabled)}
+                    className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${sfxEnabled ? "bg-indigo-600" : "bg-slate-300"}`}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${sfxEnabled ? "left-7" : "left-1"}`} />
+                  </button>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div>
+                    <p className="text-sm font-bold text-slate-700">{t.swipe_only_title}</p>
+                    <p className="text-[10px] text-slate-500 font-medium leading-tight">{t.swipe_only_desc}</p>
+                  </div>
+                  <button
+                    onClick={() => updateStudyPref("swipe_only", !swipeOnly)}
+                    className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${swipeOnly ? "bg-indigo-600" : "bg-slate-300"}`}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${swipeOnly ? "left-7" : "left-1"}`} />
+                  </button>
+                </div>
               </div>
             </motion.div>
           </>

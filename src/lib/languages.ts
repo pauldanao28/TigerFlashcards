@@ -22,7 +22,7 @@ export const translations = {
     save: "Save",
     ai_add: "AI Add",
     batch_upload: "Batch Upload",
-    audio_prefs: "Audio Preferences",
+    audio_prefs: "General Settings",
     vocabulary: "Vocabulary",
     mastered: "Mastered",
     struggling: "Struggling",
@@ -221,7 +221,7 @@ export const translations = {
     save: "保存する", // Hozon suru (To Save/Preserve)
     ai_add: "AI追加", // AI Tsuika
     batch_upload: "一括アップロード", // Ikkatsu Appurōdo
-    audio_prefs: "音声設定", // Onsei Settei
+    audio_prefs: "一般設定", // Ippan Settei (General Settings)
     vocabulary: "語彙力", // Goiryoku (or simply ボキャブラリー)
     mastered: "習得済み", // Shūtoku-zumi (Completed/Learned)
     struggling: "要復習", // Yō-fukushū (Needs Review - sounds better than "failing")
