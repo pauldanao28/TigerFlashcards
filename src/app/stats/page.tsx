@@ -1358,43 +1358,6 @@ export default function StatsPage() {
                 </div>
               </div>
 
-              <div className="h-px bg-slate-100 w-full mb-8" />
-
-              {/* SIGN OUT — separated from the danger zone */}
-              <div className="mb-8">
-                <button
-                  onClick={handleLogout}
-                  className="w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-slate-800 text-white hover:bg-slate-700 transition-all active:scale-95 shadow-sm"
-                >
-                  {t.signout}
-                </button>
-              </div>
-
-              {/* DANGER ZONE — intentionally far from sign out */}
-              <div className="mt-16 pt-8 border-t-2 border-red-100">
-                <h3 className="text-[10px] font-black text-red-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                  <AlertTriangle size={12} /> {t.danger_zone}
-                </h3>
-
-                <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="max-w-[250px]">
-                    <p className="text-sm font-bold text-red-700 leading-tight">
-                      {t.delete_account}
-                    </p>
-                    <p className="text-[9px] text-red-400 font-medium mt-0.5 leading-relaxed">
-                      {t.delete_account_desc}
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={handleDeleteAccount}
-                    className="w-full sm:w-auto px-6 py-2.5 bg-white border border-red-200 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white hover:border-red-600 transition-all active:scale-95 shadow-sm"
-                  >
-                    {t.delete_btn}
-                  </button>
-                </div>
-              </div>
-
               {/* ===== GROUP: PREFERENCES ===== */}
               <div className="flex items-center gap-2.5 mb-6 mt-16">
                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
@@ -1737,6 +1700,46 @@ export default function StatsPage() {
                   </div>
                 </>
               )}
+
+              {/* SIGN OUT / DELETE ACCOUNT — moved to the very end of Settings,
+                  after every other section, so they're not the first destructive-
+                  looking actions someone runs into. */}
+              <div className="h-px bg-slate-100 w-full mb-8 mt-16" />
+
+              {/* SIGN OUT — separated from the danger zone */}
+              <div className="mb-8">
+                <button
+                  onClick={handleLogout}
+                  className="w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-slate-800 text-white hover:bg-slate-700 transition-all active:scale-95 shadow-sm"
+                >
+                  {t.signout}
+                </button>
+              </div>
+
+              {/* DANGER ZONE — intentionally far from sign out */}
+              <div className="mt-16 pt-8 border-t-2 border-red-100">
+                <h3 className="text-[10px] font-black text-red-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                  <AlertTriangle size={12} /> {t.danger_zone}
+                </h3>
+
+                <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="max-w-[250px]">
+                    <p className="text-sm font-bold text-red-700 leading-tight">
+                      {t.delete_account}
+                    </p>
+                    <p className="text-[9px] text-red-400 font-medium mt-0.5 leading-relaxed">
+                      {t.delete_account_desc}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleDeleteAccount}
+                    className="w-full sm:w-auto px-6 py-2.5 bg-white border border-red-200 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white hover:border-red-600 transition-all active:scale-95 shadow-sm"
+                  >
+                    {t.delete_btn}
+                  </button>
+                </div>
+              </div>
 
               </div>
             </div>

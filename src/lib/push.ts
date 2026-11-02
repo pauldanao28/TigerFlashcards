@@ -53,7 +53,20 @@ export async function subscribeToPush(): Promise<{ success: boolean; error?: str
     method: "POST",
     body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
   });
-  if (!res.ok) return { success: false, error: "Failed to save subscription" };
+  if (!res.ok) {
+    // The route always returns a real reason in its JSON body (auth, a bad
+    // subscription shape, or the DB error message) — showing a generic string
+    // here made every failure mode look identical and undiagnosable from a
+    // bug report alone.
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = body?.error ?? "";
+    } catch {
+      /* non-JSON error body — fall back to status */
+    }
+    return { success: false, error: detail || `Failed to save subscription (${res.status})` };
+  }
   return { success: true };
 }
 
