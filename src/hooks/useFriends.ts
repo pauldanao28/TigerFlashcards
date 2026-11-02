@@ -156,7 +156,9 @@ export function useFriends() {
           );
         },
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status !== "SUBSCRIBED") console.error("[useFriends] profile-updates channel:", status, err);
+      });
 
     // REALTIME: Progress Updates
     const progressChannel = supabase
@@ -168,7 +170,9 @@ export function useFriends() {
           fetchFriends();
         },
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status !== "SUBSCRIBED") console.error("[useFriends] progress-updates channel:", status, err);
+      });
 
     // REALTIME: Friendship Changes (New requests/Accepts) — also surfaces a toast for
     // the two events worth interrupting whatever you're doing for: someone else's
@@ -207,7 +211,9 @@ export function useFriends() {
           }
         },
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status !== "SUBSCRIBED") console.error("[useFriends] friendship-changes channel:", status, err);
+      });
 
     return () => {
       supabase.removeChannel(profileChannel);
