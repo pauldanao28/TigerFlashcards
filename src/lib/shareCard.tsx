@@ -13,6 +13,10 @@ export type ShareCardProps = {
   headlineSize: number;
   subline: string;
   stats: { label: string; value: string }[];
+  // The default tight tracking (-8) suits a short number/level headline (streak,
+  // N-level) but crams an 8-character referral code together unreadably — callers
+  // drawing a code as the headline pass a positive value instead.
+  headlineLetterSpacing?: number;
 };
 
 export async function renderShareCard({
@@ -25,6 +29,7 @@ export async function renderShareCard({
   headlineSize,
   subline,
   stats,
+  headlineLetterSpacing = -8,
 }: ShareCardProps): Promise<ImageResponse> {
   // Subset includes the uppercased eyebrow too — it's drawn with textTransform, so
   // its capital letters must be in the font or they fall back to another weight.
@@ -71,7 +76,7 @@ export async function renderShareCard({
           >
             {eyebrow}
           </div>
-          <div style={{ display: "flex", fontSize: headlineSize, fontWeight: 900, lineHeight: 1, marginTop: 28, letterSpacing: -8 }}>
+          <div style={{ display: "flex", fontSize: headlineSize, fontWeight: 900, lineHeight: 1, marginTop: 28, letterSpacing: headlineLetterSpacing }}>
             {headline}
           </div>
           <div style={{ display: "flex", fontSize: 64, fontWeight: 900, letterSpacing: 8, marginTop: 20, color: "#e0e7ff" }}>

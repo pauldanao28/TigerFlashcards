@@ -53,6 +53,7 @@ export async function GET(req: Request) {
   let headlineSize: number;
   let subline: string;
   let stats: { label: string; value: string }[] = [];
+  let headlineLetterSpacing: number | undefined;
 
   if (kind === "streak") {
     const streak = me.streak_count ?? 0;
@@ -82,11 +83,23 @@ export async function GET(req: Request) {
     headlineSize = 320;
     subline = `${from} → ${to} · ${LEVEL_NAME[to].toUpperCase()}`;
     stats = [];
+  } else if (kind === "referral") {
+    if (!me.referral_code) return new Response("No referral code", { status: 400 });
+    emoji = "🎴";
+    eyebrow = "You're Invited";
+    // Grouped in two halves with a gap, not run together — an 8-character code is
+    // hard to read (and copy by hand off a screenshot) as one solid block.
+    headline = `${me.referral_code.slice(0, 4)} ${me.referral_code.slice(4)}`;
+    headlineSize = 110;
+    headlineLetterSpacing = 10;
+    subline = "YOUR INVITE CODE";
+    const streak = me.streak_count ?? 0;
+    stats = streak > 0 ? [{ label: "Day streak", value: String(streak) }] : [];
   } else {
     return new Response("Unknown card kind", { status: 400 });
   }
 
-  const image = await renderShareCard({ name, avatar, shareHost, emoji, eyebrow, headline, headlineSize, subline, stats });
+  const image = await renderShareCard({ name, avatar, shareHost, emoji, eyebrow, headline, headlineSize, subline, stats, headlineLetterSpacing });
   image.headers.set("X-Share-Url", shareUrl);
   image.headers.set("Cache-Control", "private, no-store");
   return image;

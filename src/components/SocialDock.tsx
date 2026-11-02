@@ -12,6 +12,7 @@ import {
 } from "@/lib/social";
 import { useAppAlert } from "@/context/AlertContext";
 import { FriendProfileModal } from "@/components/FriendProfileModal";
+import ShareButton from "@/components/ShareButton";
 
 export const SocialDock = ({
   userId, // Added your unique ID
@@ -602,6 +603,20 @@ export const SocialDock = ({
         >
           + Refer a Friend
         </button>
+
+        {/* Second mode of the same share-card generator (kind=referral) used by
+            streak/level-up cards elsewhere — an image with the code baked in
+            survives a screenshot or a forward that strips the caption text,
+            unlike the link-only Refer a Friend button above. */}
+        {referralCode && (
+          <div className="mt-2">
+            <ShareButton
+              params={{ kind: "referral" }}
+              caption="Join me on FlashKado! I'm learning Japanese with AI-powered flashcards 🇯🇵"
+              className="bg-slate-50 text-slate-500"
+            />
+          </div>
+        )}
       </motion.div>
 
       {selectedFriendId && (
