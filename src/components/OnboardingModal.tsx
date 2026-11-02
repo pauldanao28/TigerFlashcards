@@ -25,6 +25,27 @@ export default function OnboardingModal({
   const router = useRouter();
   const CONST_DEFAULT_DECK_NAME = "My Deck";
 
+  // The signup trigger (handle_new_user) creates the default deck now, so this
+  // normally just finds it — the insert only runs for accounts made before that.
+  const getOrCreateDefaultDeck = async (): Promise<{ id: string }> => {
+    const { data: existing, error: findErr } = await supabase
+      .from("decks")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("is_default", true)
+      .maybeSingle();
+    if (findErr) throw findErr;
+    if (existing) return existing;
+
+    const { data: created, error: createErr } = await supabase
+      .from("decks")
+      .insert([{ user_id: userId, title: CONST_DEFAULT_DECK_NAME, is_default: true }])
+      .select("id")
+      .single();
+    if (createErr) throw createErr;
+    return created;
+  };
+
   const [lang, setLang] = useState<"en" | "jp">("en"); // Local toggle state
   const [isChecking, setIsChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -168,16 +189,7 @@ export default function OnboardingModal({
 
       const packIds = [...existingByJapanese.values(), ...insertedCards].map((c) => c.id);
 
-      // Create Default Deck
-      const { data: deck, error: dErr } = await supabase
-        .from("decks")
-        .insert([
-          { user_id: userId, title: CONST_DEFAULT_DECK_NAME, is_default: true },
-        ])
-        .select("id")
-        .single();
-
-      if (dErr) throw dErr;
+      const deck = await getOrCreateDefaultDeck();
 
       // Leave out the pack's own duplicates (みず next to 水) — lib/duplicates
       const { ids: cardIds } = await skipDeckDuplicates(deck.id, packIds);
@@ -238,12 +250,7 @@ export default function OnboardingModal({
       // (RLS denial, constraint violation, etc.) left the account "onboarded" with
       // no default deck at all, which the Study page couldn't recover from on its
       // own (infinite loading screen — see fetchInitialData's hasLoadedOnce fix).
-      const { error: deckErr } = await supabase
-        .from("decks")
-        .insert([
-          { user_id: userId, title: CONST_DEFAULT_DECK_NAME, is_default: true },
-        ]);
-      if (deckErr) throw deckErr;
+      await getOrCreateDefaultDeck();
 
       const { error: profileErr } = await supabase
         .from("profiles")
