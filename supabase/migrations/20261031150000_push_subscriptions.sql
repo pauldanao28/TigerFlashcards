@@ -1,13 +1,16 @@
 -- Web Push subscriptions — one row per browser/device a user has opted into
--- notifications on. endpoint is unique per browser install, so re-subscribing
--- (e.g. after clearing site data) just upserts over the old row for that endpoint.
+-- notifications on. Unique on (user_id, endpoint), not endpoint alone — a
+-- shared device/browser profile can belong to more than one account, so
+-- re-subscribing only upserts over *this user's* old row for that endpoint,
+-- never another user's.
 create table if not exists push_subscriptions (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid not null references auth.users(id) on delete cascade,
-  endpoint   text not null unique,
+  endpoint   text not null,
   p256dh     text not null,
   auth_key   text not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  unique (user_id, endpoint)
 );
 
 create index if not exists push_subscriptions_user_id_idx on push_subscriptions (user_id);

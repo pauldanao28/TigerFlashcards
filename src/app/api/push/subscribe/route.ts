@@ -22,7 +22,9 @@ export async function POST(req: Request) {
     .from("push_subscriptions")
     .upsert(
       { user_id: user.id, endpoint, p256dh: keys.p256dh, auth_key: keys.auth },
-      { onConflict: "endpoint" }
+      // Live table's actual unique constraint is on (user_id, endpoint), not
+      // endpoint alone — matches push_subscriptions_user_id_endpoint_key.
+      { onConflict: "user_id,endpoint" }
     );
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
