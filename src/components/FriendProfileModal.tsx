@@ -23,7 +23,9 @@ const SkillBar = ({ label, score }: { label: string; score: number | null }) => 
   <div>
     <div className="flex justify-between items-baseline mb-1">
       <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">{label}</span>
-      <span className="text-[10px] font-black text-slate-600">{score ?? "—"}</span>
+      {/* Bare number read as ambiguous ("what is 1/3/3/3?") — Dashboard's own
+          score tiles always show the % sign, this just matched that. */}
+      <span className="text-[10px] font-black text-slate-600">{score != null ? `${score}%` : "—"}</span>
     </div>
     <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
       <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${score ?? 0}%` }} />
