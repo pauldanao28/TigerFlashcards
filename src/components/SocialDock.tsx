@@ -18,6 +18,7 @@ export const SocialDock = ({
   username,
   myStreak,
   myNLevel,
+  myAvatar,
   referralCode,
   friends,
   onClose,
@@ -31,6 +32,10 @@ export const SocialDock = ({
   // vocab/grammar/reading/listening scores on hand to compute it; the Rank tab's
   // "You" row just shows no badge when it's not provided.
   myNLevel?: string | null;
+  // Your own chosen avatar (profiles.avatar_url) — without this, the Rank tab's
+  // "You" row fell back to a hardcoded seeded DiceBear URL instead of what you
+  // actually picked, even though a friend's own row always shows their real one.
+  myAvatar?: string | null;
   referralCode: string | null;
   friends: any[];
   onClose: () => void;
@@ -176,7 +181,7 @@ export const SocialDock = ({
   // Friends-only ranking by current streak, including yourself so you can see where
   // you stand — never shows anyone outside your own circle (no public leaderboard).
   const rankedFriends = [
-    { id: userId, name: username, avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`, streak: myStreak ?? 0, isMe: true, nLevel: myNLevel ?? null },
+    { id: userId, name: username, avatar: myAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`, streak: myStreak ?? 0, isMe: true, nLevel: myNLevel ?? null },
     ...friends
       .filter((f) => f.status === "accepted")
       .map((f) => ({ id: f.id, name: f.name, avatar: f.avatar, streak: f.streak ?? 0, isMe: false, nLevel: f.nLevel ?? null })),

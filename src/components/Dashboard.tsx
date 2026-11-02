@@ -25,6 +25,7 @@ const MASTERED_GOAL = 20;
 
 interface ProfileScores {
   name: string | null;
+  avatar_url: string | null;
   referral_code: string | null;
   streak: number;
   max_streak: number;
@@ -299,6 +300,7 @@ export default function Dashboard() {
 
       const fresh: ProfileScores = {
         name: raw.name ?? null,
+        avatar_url: raw.avatar_url ?? null,
         referral_code: raw.referral_code ?? null,
         streak: raw.streak ?? 0,
         max_streak: raw.max_streak ?? 0,
@@ -610,6 +612,7 @@ export default function Dashboard() {
             username={name || ""}
             myStreak={streak}
             myNLevel={overallLevel}
+            myAvatar={data.avatar_url}
             referralCode={data.referral_code}
             friends={friends}
             onClose={() => setIsSocialOpen(false)}

@@ -234,6 +234,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const [masteredToday, setMasteredToday] = useState(0);
   const [reviewsToday, setReviewsToday] = useState(0);
   const [profileName, setProfileName] = useState<string | null>(null);
+  const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSocialOpen, setIsSocialOpen] = useState(false);
@@ -472,6 +473,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         setPrefsLoaded(true);
         setHasOnboarded(p.has_onboarded);
         setProfileName(p.full_name);
+        setProfileAvatar(p.avatar_url ?? null);
         setReferralCode(p.referral_code ?? null);
         setIsAdmin(p.is_admin ?? false);
         setBlocklist(p.blocked_words || []);
@@ -2625,6 +2627,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
             userId={user.id}
             username={profileName}
             myStreak={streak}
+            myAvatar={profileAvatar}
             referralCode={referralCode}
             friends={friends}
             onClose={() => setIsSocialOpen(false)}
