@@ -308,6 +308,13 @@ export default function Flashcard({
     }
   };
 
+  // Back-face shrink-to-fit ladder, largest first — getFontSize's own smallest tier
+  // ("text-lg" / "text-base") is the starting point; these are the extra, smaller
+  // steps the measure-and-shrink effect below can fall through to for text long
+  // enough that even that tier still overflows.
+  const BACK_JP_SIZE_LADDER = ["text-5xl sm:text-6xl", "text-4xl", "text-3xl", "text-2xl", "text-xl", "text-lg", "text-base"];
+  const BACK_EN_SIZE_LADDER = ["text-3xl sm:text-4xl", "text-3xl", "text-2xl", "text-xl", "text-lg", "text-base", "text-sm", "text-xs"];
+
   const getFontSize = (text: string, isJapanese: boolean) => {
     const len = text.length;
     if (isJapanese) {
@@ -354,21 +361,27 @@ export default function Flashcard({
   // te-form can run close to the limit on their own) that reserving a line for it here
   // was part of what made the furigana-clipping problem worse, not just a symptom of it.
 
-  // Whether to top-anchor instead of center the back face's content used to be a
-  // static guess keyed off verb_type === "irregular" (every real clipping report —
-  // 急行, 記録, 交通, 予習, 準備, 協力 — happened to be one), but that blanket-applied
-  // top-anchoring to every irregular card whether or not its content was actually
-  // tall enough to need it, leaving a big empty gap above the example-sentence
-  // footer on short-content cards like a plain 急行 with no suru_meaning line.
-  // Measuring the real content height instead fixes both: only cards whose content
-  // genuinely doesn't fit get top-anchored, regardless of verb_type.
+  // A long definition (or, in the other study direction, a long JP answer) can
+  // outgrow the card even at getFontSize's smallest static tier once the reading,
+  // badges, and example sentence below it are accounted for. Rather than letting it
+  // scroll — which used to be the fallback here — this measures the actual rendered
+  // height and keeps stepping the font size down one tier at a time until the
+  // content genuinely fits, so the whole card is always visible at once.
   const backContentRef = useRef<HTMLDivElement>(null);
-  const [needsScrollSafeLayout, setNeedsScrollSafeLayout] = useState(false);
+  const [backSizeIdx, setBackSizeIdx] = useState(0);
+  const backSizeLadder = isBackJapanese ? BACK_JP_SIZE_LADDER : BACK_EN_SIZE_LADDER;
+
+  useEffect(() => {
+    setBackSizeIdx(0);
+  }, [card?.id]);
+
   useLayoutEffect(() => {
     const el = backContentRef.current;
     if (!el) return;
-    setNeedsScrollSafeLayout(el.scrollHeight > el.clientHeight);
-  }, [card?.id]);
+    if (el.scrollHeight > el.clientHeight && backSizeIdx < backSizeLadder.length - 1) {
+      setBackSizeIdx((i) => i + 1);
+    }
+  }, [backSizeIdx, backText, isBackJapanese, backSizeLadder.length]);
 
   return (
     <>
@@ -482,38 +495,16 @@ export default function Flashcard({
               </div>
             )}
 
-            {/* justify-center + overflow-y-auto together don't actually fix overflow —
-                confirmed on 準備: a centered box that overflows still shows scrolled
-                past its own start by default in practice, so the symptom (the first
-                line's top sliced off, or on 協力, the whole reading line not showing
-                at all) looked identical even with overflow no longer literally
-                "hidden". Only justify-start reliably shows everything from the top;
-                needsScrollSafeLayout is measured against this same ref (see above) so
-                it only applies when this content actually doesn't fit.
-
-                The footer (example sentence + buttons) used to be a separate mt-auto
-                sibling pinned to the bottom, outside this scrollable box — on a card
-                whose badges/suru_meaning already filled the box, that put the footer's
-                own top border right where the last line of content was still rendering,
+            {/* The footer (example sentence + buttons) used to be a separate mt-auto
+                sibling pinned to the bottom, outside this box — on a card whose
+                badges/suru_meaning already filled it, that put the footer's own top
+                border right where the last line of content was still rendering,
                 looking like the text was cut off mid-line (接続). Folding everything
-                into one scrollable column means there's always a real boundary between
-                content and footer: either everything fits and it's visually identical
-                to before, or it doesn't and you scroll to see the rest — nothing ever
-                overlaps. */}
-            {/* overflow-x-hidden: setting only overflow-y leaves overflow-x at its
-                default "visible", which the CSS spec then auto-promotes to "auto"
-                the moment content is even a pixel wider than the box (long JP text,
-                wrapped badges) — that's what the stray horizontal scrollbar under
-                the card back was. Pinning x shut removes it and, combined with
-                touch-pan-y below, closes off the horizontal-drag-gets-swallowed
-                issue from both the visual and gesture side. touch-pan-y: without an
-                explicit touch-action, a touch starting on this scrollable box (on a
-                tall card) could get claimed by the browser's own scroll handling
-                before framer-motion's drag="x" on the outer card ever saw it as a
-                horizontal swipe — pan-y tells the browser this element only wants
-                vertical panning natively, so a horizontal drag still passes through
-                to the card. */}
-            <div ref={backContentRef} className={`flex-1 flex flex-col items-center w-full overflow-y-auto overflow-x-hidden touch-pan-y ${needsScrollSafeLayout ? "justify-start" : "justify-center"}`}>
+                into one column, sized by the shrink-to-fit effect above, keeps a real
+                boundary between content and footer instead. overflow-hidden is a
+                safety net only — backSizeIdx is what actually keeps this from ever
+                needing it. */}
+            <div ref={backContentRef} className="flex-1 flex flex-col items-center justify-center w-full overflow-hidden">
               {(language === "jp" || language === "en") && card?.reading && (
                 <p className="text-indigo-200 text-lg mb-2 font-medium tracking-wide animate-fade-in truncate w-full">
                   {card?.reading}
@@ -523,7 +514,7 @@ export default function Flashcard({
               <h2
                 className={`font-bold leading-tight break-words w-full
     ${isReady ? "transition-all duration-300" : "transition-none"}
-    ${getFontSize(backText, isBackJapanese)}`}
+    ${backSizeLadder[backSizeIdx]}`}
               >
                 {backText}
               </h2>
