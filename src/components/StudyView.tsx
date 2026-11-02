@@ -9,7 +9,6 @@ import { STREAK_MILESTONES } from "@/lib/notificationText";
 import ShareButton from "@/components/ShareButton";
 import { translations } from "@/lib/languages";
 import { calculateGlobalStats } from "@/lib/stats";
-import { processReferral } from "@/lib/social";
 import { rollingAvg, vocabMastery, JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
 import { ALLOWED_PARTS_OF_SPEECH } from "@/lib/textNormalize";
 import { isRedundantSuruMeaning } from "@/lib/verbConjugation";
@@ -430,37 +429,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   }, [jlptFilters, statusFilters.length]);
   const t = translations.en;
 
-  useEffect(() => {
-    const checkReferral = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const refCode = localStorage.getItem("tg_referrer");
-
-      if (user && refCode) {
-        // 1. Quick check: Are they already linked?
-        const { data: alreadyReferred } = await supabase
-          .from("referrals")
-          .select("id")
-          .eq("referred_id", user.id)
-          .maybeSingle();
-
-        if (!alreadyReferred) {
-          console.log("Found pending referral for:", refCode);
-          await processReferral(refCode);
-
-          // Optional: Trigger a refresh of your friends list
-          // if you have a local state for it
-          if (typeof fetchFriends === "function") fetchFriends();
-        } else {
-          // If they were already referred, we should clear the stale item anyway
-          localStorage.removeItem("tg_referrer");
-        }
-      }
-    };
-
-    checkReferral();
-  }, []);
+  // Pending referrals (tg_referrer) are processed app-wide by AccountSetupGuard now.
 
   // --- 3. Profile & Deck Fetching (The "Waterfall" Start) ---
   useEffect(() => {

@@ -82,24 +82,22 @@ export default function Auth() {
       });
       error = signUpError;
       if (!error && data.user) {
-        // --- REFERRAL LOGIC START ---
-        const refCode = localStorage.getItem("tg_referrer");
-        if (refCode) {
-          await processReferral(refCode);
-        }
-        // --- REFERRAL LOGIC END ---
-
-        // Assign a random preset avatar — only if one isn't set yet
-        await supabase
-          .from("profiles")
-          .update({ avatar_url: randomAvatarPreset() })
-          .eq("id", data.user.id)
-          .is("avatar_url", null);
-
-        if (data.user?.identities?.length === 0) {
+        if (data.user.identities?.length === 0) {
           await showAlert("This email is already registered. Try logging in!");
         } else {
-          await showAlert("Check your email for the confirmation link!");
+          // With email confirmation on there's no session yet, so these writes
+          // would be rejected (RLS / RPC needs a signed-in user). In that case
+          // AccountSetupGuard does both on their first signed-in visit instead.
+          if (data.session) {
+            const refCode = localStorage.getItem("tg_referrer");
+            if (refCode) await processReferral(refCode);
+            await supabase
+              .from("profiles")
+              .update({ avatar_url: randomAvatarPreset() })
+              .eq("id", data.user.id)
+              .is("avatar_url", null);
+          }
+          await showAlert(data.session ? "Account created!" : "Check your email for the confirmation link!");
         }
         router.push("/");
       }
@@ -154,8 +152,8 @@ export default function Auth() {
         </p>
       </div>
 
-      {/* Form */}
-      <div className="w-full max-w-sm flex flex-col gap-3">
+      {/* Form — a real <form> so Enter submits and `required` is enforced */}
+      <form onSubmit={handleAuth} className="w-full max-w-sm flex flex-col gap-3">
         <input
           type="email"
           placeholder="Email"
@@ -186,7 +184,7 @@ export default function Auth() {
         )}
 
         <button
-          onClick={handleAuth}
+          type="submit"
           disabled={loading}
           className="w-full bg-indigo-600 text-white py-[1.1rem] rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-[0.97] transition-all disabled:opacity-50 mt-1"
         >
@@ -256,7 +254,7 @@ export default function Auth() {
             {isResetting ? "Back to sign in" : "Forgot password?"}
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

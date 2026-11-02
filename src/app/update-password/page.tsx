@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase, PW_RECOVERY_KEY } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { translations } from "@/lib/languages";
 import { useAppAlert } from "@/context/AlertContext";
@@ -21,6 +21,7 @@ export default function UpdatePassword() {
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
     const initAuth = async () => {
       // Supabase's recovery link can arrive in two shapes depending on the
       // project's auth flow type: the legacy implicit flow puts the token in
@@ -87,6 +88,15 @@ export default function UpdatePassword() {
         setIsSocialUser(true);
       }
 
+      // A recovery link already signed them in and fired PASSWORD_RECOVERY before
+      // this page subscribed (see PW_RECOVERY_KEY in lib/supabase) — the listener
+      // below only ever sees INITIAL_SESSION, so use the flag recorded at load.
+      let recoveryFlag = false;
+      try {
+        recoveryFlag = sessionStorage.getItem(PW_RECOVERY_KEY) === "1";
+      } catch {}
+      if (recoveryFlag && session) setIsRecovery(true);
+
       // 2. Listen for the recovery event or active sessions
       const {
         data: { subscription },
@@ -101,10 +111,13 @@ export default function UpdatePassword() {
         setCheckingAuth(false);
       });
 
-      return () => subscription.unsubscribe();
+      // initAuth is async, so a cleanup returned from it would be ignored by
+      // useEffect — hand it to the effect's own cleanup instead.
+      unsubscribe = () => subscription.unsubscribe();
     };
 
     initAuth();
+    return () => unsubscribe?.();
   }, [router, showAlert]);
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -136,6 +149,9 @@ export default function UpdatePassword() {
     if (error) {
       await showAlert(error.message);
     } else {
+      try {
+        sessionStorage.removeItem(PW_RECOVERY_KEY);
+      } catch {}
       await showAlert(t.password_updated_success);
       router.push("/");
     }
@@ -236,7 +252,13 @@ export default function UpdatePassword() {
         )}
 
         <button
-          onClick={() => router.push("/")}
+          onClick={() => {
+            // Leaving without resetting — stop AuthContext routing this tab back here
+            try {
+              sessionStorage.removeItem(PW_RECOVERY_KEY);
+            } catch {}
+            router.push("/");
+          }}
           className="mt-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-300 hover:text-slate-500 transition-colors text-center"
         >
           {t.cancel_btn}

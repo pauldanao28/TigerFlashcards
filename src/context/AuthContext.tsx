@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useContext, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase, PW_RECOVERY_KEY } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
 
 interface AuthContextType {
@@ -34,8 +34,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // established, sees the logged-out Welcome screen instead of the
         // app, and has no way in short of realizing they need to manually
         // log in again with the password they just set.
+        // /update-password exchanges its own recovery ?code= — exchanging it here
+        // too would race it for the same one-time code, and the loser fails.
         const code = new URLSearchParams(window.location.search).get("code");
-        if (code) {
+        if (code && window.location.pathname !== "/update-password") {
           const { data, error } = await supabase.auth.exchangeCodeForSession(code);
           if (!error) {
             setUser(data.session?.user ?? null);
@@ -49,6 +51,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           data: { session },
         } = await supabase.auth.getSession();
         setUser(session?.user ?? null);
+
+        // A reset link whose redirect wasn't allowed lands on the Site URL instead
+        // of /update-password — the user is signed in by the link but would never
+        // see the form to actually set a new password. Send them there.
+        let recovering = false;
+        try {
+          recovering = sessionStorage.getItem(PW_RECOVERY_KEY) === "1";
+        } catch {}
+        if (session && recovering && window.location.pathname !== "/update-password") {
+          window.location.replace("/update-password");
+          return;
+        }
       } finally {
         clearTimeout(timeout);
         setLoading(false);

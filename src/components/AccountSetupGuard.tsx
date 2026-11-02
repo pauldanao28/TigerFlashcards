@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { validateUsername, isUsernameTaken, type UsernameProblem } from "@/lib/username";
+import { processReferral } from "@/lib/social";
+import { randomAvatarPreset } from "@/lib/avatars";
 
 const MESSAGES: Record<UsernameProblem | "error", string> = {
   too_short: "Too short! (Min 2)",
@@ -16,6 +18,12 @@ const MESSAGES: Record<UsernameProblem | "error", string> = {
 // signed-in user, calls ensure_user_setup to create a missing profile/default deck
 // (reloading once if it had to, so pages pick up the new deck), and asks onboarded
 // users who still have no real username to choose one.
+//
+// It also finishes what email sign-up can't do before the address is confirmed
+// (no session yet, so the writes are rejected): a pending referral from /join and a
+// random preset avatar. The referral check runs on every signed-in load (a code can
+// be picked up from /join at any time); the avatar fill rides the once-per-session
+// check. Both are no-ops once done.
 export default function AccountSetupGuard() {
   const { user } = useAuth();
   const [needsUsername, setNeedsUsername] = useState(false);
@@ -25,10 +33,26 @@ export default function AccountSetupGuard() {
 
   useEffect(() => {
     if (!user) return;
+
+    let refCode: string | null = null;
+    try {
+      refCode = localStorage.getItem("tg_referrer");
+    } catch {}
+    if (refCode) processReferral(refCode);
+
     const key = `account_setup_checked_${user.id}`;
     try {
       if (sessionStorage.getItem(key)) return;
     } catch {}
+
+    supabase
+      .from("profiles")
+      .update({ avatar_url: randomAvatarPreset() })
+      .eq("id", user.id)
+      .is("avatar_url", null)
+      .then(({ error }) => {
+        if (error) console.error("Avatar fill failed:", error.message);
+      });
 
     supabase.rpc("ensure_user_setup").then(({ data, error }) => {
       if (error) {
