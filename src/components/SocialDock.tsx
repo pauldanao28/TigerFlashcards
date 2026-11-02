@@ -190,7 +190,13 @@ export const SocialDock = ({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[240] cursor-pointer touch-none overscroll-none"
+        // No backdrop-blur: animating anything over a blurred backdrop forces the
+        // browser to re-composite that blur every single frame as the opaque sheet
+        // covers more of the screen — a well-known source of jank on mobile,
+        // independent of how clean the sheet's own easing curve is. Bumped the dim
+        // from /20 to /30 to keep enough visual separation from the page behind
+        // without needing the blur to do it.
+        className="fixed inset-0 bg-black/30 z-[240] cursor-pointer touch-none overscroll-none"
       />
 
       {/* 2. THE DOCK (Responsive: Bottom Sheet on Mobile, Sidebar on Desktop) */}
@@ -211,7 +217,7 @@ export const SocialDock = ({
         // shouldn't leave a big empty gap above the Refer button. Slightly less
         // outer padding on mobile (p-5 vs p-6) buys back ~16px of width for the
         // tab row and friend rows on narrow phones, where they're tightest.
-        className="fixed bottom-0 left-0 right-0 max-h-[92vh] w-full bg-white z-[241] p-5 rounded-t-[32px] shadow-2xl flex flex-col
+        className="fixed bottom-0 left-0 right-0 max-h-[92vh] w-full bg-white z-[241] p-5 rounded-t-[32px] shadow-2xl flex flex-col will-change-transform
                    md:top-0 md:right-0 md:left-auto md:bottom-auto md:h-full md:max-h-none md:w-80 md:rounded-none md:translate-y-0 md:p-6"
       >
         {/* Mobile "Handle" - Visual cue that you can swipe down */}
