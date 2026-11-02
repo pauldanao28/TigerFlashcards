@@ -107,7 +107,11 @@ export default function NotificationBell({ userId }: { userId: string }) {
                   <X size={18} className="text-slate-500" />
                 </button>
               </div>
-              <div className="overflow-y-auto px-3 py-2 pb-8">
+              {/* min-h so a near-empty list (or the empty state) still has some
+                  presence instead of the whole sheet shrinking down to sit right
+                  at the bottom edge of the screen — same fix SocialDock's friend
+                  list already uses for the same reason. */}
+              <div className="min-h-[220px] overflow-y-auto px-3 py-2 pb-8">
                 {items.length === 0 ? (
                   <p className="text-center text-xs font-bold text-slate-400 py-10">No notifications yet</p>
                 ) : (
