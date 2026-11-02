@@ -4,7 +4,7 @@ import { motion, AnimatePresence, useAnimationControls } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
-import { getLevel, jlptLevel, JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
+import { jlptLevel, JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
 import { ALLOWED_PARTS_OF_SPEECH } from "@/lib/textNormalize";
 import LoadingScreen from "@/components/LoadingScreen";
 import { SocialDock } from "@/components/SocialDock";
@@ -106,21 +106,15 @@ function ScoreTile({
 }) {
   const s = score ?? 0;
   const displayScore = useCountUp(s);
-  const level = getLevel(s);
   const nlevel = nlevelOverride ?? jlptLevel(s);
   const barColor = s >= 80 ? "bg-red-400" : s >= 60 ? "bg-orange-400" : s >= 40 ? "bg-amber-400" : s >= 20 ? "bg-emerald-400" : "bg-indigo-400";
   return (
     <Link href={href} className={`rounded-2xl p-4 border shadow-sm active:scale-95 transition-all flex flex-col gap-2 ${SKILL_TILE[skill].tile}`}>
       <div className="flex items-center justify-between">
         <span className="text-2xl">{emoji}</span>
-        <div className="flex items-center gap-1">
-          <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${JLPT_BADGE_COLOR[nlevel as JlptLevel]}`}>
-            {nlevel}
-          </span>
-          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-white/70 text-slate-500">
-            {level.nameJp}
-          </span>
-        </div>
+        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${JLPT_BADGE_COLOR[nlevel as JlptLevel]}`}>
+          {nlevel}
+        </span>
       </div>
       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{label}</p>
       <div>
