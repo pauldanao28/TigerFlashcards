@@ -4,6 +4,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { UploadGuardProvider } from "@/context/UploadGuardContext";
 import { AlertProvider } from "@/context/AlertContext";
 import BottomNav from "@/components/BottomNav";
+import AccountSetupGuard from "@/components/AccountSetupGuard";
 import Sidebar from "@/components/Sidebar";
 import SidebarOffsetWrapper from "@/components/SidebarOffsetWrapper";
 
@@ -114,6 +115,7 @@ export default function RootLayout({
                 {children}
               </SidebarOffsetWrapper>
               <BottomNav />
+              <AccountSetupGuard />
             </UploadGuardProvider>
           </AlertProvider>
         </AuthProvider>

@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAppAlert } from "@/context/AlertContext";
 import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
 import { skipDeckDuplicates } from "@/lib/duplicates";
+import { validateUsername, isUsernameTaken } from "@/lib/username";
 
 interface OnboardingProps {
   userId: string;
@@ -99,25 +100,16 @@ export default function OnboardingModal({
   const handleNameSubmit = async () => {
     const trimmedName = name.trim();
 
-    // 1. Basic Validation
-    if (trimmedName.length < 2) return setError(t.too_short);
-    if (trimmedName.length > 10) return setError(t.too_long);
-    if (name.includes(" ")) return setError(t.no_spaces);
+    // 1. Basic Validation (rules shared with AccountSetupGuard via lib/username)
+    const problem = validateUsername(name);
+    if (problem && problem !== "taken") return setError(t[problem]);
 
     setIsChecking(true);
     setError(null);
 
     try {
       // 2. Check Uniqueness in Supabase
-      const { data, error: fetchError } = await supabase
-        .from("profiles")
-        .select("id")
-        .ilike("full_name", trimmedName)
-        .maybeSingle();
-
-      if (fetchError) throw fetchError;
-
-      if (data && data.id !== userId) {
+      if (await isUsernameTaken(trimmedName, userId)) {
         setError(t.taken);
       } else {
         // Name is unique, proceed to path selection

@@ -38,7 +38,8 @@ Required in `.env.local` (and on Vercel for production):
 ### Auth & State
 
 - `AuthContext` (`src/context/AuthContext.tsx`) — exposes `{ user, loading }` via `useAuth()`. Also exchanges a PKCE `?code=` on landing (email-confirmation links).
-- `LanguageContext` (`src/context/LanguageContext.tsx`) — `{ lang, setLang, t }` via `useLang()`; `setLang` persists to `profiles.preferred_language`.
+- `LanguageContext` (`src/context/LanguageContext.tsx`) — `{ lang, setLang, t }` via `useLang()`; `setLang` persists to `profiles.preferred_language`. Note: `LanguageProvider` is not currently mounted in the root layout.
+- Root layout provider tree: `AuthProvider > AlertProvider > UploadGuardProvider`, plus `AccountSetupGuard`, which calls the `ensure_user_setup` RPC once per browser session (creates a missing profile/default deck, then reloads) and asks onboarded users with a blank/`G_` placeholder name to pick a username. Username rules: `src/lib/username.ts`.
 - API routes that cost money or touch other users require a bearer token: client calls go through `authedFetch` (`src/lib/authedFetch.ts`), routes check it with `getAuthedUser` (`src/lib/apiAuth.ts`).
 
 ### Day Boundary
