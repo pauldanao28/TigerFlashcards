@@ -20,6 +20,7 @@ import { findDuplicates, skipDeckDuplicates } from "@/lib/duplicates";
 import { AlertTriangle, Ban, BarChart3, Bell, BookOpen, ChevronLeft, Flag, Gamepad2, Gift, Headphones, ImageIcon, Layers, List, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Volume2, X, Zap } from "lucide-react";
 import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from "@/lib/push";
 import { AVATAR_PRESETS } from "@/lib/avatars";
+import { validateUsername, isUsernameTaken, type UsernameProblem } from "@/lib/username";
 import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
 
 interface StatsCardsCache { userId: string; cards: FlashcardData[]; deckId: string; quickStats: QuickStats | null; }
@@ -177,6 +178,9 @@ export default function StatsPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
+  const [nameDraft, setNameDraft] = useState<string | null>(null); // non-null while editing
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [nameSaving, setNameSaving] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [statsVisible, setStatsVisible] = useState(true);
@@ -893,6 +897,34 @@ export default function StatsPage() {
     }
   };
 
+  const USERNAME_ERRORS: Record<UsernameProblem, string> = {
+    too_short: "Too short! (Min 2)",
+    too_long: "Too long! (Max 10)",
+    no_spaces: "No spaces allowed!",
+    taken: "Already taken! Try another.",
+  };
+
+  const saveUsername = async () => {
+    if (!user || nameDraft == null) return;
+    const next = nameDraft.trim();
+    if (next === profileName) return setNameDraft(null);
+    const problem = validateUsername(nameDraft);
+    if (problem) return setNameError(USERNAME_ERRORS[problem]);
+    setNameSaving(true);
+    setNameError(null);
+    try {
+      if (await isUsernameTaken(next, user.id)) return setNameError(USERNAME_ERRORS.taken);
+      const { error } = await supabase.from("profiles").update({ full_name: next }).eq("id", user.id);
+      if (error) return setNameError(error.code === "23505" ? USERNAME_ERRORS.taken : "Couldn't save. Try again.");
+      setProfileName(next);
+      setNameDraft(null);
+    } catch {
+      setNameError("Couldn't save. Try again.");
+    } finally {
+      setNameSaving(false);
+    }
+  };
+
   const updateAvatar = async (url: string) => {
     const { error } = await supabase
       .from("profiles")
@@ -1182,6 +1214,55 @@ export default function StatsPage() {
                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
                 <h2 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.3em]">Account</h2>
                 <div className="flex-1 h-px bg-slate-100" />
+              </div>
+
+              {/* USERNAME */}
+              <div className="mb-8">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <PenTool size={15} className="text-slate-400" /> Username
+                </h3>
+                {nameDraft == null ? (
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <p className="text-sm font-black text-slate-800 uppercase italic tracking-tight">{profileName || "—"}</p>
+                    <button
+                      onClick={() => { setNameDraft(profileName ?? ""); setNameError(null); }}
+                      className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-indigo-600 hover:text-indigo-600 transition-all active:scale-95"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={nameDraft}
+                        onChange={(e) => { setNameDraft(e.target.value); setNameError(null); }}
+                        onKeyDown={(e) => { if (e.key === "Enter") saveUsername(); if (e.key === "Escape") setNameDraft(null); }}
+                        maxLength={10}
+                        autoFocus
+                        className="flex-1 min-w-0 bg-white border-2 border-slate-200 rounded-xl px-3 py-2 text-sm font-black uppercase tracking-widest focus:border-black outline-none"
+                      />
+                      <button
+                        onClick={saveUsername}
+                        disabled={nameSaving}
+                        className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 disabled:opacity-60"
+                      >
+                        {nameSaving ? "…" : "Save"}
+                      </button>
+                      <button
+                        onClick={() => setNameDraft(null)}
+                        className="px-3 py-2.5 text-slate-500 text-[10px] font-black uppercase tracking-widest"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    {nameError ? (
+                      <p className="text-xs font-bold text-red-500 mt-2">{nameError}</p>
+                    ) : (
+                      <p className="text-[10px] text-slate-500 font-medium mt-2">2–10 characters, no spaces. Friends find you by this name.</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* AVATAR PICKER */}

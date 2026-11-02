@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -20,8 +20,14 @@ export default function OnboardingModal({
   onComplete,
 }: OnboardingProps) {
   const { showAlert } = useAppAlert();
-  const [step, setStep] = useState(1); // 1: Name, 2: Path Selection
-  const [name, setName] = useState(defaultName || "");
+  // A Google sign-up's name, made username-safe (no spaces, max 10). If it passes the
+  // usual rules and isn't taken, the name step is skipped — they can rename any time
+  // in Settings. Step 0 is that brief availability check.
+  const autoName = (defaultName || "").replace(/\s+/g, "").slice(0, 10);
+  const canAutoName = !validateUsername(autoName);
+  const [step, setStep] = useState(canAutoName ? 0 : 1); // 0: checking auto name, 1: Name, 2: Path Selection
+  const [name, setName] = useState(autoName);
+  const [autoNamed, setAutoNamed] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const CONST_DEFAULT_DECK_NAME = "My Deck";
@@ -51,6 +57,23 @@ export default function OnboardingModal({
   const [isChecking, setIsChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (step !== 0) return;
+    let cancelled = false;
+    isUsernameTaken(autoName, userId)
+      .then((taken) => {
+        if (cancelled) return;
+        setAutoNamed(!taken);
+        setStep(taken ? 1 : 2);
+      })
+      .catch(() => {
+        if (!cancelled) setStep(1);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [step, autoName, userId]);
+
   const t = {
     en: {
       nickname: "Nickname",
@@ -58,6 +81,9 @@ export default function OnboardingModal({
       init: "I'm ready. Let's go. →",
       welcome: "Welcome",
       choose: "Choose your starting point:",
+      auto_named: "You're",
+      change_later: "Change it anytime in Settings",
+      change: "Change",
       n5_title: "JLPT N5 KICKSTART",
       n5_desc: "Start with 30 essential words. Best for beginners.",
       n5_btn: "Select Protocol →",
@@ -79,6 +105,9 @@ export default function OnboardingModal({
       init: "準備完了。行こう。 →",
       welcome: "ようこそ",
       choose: "開始プロトコルを選択してください：",
+      auto_named: "ユーザー名：",
+      change_later: "設定からいつでも変更できます",
+      change: "変更",
       n5_title: "日本語能力試験 N5",
       n5_desc: "必須単語30語から始めましょう。初心者に最適です。",
       n5_btn: "プロトコルを選択 →",
@@ -281,6 +310,10 @@ export default function OnboardingModal({
       </div>
 
       <AnimatePresence mode="wait">
+        {step === 0 && (
+          <div className="w-10 h-10 border-4 border-slate-700 border-t-white rounded-full animate-spin" />
+        )}
+
         {step === 1 && (
           <motion.div
             key="step1"
@@ -361,6 +394,17 @@ export default function OnboardingModal({
                 {t.welcome}, {name}!
               </h1>
               <p className="text-slate-400 text-lg font-medium">{t.choose}</p>
+              {autoNamed && (
+                <p className="text-slate-400 text-xs font-medium mt-3">
+                  {t.auto_named} <span className="font-black text-white">{name}</span> · {t.change_later} ·{" "}
+                  <button
+                    onClick={() => { setAutoNamed(false); setStep(1); }}
+                    className="font-black text-indigo-300 underline underline-offset-2"
+                  >
+                    {t.change}
+                  </button>
+                </p>
+              )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <button
