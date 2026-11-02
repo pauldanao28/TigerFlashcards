@@ -224,33 +224,49 @@ export const SocialDock = ({
           </button>
         </div>
 
-        {/* Your own code, shown plainly so it can be read aloud/texted/copied
-            without going through the native share sheet — the input box below
-            already accepts a code typed in directly (addFriend auto-detects
-            the 8-char pattern), this is just the other half: giving yours out. */}
-        {referralCode && (
-          <button
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(referralCode);
-                showAlert("Code copied!");
-              } catch {
-                showAlert(`Your code: ${referralCode}`);
-              }
-            }}
-            className="w-full mb-3 flex items-center justify-between px-4 py-2.5 bg-slate-50 rounded-2xl active:scale-[0.98] transition-all"
-          >
-            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Your code</span>
-            <span className="text-[12px] font-black tracking-[0.15em] text-black">{referralCode}</span>
-          </button>
-        )}
+        {/* Your code and Add Friend share one row (each flex-1) instead of
+            stacking — saves a full row of height on mobile. Your code drops
+            its label+code to a stacked layout to fit comfortably at half
+            width; Add Friend only sits here while collapsed, so once tapped
+            its slot in the row just disappears and the input takes the full
+            row below on its own. */}
+        <div className="flex gap-2 mb-3">
+          {/* Shown plainly so it can be read aloud/texted/copied without going
+              through the native share sheet — the input below already accepts
+              a code typed in directly (addFriend auto-detects the 8-char
+              pattern), this is just the other half: giving yours out. */}
+          {referralCode && (
+            <button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(referralCode);
+                  showAlert("Code copied!");
+                } catch {
+                  showAlert(`Your code: ${referralCode}`);
+                }
+              }}
+              className="flex-1 min-w-0 flex flex-col items-start px-3.5 py-2.5 bg-slate-50 rounded-2xl active:scale-[0.98] transition-all"
+            >
+              <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Your code</span>
+              <span className="text-[12px] font-black tracking-[0.1em] text-black truncate">{referralCode}</span>
+            </button>
+          )}
+          {/* Collapsed behind a button rather than always showing the input —
+              bought back real vertical room for the list below without losing
+              the feature; it stays open for the rest of this sheet-open
+              session once tapped, and collapses itself again after a
+              successful add (see handleQuickAdd/handlePickCandidate). */}
+          {!showAddInput && (
+            <button
+              onClick={() => setShowAddInput(true)}
+              className="flex-1 min-w-0 flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-slate-50 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 active:scale-[0.98] transition-all"
+            >
+              + Add Friend
+            </button>
+          )}
+        </div>
 
-        {/* Collapsed behind a button rather than always showing the input — on
-            mobile that bought back real vertical room for the list below
-            without losing the feature; it stays open for the rest of this
-            sheet-open session once tapped, and collapses itself again after
-            a successful add (see handleQuickAdd/handlePickCandidate). */}
-        {showAddInput ? (
+        {showAddInput && (
           <form onSubmit={handleQuickAdd} className="mb-3 group">
             <div className="relative">
               <input
@@ -268,13 +284,6 @@ export const SocialDock = ({
               </button>
             </div>
           </form>
-        ) : (
-          <button
-            onClick={() => setShowAddInput(true)}
-            className="w-full mb-3 flex items-center justify-center gap-1.5 px-4 py-3 bg-slate-50 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 active:scale-[0.98] transition-all"
-          >
-            + Add Friend
-          </button>
         )}
 
         {candidates && (
