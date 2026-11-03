@@ -147,7 +147,10 @@ export async function renderStatsCard({
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: "auto", paddingTop: 56 }}>
+        {/* Fixed gap, not marginTop: "auto" — this card's content is shorter than the
+            streak/referral cards sharing its 1920px canvas, so "auto" pushed the
+            footer all the way to the bottom and left a large empty gap above it. */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 90 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={avatar} width={84} height={84} style={{ borderRadius: 999, border: "5px solid rgba(255,255,255,0.3)" }} alt="" />
