@@ -4,7 +4,14 @@ import React from "react";
 const UserTable = ({ users }: { users: any[] }) => {
   return (
     <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/40 border border-slate-100 overflow-hidden">
-      <table className="w-full text-left text-sm">
+      {/* A plain <table> doesn't reflow on a narrow screen — without this, the card's
+          own overflow-hidden just silently clipped whatever didn't fit (the stray
+          cut-off colored dot, "0"/"TODAY" squished together) instead of letting you
+          scroll to it. min-w keeps every column at a sane width instead of being
+          force-compressed, with overflow-x-auto scoped to just the table so the
+          card's own rounded corners still clip cleanly. */}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[820px] text-left text-sm">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-100">
             <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">
@@ -144,7 +151,8 @@ const UserTable = ({ users }: { users: any[] }) => {
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   );
 };
