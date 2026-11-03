@@ -74,6 +74,9 @@ export async function GET(req: Request) {
       shareHost,
       deckSize: dash.deck_size,
       vocabNlevel: dash.vocab_nlevel,
+      grammarScore: dash.grammar_score ?? 0,
+      readingScore: dash.reading_score ?? 0,
+      listeningScore: dash.listening_score ?? 0,
       jlptStats: dash.jlpt_stats,
       posStats: dash.pos_stats,
     });

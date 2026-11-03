@@ -27,12 +27,23 @@ const JLPT_FLOOR: Record<JlptLevel, number> = { N5: 800, N4: 700, N3: 2250, N2: 
 
 const POS_LABELS = ["noun", "verb", "adjective", "adverb", "particle", "pronoun", "conjunction", "number", "phrase"];
 
+// Matches SKILL_TILE in skillTheme.ts (grammar violet, reading blue, listening sky) —
+// literal hex since Satori only understands inline styles, not Tailwind classes.
+const SKILL_COLOR = {
+  grammar: { bg: "rgba(139,92,246,0.22)", text: "#ddd6fe" },
+  reading: { bg: "rgba(59,130,246,0.22)", text: "#bfdbfe" },
+  listening: { bg: "rgba(14,165,233,0.22)", text: "#bae6fd" },
+} as const;
+
 export type StatsCardProps = {
   name: string;
   avatar: string;
   shareHost: string;
   deckSize: number;
   vocabNlevel: string;
+  grammarScore: number;
+  readingScore: number;
+  listeningScore: number;
   jlptStats: Record<string, { total: number; mastered: number }>;
   posStats: Record<string, { total: number; mastered: number }>;
 };
@@ -43,13 +54,16 @@ export async function renderStatsCard({
   shareHost,
   deckSize,
   vocabNlevel,
+  grammarScore,
+  readingScore,
+  listeningScore,
   jlptStats,
   posStats,
 }: StatsCardProps): Promise<ImageResponse> {
   const levelColor = JLPT_COLOR[vocabNlevel as JlptLevel] ?? JLPT_COLOR.N5;
   const posText = POS_LABELS.map((p) => p.toUpperCase()).join("");
   const fonts = await loadOgFonts(
-    `FlashKado${name}OVERALLLEVEL${vocabNlevel}VOCABULARYBYLEVELBYPARTOFSPEECHmastered${posText}Learn Japanese with me${shareHost}0123456789%/()·`
+    `FlashKado${name}OVERALLLEVEL${vocabNlevel}GRAMMARREADINGLISTENINGVOCABULARYBYLEVELBYPARTOFSPEECHmastered${posText}Learn Japanese with me${shareHost}0123456789%/()·`
   );
 
   return new ImageResponse(
@@ -88,6 +102,29 @@ export async function renderStatsCard({
           >
             {vocabNlevel}
           </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 14, marginTop: 24 }}>
+          {([
+            ["GRAMMAR", grammarScore, SKILL_COLOR.grammar],
+            ["READING", readingScore, SKILL_COLOR.reading],
+            ["LISTENING", listeningScore, SKILL_COLOR.listening],
+          ] as const).map(([label, score, c]) => (
+            <div
+              key={label}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                flex: 1,
+                padding: "16px 18px",
+                borderRadius: 16,
+                background: c.bg,
+              }}
+            >
+              <span style={{ display: "flex", fontSize: 34, fontWeight: 900, color: "white" }}>{score}%</span>
+              <span style={{ display: "flex", fontSize: 18, fontWeight: 700, letterSpacing: 1, color: c.text, marginTop: 2 }}>{label}</span>
+            </div>
+          ))}
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", marginTop: 36 }}>
