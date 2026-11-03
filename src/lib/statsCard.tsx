@@ -32,6 +32,7 @@ export type StatsCardProps = {
   avatar: string;
   shareHost: string;
   deckSize: number;
+  vocabNlevel: string;
   jlptStats: Record<string, { total: number; mastered: number }>;
   posStats: Record<string, { total: number; mastered: number }>;
 };
@@ -41,12 +42,14 @@ export async function renderStatsCard({
   avatar,
   shareHost,
   deckSize,
+  vocabNlevel,
   jlptStats,
   posStats,
 }: StatsCardProps): Promise<ImageResponse> {
+  const levelColor = JLPT_COLOR[vocabNlevel as JlptLevel] ?? JLPT_COLOR.N5;
   const posText = POS_LABELS.map((p) => p.toUpperCase()).join("");
   const fonts = await loadOgFonts(
-    `FlashKado${name}VOCABULARYBYLEVELBYPARTOFSPEECHmastered${posText}Learn Japanese with me${shareHost}0123456789%/()·`
+    `FlashKado${name}OVERALLLEVEL${vocabNlevel}VOCABULARYBYLEVELBYPARTOFSPEECHmastered${posText}Learn Japanese with me${shareHost}0123456789%/()·`
   );
 
   return new ImageResponse(
@@ -68,7 +71,26 @@ export async function renderStatsCard({
           <span style={{ color: "#a5b4fc" }}>Kado</span>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", marginTop: 44 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 36 }}>
+          <span style={{ display: "flex", fontSize: 26, fontWeight: 900, letterSpacing: 2, color: "#c7d2fe", textTransform: "uppercase" }}>
+            Overall Level
+          </span>
+          <div
+            style={{
+              display: "flex",
+              padding: "8px 22px",
+              borderRadius: 10,
+              background: levelColor.badgeBg,
+              color: levelColor.badgeText,
+              fontSize: 32,
+              fontWeight: 900,
+            }}
+          >
+            {vocabNlevel}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", marginTop: 36 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ display: "flex", fontSize: 30, fontWeight: 900, letterSpacing: 2, color: "#c7d2fe", textTransform: "uppercase" }}>
               Vocabulary by Level

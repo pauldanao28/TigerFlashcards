@@ -73,6 +73,7 @@ export async function GET(req: Request) {
       avatar,
       shareHost,
       deckSize: dash.deck_size,
+      vocabNlevel: dash.vocab_nlevel,
       jlptStats: dash.jlpt_stats,
       posStats: dash.pos_stats,
     });
