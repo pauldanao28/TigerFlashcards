@@ -61,9 +61,13 @@ export async function renderStatsCard({
   posStats,
 }: StatsCardProps): Promise<ImageResponse> {
   const levelColor = JLPT_COLOR[vocabNlevel as JlptLevel] ?? JLPT_COLOR.N5;
+  // Summed from posStats, not jlptStats — pos_stats buckets every deck card
+  // (coalescing a missing partOfSpeech to "noun"), while jlpt_stats skips any card
+  // whose jlpt_level is null, so it alone would undercount the true deck-wide total.
+  const totalMastered = Object.values(posStats).reduce((sum, s) => sum + (s?.mastered ?? 0), 0);
   const posText = POS_LABELS.map((p) => p.toUpperCase()).join("");
   const fonts = await loadOgFonts(
-    `FlashKado${name}OVERALLLEVEL${vocabNlevel}GRAMMARREADINGLISTENINGVOCABULARYBYLEVELBYPARTOFSPEECHmastered${posText}Learn Japanese with me${shareHost}0123456789%/()·`
+    `FlashKado${name}CARDSMASTEREDOVERALLLEVEL${vocabNlevel}GRAMMARREADINGLISTENINGVOCABULARYBYLEVELBYPARTOFSPEECHmastered${posText}Learn Japanese with me${shareHost}0123456789%/()·`
   );
 
   return new ImageResponse(
@@ -85,7 +89,19 @@ export async function renderStatsCard({
           <span style={{ color: "#a5b4fc" }}>Kado</span>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 36 }}>
+        {/* The one true hero stat — bigger than anything below it, same treatment the
+            streak card gives its day count, so this is the number that reads from a
+            thumbnail before any of the detail underneath it does. */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 20 }}>
+          <span style={{ display: "flex", fontSize: 120, fontWeight: 900, lineHeight: 1, letterSpacing: -4 }}>
+            {totalMastered.toLocaleString()}
+          </span>
+          <span style={{ display: "flex", fontSize: 28, fontWeight: 900, letterSpacing: 6, color: "#c7d2fe", textTransform: "uppercase", marginTop: 8 }}>
+            Cards Mastered
+          </span>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 32 }}>
           <span style={{ display: "flex", fontSize: 26, fontWeight: 900, letterSpacing: 2, color: "#c7d2fe", textTransform: "uppercase" }}>
             Overall Level
           </span>
@@ -135,7 +151,7 @@ export async function renderStatsCard({
             <span style={{ display: "flex", fontSize: 26, fontWeight: 700, color: "#c7d2fe" }}>{deckSize.toLocaleString()} cards</span>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", marginTop: 28, gap: 26 }}>
+          <div style={{ display: "flex", flexDirection: "column", marginTop: 22, gap: 20 }}>
             {LEVELS.map((level) => {
               const { total, mastered } = jlptStats[level] ?? { total: 0, mastered: 0 };
               const floor = JLPT_FLOOR[level];
@@ -176,7 +192,7 @@ export async function renderStatsCard({
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", marginTop: 52 }}>
+        <div style={{ display: "flex", flexDirection: "column", marginTop: 40 }}>
           <span style={{ display: "flex", fontSize: 30, fontWeight: 900, letterSpacing: 2, color: "#c7d2fe", textTransform: "uppercase" }}>
             By Part of Speech
           </span>
@@ -209,7 +225,7 @@ export async function renderStatsCard({
         {/* Fixed gap, not marginTop: "auto" — this card's content is shorter than the
             streak/referral cards sharing its 1920px canvas, so "auto" pushed the
             footer all the way to the bottom and left a large empty gap above it. */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 90 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 44 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={avatar} width={84} height={84} style={{ borderRadius: 999, border: "5px solid rgba(255,255,255,0.3)" }} alt="" />
