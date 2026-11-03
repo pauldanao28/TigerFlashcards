@@ -96,9 +96,14 @@ const UserTable = ({ users }: { users: any[] }) => {
               <td className="p-6 text-center">
                 <div className="flex flex-col items-center gap-1">
                   <div className="flex items-center gap-2">
+                    {/* deck_size (their own deck) is the headline number here — the
+                        secondary badge below is total_cards_added, which is actually
+                        "cards this user originated in the SHARED library"
+                        (master_cards.creator_id), not their deck size, since most of
+                        a deck is typically cards someone else already created. */}
                     <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-800 text-[11px] font-black">
-                      {user.total_cards_added || 0}
-                      <span className="opacity-40 text-[9px] ml-1">TOTAL</span>
+                      {user.deck_size || 0}
+                      <span className="opacity-40 text-[9px] ml-1">IN DECK</span>
                     </span>
 
                     {/* Daily Add Badge - Glows amber if they are hitting the limit */}
@@ -116,7 +121,7 @@ const UserTable = ({ users }: { users: any[] }) => {
                   </div>
 
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                    {user.cards_studied} Studied
+                    {user.cards_studied} Studied · {user.total_cards_added || 0} Contributed
                   </span>
                 </div>
               </td>
