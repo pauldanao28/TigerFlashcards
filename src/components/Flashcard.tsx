@@ -504,7 +504,14 @@ export default function Flashcard({
                 boundary between content and footer instead. overflow-hidden is a
                 safety net only — backSizeIdx is what actually keeps this from ever
                 needing it. */}
-            <div ref={backContentRef} className="flex-1 flex flex-col items-center justify-center w-full overflow-hidden">
+            {/* min-h-0: a flex child defaults to min-height:auto, which lets it grow
+                taller than its allotted space to fit its own content instead of being
+                capped — so scrollHeight and clientHeight stayed equal no matter how
+                much this overflowed, the shrink-to-fit effect above never saw a
+                mismatch to act on, and the fixed-height card outside this div just
+                silently clipped whatever didn't fit. This is what makes clientHeight
+                reflect the real available space so that check actually fires. */}
+            <div ref={backContentRef} className="flex-1 min-h-0 flex flex-col items-center justify-center w-full overflow-hidden">
               {(language === "jp" || language === "en") && card?.reading && (
                 <p className="text-indigo-200 text-lg mb-2 font-medium tracking-wide animate-fade-in truncate w-full">
                   {card?.reading}
