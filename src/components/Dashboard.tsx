@@ -275,6 +275,7 @@ export default function Dashboard() {
   const [doneTodayQuizzes, setDoneTodayQuizzes] = useState({ reading: false, listening: false, grammar: false });
   const [isSocialOpen, setIsSocialOpen] = useState(false);
   const [isStreakShareOpen, setIsStreakShareOpen] = useState(false);
+  const [isStatsShareOpen, setIsStatsShareOpen] = useState(false);
   const [selectedPos, setSelectedPos] = useState<string | null>(null);
   const { friends, fetchFriends, socialToast, dismissSocialToast } = useFriendsContext();
 
@@ -467,7 +468,16 @@ export default function Dashboard() {
         <div className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Vocabulary by Level</p>
-            <p className="text-[10px] font-black text-slate-500">{data.deck_size.toLocaleString()} cards</p>
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] font-black text-slate-500">{data.deck_size.toLocaleString()} cards</p>
+              <button
+                onClick={() => setIsStatsShareOpen(true)}
+                aria-label="Share your vocabulary stats"
+                className="text-slate-300 hover:text-slate-500 active:scale-90 transition-all"
+              >
+                <Share2 size={12} />
+              </button>
+            </div>
           </div>
           <div className="space-y-3.5">
             {(["N5", "N4", "N3", "N2", "N1"] as const).map((level) => {
@@ -647,6 +657,43 @@ export default function Dashboard() {
               />
               <button
                 onClick={() => setIsStreakShareOpen(false)}
+                className="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-500"
+              >
+                Close
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Share your vocabulary breakdown — tap the share icon on the Vocabulary by
+          Level card. Same preview/ShareButton pattern as the streak-share modal
+          above, just a different card kind (kind=vocab_stats). */}
+      <AnimatePresence>
+        {isStatsShareOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsStatsShareOpen(false)}
+            className="fixed inset-0 z-[300] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.92, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-[2rem] w-full max-w-xs p-6 flex flex-col gap-3 shadow-2xl"
+            >
+              <p className="text-center text-[10px] font-black uppercase tracking-widest text-slate-500">Share your vocabulary</p>
+              <ShareButton
+                preview
+                params={{ kind: "vocab_stats" }}
+                caption="My vocabulary progress on FlashKado! Join me:"
+                className="bg-indigo-600 text-white shadow-lg shadow-indigo-200"
+              />
+              <button
+                onClick={() => setIsStatsShareOpen(false)}
                 className="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-500"
               >
                 Close

@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { getAuthedUser } from "@/lib/apiAuth";
 import { renderShareCard } from "@/lib/shareCard";
+import { renderStatsCard } from "@/lib/statsCard";
 import { STREAK_MILESTONES } from "@/lib/notificationText";
 
 // Shareable achievement card (1080×1920, Instagram Story size) for the ShareButton.
@@ -46,6 +47,39 @@ export async function GET(req: Request) {
     : `https://api.dicebear.com/7.x/avataaars/png?seed=${user.id}`;
   const shareUrl = me.referral_code ? `${origin}/join/${me.referral_code}` : origin;
   const shareHost = shareUrl.replace(/^https?:\/\//, "");
+
+  // Different template entirely (dashboard-style breakdown, not one hero stat), so
+  // it returns straight from here instead of falling into the shared renderShareCard
+  // call below. jlpt_stats/pos_stats are deck-wide aggregates with no date filtering,
+  // so get_dashboard_data's own per-card mastery math — not duplicated here — is the
+  // single source of truth; it's security definer and reads auth.uid() internally,
+  // so it has to run as the caller's own JWT, not the service-role client used above.
+  if (kind === "vocab_stats") {
+    const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+    if (!token) return new Response("Sign in required", { status: 401 });
+    const userClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { global: { headers: { Authorization: `Bearer ${token}` } } }
+    );
+    const { data: dash, error: dashErr } = await userClient.rpc("get_dashboard_data", {
+      p_today: new Date().toLocaleDateString("en-CA"),
+    });
+    if (dashErr || !dash) return new Response("Couldn't load vocabulary stats", { status: 500 });
+    if (!dash.deck_size) return new Response("No cards in your deck yet", { status: 400 });
+
+    const image = await renderStatsCard({
+      name,
+      avatar,
+      shareHost,
+      deckSize: dash.deck_size,
+      jlptStats: dash.jlpt_stats,
+      posStats: dash.pos_stats,
+    });
+    image.headers.set("X-Share-Url", shareUrl);
+    image.headers.set("Cache-Control", "private, no-store");
+    return image;
+  }
 
   let emoji: string;
   let eyebrow: string;
