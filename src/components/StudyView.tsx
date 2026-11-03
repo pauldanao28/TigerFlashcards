@@ -559,12 +559,13 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     // Cards with an unresolved report are excluded below — the example sentence is
     // generated once and stored on the shared master_cards row (not regenerated per
     // view), so a flagged bad sentence would otherwise keep reaching every learner
-    // who studies that word until an admin happens to check the report queue.
-    const { data: pendingReports } = await supabase
-      .from("card_reports")
-      .select("card_id")
-      .eq("status", "pending");
-    const flaggedCardIds = new Set((pendingReports ?? []).map((r) => r.card_id));
+    // who studies that word until an admin happens to check the report queue. Goes
+    // through a security definer RPC, not a direct card_reports select — that table's
+    // other columns (reporter identity, suggested-correction text) are admin-only,
+    // and this is the narrow carve-out that exposes just the card_id a regular user
+    // needs for suppression to work, nothing else.
+    const { data: pendingCardIds } = await supabase.rpc("get_pending_flagged_card_ids");
+    const flaggedCardIds = new Set((pendingCardIds ?? []).map((r: { card_id: string }) => r.card_id));
 
     const allData: any[] = [];
     let error = null;
