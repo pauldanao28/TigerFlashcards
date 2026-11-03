@@ -21,6 +21,7 @@ export default function AdminDashboard() {
   const [systemFeedbacks, setSystemFeedbacks] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
+  const [regeneratingSentenceId, setRegeneratingSentenceId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     japanese: "",
     english: "",
@@ -181,6 +182,48 @@ export default function AdminDashboard() {
       showAlert("Regeneration failed. Try again.");
     } finally {
       setRegenerating(false);
+    }
+  };
+
+  // One-tap version of handleRegenerate for when a report is specifically about the
+  // example sentence — skips the manual-edit form entirely: regenerates via the same
+  // /api/generate call, but only writes exampleSentence back (japanese/english/reading
+  // etc. stay exactly as they are) and resolves the report immediately. The sentence is
+  // generated once and stored on the shared card (not regenerated per view — see
+  // useAddWords.ts), so every learner who studies this word next gets the new one.
+  const handleRegenerateSentenceOnly = async (reportId: string, cardId: string, japanese: string) => {
+    setRegeneratingSentenceId(cardId);
+    try {
+      const res = await authedFetch("/api/generate", {
+        method: "POST",
+        body: JSON.stringify({ words: [japanese] }),
+      });
+      if (!res.ok) throw new Error("API error");
+      const data = await res.json();
+      const card = Array.isArray(data) ? data[0] : data;
+      if (!card?.exampleSentence?.jp) throw new Error("No sentence returned");
+
+      const { error: cardError } = await supabase
+        .from("master_cards")
+        .update({ exampleSentence: card.exampleSentence })
+        .eq("id", cardId);
+      if (cardError) { showAlert("Update failed: " + cardError.message); return; }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      await supabase
+        .from("card_reports")
+        .update({ status: "resolved", resolved_by: user.id, resolved_at: new Date().toISOString() })
+        .eq("id", reportId);
+
+      setReports((prev) => prev.filter((r) => r.id !== reportId));
+    } catch {
+      showAlert("Sentence regeneration failed. Try again.");
+    } finally {
+      setRegeneratingSentenceId(null);
     }
   };
 
@@ -502,6 +545,13 @@ export default function AdminDashboard() {
                       </div>
                       {view === "pending" && (
                         <div className="flex gap-2 min-w-fit">
+                          <button
+                            onClick={() => handleRegenerateSentenceOnly(report.id, report.master_cards.id, report.master_cards.japanese)}
+                            disabled={regeneratingSentenceId === report.master_cards.id}
+                            className="flex-1 md:px-6 py-4 bg-indigo-50 border-2 border-indigo-100 rounded-2xl font-black text-[10px] uppercase text-indigo-600 hover:border-indigo-300 transition-all disabled:opacity-50"
+                          >
+                            {regeneratingSentenceId === report.master_cards.id ? "…" : "↺ Regenerate Sentence"}
+                          </button>
                           <button
                             onClick={() => startManualEdit(report)}
                             className="flex-1 md:px-6 py-4 bg-white border-2 border-slate-100 rounded-2xl font-black text-[10px] uppercase text-slate-600 hover:border-indigo-200 hover:text-indigo-600 transition-all"

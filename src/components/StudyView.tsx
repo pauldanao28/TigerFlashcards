@@ -556,6 +556,16 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       setDataLoading(true);
     }
 
+    // Cards with an unresolved report are excluded below — the example sentence is
+    // generated once and stored on the shared master_cards row (not regenerated per
+    // view), so a flagged bad sentence would otherwise keep reaching every learner
+    // who studies that word until an admin happens to check the report queue.
+    const { data: pendingReports } = await supabase
+      .from("card_reports")
+      .select("card_id")
+      .eq("status", "pending");
+    const flaggedCardIds = new Set((pendingReports ?? []).map((r) => r.card_id));
+
     const allData: any[] = [];
     let error = null;
     const PAGE_SIZE = 1000;
@@ -580,7 +590,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       if (page) allData.push(...page);
       if (!page || page.length < PAGE_SIZE) break;
     }
-    const data = allData;
+    const data = allData.filter((card) => !flaggedCardIds.has(card.id));
 
     if (!error && data) {
       const flattened = data.map((card: any) => ({
