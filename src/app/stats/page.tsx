@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
 import { translations } from "@/lib/languages";
 import { useUploadGuard } from "@/context/UploadGuardContext";
+import { BADGES } from "@/lib/badges";
 import { useAppAlert } from "@/context/AlertContext";
 import { motion, useAnimationControls } from "framer-motion";
 import Logo from "@/components/Logo";
@@ -156,6 +157,7 @@ export default function StatsPage() {
   const [autoPlayJp, setAutoPlayJp] = useState(true);
   const [autoPlayEn, setAutoPlayEn] = useState(false);
   const [maxStreak, setMaxStreak] = useState(0);
+  const [earnedBadges, setEarnedBadges] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(50);
@@ -380,6 +382,24 @@ export default function StatsPage() {
 
     return () => subscription.unsubscribe();
   }, []); // Empty array means this ONLY runs once on mount
+
+  // Re-checks (not just reads) on every visit — a cheap idempotent RPC call, and the
+  // only other check-and-award call sites (StudyView after a goal, Dashboard on load)
+  // won't have run yet for someone who opens Cards first.
+  useEffect(() => {
+    if (!user) return;
+    supabase.rpc("check_and_award_badges").then(({ error }) => {
+      if (error) console.error("Error checking badges:", error.message);
+    });
+    supabase
+      .from("user_badges")
+      .select("badge_key")
+      .eq("user_id", user.id)
+      .then(({ data, error }) => {
+        if (error) { console.error("Error fetching badges:", error.message); return; }
+        setEarnedBadges(new Set((data ?? []).map((b) => b.badge_key)));
+      });
+  }, [user]);
 
   // 1. Fetch the user's basic info first
   useEffect(() => {
@@ -1792,6 +1812,37 @@ export default function StatsPage() {
                 </Link>
 
               </div>
+            </div>
+          </div>
+
+          {/* Badges — earned (colored) vs locked (greyed). No numeric progress on
+              locked ones in v1; the thresholds live in lib/badges.ts if that's added
+              later. Awarding itself happens server-side (check_and_award_badges),
+              this just reads the result. */}
+          <div className="mb-8">
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">
+              Badges <span className="text-slate-300">· {earnedBadges.size}/{BADGES.length}</span>
+            </h3>
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+              {BADGES.map((badge) => {
+                const earned = earnedBadges.has(badge.key);
+                return (
+                  <div
+                    key={badge.key}
+                    title={badge.description}
+                    className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl border text-center transition-all ${
+                      earned
+                        ? "bg-white border-slate-100 shadow-sm"
+                        : "bg-slate-50 border-slate-100 opacity-40 grayscale"
+                    }`}
+                  >
+                    <span className="text-2xl">{badge.icon}</span>
+                    <span className="text-[9px] font-black uppercase tracking-tight text-slate-600 leading-tight">
+                      {badge.name}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

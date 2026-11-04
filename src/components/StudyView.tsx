@@ -25,6 +25,7 @@ import LoadingScreen from "@/components/LoadingScreen";
 import CoachMarks from "@/components/CoachMarks";
 import { SocialDock } from "@/components/SocialDock";
 import SocialToast from "@/components/SocialToast";
+import BadgeToast from "@/components/BadgeToast";
 import SentenceQuiz from "@/components/SentenceQuiz";
 import ListeningQuiz from "@/components/ListeningQuiz";
 import AddWordsSheet from "@/components/AddWordsSheet";
@@ -268,6 +269,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const [recapAnimMastered, setRecapAnimMastered] = useState(0);
   const [comboToast, setComboToast] = useState<string | null>(null);
   const [reflexToggleToast, setReflexToggleToast] = useState<string | null>(null);
+  const [badgeQueue, setBadgeQueue] = useState<string[]>([]);
   const [milestoneToast, setMilestoneToast] = useState<{ label: string; count: number } | null>(null);
   const [cardMasteryToast, setCardMasteryToast] = useState<{ word: string; level: string; levelMastered: number; direction: "up" | "down" } | null>(null);
   const [jlptFilterToast, setJlptFilterToast] = useState<string | null>(null);
@@ -671,6 +673,14 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     if (error) { console.error("Error updating streak:", error); return; }
     const newStreak = data as number;
     setStreak(newStreak);
+    // Goal-met is the natural celebratory moment for a streak/mastery badge check —
+    // see also Dashboard.tsx's on-load check, which catches badges (mastery, JLPT,
+    // friends) that don't require hitting today's goal at all.
+    supabase.rpc("check_and_award_badges").then(({ data: newBadges, error: badgeErr }) => {
+      if (badgeErr) { console.error("Error checking badges:", badgeErr.message); return; }
+      const keys = (newBadges ?? []).map((b: { badge_key: string }) => b.badge_key);
+      if (keys.length > 0) setBadgeQueue((prev) => [...prev, ...keys]);
+    });
     return newStreak;
   };
 
@@ -2659,6 +2669,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         onTap={() => setIsSocialOpen(true)}
         onDismiss={dismissSocialToast}
       />
+      <BadgeToast queue={badgeQueue} onAdvance={() => setBadgeQueue((prev) => prev.slice(1))} />
       {/* 2. Move AnimatePresence here, now it's a sibling to <main> */}
       <AnimatePresence>
         {isSocialOpen && profileName && user?.id && (

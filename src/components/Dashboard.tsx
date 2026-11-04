@@ -9,6 +9,7 @@ import { ALLOWED_PARTS_OF_SPEECH } from "@/lib/textNormalize";
 import LoadingScreen from "@/components/LoadingScreen";
 import { SocialDock } from "@/components/SocialDock";
 import SocialToast from "@/components/SocialToast";
+import BadgeToast from "@/components/BadgeToast";
 import NotificationBell from "@/components/NotificationBell";
 import ShareButton from "@/components/ShareButton";
 import { SKILL_TILE, type SkillKey } from "@/lib/skillTheme";
@@ -275,6 +276,7 @@ export default function Dashboard() {
   const [doneTodayQuizzes, setDoneTodayQuizzes] = useState({ reading: false, listening: false, grammar: false });
   const [isSocialOpen, setIsSocialOpen] = useState(false);
   const [isStreakShareOpen, setIsStreakShareOpen] = useState(false);
+  const [badgeQueue, setBadgeQueue] = useState<string[]>([]);
   const [isStatsShareOpen, setIsStatsShareOpen] = useState(false);
   const [selectedPos, setSelectedPos] = useState<string | null>(null);
   const { friends, fetchFriends, socialToast, dismissSocialToast } = useFriendsContext();
@@ -319,6 +321,16 @@ export default function Dashboard() {
       };
       _dashboardCache.set(user.id, fresh);
       setData(fresh);
+
+      // Catches badges that don't require hitting today's goal at all (mastery, JLPT
+      // level, friends) — StudyView's own check (after updateStreak) only fires on a
+      // goal-met moment, so this is what covers everything else.
+      const { data: newBadges, error: badgeErr } = await supabase.rpc("check_and_award_badges");
+      if (badgeErr) console.error("Error checking badges:", badgeErr.message);
+      else {
+        const keys = (newBadges ?? []).map((b: { badge_key: string }) => b.badge_key);
+        if (keys.length > 0) setBadgeQueue((prev) => [...prev, ...keys]);
+      }
     };
     load();
     // Depend on user.id (a stable primitive), not the user object — Supabase's
@@ -614,6 +626,7 @@ export default function Dashboard() {
         onTap={() => setIsSocialOpen(true)}
         onDismiss={dismissSocialToast}
       />
+      <BadgeToast queue={badgeQueue} onAdvance={() => setBadgeQueue((prev) => prev.slice(1))} />
 
       <AnimatePresence>
         {isSocialOpen && user?.id && (
