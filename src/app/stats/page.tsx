@@ -18,7 +18,7 @@ import AddWordsSheet from "@/components/AddWordsSheet";
 import DuplicatesSheet from "@/components/DuplicatesSheet";
 import CardDetailModal from "@/components/CardDetailModal";
 import { findDuplicates, skipDeckDuplicates } from "@/lib/duplicates";
-import { AlertTriangle, Ban, BarChart3, Bell, BookOpen, ChevronLeft, Flag, Gamepad2, Gift, Headphones, ImageIcon, Layers, List, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Volume2, X, Zap } from "lucide-react";
+import { AlertTriangle, Ban, BarChart3, Bell, BookOpen, ChevronLeft, ChevronRight, Flag, Gamepad2, Gift, Headphones, ImageIcon, Layers, List, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Volume2, X, Zap } from "lucide-react";
 import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from "@/lib/push";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { validateUsername, isUsernameTaken, type UsernameProblem } from "@/lib/username";
@@ -1840,36 +1840,40 @@ export default function StatsPage() {
             </div>
           </div>
 
-          {/* Badges — earned (colored) vs locked (greyed). No numeric progress on
-              locked ones in v1; the thresholds live in lib/badges.ts if that's added
-              later. Awarding itself happens server-side (check_and_award_badges),
-              this just reads the result. */}
-          <div className="mb-8">
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">
-              Badges <span className="text-slate-300">· {earnedBadges.size}/{BADGES.length}</span>
-            </h3>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-              {BADGES.map((badge) => {
-                const earned = earnedBadges.has(badge.key);
-                return (
-                  <div
-                    key={badge.key}
-                    title={badge.description}
-                    className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl border text-center transition-all ${
-                      earned
-                        ? "bg-white border-slate-100 shadow-sm"
-                        : "bg-slate-50 border-slate-100 opacity-40 grayscale"
-                    }`}
-                  >
-                    <span className="text-2xl">{badge.icon}</span>
-                    <span className="text-[9px] font-black uppercase tracking-tight text-slate-600 leading-tight">
-                      {badge.name}
+          {/* Badges — compact summary card; the full grid lives on its own page
+              (/stats/badges) so it doesn't dominate the Cards page. Awarding
+              itself happens server-side (check_and_award_badges), this just
+              reads the result. */}
+          <Link
+            href="/stats/badges"
+            className="flex items-center justify-between gap-3 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm mb-8 hover:border-indigo-200 transition-all"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              {earnedBadges.size > 0 ? (
+                <div className="flex -space-x-2 shrink-0">
+                  {BADGES.filter((b) => earnedBadges.has(b.key)).slice(0, 4).map((badge) => (
+                    <span
+                      key={badge.key}
+                      className="w-9 h-9 rounded-full bg-slate-50 border-2 border-white flex items-center justify-center text-base shadow-sm"
+                    >
+                      {badge.icon}
                     </span>
-                  </div>
-                );
-              })}
+                  ))}
+                </div>
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
+                  <Trophy size={16} className="text-slate-300" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-700">Badges</p>
+                <p className="text-[10px] text-slate-500 font-medium">
+                  {earnedBadges.size}/{BADGES.length} earned
+                </p>
+              </div>
             </div>
-          </div>
+            <ChevronRight size={18} className="text-slate-300 shrink-0" />
+          </Link>
 
           {/* Stats Cards */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6 mb-8">
