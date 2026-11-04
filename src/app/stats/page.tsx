@@ -185,6 +185,7 @@ export default function StatsPage() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [statsVisible, setStatsVisible] = useState(true);
+  const [dailyQuestsEnabled, setDailyQuestsEnabled] = useState(true);
   const [pushState, setPushState] = useState<"subscribed" | "unsubscribed" | "unsupported" | "loading">("loading");
   const [feedbackForm, setFeedbackForm] = useState({
     type: "feedback",
@@ -470,7 +471,7 @@ export default function StatsPage() {
     const { data } = await supabase
       .from("profiles")
       .select(
-        "full_name, avatar_url, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, sfx_enabled, swipe_only, imported_packs, is_admin, is_premium, referral_code, stats_visible_to_friends",
+        "full_name, avatar_url, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, sfx_enabled, swipe_only, imported_packs, is_admin, is_premium, referral_code, stats_visible_to_friends, daily_quests_enabled",
       )
       .eq("id", user?.id)
       .single();
@@ -489,6 +490,7 @@ export default function StatsPage() {
       setAvatarUrl(data.avatar_url ?? null);
       setReferralCode(data.referral_code ?? null);
       setStatsVisible(data.stats_visible_to_friends ?? true);
+      setDailyQuestsEnabled(data.daily_quests_enabled ?? true);
     }
   };
 
@@ -982,6 +984,7 @@ export default function StatsPage() {
       if (column === "sfx_enabled") setSfxEnabled(value);
       if (column === "swipe_only") setSwipeOnly(value);
       if (column === "stats_visible_to_friends") setStatsVisible(value);
+      if (column === "daily_quests_enabled") setDailyQuestsEnabled(value);
     } else {
       console.error("Error updating setting:", error.message);
     }
@@ -1461,6 +1464,28 @@ export default function StatsPage() {
                     >
                       <div
                         className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${statsVisible ? "left-7" : "left-1"}`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Daily Quests Toggle */}
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
+                    <div>
+                      <p className="text-sm font-bold text-slate-700">
+                        Daily Quests
+                      </p>
+                      <p className="text-[10px] text-slate-500 font-medium leading-tight">
+                        Show 3 daily quests on your Home screen. Turn this off if you&apos;d rather not see them.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        updateAudioSetting("daily_quests_enabled", !dailyQuestsEnabled)
+                      }
+                      className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${dailyQuestsEnabled ? "bg-indigo-600" : "bg-slate-300"}`}
+                    >
+                      <div
+                        className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${dailyQuestsEnabled ? "left-7" : "left-1"}`}
                       />
                     </button>
                   </div>

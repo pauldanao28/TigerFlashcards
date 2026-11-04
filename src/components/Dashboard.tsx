@@ -15,6 +15,7 @@ import ShareButton from "@/components/ShareButton";
 import { SKILL_TILE, type SkillKey } from "@/lib/skillTheme";
 import { Share2 } from "lucide-react";
 import { useFriendsContext } from "@/context/FriendsContext";
+import { pickDailyQuests, questProgress } from "@/lib/dailyQuests";
 
 type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
 
@@ -32,6 +33,8 @@ interface ProfileScores {
   max_streak: number;
   daily_count: number;
   mastered_today: number;
+  cards_added_today: number;
+  daily_quests_enabled: boolean;
   still_learning: number;
   vocab_score: number | null;
   reading_score: number | null;
@@ -309,6 +312,8 @@ export default function Dashboard() {
         max_streak: raw.max_streak ?? 0,
         daily_count: raw.daily_count ?? 0,
         mastered_today: raw.mastered_today ?? 0,
+        cards_added_today: raw.cards_added_today ?? 0,
+        daily_quests_enabled: raw.daily_quests_enabled ?? true,
         still_learning: raw.still_learning ?? 0,
         vocab_score: raw.vocab_score ?? 0,
         reading_score: raw.reading_score ?? null,
@@ -466,6 +471,57 @@ export default function Dashboard() {
           </span>
         </div>
       </div>
+
+      {/* Today's Quests — 2-3 picked deterministically per user+day (see
+          lib/dailyQuests.ts), respecting the Settings toggle. Not shown at all when
+          off, not just greyed out — following Renshuu's lead on letting gamification
+          be optional. */}
+      {data.daily_quests_enabled && (() => {
+        const todaySg = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+        const todaysQuests = user ? pickDailyQuests(user.id, todaySg) : [];
+        return (
+          <div className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Today&apos;s Quests</p>
+            <div className="flex flex-col gap-2.5">
+              {todaysQuests.map((quest) => {
+                const progress = Math.min(
+                  quest.target,
+                  questProgress(quest.key, { ...data, done_today_quizzes: doneTodayQuizzes }),
+                );
+                const done = progress >= quest.target;
+                return (
+                  <div
+                    key={quest.key}
+                    className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
+                      done ? "bg-emerald-50 border-emerald-100" : "bg-slate-50 border-slate-100"
+                    }`}
+                  >
+                    <span className="text-xl shrink-0">{done ? "✅" : quest.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-bold truncate ${done ? "text-emerald-700" : "text-slate-700"}`}>
+                        {quest.label}
+                      </p>
+                      {quest.target > 1 && (
+                        <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1.5 w-full">
+                          <div
+                            className={`h-full ${done ? "bg-emerald-500" : "bg-indigo-500"}`}
+                            style={{ width: `${(progress / quest.target) * 100}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    {quest.target > 1 && (
+                      <span className="text-[10px] font-black text-slate-400 tabular-nums shrink-0">
+                        {progress}/{quest.target}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 2×2 skill tiles */}
       <div className="px-4 grid grid-cols-2 gap-3">
