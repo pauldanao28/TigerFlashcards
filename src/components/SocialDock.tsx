@@ -1,6 +1,6 @@
 /* --- SocialDock.tsx --- */
 import { motion } from "framer-motion";
-import { useState, useEffect } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   addFriend,
@@ -187,7 +187,16 @@ export const SocialDock = ({
     ...friends
       .filter((f) => f.status === "accepted")
       .map((f) => ({ id: f.id, name: f.name, avatar: f.avatar, streak: f.streak ?? 0, isMe: false, nLevel: f.nLevel ?? null })),
-  ].sort((a, b) => b.streak - a.streak);
+  ]
+    .sort((a, b) => b.streak - a.streak)
+    .map((f, i) => ({ ...f, rank: i + 1 }));
+
+  // Show the top 10; if you're ranked below that, your own row is appended after a
+  // divider so you always see where you stand.
+  const RANK_LIMIT = 10;
+  const topRanked = rankedFriends.slice(0, RANK_LIMIT);
+  const myRankedRow = rankedFriends.find((f) => f.isMe);
+  const showMyRowBelow = !!myRankedRow && myRankedRow.rank > RANK_LIMIT;
 
   return (
     <>
@@ -394,16 +403,19 @@ export const SocialDock = ({
           {activeTab === "leaderboard" ? (
             rankedFriends.length > 1 ? (
               <div className="space-y-2">
-                {rankedFriends.map((f, i) => {
-                  const rank = i + 1;
+                {[...topRanked, ...(showMyRowBelow ? [myRankedRow!] : [])].map((f) => {
+                  const rank = f.rank;
                   const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
                   return (
+                    <Fragment key={f.id}>
+                    {f.isMe && showMyRowBelow && (
+                      <div className="text-center text-xs font-black text-slate-300 leading-none py-1">⋯</div>
+                    )}
                     <div
-                      key={f.id}
                       onClick={() => { if (!f.isMe) setSelectedFriendId(f.id); }}
                       className={`flex items-center gap-3 p-2.5 rounded-2xl animate-in fade-in slide-in-from-bottom-2 ${f.isMe ? "bg-indigo-50" : ""} ${!f.isMe ? "cursor-pointer active:opacity-70" : ""}`}
                     >
-                      <span className="w-6 text-center text-xs font-black text-slate-400 shrink-0">
+                      <span className="w-7 text-center text-xs font-black text-slate-400 shrink-0">
                         {medal ?? `#${rank}`}
                       </span>
                       <div className="w-10 h-10 rounded-full border-2 border-slate-100 overflow-hidden bg-slate-50 shrink-0">
@@ -423,6 +435,7 @@ export const SocialDock = ({
                         🔥 {f.streak}
                       </span>
                     </div>
+                    </Fragment>
                   );
                 })}
               </div>
