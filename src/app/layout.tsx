@@ -6,6 +6,7 @@ import { AlertProvider } from "@/context/AlertContext";
 import { FriendsProvider } from "@/context/FriendsContext";
 import BottomNav from "@/components/BottomNav";
 import AccountSetupGuard from "@/components/AccountSetupGuard";
+import InstallPwaBanner from "@/components/InstallPwaBanner";
 import Sidebar from "@/components/Sidebar";
 import SidebarOffsetWrapper from "@/components/SidebarOffsetWrapper";
 
@@ -118,6 +119,7 @@ export default function RootLayout({
                 </SidebarOffsetWrapper>
                 <BottomNav />
                 <AccountSetupGuard />
+                <InstallPwaBanner />
               </FriendsProvider>
             </UploadGuardProvider>
           </AlertProvider>

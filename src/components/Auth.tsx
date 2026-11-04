@@ -13,7 +13,7 @@ import { Eye, EyeOff } from "lucide-react";
 export default function Auth() {
   const router = useRouter();
   const t = translations.en;
-  const { showAlert } = useAppAlert();
+  const { showAlert, showConfirm } = useAppAlert();
 
   // /login renders this unconditionally, with no check of its own for an existing
   // session — so someone who's already signed in and lands here anyway (e.g.
@@ -112,7 +112,25 @@ export default function Auth() {
       }
     }
 
-    if (error) await showAlert(error.message);
+    if (error) {
+      // Before the Supabase Site URL fix, every confirmation link pointed at a dead
+      // localhost:3000 — anyone who signed up in that window could never confirm no
+      // matter how hard they tried, and used to just hit this same dead end again on
+      // login with no way out. Offer a resend instead of the raw error.
+      const notConfirmed = error.code === "email_not_confirmed" || /email not confirmed/i.test(error.message);
+      if (notConfirmed) {
+        const resend = await showConfirm(
+          "Your email isn't confirmed yet. Resend the confirmation link?",
+          { title: "Email not confirmed", confirmLabel: "Resend" },
+        );
+        if (resend) {
+          const { error: resendError } = await supabase.auth.resend({ type: "signup", email });
+          await showAlert(resendError ? resendError.message : "Confirmation email sent! Check your inbox.");
+        }
+      } else {
+        await showAlert(error.message);
+      }
+    }
     setLoading(false);
   };
 
