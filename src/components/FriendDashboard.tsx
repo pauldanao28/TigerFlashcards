@@ -114,7 +114,7 @@ export default function FriendDashboard({ friendId }: { friendId: string }) {
     <div className="min-h-screen bg-slate-50 pb-10">
       <div className="bg-white border-b border-slate-100 px-5 py-4 flex items-center gap-3">
         <Link href="/" className="flex items-center gap-0.5 text-slate-400 hover:text-slate-700 active:scale-90 transition-all">
-          <ChevronLeft size={16} />
+          <ChevronLeft size={14} />
           <span className="text-[9px] font-black uppercase tracking-widest">Back</span>
         </Link>
         <p className="text-[11px] font-black uppercase tracking-widest text-slate-700">Friend Profile</p>

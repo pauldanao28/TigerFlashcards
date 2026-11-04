@@ -55,14 +55,10 @@ export default function KanaStudyClient() {
       <div className="max-w-4xl mx-auto px-6 py-10 min-h-screen bg-slate-50">
         <Link
           href="/quizzes"
-          className="flex items-center gap-1 text-slate-400 hover:text-indigo-600 mb-4 transition-colors w-fit group"
+          className="flex items-center gap-0.5 text-slate-400 hover:text-slate-700 active:scale-90 transition-all mb-4 w-fit"
         >
-          <ChevronLeft
-            size={16}
-            strokeWidth={3}
-            className="transition-transform group-hover:-translate-x-1"
-          />
-          <span className="text-xs font-black uppercase tracking-widest">
+          <ChevronLeft size={14} />
+          <span className="text-[9px] font-black uppercase tracking-widest">
             Back
           </span>
         </Link>
