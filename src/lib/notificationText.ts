@@ -32,7 +32,7 @@ export function notificationText(
       return { emoji: "🤝", title: "Friend request accepted", body: `${name} accepted your friend request!` };
     case "friend_joined":
       return data.name
-        ? { emoji: "🎉", title: `${data.name} joined from your invite`, body: "You're now friends. Say hi in your Study Circle!" }
+        ? { emoji: "🎉", title: `${data.name} joined from your invite`, body: "They're now in your Study Circle. Tap to see their progress." }
         : { emoji: "🎉", title: "A friend joined from your invite", body: "You're now friends. Tap to see who joined!" };
     case "friend_goal":
       return { emoji: "✅", title: `${name} hit their daily goal`, body: `${data.streak ?? 1}-day streak and counting. Your turn!` };
