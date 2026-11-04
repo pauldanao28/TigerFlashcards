@@ -44,6 +44,32 @@ export async function POST(req: Request) {
       );
     }
 
+    case "friend_joined": {
+      // The referrer comes from the caller's own referrals row (written by
+      // process_referral), never from the request, so this can only ever notify the
+      // person who actually invited you — and only once (dedupe_key).
+      const { data: referral } = await supabaseAdmin
+        .from("referrals")
+        .select("referrer_id")
+        .eq("referred_id", user.id)
+        .maybeSingle();
+      if (!referral?.referrer_id) return NextResponse.json({ error: "No referral" }, { status: 404 });
+
+      // Referral links run right after signup, before the new user has picked a
+      // username — don't show the 'G_' placeholder; the text falls back to a
+      // nameless version and tapping opens their profile.
+      const joinedName = me?.full_name && !me.full_name.startsWith("G_") ? me.full_name : undefined;
+      return NextResponse.json(
+        await deliver([{
+          user_id: referral.referrer_id,
+          actor_id: user.id,
+          type: "friend_joined",
+          data: joinedName ? { name: joinedName } : {},
+          dedupe_key: `joined:${user.id}`,
+        }])
+      );
+    }
+
     case "friend_goal": {
       // update_streak sets last_review_date to today (SGT) when the goal is hit.
       const today = sgDate();

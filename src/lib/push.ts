@@ -106,6 +106,12 @@ export function notifyFriendAccepted(targetUserId: string): void {
   sendPushNotification({ type: "friend_accepted", target_user_id: targetUserId });
 }
 
+// Called right after process_referral links a new signup to their referrer — the
+// server looks up the referrer itself (from the referrals row), so no target is sent.
+export function notifyFriendJoined(): void {
+  sendPushNotification({ type: "friend_joined" });
+}
+
 // Called after update_streak succeeds on hitting the daily goal — tells all friends
 // (the server upgrades it to a milestone message on 7/30/100… days).
 export function notifyFriendsGoalMet(): void {

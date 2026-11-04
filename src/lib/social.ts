@@ -1,6 +1,6 @@
 // src/lib/social.ts
 import { supabase } from './supabase';
-import { notifyFriendRequest, notifyFriendAccepted } from './push';
+import { notifyFriendRequest, notifyFriendAccepted, notifyFriendJoined } from './push';
 
 export type FriendCandidate = { id: string; full_name: string };
 
@@ -161,6 +161,7 @@ export const processReferral = async (referralCode: string) => {
     switch (data as string) {
       case "linked":
         localStorage.removeItem("tg_referrer");
+        notifyFriendJoined();
         return { success: true };
       case "self":
         console.log("Self-referral blocked. You cannot invite yourself!");
