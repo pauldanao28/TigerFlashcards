@@ -29,7 +29,7 @@ export async function POST(req: Request) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "FlashKado <onboarding@resend.dev>",
+      from: "FlashKado <noreply@flashkado.app>",
       to: NOTIFY_EMAIL,
       subject: `New signup: ${email}`,
       text: `New user signed up.\n\nEmail: ${email}\nCreated at: ${createdAt}`,

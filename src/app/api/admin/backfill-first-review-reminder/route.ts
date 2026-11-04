@@ -12,8 +12,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Only signups older than 48h — anyone newer is (or will be) covered by the daily
+  // cron's 24-48h window, so including them here would double-send.
+  const cutoff = Date.now() - 48 * 60 * 60 * 1000;
   const allUsers = await listAllUserIds();
-  const candidates = allUsers.map((u) => ({ id: u.id, email: u.email }));
+  const candidates = allUsers
+    .filter((u) => new Date(u.created_at).getTime() <= cutoff)
+    .map((u) => ({ id: u.id, email: u.email }));
 
   const result = await sendFirstReviewReminders(candidates);
   return NextResponse.json({ candidates: candidates.length, ...result });
