@@ -76,23 +76,9 @@ export default function AdminUsersPage() {
 
         <Link
           href="/stats"
-          className="bg-white px-5 py-2.5 rounded-xl shadow-sm font-bold text-slate-600 border border-slate-100 flex items-center gap-2 hover:bg-slate-50 transition-all active:scale-95"
+          className="bg-white px-5 py-2.5 rounded-xl shadow-sm font-bold text-indigo-600 border border-slate-100 flex items-center gap-2 hover:bg-slate-50 transition-all active:scale-95"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={2.5}
-            stroke="currentColor"
-            className="w-4 h-4"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
-            />
-          </svg>
-          Back
+          ← Back
         </Link>
       </div>
 

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { ChevronLeft } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 const GAMES = [
@@ -68,9 +69,10 @@ export default function MiniGamesMenu() {
       <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-800 shrink-0">
         <Link
           href="/stats"
-          className="text-slate-400 hover:text-white transition-colors text-lg leading-none"
+          className="flex items-center gap-0.5 text-slate-400 hover:text-white transition-colors"
         >
-          ←
+          <ChevronLeft size={18} strokeWidth={3} />
+          <span className="text-[10px] font-black uppercase tracking-widest">Back</span>
         </Link>
         <span className="font-black text-[11px] uppercase tracking-widest text-slate-400">
           Mini Games
