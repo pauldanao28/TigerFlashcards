@@ -802,57 +802,59 @@ export default function Dashboard() {
       )}
 
       {/* Directional Comparison — JP→EN (recognition) vs EN→JP (recall), moved here
-          from Cards. */}
+          from Cards. Restyled to match the light cards around it (Deck Stats, Badges)
+          instead of the dark hero-card treatment it had on Cards, where it stood alone
+          rather than sandwiched between two white cards. */}
       {(data.jp_tries + data.en_tries) > 0 && (
-        <div className="mx-4 mt-3 bg-slate-800 rounded-[2.5rem] p-6 text-white shadow-xl border border-slate-700 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full -mr-16 -mt-16 blur-3xl" />
-          <div className="flex flex-col md:flex-row gap-8 items-center">
-            <div className="flex-1 w-full">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 text-[10px] font-black rounded-md border border-indigo-500/30 uppercase tracking-widest">
+        <div className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+          <div className="flex flex-col md:flex-row gap-5 md:gap-6">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] font-black rounded-md border border-indigo-100 uppercase tracking-widest">
                   Recognition
                 </span>
-                <p className="text-xs font-bold text-slate-500">🇯🇵 → 🇺🇸</p>
+                <p className="text-xs font-bold text-slate-400">🇯🇵 → 🇺🇸</p>
               </div>
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase">Tries</p>
-                  <p className="text-xl font-black">{formatCount(data.jp_tries)}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-0.5">Tries</p>
+                  <p className="text-lg font-black text-slate-800 tabular-nums">{formatCount(data.jp_tries)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-indigo-400 uppercase">Accuracy</p>
-                  <p className="text-xl font-black">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-indigo-500 mb-0.5">Accuracy</p>
+                  <p className="text-lg font-black text-indigo-600 tabular-nums">
                     {data.jp_tries > 0 ? Math.round((data.jp_pass / data.jp_tries) * 100) : 0}%
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-emerald-500 uppercase">Pass</p>
-                  <p className="text-xl font-black text-emerald-400">{formatCount(data.jp_pass)}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500 mb-0.5">Pass</p>
+                  <p className="text-lg font-black text-emerald-600 tabular-nums">{formatCount(data.jp_pass)}</p>
                 </div>
               </div>
             </div>
-            <div className="hidden md:block w-px h-16 bg-slate-700/50" />
-            <div className="flex-1 w-full">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 text-[10px] font-black rounded-md border border-orange-500/30 uppercase tracking-widest">
+            <div className="hidden md:block w-px bg-slate-100" />
+            <div className="md:hidden h-px bg-slate-100" />
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="px-2 py-0.5 bg-orange-50 text-orange-600 text-[10px] font-black rounded-md border border-orange-100 uppercase tracking-widest">
                   Recall
                 </span>
-                <p className="text-xs font-bold text-slate-500">🇺🇸 → 🇯🇵</p>
+                <p className="text-xs font-bold text-slate-400">🇺🇸 → 🇯🇵</p>
               </div>
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase">Tries</p>
-                  <p className="text-xl font-black">{formatCount(data.en_tries)}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-0.5">Tries</p>
+                  <p className="text-lg font-black text-slate-800 tabular-nums">{formatCount(data.en_tries)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-orange-400 uppercase">Accuracy</p>
-                  <p className="text-xl font-black">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-orange-500 mb-0.5">Accuracy</p>
+                  <p className="text-lg font-black text-orange-600 tabular-nums">
                     {data.en_tries > 0 ? Math.round((data.en_pass / data.en_tries) * 100) : 0}%
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-emerald-500 uppercase">Pass</p>
-                  <p className="text-xl font-black text-emerald-400">{formatCount(data.en_pass)}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500 mb-0.5">Pass</p>
+                  <p className="text-lg font-black text-emerald-600 tabular-nums">{formatCount(data.en_pass)}</p>
                 </div>
               </div>
             </div>
