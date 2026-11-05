@@ -72,15 +72,22 @@ export default function GrammarPage() {
     return !!s && s.total >= MASTERY_MIN_ATTEMPTS && s.percent >= MASTERY_MIN_PERCENT;
   };
 
-  const masteredCount = useMemo(
-    () => patterns.filter((p) => {
-      const s = scores[p.id];
-      return !!s && s.total >= MASTERY_MIN_ATTEMPTS && s.percent >= MASTERY_MIN_PERCENT;
-    }).length,
+  // Only patterns you've actually attempted at least once — this page is "your
+  // grammar progress," not the full catalog (untouched patterns would just be noise).
+  const touchedPatterns = useMemo(
+    () => patterns.filter((p) => !!scores[p.id] && scores[p.id].total > 0),
     [patterns, scores],
   );
 
-  const visiblePatterns = levelFilter === "all" ? patterns : patterns.filter((p) => p.jlpt_level === levelFilter);
+  const masteredCount = useMemo(
+    () => touchedPatterns.filter((p) => {
+      const s = scores[p.id];
+      return !!s && s.total >= MASTERY_MIN_ATTEMPTS && s.percent >= MASTERY_MIN_PERCENT;
+    }).length,
+    [touchedPatterns, scores],
+  );
+
+  const visiblePatterns = levelFilter === "all" ? touchedPatterns : touchedPatterns.filter((p) => p.jlpt_level === levelFilter);
 
   if (loading) return <LoadingScreen />;
 
@@ -100,7 +107,7 @@ export default function GrammarPage() {
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-2xl md:text-3xl font-black text-slate-800 flex items-center gap-3">
-            📝 Grammar <span className="text-slate-300 text-lg md:text-xl">· {masteredCount}/{patterns.length}</span>
+            📝 Grammar <span className="text-slate-300 text-lg md:text-xl">· {masteredCount}/{touchedPatterns.length}</span>
           </h1>
           <Link
             href="/stats"
@@ -135,7 +142,11 @@ export default function GrammarPage() {
 
         <div className="flex flex-col gap-2">
           {visiblePatterns.length === 0 ? (
-            <p className="text-center text-slate-400 text-sm py-10">No patterns found.</p>
+            <p className="text-center text-slate-400 text-sm py-10">
+              {touchedPatterns.length === 0
+                ? "No grammar patterns practiced yet — try the Grammar quiz to get started."
+                : "No patterns practiced at this level yet."}
+            </p>
           ) : (
             visiblePatterns.map((p) => {
               const meta = LEVEL_META[p.jlpt_level as Level] ?? LEVEL_META.N5;

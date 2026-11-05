@@ -26,6 +26,14 @@ const DAILY_GOAL = 10;
 const REVIEW_TARGET = 100;
 const MASTERED_GOAL = 20;
 
+// Keeps big tries counts (19,095 reviews deep into a word) from blowing out the
+// fixed-width Directional Comparison tiles — "19.1K" reads fine where "19095" doesn't.
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+  return String(n);
+}
+
 interface ProfileScores {
   name: string | null;
   avatar_url: string | null;
@@ -380,13 +388,17 @@ export default function Dashboard() {
       });
 
     (async () => {
-      const [{ count: total }, { data: sData, error }] = await Promise.all([
-        supabase.from("grammar_patterns").select("id", { count: "exact", head: true }),
-        supabase.from("user_grammar_scores").select("total, percent").eq("user_id", user.id),
-      ]);
+      const { data: sData, error } = await supabase
+        .from("user_grammar_scores")
+        .select("total, percent")
+        .eq("user_id", user.id);
       if (error) { console.error("Error fetching grammar scores:", error.message); return; }
-      const mastered = (sData ?? []).filter((s) => s.total >= 3 && s.percent >= 80).length;
-      setGrammarStats({ mastered, total: total ?? 0 });
+      // "Touched" (attempted at least once), not the full catalog — same filter
+      // /stats/grammar uses, so the compact card's count matches what the full
+      // page actually shows.
+      const touched = (sData ?? []).filter((s) => s.total > 0);
+      const mastered = touched.filter((s) => s.total >= 3 && s.percent >= 80).length;
+      setGrammarStats({ mastered, total: touched.length });
     })();
     // Same user?.id-not-user rationale as the load() effect above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -491,43 +503,14 @@ export default function Dashboard() {
       </div>
 
       <div className="max-w-2xl mx-auto">
-      {/* Section label + today's activity pills */}
-      <div className="px-5 pt-5 pb-2 flex items-center justify-between">
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Your Skills</p>
-        <div className="flex items-center gap-1.5">
-          {/* Vocab: shows daily progress */}
-          {(() => {
-            const done = daily_count >= DAILY_GOAL;
-            return (
-              <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border ${done ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
-                🃏 {done ? "✓" : `${daily_count}/${DAILY_GOAL}`}
-              </span>
-            );
-          })()}
-          {/* Reading done today */}
-          <span className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-black border ${doneTodayQuizzes.reading ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
-            📖 {doneTodayQuizzes.reading ? "✓" : "·"}
-          </span>
-          {/* Listening done today */}
-          <span className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-black border ${doneTodayQuizzes.listening ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
-            🎧 {doneTodayQuizzes.listening ? "✓" : "·"}
-          </span>
-          {/* Grammar done today */}
-          <span className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-black border ${doneTodayQuizzes.grammar ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
-            📝 {doneTodayQuizzes.grammar ? "✓" : "·"}
-          </span>
-        </div>
-      </div>
-
-      {/* Today's Quests — 2-3 picked deterministically per user+day (see
-          lib/dailyQuests.ts), respecting the Settings toggle. Not shown at all when
-          off, not just greyed out — following Renshuu's lead on letting gamification
-          be optional. */}
+      {/* Today — grouped together and placed right under the header since this is
+          the most actionable content on the page (what to do today), rather than
+          scattered between the skill/vocab breakdown sections below. */}
       {data.daily_quests_enabled && (() => {
         const todaySg = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
         const todaysQuests = user ? pickDailyQuests(user.id, todaySg) : [];
         return (
-          <div className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+          <div className="mx-4 mt-4 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Today&apos;s Quests</p>
             <div className="flex flex-col gap-2.5">
               {todaysQuests.map((quest) => {
@@ -569,6 +552,58 @@ export default function Dashboard() {
           </div>
         );
       })()}
+
+      {data.deck_size > 0 && (
+        <div className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Today</p>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div>
+              <p className="text-xl font-black text-slate-800 tabular-nums">
+                {daily_count}<span className="text-slate-300 text-sm">/{REVIEW_TARGET}</span>
+              </p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Reviews</p>
+            </div>
+            <div>
+              <p className={`text-xl font-black tabular-nums ${mastered_today >= MASTERED_GOAL ? "text-emerald-600" : "text-slate-800"}`}>
+                {mastered_today}<span className="text-slate-300 text-sm">/{MASTERED_GOAL}</span>
+              </p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Mastered</p>
+            </div>
+            <div>
+              <p className="text-xl font-black text-slate-800 tabular-nums">{still_learning}</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Not Yet Mastered</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Section label + today's activity pills */}
+      <div className="px-5 pt-5 pb-2 flex items-center justify-between">
+        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Your Skills</p>
+        <div className="flex items-center gap-1.5">
+          {/* Vocab: shows daily progress */}
+          {(() => {
+            const done = daily_count >= DAILY_GOAL;
+            return (
+              <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border ${done ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+                🃏 {done ? "✓" : `${daily_count}/${DAILY_GOAL}`}
+              </span>
+            );
+          })()}
+          {/* Reading done today */}
+          <span className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-black border ${doneTodayQuizzes.reading ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+            📖 {doneTodayQuizzes.reading ? "✓" : "·"}
+          </span>
+          {/* Listening done today */}
+          <span className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-black border ${doneTodayQuizzes.listening ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+            🎧 {doneTodayQuizzes.listening ? "✓" : "·"}
+          </span>
+          {/* Grammar done today */}
+          <span className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-black border ${doneTodayQuizzes.grammar ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+            📝 {doneTodayQuizzes.grammar ? "✓" : "·"}
+          </span>
+        </div>
+      </div>
 
       {/* 2×2 skill tiles */}
       <div className="px-4 grid grid-cols-2 gap-3">
@@ -643,31 +678,6 @@ export default function Dashboard() {
                 </button>
               );
             })}
-          </div>
-        </div>
-      )}
-
-      {/* Today — same three daily chips shown in Study, just as a card here */}
-      {data.deck_size > 0 && (
-        <div className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Today</p>
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <div>
-              <p className="text-xl font-black text-slate-800 tabular-nums">
-                {daily_count}<span className="text-slate-300 text-sm">/{REVIEW_TARGET}</span>
-              </p>
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Reviews</p>
-            </div>
-            <div>
-              <p className={`text-xl font-black tabular-nums ${mastered_today >= MASTERED_GOAL ? "text-emerald-600" : "text-slate-800"}`}>
-                {mastered_today}<span className="text-slate-300 text-sm">/{MASTERED_GOAL}</span>
-              </p>
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Mastered</p>
-            </div>
-            <div>
-              <p className="text-xl font-black text-slate-800 tabular-nums">{still_learning}</p>
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Not Yet Mastered</p>
-            </div>
           </div>
         </div>
       )}
@@ -775,7 +785,7 @@ export default function Dashboard() {
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div>
                   <p className="text-[10px] font-bold text-slate-500 uppercase">Tries</p>
-                  <p className="text-xl font-black">{data.jp_tries.toLocaleString()}</p>
+                  <p className="text-xl font-black">{formatCount(data.jp_tries)}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-indigo-400 uppercase">Accuracy</p>
@@ -785,7 +795,7 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-emerald-500 uppercase">Pass</p>
-                  <p className="text-xl font-black text-emerald-400">{data.jp_pass.toLocaleString()}</p>
+                  <p className="text-xl font-black text-emerald-400">{formatCount(data.jp_pass)}</p>
                 </div>
               </div>
             </div>
@@ -800,7 +810,7 @@ export default function Dashboard() {
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div>
                   <p className="text-[10px] font-bold text-slate-500 uppercase">Tries</p>
-                  <p className="text-xl font-black">{data.en_tries.toLocaleString()}</p>
+                  <p className="text-xl font-black">{formatCount(data.en_tries)}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-orange-400 uppercase">Accuracy</p>
@@ -810,7 +820,7 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-emerald-500 uppercase">Pass</p>
-                  <p className="text-xl font-black text-emerald-400">{data.en_pass.toLocaleString()}</p>
+                  <p className="text-xl font-black text-emerald-400">{formatCount(data.en_pass)}</p>
                 </div>
               </div>
             </div>
