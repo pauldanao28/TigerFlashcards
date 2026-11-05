@@ -19,6 +19,7 @@ export const AI_DAILY_LIMITS = {
   learning_insights: 5,   // admin-only "analyze my progress" narrative per day
   line_explain: 50,       // "Explain this line" (Reader sentences / Watch captions) per day —
                           // repeat views of a line are cached client-side and don't count
+  translate: 20,          // "Translate" quick action — any language to Japanese, per day
 } as const;
 
 // Premium gets a higher ceiling, not a bypass — even a paying user shouldn't
@@ -39,6 +40,7 @@ export const AI_DAILY_LIMITS_PREMIUM = {
   mnemonic: 80,
   learning_insights: 15,
   line_explain: 150,
+  translate: 60,
 } as const;
 
 export type AiEndpoint = keyof typeof AI_DAILY_LIMITS;

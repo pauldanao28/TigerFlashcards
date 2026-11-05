@@ -9,6 +9,7 @@ import ListeningQuiz from "@/components/ListeningQuiz";
 import GrammarQuiz from "@/components/GrammarQuiz";
 import ReaderView from "@/components/ReaderView";
 import WatchView from "@/components/WatchView";
+import TranslateView from "@/components/TranslateView";
 
 function QuizzesInner() {
   const router = useRouter();
@@ -20,6 +21,7 @@ function QuizzesInner() {
   const [showGrammar, setShowGrammar] = useState(false);
   const [showReader, setShowReader] = useState(false);
   const [showWatch, setShowWatch] = useState(false);
+  const [showTranslate, setShowTranslate] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -34,6 +36,7 @@ function QuizzesInner() {
       else if (open === "grammar") setShowGrammar(true);
       else if (open === "reader") setShowReader(true);
       else if (open === "watch") setShowWatch(true);
+      else if (open === "translate") setShowTranslate(true);
     });
   }, [router, searchParams]);
 
@@ -80,6 +83,24 @@ function QuizzesInner() {
             <div className="flex-1">
               <p className="font-black text-slate-900">Watch</p>
               <p className="text-xs text-slate-400 mt-0.5">YouTube with Japanese captions beside it — tap words, find the ones you don&apos;t have</p>
+            </div>
+            <span className="text-slate-300 text-lg">›</span>
+          </div>
+        </button>
+
+        {/* Translate */}
+        <button
+          onClick={() => setShowTranslate(true)}
+          className="bg-white rounded-2xl p-5 border-2 border-indigo-100 shadow-sm active:scale-95 transition-all text-left w-full relative overflow-hidden"
+        >
+          <span className="absolute top-3 right-3 text-[8px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+            New
+          </span>
+          <div className="flex items-center gap-4">
+            <span className="text-3xl">🔄</span>
+            <div className="flex-1">
+              <p className="font-black text-slate-900">Translate</p>
+              <p className="text-xs text-slate-400 mt-0.5">Type or speak any language — get casual &amp; polite Japanese, explained</p>
             </div>
             <span className="text-slate-300 text-lg">›</span>
           </div>
@@ -184,6 +205,9 @@ function QuizzesInner() {
       )}
       {showWatch && (
         <WatchView userId={userId} onClose={() => setShowWatch(false)} />
+      )}
+      {showTranslate && (
+        <TranslateView userId={userId} onClose={() => setShowTranslate(false)} />
       )}
     </div>
   );

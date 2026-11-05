@@ -3,7 +3,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence } from "framer-motion";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Home, BookOpen, ScrollText, BarChart2, X, Gamepad2, Languages, Headphones, PenTool, MonitorPlay, Plus, Users } from "lucide-react";
+import { Home, BookOpen, ScrollText, BarChart2, X, Gamepad2, Languages, Headphones, PenTool, MonitorPlay, Plus, Users, ArrowRightLeft } from "lucide-react";
 import { useUploadGuard } from "@/context/UploadGuardContext";
 import { useAppAlert } from "@/context/AlertContext";
 import { useAuth } from "@/context/AuthContext";
@@ -55,6 +55,7 @@ const QUICK_ACTIONS: QuickAction[] = [
   { href: "/quizzes?open=grammar", label: "Grammar Quiz", icon: PenTool, bg: "bg-violet-50", color: "text-violet-600" },
   { href: "/quizzes?open=watch", label: "Watcher", icon: MonitorPlay, bg: "bg-orange-50", color: "text-orange-600" },
   { href: "/quizzes?open=reader", label: "Reader", icon: BookOpen, bg: "bg-teal-50", color: "text-teal-600" },
+  { href: "/quizzes?open=translate", label: "Translate", icon: ArrowRightLeft, bg: "bg-lime-50", color: "text-lime-600" },
   { href: "/study/kana", label: "Kana Practice", icon: Languages, bg: "bg-emerald-50", color: "text-emerald-600" },
 ];
 
