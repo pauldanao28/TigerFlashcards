@@ -300,6 +300,8 @@ export default function Dashboard() {
   const [isStreakShareOpen, setIsStreakShareOpen] = useState(false);
   const [badgeQueue, setBadgeQueue] = useState<string[]>([]);
   const [isStatsShareOpen, setIsStatsShareOpen] = useState(false);
+  const [isQuestsShareOpen, setIsQuestsShareOpen] = useState(false);
+  const [questsShareTotal, setQuestsShareTotal] = useState(0);
   const [selectedPos, setSelectedPos] = useState<string | null>(null);
   const [earnedBadges, setEarnedBadges] = useState<Set<string>>(new Set());
   // Daily Progress — moved here from Cards (see fetchHistory below for why: both
@@ -598,7 +600,18 @@ export default function Dashboard() {
         const allQuestsDone = questStates.length > 0 && questStates.every((q) => q.done);
         return (
           <div className="mx-4 mt-4 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Today&apos;s Quests</p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Today&apos;s Quests</p>
+              {allQuestsDone && (
+                <button
+                  onClick={() => { setQuestsShareTotal(questStates.length); setIsQuestsShareOpen(true); }}
+                  aria-label="Share your completed quests"
+                  className="text-slate-300 hover:text-slate-500 active:scale-90 transition-all"
+                >
+                  <Share2 size={12} />
+                </button>
+              )}
+            </div>
             <div className="flex flex-col gap-2.5">
               {questStates.map(({ quest, progress, done }) => (
                   <div
@@ -629,15 +642,6 @@ export default function Dashboard() {
                   </div>
               ))}
             </div>
-            {allQuestsDone && (
-              <div className="mt-4 pt-3 border-t border-slate-100">
-                <ShareButton
-                  params={{ kind: "quests", total: questStates.length }}
-                  caption={`✅ Completed all ${questStates.length} of today's quests on FlashKado! Join me:`}
-                  className="bg-indigo-600 text-white shadow-lg shadow-indigo-200"
-                />
-              </div>
-            )}
           </div>
         );
       })()}
@@ -1305,6 +1309,44 @@ export default function Dashboard() {
               />
               <button
                 onClick={() => setIsStatsShareOpen(false)}
+                className="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-500"
+              >
+                Close
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Share completed quests — tap the share icon on the Today's Quests card
+          once every quest is done. Same preview/ShareButton pattern as the other
+          two share modals: the image isn't requested until this modal actually
+          mounts ShareButton, not when the icon first appears. */}
+      <AnimatePresence>
+        {isQuestsShareOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsQuestsShareOpen(false)}
+            className="fixed inset-0 z-[300] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.92, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-[2rem] w-full max-w-xs p-6 flex flex-col gap-3 shadow-2xl"
+            >
+              <p className="text-center text-[10px] font-black uppercase tracking-widest text-slate-500">Share your quests</p>
+              <ShareButton
+                preview
+                params={{ kind: "quests", total: questsShareTotal }}
+                caption={`✅ Completed all ${questsShareTotal} of today's quests on FlashKado! Join me:`}
+                className="bg-indigo-600 text-white shadow-lg shadow-indigo-200"
+              />
+              <button
+                onClick={() => setIsQuestsShareOpen(false)}
                 className="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-500"
               >
                 Close
