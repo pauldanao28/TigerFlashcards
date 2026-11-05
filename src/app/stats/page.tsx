@@ -17,7 +17,7 @@ import DuplicatesSheet from "@/components/DuplicatesSheet";
 import CardDetailModal from "@/components/CardDetailModal";
 import { findDuplicates, skipDeckDuplicates } from "@/lib/duplicates";
 import { CONFETTI_PARTICLES } from "@/lib/confetti";
-import { AlertTriangle, Ban, BarChart3, Bell, ChevronLeft, Flag, Gamepad2, Gift, ImageIcon, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, TrendingDown, Trophy, Volume2, X, Zap } from "lucide-react";
+import { AlertTriangle, Ban, BarChart3, Bell, ChevronLeft, ChevronRight, Flag, Gamepad2, Gift, ImageIcon, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, TrendingDown, Trophy, Volume2, X, Zap } from "lucide-react";
 import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from "@/lib/push";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { validateUsername, isUsernameTaken, type UsernameProblem } from "@/lib/username";
@@ -147,6 +147,7 @@ export default function StatsPage() {
   const [scoreDetailCard, setScoreDetailCard] = useState<FlashcardData | null>(null);
   const [showMasteredCelebration, setShowMasteredCelebration] = useState(false);
   const [showStrugglingCelebration, setShowStrugglingCelebration] = useState(false);
+  const [grammarStats, setGrammarStats] = useState<{ mastered: number; total: number } | null>(null);
   const [previewPack, setPreviewPack] = useState<any | null>(null);
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [showAddSheet, setShowAddSheet] = useState(false);
@@ -252,6 +253,22 @@ export default function StatsPage() {
     supabase.rpc("check_and_award_badges").then(({ error }) => {
       if (error) console.error("Error checking badges:", error.message);
     });
+  }, [user]);
+
+  // Grammar summary for the compact card — same mastery bar (>=3 attempts, >=80%)
+  // and "touched" filter as /stats/grammar uses, so the count matches the full page.
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data: sData, error } = await supabase
+        .from("user_grammar_scores")
+        .select("total, percent")
+        .eq("user_id", user.id);
+      if (error) { console.error("Error fetching grammar scores:", error.message); return; }
+      const touched = (sData ?? []).filter((s) => s.total > 0);
+      const mastered = touched.filter((s) => s.total >= 3 && s.percent >= 80).length;
+      setGrammarStats({ mastered, total: touched.length });
+    })();
   }, [user]);
 
   // 1. Fetch the user's basic info first
@@ -1607,6 +1624,31 @@ export default function StatsPage() {
               <Gamepad2 size={20} />
             </Link>
           </div>
+
+          {/* Grammar — compact summary card; the full pattern list (all JLPT levels,
+              filterable) lives on its own page. Kept on Cards (not Home) since it's
+              "your learned content" alongside the vocabulary deck, same category as
+              the card list below it rather than the progress/motivation stuff on
+              Home. */}
+          {grammarStats && grammarStats.total > 0 && (
+            <Link
+              href="/stats/grammar"
+              className="flex items-center justify-between gap-3 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm mb-8 hover:border-indigo-200 transition-all"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-violet-50 border border-violet-100 flex items-center justify-center shrink-0 text-base">
+                  📝
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-700">Grammar</p>
+                  <p className="text-[10px] text-slate-500 font-medium">
+                    {grammarStats.mastered}/{grammarStats.total} learned
+                  </p>
+                </div>
+              </div>
+              <ChevronRight size={18} className="text-slate-300 shrink-0" />
+            </Link>
+          )}
 
           {/* Stats Cards — Mastered/Struggling kept here (not moved to Home with the
               rest of stats) because tapping them opens a real drill-down feature: a

@@ -302,7 +302,6 @@ export default function Dashboard() {
   const [isStatsShareOpen, setIsStatsShareOpen] = useState(false);
   const [selectedPos, setSelectedPos] = useState<string | null>(null);
   const [earnedBadges, setEarnedBadges] = useState<Set<string>>(new Set());
-  const [grammarStats, setGrammarStats] = useState<{ mastered: number; total: number } | null>(null);
   // Daily Progress — moved here from Cards (see fetchHistory below for why: both
   // queries are cheap daily-aggregate tables, not the full per-card dataset, so this
   // doesn't cost Home anything like Mastered/Struggling's drill-down would).
@@ -432,10 +431,9 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  // Badges + Grammar summary cards — moved here from the Cards page so progress/
-  // motivation content lives in one place. Both are cheap, targeted reads (not the
-  // full-deck fetch get_dashboard_data above was built to avoid), same queries the
-  // Cards/Grammar pages themselves use.
+  // Badges summary card — moved here from the Cards page so progress/motivation
+  // content lives in one place. A cheap, targeted read (not the full-deck fetch
+  // get_dashboard_data above was built to avoid), same query the Badges page uses.
   useEffect(() => {
     if (!user) return;
     supabase
@@ -446,20 +444,6 @@ export default function Dashboard() {
         if (error) { console.error("Error fetching badges:", error.message); return; }
         setEarnedBadges(new Set((rows ?? []).map((b) => b.badge_key)));
       });
-
-    (async () => {
-      const { data: sData, error } = await supabase
-        .from("user_grammar_scores")
-        .select("total, percent")
-        .eq("user_id", user.id);
-      if (error) { console.error("Error fetching grammar scores:", error.message); return; }
-      // "Touched" (attempted at least once), not the full catalog — same filter
-      // /stats/grammar uses, so the compact card's count matches what the full
-      // page actually shows.
-      const touched = (sData ?? []).filter((s) => s.total > 0);
-      const mastered = touched.filter((s) => s.total >= 3 && s.percent >= 80).length;
-      setGrammarStats({ mastered, total: touched.length });
-    })();
     // Same user?.id-not-user rationale as the load() effect above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
@@ -778,27 +762,6 @@ export default function Dashboard() {
         </div>
         <ChevronRight size={18} className="text-slate-300 shrink-0" />
       </Link>
-
-      {/* Grammar — same compact-card-to-full-page pattern as Badges. */}
-      {grammarStats && grammarStats.total > 0 && (
-        <Link
-          href="/stats/grammar"
-          className="mx-4 mt-3 flex items-center justify-between gap-3 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm hover:border-indigo-200 transition-all"
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-full bg-violet-50 border border-violet-100 flex items-center justify-center shrink-0 text-base">
-              📝
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-slate-700">Grammar</p>
-              <p className="text-[10px] text-slate-500 font-medium">
-                {grammarStats.mastered}/{grammarStats.total} learned
-              </p>
-            </div>
-          </div>
-          <ChevronRight size={18} className="text-slate-300 shrink-0" />
-        </Link>
-      )}
 
       {/* Deck Stats — Mastered/Struggling/Avg Reflex/Avg Accuracy, moved here from
           Cards; all four now come from get_dashboard_data itself (see its migration)

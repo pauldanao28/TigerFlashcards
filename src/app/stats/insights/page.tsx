@@ -45,7 +45,7 @@ export default function AdvancedStatsPage() {
             📈 Advanced Stats
           </h1>
           <Link
-            href="/stats"
+            href="/"
             className="bg-white px-5 py-2.5 rounded-xl shadow-sm font-bold text-indigo-600 border border-slate-100 flex items-center gap-2 hover:bg-slate-50 transition-all active:scale-95"
           >
             ← Back
