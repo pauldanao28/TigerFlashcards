@@ -588,17 +588,19 @@ export default function Dashboard() {
       {data.daily_quests_enabled && (() => {
         const todaySg = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
         const todaysQuests = user ? pickDailyQuests(user.id, todaySg) : [];
+        const questStates = todaysQuests.map((quest) => {
+          const progress = Math.min(
+            quest.target,
+            questProgress(quest.key, { ...data, done_today_quizzes: doneTodayQuizzes }),
+          );
+          return { quest, progress, done: progress >= quest.target };
+        });
+        const allQuestsDone = questStates.length > 0 && questStates.every((q) => q.done);
         return (
           <div className="mx-4 mt-4 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Today&apos;s Quests</p>
             <div className="flex flex-col gap-2.5">
-              {todaysQuests.map((quest) => {
-                const progress = Math.min(
-                  quest.target,
-                  questProgress(quest.key, { ...data, done_today_quizzes: doneTodayQuizzes }),
-                );
-                const done = progress >= quest.target;
-                return (
+              {questStates.map(({ quest, progress, done }) => (
                   <div
                     key={quest.key}
                     className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
@@ -625,9 +627,17 @@ export default function Dashboard() {
                       </span>
                     )}
                   </div>
-                );
-              })}
+              ))}
             </div>
+            {allQuestsDone && (
+              <div className="mt-4 pt-3 border-t border-slate-100">
+                <ShareButton
+                  params={{ kind: "quests", total: questStates.length }}
+                  caption={`✅ Completed all ${questStates.length} of today's quests on FlashKado! Join me:`}
+                  className="bg-indigo-600 text-white shadow-lg shadow-indigo-200"
+                />
+              </div>
+            )}
           </div>
         );
       })()}

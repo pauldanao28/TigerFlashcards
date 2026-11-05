@@ -121,6 +121,16 @@ export async function GET(req: Request) {
     headlineSize = 320;
     subline = `${from} → ${to} · ${LEVEL_NAME[to].toUpperCase()}`;
     stats = [];
+  } else if (kind === "quests") {
+    const total = clampInt(searchParams.get("total"), 10);
+    if (total == null || total < 1) return new Response("Bad quest params", { status: 400 });
+    emoji = "✅";
+    eyebrow = "Daily Quests Complete";
+    headline = String(total);
+    headlineSize = 320;
+    subline = total === 1 ? "QUEST DONE TODAY" : "QUESTS DONE TODAY";
+    const streak = me.streak_count ?? 0;
+    stats = streak > 0 ? [{ label: "Day streak", value: String(streak) }] : [];
   } else if (kind === "referral") {
     if (!me.referral_code) return new Response("No referral code", { status: 400 });
     emoji = "🎴";
