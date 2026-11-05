@@ -2383,7 +2383,7 @@ export default function StatsPage() {
               Words/Priority Words lists used before those moved here, applied to the
               card list in place instead of another entry-point card stacked above the
               list (Cards already grew too tall once this session; don't repeat that). */}
-          <div className="flex gap-1.5 mb-3 overflow-x-auto pb-0.5">
+          <div className="flex flex-wrap gap-1.5 mb-3">
             {([
               ["slowReflex", "🐌 Slow Reflex"],
               ["recentlyReviewed", "🕐 Recently Reviewed"],
@@ -2395,7 +2395,7 @@ export default function StatsPage() {
                 <button
                   key={key}
                   onClick={() => { setQuickFilter(isActive ? "none" : key); setDisplayLimit(20); }}
-                  className={`shrink-0 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                  className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
                     isActive ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-500 border-slate-200"
                   }`}
                 >
