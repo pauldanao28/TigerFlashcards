@@ -4,6 +4,7 @@ import { ChevronLeft, X, Mic, Square, ArrowRightLeft, Loader2, List, Volume2, Ch
 import { authedFetch } from "@/lib/authedFetch";
 import { speak } from "@/lib/tts";
 import { queuePendingWords } from "@/lib/pendingWords";
+import { markFeatureUsedToday } from "@/lib/featureUsage";
 import TappableText, { kanjiRe } from "@/components/TappableText";
 import WordLookupSheet from "@/components/WordLookupSheet";
 import { useWordLookup } from "@/hooks/useWordLookup";
@@ -136,6 +137,7 @@ export default function TranslateView({ userId, onClose }: { userId: string; onC
       setResult(data as TranslateResult);
       setPhase("result");
       setQueuedWords(new Set());
+      markFeatureUsedToday("translate");
       const combined = `${data.casual.japanese}\n${data.polite.japanese}`;
       await Promise.all([mining.loadWordStatus(combined), mining.loadNewWords(combined)]);
     } catch (e) {

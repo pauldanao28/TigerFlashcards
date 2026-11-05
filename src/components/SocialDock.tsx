@@ -210,6 +210,8 @@ export const SocialDock = ({
     masteredToday?: number;
     cardsAddedToday?: number;
     quizToday?: { reading: boolean; listening: boolean; grammar: boolean } | null;
+    doneTodayTranslate?: boolean;
+    doneTodayReadWatch?: boolean;
   }): boolean => {
     const quests = pickDailyQuests(friend.id, todaySg);
     return quests.every(
@@ -219,6 +221,8 @@ export const SocialDock = ({
           mastered_today: friend.masteredToday ?? 0,
           cards_added_today: friend.cardsAddedToday ?? 0,
           done_today_quizzes: friend.quizToday ?? { reading: false, listening: false, grammar: false },
+          done_today_translate: friend.doneTodayTranslate ?? false,
+          done_today_read_watch: friend.doneTodayReadWatch ?? false,
         }) >= q.target,
     );
   };

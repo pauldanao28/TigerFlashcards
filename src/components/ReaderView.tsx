@@ -16,6 +16,7 @@ import LineExplainSheet from "@/components/LineExplainSheet";
 import { useLineExplain } from "@/hooks/useLineExplain";
 import { splitSentences } from "@/lib/japaneseText";
 import { speakSentence, stopSentence } from "@/lib/tts";
+import { markFeatureUsedToday } from "@/lib/featureUsage";
 
 interface GrammarNote {
   pattern: string;
@@ -115,6 +116,7 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
       setShowNotes(false);
       await Promise.all([mining.loadWordStatus(text), mining.loadNewWords(text)]);
       setPhase("reading");
+      markFeatureUsedToday("reader");
       // A brand-new passage (not a reopened saved one) — save it now.
       if (!savedIdRef.current) {
         savePassage(userId, {

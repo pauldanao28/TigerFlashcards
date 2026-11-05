@@ -45,6 +45,8 @@ interface ProfileScores {
   daily_count: number;
   mastered_today: number;
   cards_added_today: number;
+  done_today_translate: boolean;
+  done_today_read_watch: boolean;
   daily_quests_enabled: boolean;
   still_learning: number;
   mastered_count: number;
@@ -392,6 +394,8 @@ export default function Dashboard() {
         daily_count: raw.daily_count ?? 0,
         mastered_today: raw.mastered_today ?? 0,
         cards_added_today: raw.cards_added_today ?? 0,
+        done_today_translate: !!raw.done_today_translate,
+        done_today_read_watch: !!raw.done_today_read_watch,
         daily_quests_enabled: raw.daily_quests_enabled ?? true,
         still_learning: raw.still_learning ?? 0,
         mastered_count: raw.mastered_count ?? 0,

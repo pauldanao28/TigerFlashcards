@@ -13,6 +13,7 @@ import WordLookupSheet from "@/components/WordLookupSheet";
 import { useWordLookup } from "@/hooks/useWordLookup";
 import { useWordMining } from "@/hooks/useWordMining";
 import { formatDuration, formatTime, parseDuration, parseTime, parseTranscript, parseYouTubeUrl, type CaptionLine } from "@/lib/transcript";
+import { markFeatureUsedToday } from "@/lib/featureUsage";
 
 // YouTube player states (YT.PlayerState)
 const PLAYING = 1;
@@ -195,6 +196,7 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
     setCurrentTime(0);
     setTab("captions");
     setPhase("watching");
+    markFeatureUsedToday("watch");
   };
   // New video: link + transcript are both required, and it's saved before it plays.
   const [savingNew, setSavingNew] = useState(false);

@@ -77,7 +77,12 @@ export function useFriends() {
 
     // Best-effort too — the quest-done indicator just doesn't render without it.
     const { data: questProgress } = await questProgressPromise;
-    type QuestProgress = { mastered_today: number; cards_added_today: number };
+    type QuestProgress = {
+      mastered_today: number;
+      cards_added_today: number;
+      done_today_translate: boolean;
+      done_today_read_watch: boolean;
+    };
     const questProgressByFriend = new Map<string, QuestProgress>(
       ((questProgress ?? []) as (QuestProgress & { friend_id: string })[]).map(
         ({ friend_id, ...p }) => [friend_id, p],
@@ -127,6 +132,8 @@ export function useFriends() {
           quizToday: quizByFriend.get(friendProfile.id) ?? null,
           masteredToday: questProgressByFriend.get(friendProfile.id)?.mastered_today ?? 0,
           cardsAddedToday: questProgressByFriend.get(friendProfile.id)?.cards_added_today ?? 0,
+          doneTodayTranslate: questProgressByFriend.get(friendProfile.id)?.done_today_translate ?? false,
+          doneTodayReadWatch: questProgressByFriend.get(friendProfile.id)?.done_today_read_watch ?? false,
         };
       })
       .filter((f): f is any => f !== null)

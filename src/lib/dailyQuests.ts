@@ -3,16 +3,21 @@
 // pure function of (user_id, date), computed here with a seeded shuffle so it's
 // stable across reloads/devices for the same user on the same day without storing
 // anything. Each quest's progress reads fields get_dashboard_data already returns
-// (daily_count, mastered_today, cards_added_today, done_today_quizzes) — see
-// supabase/migrations/20261104110000_add_daily_quests_fields.sql for the one field
-// that had to be added (cards_added_today; the rest already existed).
+// (daily_count, mastered_today, cards_added_today, done_today_quizzes,
+// done_today_translate, done_today_read_watch) — see
+// supabase/migrations/20261104110000_add_daily_quests_fields.sql (cards_added_today)
+// and 20261105130000_add_translate_read_watch_quests.sql (the latter two, backed by
+// a new daily_feature_usage table since Translate/Reader/Watch aren't graded quizzes
+// and don't fit quiz_daily_stats' schema).
 export type QuestKey =
   | "review_10"
   | "master_1"
   | "add_1"
   | "quiz_reading"
   | "quiz_listening"
-  | "quiz_grammar";
+  | "quiz_grammar"
+  | "translate_1"
+  | "read_watch_1";
 
 export interface QuestDef {
   key: QuestKey;
@@ -31,6 +36,8 @@ export const QUEST_CATALOG: QuestDef[] = [
   { key: "quiz_reading", label: "Try today's Reading quiz", shortLabel: "Reading Quiz", icon: "📖", target: 1 },
   { key: "quiz_listening", label: "Try today's Listening quiz", shortLabel: "Listening Quiz", icon: "🎧", target: 1 },
   { key: "quiz_grammar", label: "Try today's Grammar quiz", shortLabel: "Grammar Quiz", icon: "📝", target: 1 },
+  { key: "translate_1", label: "Translate a sentence or phrase", shortLabel: "Translate", icon: "🔄", target: 1 },
+  { key: "read_watch_1", label: "Read or Watch something in Japanese", shortLabel: "Read/Watch", icon: "📖", target: 1 },
 ];
 
 // Simple string hash (djb2) feeding a seeded PRNG (mulberry32) — deterministic, no
@@ -68,6 +75,8 @@ export interface QuestProgressSource {
   mastered_today: number;
   cards_added_today: number;
   done_today_quizzes: { reading: boolean; listening: boolean; grammar: boolean };
+  done_today_translate: boolean;
+  done_today_read_watch: boolean;
 }
 
 export function questProgress(key: QuestKey, data: QuestProgressSource): number {
@@ -78,5 +87,7 @@ export function questProgress(key: QuestKey, data: QuestProgressSource): number 
     case "quiz_reading": return data.done_today_quizzes.reading ? 1 : 0;
     case "quiz_listening": return data.done_today_quizzes.listening ? 1 : 0;
     case "quiz_grammar": return data.done_today_quizzes.grammar ? 1 : 0;
+    case "translate_1": return data.done_today_translate ? 1 : 0;
+    case "read_watch_1": return data.done_today_read_watch ? 1 : 0;
   }
 }
