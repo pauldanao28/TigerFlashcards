@@ -161,6 +161,16 @@ export default function StatsPage() {
     getPushSubscriptionState().then(setPushState);
   }, []);
 
+  // "Add Cards" quick action (bottom nav Quick Actions sheet) links here with
+  // ?openAdd=1 to open the sheet directly. Read via window.location instead of
+  // useSearchParams so this page doesn't need a Suspense boundary just for a
+  // read-once-on-mount flag.
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("openAdd") === "1") {
+      setShowAddSheet(true);
+    }
+  }, []);
+
   const handleTogglePush = async () => {
     if (pushState === "subscribed") {
       await unsubscribeFromPush();

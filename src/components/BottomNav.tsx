@@ -1,8 +1,8 @@
 "use client";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Home, BookOpen, ScrollText, BarChart2 } from "lucide-react";
+import { Home, BookOpen, ScrollText, BarChart2, Plus, X, Gamepad2, Languages } from "lucide-react";
 import { useUploadGuard } from "@/context/UploadGuardContext";
 import { useAppAlert } from "@/context/AlertContext";
 import { useAuth } from "@/context/AuthContext";
@@ -15,12 +15,38 @@ type Tab = {
   kanji?: string;
 };
 
-const TABS: Tab[] = [
+// Sensei moved out of the primary tab bar into the Quick Actions sheet's Pages
+// section (see QUICK_ACTION_PAGES below) — the middle slot it used to sit next to
+// now opens that sheet instead.
+const TABS_BEFORE: Tab[] = [
   { href: "/",        label: "Home",    icon: Home },
   { href: "/study",   label: "Study",   icon: BookOpen },
+];
+const TABS_AFTER: Tab[] = [
   { href: "/quizzes", label: "Practice", icon: ScrollText },
-  { href: "/sensei",  label: "Sensei",  kanji: "先生" },
   { href: "/stats",   label: "Cards", icon: BarChart2 },
+];
+
+type QuickAction = {
+  href: string;
+  label: string;
+  icon?: React.ComponentType<{ size?: number; className?: string }>;
+  kanji?: string;
+  bg: string;
+  color: string;
+};
+
+// "Add Cards, Quizzes, etc" per the request — kept to the handful of actions that
+// don't already have their own tab (Study/Cards already cover reviewing/browsing).
+const QUICK_ACTIONS: QuickAction[] = [
+  { href: "/stats?openAdd=1", label: "Add Cards", icon: Plus, bg: "bg-indigo-50", color: "text-indigo-600" },
+  { href: "/quizzes", label: "Quizzes", icon: ScrollText, bg: "bg-violet-50", color: "text-violet-600" },
+  { href: "/study/kana", label: "Kana Practice", icon: Languages, bg: "bg-emerald-50", color: "text-emerald-600" },
+];
+
+const QUICK_ACTION_PAGES: QuickAction[] = [
+  { href: "/sensei", label: "Sensei", kanji: "先生", bg: "bg-rose-50", color: "text-rose-600" },
+  { href: "/minigames", label: "Mini Games", icon: Gamepad2, bg: "bg-amber-50", color: "text-amber-600" },
 ];
 
 const SHOW_ON = new Set(["/", "/study", "/quizzes", "/sensei", "/stats"]);
@@ -33,6 +59,7 @@ function BottomNavInner() {
   const { isBusy } = useUploadGuard();
   const { showConfirm } = useAppAlert();
   const { user, loading } = useAuth();
+  const [showQuickActions, setShowQuickActions] = useState(false);
   if (!SHOW_ON.has(path)) return null;
   // Hidden in the mini popup player, and on Study specifically once a desktop
   // browser window has been resized down small enough to trigger its Mini Mode
@@ -42,45 +69,109 @@ function BottomNavInner() {
   if (path === "/study" && autoMiniViewport) return null;
   if (loading || !user) return null;
 
-  return (
-    <nav
-      className="fixed bottom-0 left-0 right-0 z-[200] bg-white/95 backdrop-blur-sm border-t border-slate-100 md:hidden"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+  const guardedNavigate = (e: React.MouseEvent, href: string) => {
+    if (href === path) return;
+    if (isBusy) {
+      // Native confirm() blocks synchronously so preventDefault can act on its
+      // result right away; our custom confirm is async, so we always cancel the
+      // Link's default navigation first and re-navigate manually if confirmed.
+      e.preventDefault();
+      showConfirm(
+        "A batch upload is still running — leave anyway? It won't be cancelled, but you won't see the result.",
+        { title: "Leave this page?", confirmLabel: "Leave", cancelLabel: "Stay" }
+      ).then((ok) => { if (ok) router.push(href); });
+    }
+  };
+
+  const renderTab = (tab: Tab) => {
+    const active = path === tab.href;
+    const color = active ? "text-indigo-600" : "text-slate-400";
+    return (
+      <Link
+        key={tab.href}
+        href={tab.href}
+        onClick={(e) => guardedNavigate(e, tab.href)}
+        className={`flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors active:opacity-70 ${color}`}
+      >
+        {tab.kanji ? (
+          <span className={`text-base font-black leading-none ${color}`}>{tab.kanji}</span>
+        ) : tab.icon ? (
+          <tab.icon size={18} />
+        ) : null}
+        <span className="text-[8px] font-black uppercase tracking-widest">{tab.label}</span>
+      </Link>
+    );
+  };
+
+  const renderQuickActionTile = (item: QuickAction) => (
+    <Link
+      key={item.href}
+      href={item.href}
+      onClick={() => setShowQuickActions(false)}
+      className="flex flex-col items-center gap-2 p-4 rounded-2xl border border-slate-100 bg-slate-50 active:scale-95 transition-all"
     >
-      <div className="flex items-stretch h-14">
-        {TABS.map((tab) => {
-          const active = path === tab.href;
-          const color = active ? "text-indigo-600" : "text-slate-400";
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              onClick={(e) => {
-                if (tab.href === path) return;
-                if (isBusy) {
-                  // Native confirm() blocks synchronously so preventDefault can act on its
-                  // result right away; our custom confirm is async, so we always cancel the
-                  // Link's default navigation first and re-navigate manually if confirmed.
-                  e.preventDefault();
-                  showConfirm(
-                    "A batch upload is still running — leave anyway? It won't be cancelled, but you won't see the result.",
-                    { title: "Leave this page?", confirmLabel: "Leave", cancelLabel: "Stay" }
-                  ).then((ok) => { if (ok) router.push(tab.href); });
-                }
-              }}
-              className={`flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors active:opacity-70 ${color}`}
-            >
-              {tab.kanji ? (
-                <span className={`text-base font-black leading-none ${color}`}>{tab.kanji}</span>
-              ) : tab.icon ? (
-                <tab.icon size={18} />
-              ) : null}
-              <span className="text-[8px] font-black uppercase tracking-widest">{tab.label}</span>
-            </Link>
-          );
-        })}
-      </div>
-    </nav>
+      <span className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${item.bg}`}>
+        {item.kanji ? (
+          <span className={`text-base font-black ${item.color}`}>{item.kanji}</span>
+        ) : item.icon ? (
+          <item.icon size={20} className={item.color} />
+        ) : null}
+      </span>
+      <span className="text-[11px] font-bold text-slate-700 text-center leading-tight">{item.label}</span>
+    </Link>
+  );
+
+  return (
+    <>
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-[200] bg-white/95 backdrop-blur-sm border-t border-slate-100 md:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="flex items-stretch h-14">
+          {TABS_BEFORE.map(renderTab)}
+          <button
+            onClick={() => setShowQuickActions(true)}
+            className="flex-1 flex flex-col items-center justify-center"
+          >
+            <span className="relative -mt-7 w-14 h-14 rounded-full bg-indigo-600 shadow-lg shadow-indigo-300/50 flex items-center justify-center border-4 border-white active:scale-95 transition-all">
+              <Plus size={24} className="text-white" />
+            </span>
+          </button>
+          {TABS_AFTER.map(renderTab)}
+        </div>
+      </nav>
+
+      {/* Quick Actions sheet — Add Cards/Quizzes/Kana Practice up top, Sensei and
+          Mini Games (no longer their own tabs) under Pages below. */}
+      {showQuickActions && (
+        <>
+          <div
+            className="fixed inset-0 z-[240] bg-black/40 backdrop-blur-sm md:hidden"
+            onClick={() => setShowQuickActions(false)}
+          />
+          <div
+            className="fixed bottom-0 left-0 right-0 z-[241] bg-white rounded-t-3xl shadow-2xl p-6 max-h-[80vh] overflow-y-auto md:hidden"
+            style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <p className="text-lg font-black text-slate-800">Quick Actions</p>
+              <button onClick={() => setShowQuickActions(false)} className="text-slate-400 hover:text-slate-600 active:scale-90 transition-all">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              {QUICK_ACTIONS.map(renderQuickActionTile)}
+            </div>
+
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Pages</p>
+            <div className="grid grid-cols-3 gap-3">
+              {QUICK_ACTION_PAGES.map(renderQuickActionTile)}
+            </div>
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
