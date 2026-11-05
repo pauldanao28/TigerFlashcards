@@ -314,6 +314,13 @@ export default function Flashcard({
   // enough that even that tier still overflows.
   const BACK_JP_SIZE_LADDER = ["text-5xl sm:text-6xl", "text-4xl", "text-3xl", "text-2xl", "text-xl", "text-lg", "text-base"];
   const BACK_EN_SIZE_LADDER = ["text-3xl sm:text-4xl", "text-3xl", "text-2xl", "text-xl", "text-lg", "text-base", "text-sm", "text-xs"];
+  // The reading line above backText was fixed at text-lg regardless of backSizeIdx —
+  // a long meaning (3+ lines) shrinks backText several tiers down, but the reading
+  // held its size, so the two together could still overflow backContentRef's
+  // measured height; overflow-hidden then clipped whichever edge didn't fit, cutting
+  // off (or visually garbling) the reading specifically since it sits at the top.
+  // Shrinking it in step with backSizeIdx keeps total height in check instead.
+  const READING_SIZE_LADDER = ["text-lg", "text-base", "text-sm", "text-sm", "text-xs", "text-xs", "text-xs", "text-xs"];
 
   const getFontSize = (text: string, isJapanese: boolean) => {
     const len = text.length;
@@ -513,7 +520,7 @@ export default function Flashcard({
                 reflect the real available space so that check actually fires. */}
             <div ref={backContentRef} className="flex-1 min-h-0 flex flex-col items-center justify-center w-full overflow-hidden">
               {(language === "jp" || language === "en") && card?.reading && (
-                <p className="text-indigo-200 text-lg mb-2 font-medium tracking-wide animate-fade-in truncate w-full">
+                <p className={`text-indigo-200 ${READING_SIZE_LADDER[backSizeIdx]} mb-2 font-medium tracking-wide animate-fade-in truncate w-full`}>
                   {card?.reading}
                 </p>
               )}
