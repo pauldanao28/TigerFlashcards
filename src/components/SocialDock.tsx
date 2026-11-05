@@ -213,7 +213,7 @@ export const SocialDock = ({
     doneTodayTranslate?: boolean;
     doneTodayReadWatch?: boolean;
   }): boolean => {
-    const quests = pickDailyQuests(friend.id, todaySg);
+    const quests = pickDailyQuests(todaySg);
     return quests.every(
       (q) =>
         questProgress(q.key, {

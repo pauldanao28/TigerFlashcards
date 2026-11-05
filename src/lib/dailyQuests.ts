@@ -1,8 +1,8 @@
 // Daily Quests are fully derived — no daily_quests table, no new progress-tracking
 // hooks into handleScore/quiz handlers/useAddWords. Which 2-3 quests show today is a
-// pure function of (user_id, date), computed here with a seeded shuffle so it's
-// stable across reloads/devices for the same user on the same day without storing
-// anything. Each quest's progress reads fields get_dashboard_data already returns
+// pure function of (date) — same for every user, computed here with a seeded
+// shuffle so it's stable across reloads/devices/users for the same day without
+// storing anything. Each quest's progress reads fields get_dashboard_data already returns
 // (daily_count, mastered_today, cards_added_today, done_today_quizzes,
 // done_today_translate, done_today_read_watch) — see
 // supabase/migrations/20261104110000_add_daily_quests_fields.sql (cards_added_today)
@@ -59,10 +59,14 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-export function pickDailyQuests(userId: string, dateStr: string, count = 3): QuestDef[] {
-  const rand = mulberry32(seedFromString(`${userId}:${dateStr}`));
+// Seeded by date only (not per-user) — everyone gets the same 3 quests on a given
+// day, a fresh random set each day. Keeps the social features built around quests
+// (friends' completion badge, the shared "Today's Quests" card) meaningful: a
+// friend's badge means they did the same 3 things you're doing today.
+export function pickDailyQuests(dateStr: string, count = 3): QuestDef[] {
+  const rand = mulberry32(seedFromString(dateStr));
   const pool = [...QUEST_CATALOG];
-  // Fisher-Yates with the seeded PRNG — same shuffle every time for this user+date.
+  // Fisher-Yates with the seeded PRNG — same shuffle every time for this date.
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];

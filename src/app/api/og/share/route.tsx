@@ -123,11 +123,11 @@ export async function GET(req: Request) {
     subline = `${from} → ${to} · ${LEVEL_NAME[to].toUpperCase()}`;
     stats = [];
   } else if (kind === "quests") {
-    // Today's quest set is a pure function of (user, Asia/Singapore date) — see
-    // pickDailyQuests — so it's recomputed here rather than trusted from the query
-    // string, same list the client showed in the Today's Quests card.
+    // Today's quest set is a pure function of (Asia/Singapore date), same for every
+    // user — see pickDailyQuests — so it's recomputed here rather than trusted from
+    // the query string, same list the client showed in the Today's Quests card.
     const todaySg = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
-    const todaysQuests = pickDailyQuests(user.id, todaySg);
+    const todaysQuests = pickDailyQuests(todaySg);
     emoji = "✅";
     eyebrow = "Daily Quests Complete";
     headline = "";

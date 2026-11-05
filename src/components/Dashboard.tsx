@@ -348,7 +348,7 @@ export default function Dashboard() {
 
     const doneDates = new Set<string>();
     for (const day of (questHistory ?? []) as (QuestProgressSource & { study_date: string })[]) {
-      const quests = pickDailyQuests(user.id, day.study_date);
+      const quests = pickDailyQuests(day.study_date);
       if (quests.length > 0 && quests.every((q) => questProgress(q.key, day) >= q.target)) {
         doneDates.add(day.study_date);
       }
@@ -611,7 +611,7 @@ export default function Dashboard() {
           scattered between the skill/vocab breakdown sections below. */}
       {data.daily_quests_enabled && (() => {
         const todaySg = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
-        const todaysQuests = user ? pickDailyQuests(user.id, todaySg) : [];
+        const todaysQuests = pickDailyQuests(todaySg);
         const questStates = todaysQuests.map((quest) => {
           const progress = Math.min(
             quest.target,
