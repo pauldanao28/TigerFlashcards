@@ -2085,9 +2085,9 @@ export default function StatsPage() {
           <div className="grid grid-cols-3 gap-1.5 mb-3">
             {([
               ["mastered", "🏆 Mastered"],
-              ["slowReflex", "🐌 Slow Reflex"],
+              ["slowReflex", "🐌 Slow"],
               ["recentlyReviewed", "🕐 Recent"],
-              ["weakWords", "😓 Weak Words"],
+              ["weakWords", "😓 Weak"],
               ["favorites", "⭐ Favorites"],
             ] as const).map(([key, label]) => {
               const isActive = quickFilter === key;

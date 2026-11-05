@@ -54,10 +54,10 @@ type QuickAction = {
 const QUICK_ACTIONS: QuickAction[] = [
   { action: "addCards", label: "Add Cards", icon: Plus, bg: "bg-fuchsia-50", color: "text-fuchsia-600", badgeKey: "addCards" },
   { href: "/quizzes?open=translate", label: "Translate", icon: ArrowRightLeft, bg: "bg-lime-50", color: "text-lime-600" },
+  { href: "/quizzes?open=weak_words", label: "Weak Words Quiz", icon: Frown, bg: "bg-rose-50", color: "text-rose-600", badgeKey: "weakWords" },
   { href: "/quizzes?open=sentence", label: "Reading Quiz", icon: ScrollText, bg: "bg-indigo-50", color: "text-indigo-600" },
   { href: "/quizzes?open=listening", label: "Listening Quiz", icon: Headphones, bg: "bg-sky-50", color: "text-sky-600" },
   { href: "/quizzes?open=grammar", label: "Grammar Quiz", icon: PenTool, bg: "bg-violet-50", color: "text-violet-600" },
-  { href: "/quizzes?open=weak_words", label: "Weak Words Quiz", icon: Frown, bg: "bg-rose-50", color: "text-rose-600", badgeKey: "weakWords" },
   { href: "/quizzes?open=watch", label: "Watcher", icon: MonitorPlay, bg: "bg-orange-50", color: "text-orange-600" },
   { href: "/quizzes?open=reader", label: "Reader", icon: BookOpen, bg: "bg-teal-50", color: "text-teal-600" },
   { href: "/study/kana", label: "Kana Practice", icon: Languages, bg: "bg-emerald-50", color: "text-emerald-600" },
