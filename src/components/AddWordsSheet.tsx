@@ -44,6 +44,8 @@ export default function AddWordsSheet({
     setShowSummary,
     processWords,
     deleteFromSummary,
+    relatedWords,
+    relatedWordsLoading,
   } = useAddWords({ userId, deckId, isAdmin, blocklist, onAdded });
 
   const [input, setInput] = useState("");
@@ -312,6 +314,9 @@ export default function AddWordsSheet({
           words={addedWordsSummary}
           onClose={() => setShowSummary(false)}
           onDelete={(word) => deleteFromSummary(word.id)}
+          relatedWords={relatedWords}
+          relatedWordsLoading={relatedWordsLoading}
+          onAddRelated={(word) => processWords([word.japanese])}
         />
       )}
 

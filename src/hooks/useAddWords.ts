@@ -20,6 +20,13 @@ export interface AddedWordSummary {
   alreadyInDeck: boolean;
 }
 
+export interface RelatedWord {
+  japanese: string;
+  reading: string;
+  english: string;
+  jlpt_level: "N5" | "N4" | "N3" | "N2" | "N1" | null;
+}
+
 /**
  * Same add-word pipeline as the stats page's Add Sheet (tokenize input, check
  * the daily AI limit, look up/generate cards, link them into the deck) minus
@@ -45,6 +52,28 @@ export function useAddWords({
   const [loading, setLoading] = useState(false);
   const [addedWordsSummary, setAddedWordsSummary] = useState<AddedWordSummary[]>([]);
   const [showSummary, setShowSummary] = useState(false);
+
+  // "Related Words" — shown only after a deliberate single-word add (not a batch),
+  // below the summary. Fetched separately from the add itself so a slow/failed AI
+  // call never blocks the add from completing.
+  const [relatedWords, setRelatedWords] = useState<RelatedWord[]>([]);
+  const [relatedWordsLoading, setRelatedWordsLoading] = useState(false);
+  const fetchRelatedWords = async (card: { japanese: string; reading: string; english: string }) => {
+    setRelatedWordsLoading(true);
+    try {
+      const res = await authedFetch("/api/related-words", {
+        method: "POST",
+        body: JSON.stringify({ word: card.japanese, reading: card.reading, english: card.english }),
+      });
+      if (!res.ok) { setRelatedWords([]); return; }
+      const { words } = await res.json();
+      setRelatedWords(Array.isArray(words) ? words : []);
+    } catch {
+      setRelatedWords([]);
+    } finally {
+      setRelatedWordsLoading(false);
+    }
+  };
 
   // Duplicates skipped while linking (みず when 水 is in the deck): removed card id → the
   // deck card it duplicates, shown in the summary as "already in deck" instead.
@@ -119,6 +148,10 @@ export function useAddWords({
 
     const uniqueInputWords = [...new Set(wordsToProcess)];
     if (uniqueInputWords.length === 0) return succeededWords;
+
+    // A fresh add always clears stale suggestions from whatever was added before —
+    // re-populated below only when this turns out to be a single-word add.
+    setRelatedWords([]);
 
     setLoading(true);
     setUploadBusy(true);
@@ -261,6 +294,12 @@ export function useAddWords({
         setAddedWordsSummary(finalSummary);
         setShowSummary(true);
         onAdded?.();
+        // A deliberate single-word add (not a batch) gets "Related Words" suggestions —
+        // fired in the background, not awaited, so a slow AI call never delays the add
+        // itself finishing.
+        if (uniqueInputWords.length === 1 && finalSummary.length === 1) {
+          fetchRelatedWords(finalSummary[0]);
+        }
       }
     } catch (e: any) {
       console.error("ProcessWords Error:", e);
@@ -299,5 +338,7 @@ export function useAddWords({
     setShowSummary,
     processWords,
     deleteFromSummary,
+    relatedWords,
+    relatedWordsLoading,
   };
 }

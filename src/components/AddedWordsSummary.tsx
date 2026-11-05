@@ -1,6 +1,7 @@
 "use client";
+import { Loader2, Plus } from "lucide-react";
 import { translations } from "@/lib/languages";
-import type { AddedWordSummary } from "@/hooks/useAddWords";
+import type { AddedWordSummary, RelatedWord } from "@/hooks/useAddWords";
 
 const t = translations.en;
 
@@ -17,16 +18,28 @@ const JLPT_BADGE_COLOR: Record<(typeof JLPT_LEVELS)[number], string> = {
  * "Words added" summary shown after adding words to the deck — new vs already-in-deck
  * counts, JLPT breakdown, and each card (reading, meaning, level, part of speech) with a
  * delete button to undo it. Used by the Add sheet (Study / Profile), the Reader and Watch.
+ *
+ * relatedWords/onAddRelated are optional — only the Add sheet's useAddWords populates
+ * them (after a deliberate single-word add, not a batch; Reader/Watch's own add flow
+ * doesn't pass these). Tapping a suggestion re-adds through the same path as typing it
+ * in, which naturally fetches a fresh set of suggestions for IT — letting the user chain
+ * through related vocabulary instead of a dead-end list.
  */
 export default function AddedWordsSummary({
   words,
   onClose,
   onDelete,
+  relatedWords,
+  relatedWordsLoading,
+  onAddRelated,
   zClassName = "z-[260]",
 }: {
   words: AddedWordSummary[];
   onClose: () => void;
   onDelete: (word: AddedWordSummary) => void;
+  relatedWords?: RelatedWord[];
+  relatedWordsLoading?: boolean;
+  onAddRelated?: (word: RelatedWord) => void;
   zClassName?: string;
 }) {
   return (
@@ -146,6 +159,46 @@ export default function AddedWordsSummary({
               </div>
             </div>
           ))}
+
+          {(relatedWordsLoading || (relatedWords && relatedWords.length > 0)) && (
+            <div className="pt-1">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 px-1">
+                Related Words
+              </p>
+              {relatedWordsLoading ? (
+                <div className="flex items-center justify-center gap-2 py-4 text-slate-400">
+                  <Loader2 size={14} className="animate-spin" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Finding related words…</span>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {relatedWords!.map((w) => (
+                    <button
+                      key={w.japanese}
+                      onClick={() => onAddRelated?.(w)}
+                      className="w-full p-3 rounded-xl border border-slate-100 bg-white hover:border-indigo-100 hover:bg-indigo-50/30 transition-all flex items-center gap-3 text-left active:scale-[0.98]"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="font-black text-slate-800 truncate">{w.japanese}</span>
+                          <span className="text-[11px] font-bold text-rose-500 uppercase tracking-tighter shrink-0">{w.reading}</span>
+                        </div>
+                        <p className="text-xs text-slate-500 font-medium truncate">{w.english}</p>
+                      </div>
+                      {w.jlpt_level && (
+                        <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border shrink-0 ${JLPT_BADGE_COLOR[w.jlpt_level]}`}>
+                          {w.jlpt_level}
+                        </span>
+                      )}
+                      <span className="shrink-0 w-7 h-7 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                        <Plus size={14} />
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="p-4 border-t border-slate-100">
