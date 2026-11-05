@@ -2,7 +2,8 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { FlashcardData } from "@/lib/types";
+import { FlashcardData, KanjiMnemonic } from "@/lib/types";
+import { authedFetch } from "@/lib/authedFetch";
 import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
 import { translations } from "@/lib/languages";
@@ -17,11 +18,15 @@ import DuplicatesSheet from "@/components/DuplicatesSheet";
 import CardDetailModal from "@/components/CardDetailModal";
 import { findDuplicates, skipDeckDuplicates } from "@/lib/duplicates";
 import { CONFETTI_PARTICLES } from "@/lib/confetti";
-import { AlertTriangle, Ban, BarChart3, Bell, ChevronLeft, ChevronRight, Flag, Gamepad2, Gift, ImageIcon, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, TrendingDown, Trophy, Volume2, X, Zap } from "lucide-react";
+import { AlertTriangle, Ban, BarChart3, Bell, ChevronLeft, ChevronRight, Flag, Gamepad2, Gift, ImageIcon, Lightbulb, Loader2, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, TrendingDown, Trophy, Volume2, X, Zap } from "lucide-react";
 import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from "@/lib/push";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { validateUsername, isUsernameTaken, type UsernameProblem } from "@/lib/username";
 import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
+
+// Same test StudyView uses to decide whether a card has a kanji worth generating a
+// mnemonic for.
+const KANJI_RE = /[一-鿿]/;
 
 interface StatsCardsCache { userId: string; cards: FlashcardData[]; deckId: string; quickStats: QuickStats | null; }
 // In-memory — survives in-app navigation back to this tab, but a real page reload
@@ -105,6 +110,13 @@ export default function StatsPage() {
   const [maxStreak, setMaxStreak] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [quickFilter, setQuickFilter] = useState<"none" | "slowReflex" | "recentlyReviewed" | "weakWords" | "favorites">("none");
+  // "Remember this kanji" mnemonic generation — moved here from Study's Slow Recall/
+  // Weak Words lists (both now gone from Study; this is the only place a kanji card
+  // from either signal is browsable). Study's own in-review Flashcard view still has
+  // its own independent mnemonic trigger; this doesn't touch that.
+  const [mnemonicCard, setMnemonicCard] = useState<FlashcardData | null>(null);
+  const [mnemonicLoading, setMnemonicLoading] = useState(false);
+  const [mnemonicError, setMnemonicError] = useState<string | null>(null);
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(50);
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
@@ -159,16 +171,6 @@ export default function StatsPage() {
 
   useEffect(() => {
     getPushSubscriptionState().then(setPushState);
-  }, []);
-
-  // "Add Cards" quick action (bottom nav Quick Actions sheet) links here with
-  // ?openAdd=1 to open the sheet directly. Read via window.location instead of
-  // useSearchParams so this page doesn't need a Suspense boundary just for a
-  // read-once-on-mount flag.
-  useEffect(() => {
-    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("openAdd") === "1") {
-      setShowAddSheet(true);
-    }
   }, []);
 
   const handleTogglePush = async () => {
@@ -685,6 +687,45 @@ export default function StatsPage() {
     const attempts = c.reflex_attempts ?? 0;
     if (attempts < 3) return null;
     return (c.reflex_time_total_ms ?? 0) / attempts / 1000;
+  };
+
+  // Same generate/cache logic as StudyView's handleWeakWordMnemonic — confirm (it
+  // costs a daily AI lookup), generate via /api/mnemonic, persist on the card, and
+  // keep it cached so re-opening a card already carrying one skips the API call.
+  const handleMnemonic = async (card: FlashcardData) => {
+    setMnemonicCard(card);
+    if (card.mnemonic || mnemonicLoading) return;
+
+    const confirmed = await showConfirm(
+      `Generate a memory aid for ${card.japanese}? This uses one of your daily AI lookups.`,
+      { title: "Remember this kanji?", confirmLabel: "Generate" },
+    );
+    if (!confirmed) {
+      setMnemonicCard(null);
+      return;
+    }
+
+    setMnemonicLoading(true);
+    setMnemonicError(null);
+    try {
+      const res = await authedFetch("/api/mnemonic", {
+        method: "POST",
+        body: JSON.stringify({ japanese: card.japanese, reading: card.reading, english: card.english }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMnemonicError(data.error || "Couldn't generate a mnemonic right now.");
+        return;
+      }
+      const mnemonic: KanjiMnemonic = { entries: data.entries, origin: data.origin };
+      await supabase.from("master_cards").update({ mnemonic }).eq("id", card.id);
+      setCards((prev) => prev.map((c) => (c.id === card.id ? { ...c, mnemonic } : c)));
+      setMnemonicCard((prev) => (prev && prev.id === card.id ? { ...prev, mnemonic } : prev));
+    } catch {
+      setMnemonicError("Couldn't generate a mnemonic right now.");
+    } finally {
+      setMnemonicLoading(false);
+    }
   };
 
   // Combined jp_to_en + en_to_jp pass rate — same definition StudyView's
@@ -2511,6 +2552,15 @@ export default function StatsPage() {
                         😓 {cardOverallPercent(card)}%
                       </span>
                     )}
+                    {(quickFilter === "slowReflex" || quickFilter === "weakWords") && KANJI_RE.test(card.japanese) && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleMnemonic(card); }}
+                        className="ml-1.5 p-1 rounded-full hover:bg-amber-100 active:scale-90 transition-all align-middle"
+                        title="Remember this kanji"
+                      >
+                        <Lightbulb size={14} className={card.mnemonic ? "text-amber-500" : "text-slate-300"} />
+                      </button>
+                    )}
                     <div className="text-sm font-bold text-indigo-500">
                       {card.reading}
                     </div>
@@ -2588,6 +2638,15 @@ export default function StatsPage() {
                           <span className="ml-1.5 text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter bg-rose-50 text-rose-600 border-rose-200">
                             😓 {cardOverallPercent(card)}%
                           </span>
+                        )}
+                        {(quickFilter === "slowReflex" || quickFilter === "weakWords") && KANJI_RE.test(card.japanese) && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleMnemonic(card); }}
+                            className="ml-1.5 p-1 rounded-full hover:bg-amber-100 active:scale-90 transition-all align-middle"
+                            title="Remember this kanji"
+                          >
+                            <Lightbulb size={14} className={card.mnemonic ? "text-amber-500" : "text-slate-300"} />
+                          </button>
                         )}
                         <div className="text-xs text-indigo-500 font-medium">
                           {card.reading}
@@ -2711,6 +2770,69 @@ export default function StatsPage() {
             onAdded={fetchCards}
             onQueueCountChange={setPendingWordCount}
           />
+        )}
+
+        {/* Mnemonic sheet — triggered from the Slow Reflex/Weak Words quick-filter
+            rows' "Remember this kanji" button. Same content/style as StudyView's own
+            (now-removed) version. */}
+        {mnemonicCard && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[300] bg-black/40"
+              onClick={() => setMnemonicCard(null)}
+            />
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[301] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm max-h-[80vh] overflow-y-auto"
+              style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+            >
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <Lightbulb size={16} className="text-amber-500" />
+                  <p className="text-slate-800 font-black text-sm uppercase tracking-tight">
+                    Remember {mnemonicCard.japanese}
+                  </p>
+                </div>
+                <button onClick={() => setMnemonicCard(null)} className="text-slate-300 hover:text-slate-500 shrink-0">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {mnemonicLoading && (
+                <div className="flex items-center gap-2 text-sm text-slate-400 py-6 justify-center">
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>Thinking of a way to remember it…</span>
+                </div>
+              )}
+
+              {!mnemonicLoading && mnemonicError && (
+                <p className="text-center text-rose-500 text-xs font-bold py-6">{mnemonicError}</p>
+              )}
+
+              {!mnemonicLoading && !mnemonicError && mnemonicCard.mnemonic && (
+                <div className="space-y-4">
+                  {mnemonicCard.mnemonic.entries.map((entry, i) => (
+                    <div key={i} className="bg-slate-50 rounded-2xl p-4">
+                      <p className="text-3xl font-black text-slate-800 mb-1">{entry.character}</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-1.5">
+                        {entry.radicals}
+                      </p>
+                      <p className="text-sm text-slate-600 leading-snug">{entry.story}</p>
+                    </div>
+                  ))}
+                  {mnemonicCard.mnemonic.origin && (
+                    <p className="text-xs text-slate-400 italic leading-snug pt-1">{mnemonicCard.mnemonic.origin}</p>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          </>
         )}
       </main>
     </div>

@@ -2,11 +2,12 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Home, BookOpen, ScrollText, BarChart2, Plus, X, Gamepad2, Languages } from "lucide-react";
+import { Home, BookOpen, ScrollText, BarChart2, X, Gamepad2, Languages, Headphones, PenTool, MonitorPlay } from "lucide-react";
 import { useUploadGuard } from "@/context/UploadGuardContext";
 import { useAppAlert } from "@/context/AlertContext";
 import { useAuth } from "@/context/AuthContext";
 import { useIsMiniViewport } from "@/lib/useMiniViewport";
+import Logo from "@/components/Logo";
 
 type Tab = {
   href: string;
@@ -36,11 +37,15 @@ type QuickAction = {
   color: string;
 };
 
-// "Add Cards, Quizzes, etc" per the request — kept to the handful of actions that
+// The 5 quiz/content modes (each opened via /quizzes?open=... same as every other
+// entry point to them in the app) plus Kana Practice — the handful of actions that
 // don't already have their own tab (Study/Cards already cover reviewing/browsing).
 const QUICK_ACTIONS: QuickAction[] = [
-  { href: "/stats?openAdd=1", label: "Add Cards", icon: Plus, bg: "bg-indigo-50", color: "text-indigo-600" },
-  { href: "/quizzes", label: "Quizzes", icon: ScrollText, bg: "bg-violet-50", color: "text-violet-600" },
+  { href: "/quizzes?open=sentence", label: "Reading Quiz", icon: ScrollText, bg: "bg-indigo-50", color: "text-indigo-600" },
+  { href: "/quizzes?open=listening", label: "Listening Quiz", icon: Headphones, bg: "bg-sky-50", color: "text-sky-600" },
+  { href: "/quizzes?open=grammar", label: "Grammar Quiz", icon: PenTool, bg: "bg-violet-50", color: "text-violet-600" },
+  { href: "/quizzes?open=watch", label: "Watcher", icon: MonitorPlay, bg: "bg-orange-50", color: "text-orange-600" },
+  { href: "/quizzes?open=reader", label: "Reader", icon: BookOpen, bg: "bg-teal-50", color: "text-teal-600" },
   { href: "/study/kana", label: "Kana Practice", icon: Languages, bg: "bg-emerald-50", color: "text-emerald-600" },
 ];
 
@@ -133,16 +138,16 @@ function BottomNavInner() {
             onClick={() => setShowQuickActions(true)}
             className="flex-1 flex flex-col items-center justify-center"
           >
-            <span className="relative -mt-7 w-14 h-14 rounded-full bg-indigo-600 shadow-lg shadow-indigo-300/50 flex items-center justify-center border-4 border-white active:scale-95 transition-all">
-              <Plus size={24} className="text-white" />
+            <span className="relative -mt-8 active:scale-95 transition-all">
+              <Logo className="w-11 h-14" />
             </span>
           </button>
           {TABS_AFTER.map(renderTab)}
         </div>
       </nav>
 
-      {/* Quick Actions sheet — Add Cards/Quizzes/Kana Practice up top, Sensei and
-          Mini Games (no longer their own tabs) under Pages below. */}
+      {/* Quick Actions sheet — the 5 quiz/content modes + Kana Practice up top,
+          Sensei and Mini Games (no longer their own tabs) under Pages below. */}
       {showQuickActions && (
         <>
           <div

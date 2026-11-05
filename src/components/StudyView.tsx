@@ -29,19 +29,15 @@ import BadgeToast from "@/components/BadgeToast";
 import SentenceQuiz from "@/components/SentenceQuiz";
 import ListeningQuiz from "@/components/ListeningQuiz";
 import AddWordsSheet from "@/components/AddWordsSheet";
-import CardDetailModal from "@/components/CardDetailModal";
-import { FlashcardData, KanjiMnemonic } from "@/lib/types";
+import { FlashcardData } from "@/lib/types";
 import { useIsMiniViewport } from "@/lib/useMiniViewport";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, History, Star, Lightbulb, Loader2, X, Menu, Zap, ExternalLink, Filter, Volume2 } from "lucide-react";
+import { Plus, History, Star, X, Menu, Zap, ExternalLink, Filter, Volume2 } from "lucide-react";
 const DAILY_GOAL = 10;
 const MASTERY_MIN_TRIES = 5;
 const PRIORITY_CAP = 30;
 const MASTERED_GOAL = 20;
 const REVIEW_TARGET = 100;
-// Same regex as Flashcard.tsx's "Remember this kanji" gate — only kanji carry a
-// radical/origin story worth generating a mnemonic for.
-const KANJI_RE = /[一-鿿]/;
 
 const JLPT_BAR_COLOR: Record<"N5" | "N4" | "N3" | "N2" | "N1", string> = {
   N5: "bg-emerald-500",
@@ -183,17 +179,10 @@ function cardOverallPercent(c: FlashcardData): number {
   return total > 0 ? Math.round((pass / total) * 100) : 0;
 }
 
-// Average seconds taken to recall a word under Reflex Mode (passes only — a Fail
-// isn't a "how long did recall take" data point). Null with no attempts yet.
-function avgReflexSeconds(c: FlashcardData): number | null {
-  const attempts = c.reflex_attempts ?? 0;
-  if (attempts === 0) return null;
-  return (c.reflex_time_total_ms ?? 0) / attempts / 1000;
-}
 
 export default function StudyView({ compact = false }: { compact?: boolean } = {}) {
   const { user, loading } = useAuth();
-  const { showAlert, showConfirm } = useAppAlert();
+  const { showAlert } = useAppAlert();
   const shownGenerateLimitAlertRef = useRef(false);
   // Auto-switches to Mini Mode when a desktop browser window gets resized small —
   // separate from `compact`, which is forced on by the ?mini=1 popup player.
@@ -243,18 +232,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const [pendingWordCount, setPendingWordCount] = useState(0);
   const [blocklist, setBlocklist] = useState<string[]>([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [showSlowRecallModal, setShowSlowRecallModal] = useState(false);
   const [showQuickSettings, setShowQuickSettings] = useState(false);
-  // Tapping a word in Weak Words / Slow Recall opens the exact same detail view as
-  // the Cards page grid — one shared component (CardDetailModal), not a lookalike.
-  const [detailCard, setDetailCard] = useState<FlashcardData | null>(null);
   const [showQuickMenu, setShowQuickMenu] = useState(false);
-  // Mnemonic sheet nested inside the Weak Words modal — same generate/cache logic as
-  // Flashcard.tsx's "Remember this kanji" button on the card back, just reachable
-  // without having to find the word during study first.
-  const [weakMnemonicCard, setWeakMnemonicCard] = useState<FlashcardData | null>(null);
-  const [weakMnemonicLoading, setWeakMnemonicLoading] = useState(false);
-  const [weakMnemonicError, setWeakMnemonicError] = useState<string | null>(null);
   const { friends, fetchFriends, socialToast, dismissSocialToast } = useFriendsContext();
   const [showStreakBanner, setShowStreakBanner] = useState(false);
   const [goalStreak, setGoalStreak] = useState(0);
@@ -1143,45 +1122,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentCard?.id]);
 
-  // Opens the mnemonic sheet for a word from the Weak Words list — same cache-check,
-  // confirm-before-spending-AI, and generate flow as Flashcard.tsx's handleOpenMnemonic,
-  // just triggerable from the list instead of only from the card back during study.
-  const handleWeakWordMnemonic = async (card: FlashcardData) => {
-    setWeakMnemonicCard(card);
-    if (card.mnemonic || weakMnemonicLoading) return;
-
-    const confirmed = await showConfirm(
-      `Generate a memory aid for ${card.japanese}? This uses one of your daily AI lookups.`,
-      { title: "Remember this kanji?", confirmLabel: "Generate" },
-    );
-    if (!confirmed) {
-      setWeakMnemonicCard(null);
-      return;
-    }
-
-    setWeakMnemonicLoading(true);
-    setWeakMnemonicError(null);
-    try {
-      const res = await authedFetch("/api/mnemonic", {
-        method: "POST",
-        body: JSON.stringify({ japanese: card.japanese, reading: card.reading, english: card.english }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setWeakMnemonicError(data.error || "Couldn't generate a mnemonic right now.");
-        return;
-      }
-      const mnemonic: KanjiMnemonic = { entries: data.entries, origin: data.origin };
-      await supabase.from("master_cards").update({ mnemonic }).eq("id", card.id);
-      handleMnemonicGenerated(card.id, mnemonic);
-      setWeakMnemonicCard((prev) => (prev && prev.id === card.id ? { ...prev, mnemonic } : prev));
-    } catch {
-      setWeakMnemonicError("Couldn't generate a mnemonic right now.");
-    } finally {
-      setWeakMnemonicLoading(false);
-    }
-  };
-
   // Tap-to-explain for the three goal chips — a hover title does nothing on mobile,
   // so these are the actual way most users will learn what each number means.
   const showReviewsHint = () => showAlert(
@@ -1433,16 +1373,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       .filter((c) => !!c.last_reviewed_at && ((c.scores?.jp_to_en?.total ?? 0) + (c.scores?.en_to_jp?.total ?? 0)) > 0)
       .sort((a, b) => (b.last_reviewed_at || "").localeCompare(a.last_reviewed_at || ""))
       .slice(0, 20);
-  }, [cards]);
-
-  // Words that take the longest to recall under Reflex Mode specifically — separate
-  // from Weak Words (moved to Cards), which is about not knowing a word at all. 3+ attempts before
-  // trusting the average, same spirit as weakWordsList's 10+. Top 10 slowest only.
-  const slowRecallList = useMemo(() => {
-    return cards
-      .filter((c) => (c.reflex_attempts ?? 0) >= 3)
-      .sort((a, b) => (avgReflexSeconds(b) ?? 0) - (avgReflexSeconds(a) ?? 0))
-      .slice(0, 10);
   }, [cards]);
 
   // Level-up detection: track whichever % is visible — per-N-level(s) when filtered, overall when "All"
@@ -2072,13 +2002,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                       <History size={18} className="text-slate-500" />
                     </button>
                     <button
-                      onClick={() => { setShowSlowRecallModal(true); setShowQuickMenu(false); }}
-                      className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
-                      title="Slow Recall (Reflex Mode)"
-                    >
-                      <Zap size={18} className="text-amber-500" />
-                    </button>
-                    <button
                       onClick={() => { setShowQuickSettings(true); setShowQuickMenu(false); }}
                       className="flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
                       title="Sound & Card Settings"
@@ -2185,13 +2108,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     title="Recently Reviewed"
                   >
                     <History size={20} className="text-slate-500" />
-                  </button>
-                  <button
-                    onClick={() => { setShowSlowRecallModal(true); setShowQuickMenu(false); }}
-                    className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
-                    title="Slow Recall (Reflex Mode)"
-                  >
-                    <Zap size={20} className="text-amber-500" />
                   </button>
                   <button
                     onClick={() => { setShowQuickSettings(true); setShowQuickMenu(false); }}
@@ -3070,165 +2986,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         )}
       </AnimatePresence>
 
-      {/* Slow Recall Modal — Priority Words and Weak Words moved to the Cards page as
-          quick filters on the deck list (Slow Reflex/Recently Reviewed moved there
-          earlier the same way). Slow Recall stays here since it's reflex-specific and
-          not part of that move. */}
-      <AnimatePresence>
-        {showSlowRecallModal && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[220] bg-black/20"
-              onClick={() => setShowSlowRecallModal(false)}
-            />
-            <motion.div
-              initial={{ y: 60, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 60, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 320, damping: 28 }}
-              className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[221] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm max-h-[80vh] flex flex-col"
-              style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
-            >
-              <div className="flex items-center justify-between mb-4 shrink-0">
-                <div className="flex items-center gap-2">
-                  <Zap size={16} className="text-amber-500" />
-                  <p className="text-slate-800 font-black text-sm uppercase tracking-tight">Slow Recall</p>
-                </div>
-                <button onClick={() => setShowSlowRecallModal(false)} className="text-slate-300 hover:text-slate-500">✕</button>
-              </div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3 shrink-0">
-                Slowest average recall time under Reflex Mode (3+ attempts) — top 10
-              </p>
-              <div className="flex-1 overflow-y-auto space-y-2 -mx-1 px-1">
-                {slowRecallList.length === 0 ? (
-                  <p className="text-center text-slate-400 text-xs font-bold py-8">
-                    No words with enough Reflex Mode attempts yet.
-                  </p>
-                ) : (
-                  slowRecallList.map((c) => (
-                    <div
-                      key={c.id}
-                      onClick={() => setDetailCard(c)}
-                      className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3 cursor-pointer active:opacity-70 transition-opacity"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <p className="font-black text-slate-800 text-sm truncate">{c.japanese}</p>
-                          {c.jlpt_level && (
-                            <span className={`shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-md border uppercase tracking-tighter ${JLPT_BADGE_COLOR[c.jlpt_level]}`}>
-                              {c.jlpt_level}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-slate-400 text-[11px] font-medium truncate">
-                          {c.reading} • {c.english}
-                        </p>
-                      </div>
-                      <div className="shrink-0 flex items-center gap-2">
-                        <span className="text-[10px] font-black px-2 py-1 rounded-full bg-slate-100 text-slate-600">
-                          {cardOverallPercent(c)}%
-                        </span>
-                        <span className="text-[10px] font-black px-2 py-1 rounded-full bg-amber-100 text-amber-700">
-                          {avgReflexSeconds(c)?.toFixed(1)}s avg ×{c.reflex_attempts}
-                        </span>
-                        {KANJI_RE.test(c.japanese) && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleWeakWordMnemonic(c); }}
-                            className="p-1.5 rounded-full hover:bg-amber-100 active:scale-90 transition-all"
-                            title="Remember this kanji"
-                          >
-                            <Lightbulb size={16} className={c.mnemonic ? "text-amber-500" : "text-slate-300"} />
-                          </button>
-                        )}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); togglePriority(c); }}
-                          className="p-1.5 rounded-full hover:bg-amber-100 active:scale-90 transition-all"
-                          title={c.is_priority ? "Remove from Priority" : "Add to Priority"}
-                        >
-                          <Star
-                            size={16}
-                            className={c.is_priority ? "text-amber-500" : "text-slate-300"}
-                            fill={c.is_priority ? "currentColor" : "none"}
-                          />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {detailCard && <CardDetailModal card={detailCard} onClose={() => setDetailCard(null)} />}
-
-      {/* Mnemonic sheet for a Weak Words entry — sits above the Weak Words modal
-          (z-[220]/[221]) with the same content/style as Flashcard.tsx's own sheet. */}
-      <AnimatePresence>
-        {weakMnemonicCard && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[300] bg-black/40"
-              onClick={() => setWeakMnemonicCard(null)}
-            />
-            <motion.div
-              initial={{ y: 60, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 60, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 320, damping: 28 }}
-              className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[301] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm max-h-[80vh] overflow-y-auto"
-              style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
-            >
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div className="flex items-center gap-2">
-                  <Lightbulb size={16} className="text-amber-500" />
-                  <p className="text-slate-800 font-black text-sm uppercase tracking-tight">
-                    Remember {weakMnemonicCard.japanese}
-                  </p>
-                </div>
-                <button onClick={() => setWeakMnemonicCard(null)} className="text-slate-300 hover:text-slate-500 shrink-0">
-                  <X size={18} />
-                </button>
-              </div>
-
-              {weakMnemonicLoading && (
-                <div className="flex items-center gap-2 text-sm text-slate-400 py-6 justify-center">
-                  <Loader2 size={16} className="animate-spin" />
-                  <span>Thinking of a way to remember it…</span>
-                </div>
-              )}
-
-              {!weakMnemonicLoading && weakMnemonicError && (
-                <p className="text-center text-rose-500 text-xs font-bold py-6">{weakMnemonicError}</p>
-              )}
-
-              {!weakMnemonicLoading && !weakMnemonicError && weakMnemonicCard.mnemonic && (
-                <div className="space-y-4">
-                  {weakMnemonicCard.mnemonic.entries.map((entry, i) => (
-                    <div key={i} className="bg-slate-50 rounded-2xl p-4">
-                      <p className="text-3xl font-black text-slate-800 mb-1">{entry.character}</p>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-1.5">
-                        {entry.radicals}
-                      </p>
-                      <p className="text-sm text-slate-600 leading-snug">{entry.story}</p>
-                    </div>
-                  ))}
-                  {weakMnemonicCard.mnemonic.origin && (
-                    <p className="text-xs text-slate-400 italic leading-snug pt-1">{weakMnemonicCard.mnemonic.origin}</p>
-                  )}
-                </div>
-              )}
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
     </>
   );
 }
