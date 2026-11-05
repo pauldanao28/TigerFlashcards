@@ -301,7 +301,6 @@ export default function Dashboard() {
   const [badgeQueue, setBadgeQueue] = useState<string[]>([]);
   const [isStatsShareOpen, setIsStatsShareOpen] = useState(false);
   const [isQuestsShareOpen, setIsQuestsShareOpen] = useState(false);
-  const [questsShareTotal, setQuestsShareTotal] = useState(0);
   const [selectedPos, setSelectedPos] = useState<string | null>(null);
   const [earnedBadges, setEarnedBadges] = useState<Set<string>>(new Set());
   // Daily Progress — moved here from Cards (see fetchHistory below for why: both
@@ -604,7 +603,7 @@ export default function Dashboard() {
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Today&apos;s Quests</p>
               {allQuestsDone && (
                 <button
-                  onClick={() => { setQuestsShareTotal(questStates.length); setIsQuestsShareOpen(true); }}
+                  onClick={() => setIsQuestsShareOpen(true)}
                   aria-label="Share your completed quests"
                   className="text-slate-300 hover:text-slate-500 active:scale-90 transition-all"
                 >
@@ -1341,8 +1340,8 @@ export default function Dashboard() {
               <p className="text-center text-[10px] font-black uppercase tracking-widest text-slate-500">Share your quests</p>
               <ShareButton
                 preview
-                params={{ kind: "quests", total: questsShareTotal }}
-                caption={`✅ Completed all ${questsShareTotal} of today's quests on FlashKado! Join me:`}
+                params={{ kind: "quests" }}
+                caption="✅ Completed today's quests on FlashKado! Join me:"
                 className="bg-indigo-600 text-white shadow-lg shadow-indigo-200"
               />
               <button

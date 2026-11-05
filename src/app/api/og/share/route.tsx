@@ -3,6 +3,7 @@ import { getAuthedUser } from "@/lib/apiAuth";
 import { renderShareCard } from "@/lib/shareCard";
 import { renderStatsCard } from "@/lib/statsCard";
 import { STREAK_MILESTONES } from "@/lib/notificationText";
+import { pickDailyQuests } from "@/lib/dailyQuests";
 
 // Shareable achievement card (1080×1920, Instagram Story size) for the ShareButton.
 // Requires sign-in and draws only the caller's own data: name, avatar, streak, and
@@ -122,15 +123,17 @@ export async function GET(req: Request) {
     subline = `${from} → ${to} · ${LEVEL_NAME[to].toUpperCase()}`;
     stats = [];
   } else if (kind === "quests") {
-    const total = clampInt(searchParams.get("total"), 10);
-    if (total == null || total < 1) return new Response("Bad quest params", { status: 400 });
+    // Today's quest set is a pure function of (user, Asia/Singapore date) — see
+    // pickDailyQuests — so it's recomputed here rather than trusted from the query
+    // string, same list the client showed in the Today's Quests card.
+    const todaySg = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+    const todaysQuests = pickDailyQuests(user.id, todaySg);
     emoji = "✅";
     eyebrow = "Daily Quests Complete";
-    headline = String(total);
-    headlineSize = 320;
-    subline = total === 1 ? "QUEST DONE TODAY" : "QUESTS DONE TODAY";
-    const streak = me.streak_count ?? 0;
-    stats = streak > 0 ? [{ label: "Day streak", value: String(streak) }] : [];
+    headline = "";
+    headlineSize = 10;
+    subline = "";
+    stats = todaysQuests.map((q) => ({ label: q.shortLabel, value: q.icon }));
   } else if (kind === "referral") {
     if (!me.referral_code) return new Response("No referral code", { status: 400 });
     emoji = "🎴";

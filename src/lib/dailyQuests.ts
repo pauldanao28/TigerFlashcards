@@ -17,17 +17,20 @@ export type QuestKey =
 export interface QuestDef {
   key: QuestKey;
   label: string;
+  // Short enough to sit in a share-card chip (see kind=quests in /api/og/share) —
+  // the full `label` reads naturally in the Today's Quests list but is too long there.
+  shortLabel: string;
   icon: string;
   target: number;
 }
 
 export const QUEST_CATALOG: QuestDef[] = [
-  { key: "review_10", label: "Review 10 cards", icon: "🔁", target: 10 },
-  { key: "master_1", label: "Master 1 card", icon: "⭐", target: 1 },
-  { key: "add_1", label: "Add 1 new word", icon: "➕", target: 1 },
-  { key: "quiz_reading", label: "Try today's Reading quiz", icon: "📖", target: 1 },
-  { key: "quiz_listening", label: "Try today's Listening quiz", icon: "🎧", target: 1 },
-  { key: "quiz_grammar", label: "Try today's Grammar quiz", icon: "📝", target: 1 },
+  { key: "review_10", label: "Review 10 cards", shortLabel: "Review 10", icon: "🔁", target: 10 },
+  { key: "master_1", label: "Master 1 card", shortLabel: "Master 1", icon: "⭐", target: 1 },
+  { key: "add_1", label: "Add 1 new word", shortLabel: "Add Word", icon: "➕", target: 1 },
+  { key: "quiz_reading", label: "Try today's Reading quiz", shortLabel: "Reading Quiz", icon: "📖", target: 1 },
+  { key: "quiz_listening", label: "Try today's Listening quiz", shortLabel: "Listening Quiz", icon: "🎧", target: 1 },
+  { key: "quiz_grammar", label: "Try today's Grammar quiz", shortLabel: "Grammar Quiz", icon: "📝", target: 1 },
 ];
 
 // Simple string hash (djb2) feeding a seeded PRNG (mulberry32) — deterministic, no
