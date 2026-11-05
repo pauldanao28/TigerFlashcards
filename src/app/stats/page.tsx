@@ -158,6 +158,7 @@ export default function StatsPage() {
   const [autoPlayEn, setAutoPlayEn] = useState(false);
   const [maxStreak, setMaxStreak] = useState(0);
   const [earnedBadges, setEarnedBadges] = useState<Set<string>>(new Set());
+  const [grammarStats, setGrammarStats] = useState<{ mastered: number; total: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(50);
@@ -400,6 +401,21 @@ export default function StatsPage() {
         if (error) { console.error("Error fetching badges:", error.message); return; }
         setEarnedBadges(new Set((data ?? []).map((b) => b.badge_key)));
       });
+  }, [user]);
+
+  // Grammar summary for the compact card — same mastery bar (>=3 attempts, >=80%)
+  // as /learn/[level] and /stats/grammar use.
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const [{ count: total }, { data: sData, error }] = await Promise.all([
+        supabase.from("grammar_patterns").select("id", { count: "exact", head: true }),
+        supabase.from("user_grammar_scores").select("total, percent").eq("user_id", user.id),
+      ]);
+      if (error) { console.error("Error fetching grammar scores:", error.message); return; }
+      const mastered = (sData ?? []).filter((s) => s.total >= 3 && s.percent >= 80).length;
+      setGrammarStats({ mastered, total: total ?? 0 });
+    })();
   }, [user]);
 
   // 1. Fetch the user's basic info first
@@ -1869,6 +1885,28 @@ export default function StatsPage() {
             </div>
             <ChevronRight size={18} className="text-slate-300 shrink-0" />
           </Link>
+
+          {/* Grammar — compact summary card; the full pattern list (all JLPT levels,
+              filterable) lives on its own page, same pattern as Badges. */}
+          {grammarStats && grammarStats.total > 0 && (
+            <Link
+              href="/stats/grammar"
+              className="flex items-center justify-between gap-3 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm mb-8 hover:border-indigo-200 transition-all"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-violet-50 border border-violet-100 flex items-center justify-center shrink-0 text-base">
+                  📝
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-700">Grammar</p>
+                  <p className="text-[10px] text-slate-500 font-medium">
+                    {grammarStats.mastered}/{grammarStats.total} learned
+                  </p>
+                </div>
+              </div>
+              <ChevronRight size={18} className="text-slate-300 shrink-0" />
+            </Link>
+          )}
 
           {/* Stats Cards */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6 mb-8">
