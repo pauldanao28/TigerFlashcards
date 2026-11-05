@@ -43,7 +43,7 @@ type QuickAction = {
   color: string;
   // Number badge on the tile's icon, same spot/style as the queue-count badge
   // elsewhere (e.g. SentenceQuiz's own word list icon).
-  badgeKey?: "weakWords" | "addCards";
+  badgeKey?: "weakWords" | "addCards" | "friends";
 };
 
 // The 5 quiz/content modes (each opened via /quizzes?open=... same as every other
@@ -68,7 +68,7 @@ const QUICK_ACTIONS: QuickAction[] = [
 const QUICK_ACTION_PAGES: QuickAction[] = [
   { href: "/sensei", label: "Sensei", kanji: "先生", bg: "bg-rose-50", color: "text-rose-600" },
   { href: "/minigames", label: "Mini Games", icon: Gamepad2, bg: "bg-amber-50", color: "text-amber-600" },
-  { action: "friends", label: "Friends", icon: Users, bg: "bg-cyan-50", color: "text-cyan-600" },
+  { action: "friends", label: "Friends", icon: Users, bg: "bg-cyan-50", color: "text-cyan-600", badgeKey: "friends" },
 ];
 
 const SHOW_ON = new Set(["/", "/study", "/quizzes", "/sensei", "/stats"]);
@@ -174,8 +174,17 @@ function BottomNavInner() {
     );
   };
 
+  // Already loaded globally (FriendsProvider at the root layout) — no extra fetch,
+  // unlike the other two badges. Counts both directions, same as the Study Circle
+  // sheet's own "Pending" tab badge, so the two numbers never disagree.
+  const pendingFriendsCount = friends.filter((f) => f.status === "pending").length;
+
   const renderQuickActionTile = (item: QuickAction) => {
-    const badgeCount = item.badgeKey === "weakWords" ? weakWordsCount : item.badgeKey === "addCards" ? pendingWordsCount : null;
+    const badgeCount =
+      item.badgeKey === "weakWords" ? weakWordsCount :
+      item.badgeKey === "addCards" ? pendingWordsCount :
+      item.badgeKey === "friends" ? pendingFriendsCount :
+      null;
     const inner = (
       <>
         <span className={`relative w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${item.bg}`}>
