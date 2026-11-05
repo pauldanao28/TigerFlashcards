@@ -9,7 +9,7 @@ import { User } from "@supabase/supabase-js";
 import { translations } from "@/lib/languages";
 import { useUploadGuard } from "@/context/UploadGuardContext";
 import { useAppAlert } from "@/context/AlertContext";
-import { motion, useAnimationControls } from "framer-motion";
+import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
 import LoadingScreen from "@/components/LoadingScreen";
 import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
@@ -17,8 +17,7 @@ import AddWordsSheet from "@/components/AddWordsSheet";
 import DuplicatesSheet from "@/components/DuplicatesSheet";
 import CardDetailModal from "@/components/CardDetailModal";
 import { findDuplicates, skipDeckDuplicates } from "@/lib/duplicates";
-import { CONFETTI_PARTICLES } from "@/lib/confetti";
-import { AlertTriangle, Ban, BarChart3, Bell, ChevronLeft, ChevronRight, Flag, Gamepad2, Gift, ImageIcon, Lightbulb, Loader2, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, TrendingDown, Trophy, Volume2, X, Zap } from "lucide-react";
+import { AlertTriangle, Ban, BarChart3, Bell, ChevronLeft, ChevronRight, Flag, Gamepad2, Gift, ImageIcon, Lightbulb, Loader2, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, TrendingDown, Volume2, X, Zap } from "lucide-react";
 import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from "@/lib/push";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { validateUsername, isUsernameTaken, type UsernameProblem } from "@/lib/username";
@@ -28,7 +27,7 @@ import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/text
 // mnemonic for.
 const KANJI_RE = /[一-鿿]/;
 
-interface StatsCardsCache { userId: string; cards: FlashcardData[]; deckId: string; quickStats: QuickStats | null; }
+interface StatsCardsCache { userId: string; cards: FlashcardData[]; deckId: string; }
 // In-memory — survives in-app navigation back to this tab, but a real page reload
 // (pull-to-refresh, browser refresh, the app being relaunched) wipes it, since that
 // resets the whole JS runtime.
@@ -64,33 +63,6 @@ const PRIORITY_CAP = 30;
 // Today" — a single slip doesn't count, a repeated one does.
 const DAILY_STRUGGLE_THRESHOLD = 3;
 
-interface QuickStats {
-  total: number;
-  mastered: number;
-  struggling: number;
-  jp: { tries: number; pass: number; fail: number };
-  en: { tries: number; pass: number; fail: number };
-}
-
-function computeQuickStats(rows: { user_scores?: { scores_json?: any }[] }[]): QuickStats {
-  let total = 0, mastered = 0, struggling = 0;
-  let jpTries = 0, jpPass = 0, jpFail = 0, enTries = 0, enPass = 0, enFail = 0;
-  for (const row of rows) {
-    const s = row.user_scores?.[0]?.scores_json;
-    const jp = s?.jp_to_en ?? {};
-    const en = s?.en_to_jp ?? {};
-    total++;
-    const jpPass5 = (jp.pass ?? 0) >= 5 && (jp.percent ?? 0) >= 70;
-    const enPass5 = (en.pass ?? 0) >= 5 && (en.percent ?? 0) >= 70;
-    if (jpPass5 || enPass5) mastered++;
-    const totalAttempts = (jp.total ?? 0) + (en.total ?? 0);
-    if (totalAttempts > 0 && Math.max(jp.percent ?? 0, en.percent ?? 0) < 40) struggling++;
-    jpTries += jp.total ?? 0; jpPass += jp.pass ?? 0; jpFail += jp.fail ?? 0;
-    enTries += en.total ?? 0; enPass += en.pass ?? 0; enFail += en.fail ?? 0;
-  }
-  return { total, mastered, struggling, jp: { tries: jpTries, pass: jpPass, fail: jpFail }, en: { tries: enTries, pass: enPass, fail: enFail } };
-}
-
 export default function StatsPage() {
   const router = useRouter();
   const t = translations.en;
@@ -100,7 +72,6 @@ export default function StatsPage() {
   const [loading, setLoading] = useState(false);
   const [initLoading, setInitLoading] = useState(false);
   const [cardsLoading, setCardsLoading] = useState(false);
-  const [quickStats, setQuickStats] = useState<QuickStats | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [userBlocklist, setUserBlocklist] = useState<string[]>([]);
   const [showSettings, setShowSettings] = useState(false);
@@ -109,7 +80,7 @@ export default function StatsPage() {
   const [autoPlayEn, setAutoPlayEn] = useState(false);
   const [maxStreak, setMaxStreak] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
-  const [quickFilter, setQuickFilter] = useState<"none" | "slowReflex" | "recentlyReviewed" | "weakWords" | "favorites">("none");
+  const [quickFilter, setQuickFilter] = useState<"none" | "slowReflex" | "recentlyReviewed" | "weakWords" | "favorites" | "mastered">("none");
   // "Remember this kanji" mnemonic generation — moved here from Study's Slow Recall/
   // Weak Words lists (both now gone from Study; this is the only place a kanji card
   // from either signal is browsable). Study's own in-review Flashcard view still has
@@ -152,14 +123,9 @@ export default function StatsPage() {
   });
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [sent, setSent] = useState(false);
-  const [viewMode, setViewMode] = useState<"none" | "mastered" | "struggling">(
-    "none",
-  );
   // Tapped card's JP→EN/EN→JP detail — shown in a small modal instead of inline, so the
   // collapsed list card stays compact.
   const [scoreDetailCard, setScoreDetailCard] = useState<FlashcardData | null>(null);
-  const [showMasteredCelebration, setShowMasteredCelebration] = useState(false);
-  const [showStrugglingCelebration, setShowStrugglingCelebration] = useState(false);
   const [grammarStats, setGrammarStats] = useState<{ mastered: number; total: number } | null>(null);
   const [previewPack, setPreviewPack] = useState<any | null>(null);
   const [sfxEnabled, setSfxEnabled] = useState(true);
@@ -297,7 +263,6 @@ export default function StatsPage() {
           if (cached) {
             setCards(cached.cards);
             setDefaultDeckId(cached.deckId);
-            if (cached.quickStats) setQuickStats(cached.quickStats);
             setInitLoading(false);
           }
 
@@ -530,9 +495,6 @@ export default function StatsPage() {
 
       if (error) { console.error("Fetch Error:", (error as any).message); return; }
 
-      const freshQuickStats = allData.length ? computeQuickStats(allData) : null;
-      if (freshQuickStats) setQuickStats(freshQuickStats);
-
       const flattened = allData.map((card: any) => ({
         ...card,
         added_to_deck_at: card.deck_cards?.[0]?.added_at,
@@ -549,7 +511,7 @@ export default function StatsPage() {
 
       setCards(flattened);
       if (user && defaultDeckId) {
-        const freshCache: StatsCardsCache = { userId: user.id, cards: flattened, deckId: defaultDeckId, quickStats: freshQuickStats };
+        const freshCache: StatsCardsCache = { userId: user.id, cards: flattened, deckId: defaultDeckId };
         _statsCardsCache = freshCache;
         savePersistedCardsCache(freshCache);
       }
@@ -642,32 +604,13 @@ export default function StatsPage() {
     }));
   };
 
-  // Mastered = max(jp_to_en, en_to_jp) ≥ 70% with at least one attempt
   const duplicates = useMemo(() => findDuplicates(cards), [cards]);
 
-  const masteredList = useMemo(() => {
-    return cards.filter((c) => {
-      const s = c.scores;
-      return ((s?.jp_to_en?.pass || 0) >= 5 && (s?.jp_to_en?.percent || 0) >= 70) ||
-             ((s?.en_to_jp?.pass || 0) >= 5 && (s?.en_to_jp?.percent || 0) >= 70);
-    });
-  }, [cards]);
-
-  const strugglingList = useMemo(() => {
-    return cards.filter((c) => {
-      const s = c.scores;
-      const totalAttempts =
-        (s?.jp_to_en?.total || 0) + (s?.en_to_jp?.total || 0);
-      // Best direction, not the average — same philosophy as Mastered (either direction
-      // clearing the bar counts), so a card doing fine in one direction isn't dragged
-      // into Struggling by a weak, possibly-untried, other direction.
-      const bestAccuracy = Math.max(s?.jp_to_en?.percent || 0, s?.en_to_jp?.percent || 0);
-
-      return totalAttempts > 0 && bestAccuracy < 40;
-    });
-  }, [cards]);
-
-  // Per-card version of the same two rules above, for the compact list card's tag.
+  // Per-card status tag shown inline on every card row (independent of the quick
+  // filters below). Mastered = either direction ≥70% with 5+ passes; Struggling =
+  // best direction <40% with at least one attempt — looser than the Weak Words
+  // filter (10+ tries, <30% combined) on purpose, since this is just a glance tag,
+  // not a drill-down list.
   const cardScoreStatus = (card: FlashcardData): "mastered" | "struggling" | null => {
     const s = card.scores;
     const jpMastered = (s?.jp_to_en?.pass || 0) >= 5 && (s?.jp_to_en?.percent || 0) >= 70;
@@ -678,9 +621,6 @@ export default function StatsPage() {
     if (totalAttempts > 0 && bestAccuracy < 40) return "struggling";
     return null;
   };
-
-  const masteredCount = (quickStats && cards.length === 0) ? quickStats.mastered : masteredList.length;
-  const strugglingCount = (quickStats && cards.length === 0) ? quickStats.struggling : strugglingList.length;
 
   // Same per-card reflex math as StudyView's own Slow Recall ranking.
   const avgReflexSeconds = (c: FlashcardData): number | null => {
@@ -778,6 +718,16 @@ export default function StatsPage() {
     return ids;
   }, [cards]);
 
+  // Mastered = either direction ≥70% with 5+ passes (same rule cardScoreStatus
+  // uses for the inline tag) — replaces the old Mastered StatCard tile/drill-down.
+  const masteredIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const c of cards) {
+      if (cardScoreStatus(c) === "mastered") ids.add(c.id);
+    }
+    return ids;
+  }, [cards]);
+
   const filteredCards = useMemo(() => {
     const query = searchQuery.toLowerCase();
     let list = cards.filter(
@@ -790,6 +740,7 @@ export default function StatsPage() {
     if (quickFilter === "recentlyReviewed") list = list.filter((c) => recentlyReviewedIds.has(c.id));
     if (quickFilter === "weakWords") list = list.filter((c) => weakWordsIds.has(c.id));
     if (quickFilter === "favorites") list = list.filter((c) => favoritesIds.has(c.id));
+    if (quickFilter === "mastered") list = list.filter((c) => masteredIds.has(c.id));
 
     return list.sort((a, b) => {
       if (quickFilter === "slowReflex") {
@@ -797,6 +748,9 @@ export default function StatsPage() {
       }
       if (quickFilter === "weakWords") {
         return cardOverallPercent(a) - cardOverallPercent(b);
+      }
+      if (quickFilter === "mastered") {
+        return cardOverallPercent(b) - cardOverallPercent(a);
       }
       if (quickFilter === "favorites") {
         return (b.prioritized_at ?? "").localeCompare(a.prioritized_at ?? "");
@@ -808,7 +762,7 @@ export default function StatsPage() {
       const dateB = new Date(b.added_to_deck_at ?? 0).getTime();
       return dateB - dateA;
     });
-  }, [cards, searchQuery, quickFilter, slowReflexIds, recentlyReviewedIds, weakWordsIds, favoritesIds]);
+  }, [cards, searchQuery, quickFilter, slowReflexIds, recentlyReviewedIds, weakWordsIds, favoritesIds, masteredIds]);
 
   const visibleCards = filteredCards.slice(0, displayLimit);
 
@@ -1776,31 +1730,6 @@ export default function StatsPage() {
             </Link>
           )}
 
-          {/* Stats Cards — Mastered/Struggling kept here (not moved to Home with the
-              rest of stats) because tapping them opens a real drill-down feature: a
-              celebration + filtered card list, which needs the full per-card dataset
-              only this page fetches. Daily Progress moved to Home along with
-              everything else that was pure display or backed by cheap daily-aggregate
-              tables rather than the full deck. */}
-          <div className="grid grid-cols-2 gap-3 md:gap-6 mb-8">
-            <StatCard
-              label={t.mastered}
-              value={masteredCount}
-              bgColor="bg-emerald-50"
-              iconColor="text-emerald-500"
-              icon={Trophy}
-              onClick={() => setShowMasteredCelebration(true)}
-            />
-            <StatCard
-              label={t.struggling}
-              value={strugglingCount}
-              bgColor="bg-rose-50"
-              iconColor="text-rose-500"
-              icon={TrendingDown}
-              onClick={() => setShowStrugglingCelebration(true)}
-            />
-          </div>
-
           {/* Struggling Today — one entry point for both today-only signals: cards
               failed DAILY_STRUGGLE_THRESHOLD+ times, and Reader/Watch lines tapped
               "Explain". Hidden on a clean day, same as Starter Packs. */}
@@ -1908,236 +1837,6 @@ export default function StatsPage() {
             </div>
           </div>
           )}
-
-          {viewMode !== "none" && (
-            /* 1. Backdrop Overlay */
-            <div
-              className="fixed inset-0 z-[220] flex items-center justify-center p-4 sm:p-6"
-              onClick={() => setViewMode("none")} // Click backdrop to close
-            >
-              {/* 2. Blurred background */}
-              <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-300" />
-
-              {/* 3. Modal Content Card */}
-              <div
-                className="relative w-full max-w-4xl bg-white rounded-[2.5rem] shadow-2xl border border-white/20 flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-200"
-                onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside the card
-              >
-                {/* Header - Fixed at top */}
-                <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-                  <div>
-                    <h3 className="text-2xl font-black text-slate-800 uppercase italic tracking-tight flex items-center gap-3">
-                      {viewMode === "mastered" ? <Trophy size={20} className="text-emerald-500" /> : <TrendingDown size={20} className="text-rose-500" />}
-                      {viewMode === "mastered" ? t.mastered : t.struggling}
-                      <span
-                        className={`text-[10px] not-italic px-3 py-1 rounded-full font-black tracking-widest ${viewMode === "mastered" ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600"}`}
-                      >
-                        {viewMode === "mastered"
-                          ? masteredList.length
-                          : strugglingList.length}{" "}
-                        {t.words}
-                      </span>
-                    </h3>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
-                      {t.dismiss_hint}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setViewMode("none")}
-                    className="h-12 w-12 flex items-center justify-center rounded-2xl bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-800 transition-all active:scale-90"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth={3}
-                      stroke="currentColor"
-                      className="w-5 h-5"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* Body - Scrollable Area */}
-                <div className="p-8 overflow-y-auto custom-scrollbar bg-slate-50/30">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
-                    {(viewMode === "mastered"
-                      ? masteredList
-                      : strugglingList
-                    ).map((word) => (
-                      <div
-                        key={word.id}
-                        onClick={() => setScoreDetailCard(word)}
-                        className="p-5 rounded-3xl border border-white bg-white shadow-sm flex justify-between items-center hover:shadow-md hover:scale-[1.01] transition-all group cursor-pointer active:scale-[0.99]"
-                      >
-                        <div>
-                          <p className="text-xl font-black text-slate-800 group-hover:text-indigo-600 transition-colors">
-                            {word.japanese}
-                          </p>
-                          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
-                            {word.reading} • {word.english}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p
-                            className={`text-sm font-black ${viewMode === "mastered" ? "text-emerald-500" : "text-rose-500"}`}
-                          >
-                            {Math.round(
-                              ((word.scores?.jp_to_en?.percent || 0) +
-                                (word.scores?.en_to_jp?.percent || 0)) /
-                                2,
-                            )}
-                            %
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Footer - Optional: Quick Action */}
-                <div className="p-6 border-t border-slate-50 text-center bg-white">
-                  <button
-                    onClick={() => setViewMode("none")}
-                    className="text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-slate-600"
-                  >
-                    {t.return_to_dashboard}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* --- Mastered Celebration Modal --- */}
-          {showMasteredCelebration && (() => {
-            const msg = masteredCount === 0
-              ? { emoji: "🌱", line1: "No mastered cards yet", line2: "Keep studying — you'll get there!" }
-              : masteredCount >= 10
-              ? { emoji: "🌟", line1: `${masteredCount} cards mastered!`, line2: "That's incredible progress!" }
-              : { emoji: "🏆", line1: `${masteredCount} ${masteredCount === 1 ? "card" : "cards"} mastered!`, line2: "Well done — keep it up!" };
-            return (
-              <div className="fixed inset-0 z-[225] flex items-center justify-center p-4">
-                {CONFETTI_PARTICLES.map((c, i) => (
-                  <motion.div
-                    key={i}
-                    className="absolute pointer-events-none"
-                    style={{ backgroundColor: c.color, width: c.w, height: c.h, borderRadius: c.round ? "50%" : "2px", left: `${c.left}%`, top: -16 }}
-                    initial={{ y: -16, opacity: 1, rotate: 0 }}
-                    animate={{ y: "105vh", x: c.drift, opacity: [1, 1, 0.6, 0], rotate: 400 }}
-                    transition={{ duration: 2, delay: c.delay, ease: [0.2, 0.8, 0.6, 1] }}
-                  />
-                ))}
-                <motion.div
-                  className="absolute inset-0 bg-emerald-950/70 backdrop-blur-lg"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.25 }}
-                  onClick={() => { setShowMasteredCelebration(false); setViewMode("mastered"); }}
-                />
-                <motion.div
-                  className="relative z-10 bg-white rounded-[3rem] p-10 text-center max-w-xs w-full shadow-2xl overflow-hidden"
-                  initial={{ scale: 0.6, opacity: 0, y: 30 }}
-                  animate={{ scale: 1, opacity: 1, y: 0 }}
-                  transition={{ type: "spring", stiffness: 360, damping: 24, delay: 0.05 }}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-b from-emerald-50/60 to-transparent pointer-events-none" />
-                  <motion.div
-                    className="text-6xl mb-5 select-none"
-                    initial={{ scale: 0, rotate: -15 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    transition={{ type: "spring", stiffness: 500, damping: 20, delay: 0.15 }}
-                  >{msg.emoji}</motion.div>
-                  <motion.p
-                    className="text-4xl font-black text-emerald-600 tracking-tight leading-none mb-3"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.22, duration: 0.35 }}
-                  >{msg.line1}</motion.p>
-                  <motion.p
-                    className="text-base font-bold text-slate-500 mb-8"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.32, duration: 0.3 }}
-                  >{msg.line2}</motion.p>
-                  <motion.button
-                    onClick={() => { setShowMasteredCelebration(false); setViewMode("mastered"); }}
-                    className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-700 transition-all active:scale-95 shadow-lg shadow-emerald-200"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4, duration: 0.3 }}
-                    whileTap={{ scale: 0.96 }}
-                  >See Mastered Cards →</motion.button>
-                </motion.div>
-              </div>
-            );
-          })()}
-
-          {/* --- Struggling Celebration Modal --- */}
-          {showStrugglingCelebration && (() => {
-            const msg = strugglingCount === 0
-              ? { emoji: "🎯", line1: "Nothing holding you back!", line2: "Zero cards struggling — you're crushing it!" }
-              : { emoji: "💪", line1: `${strugglingCount} ${strugglingCount === 1 ? "card" : "cards"} to level up`, line2: "You've got this — let's tackle them!" };
-            return (
-              <div className="fixed inset-0 z-[225] flex items-center justify-center p-4">
-                {CONFETTI_PARTICLES.map((c, i) => (
-                  <motion.div
-                    key={i}
-                    className="absolute pointer-events-none"
-                    style={{ backgroundColor: c.color, width: c.w, height: c.h, borderRadius: c.round ? "50%" : "2px", left: `${c.left}%`, top: -16 }}
-                    initial={{ y: -16, opacity: 1, rotate: 0 }}
-                    animate={{ y: "105vh", x: c.drift, opacity: [1, 1, 0.6, 0], rotate: 400 }}
-                    transition={{ duration: 2, delay: c.delay, ease: [0.2, 0.8, 0.6, 1] }}
-                  />
-                ))}
-                <motion.div
-                  className="absolute inset-0 bg-violet-950/70 backdrop-blur-lg"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.25 }}
-                  onClick={() => { setShowStrugglingCelebration(false); setViewMode("struggling"); }}
-                />
-                <motion.div
-                  className="relative z-10 bg-white rounded-[3rem] p-10 text-center max-w-xs w-full shadow-2xl overflow-hidden"
-                  initial={{ scale: 0.6, opacity: 0, y: 30 }}
-                  animate={{ scale: 1, opacity: 1, y: 0 }}
-                  transition={{ type: "spring", stiffness: 360, damping: 24, delay: 0.05 }}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-b from-violet-50/60 to-transparent pointer-events-none" />
-                  <motion.div
-                    className="text-6xl mb-5 select-none"
-                    initial={{ scale: 0, rotate: -15 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    transition={{ type: "spring", stiffness: 500, damping: 20, delay: 0.15 }}
-                  >{msg.emoji}</motion.div>
-                  <motion.p
-                    className="text-4xl font-black text-violet-600 tracking-tight leading-none mb-3"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.22, duration: 0.35 }}
-                  >{msg.line1}</motion.p>
-                  <motion.p
-                    className="text-base font-bold text-slate-500 mb-8"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.32, duration: 0.3 }}
-                  >{msg.line2}</motion.p>
-                  <motion.button
-                    onClick={() => { setShowStrugglingCelebration(false); setViewMode("struggling"); }}
-                    className="w-full bg-violet-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-violet-700 transition-all active:scale-95 shadow-lg shadow-violet-200"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4, duration: 0.3 }}
-                    whileTap={{ scale: 0.96 }}
-                  >See Cards to Level Up →</motion.button>
-                </motion.div>
-              </div>
-            );
-          })()}
 
 
           {/* --- Starter Pack Preview Overlay --- */}
@@ -2385,6 +2084,7 @@ export default function StatsPage() {
               list (Cards already grew too tall once this session; don't repeat that). */}
           <div className="flex flex-wrap gap-1.5 mb-3">
             {([
+              ["mastered", "🏆 Mastered"],
               ["slowReflex", "🐌 Slow Reflex"],
               ["recentlyReviewed", "🕐 Recently Reviewed"],
               ["weakWords", "😓 Weak Words"],
@@ -2836,59 +2536,5 @@ export default function StatsPage() {
         )}
       </main>
     </div>
-  );
-}
-function StatCard({
-  label,
-  value,
-  bgColor,
-  iconColor,
-  icon: Icon,
-  onClick,
-}: {
-  label: string;
-  value: number | string;
-  bgColor: string;
-  iconColor: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-  onClick?: () => void;
-}) {
-  const controls = useAnimationControls();
-
-  const handleClick = () => {
-    if (onClick) {
-      onClick();
-    } else {
-      controls.start({
-        x: [-8, 8, -6, 6, -3, 3, 0],
-        transition: { duration: 0.4, ease: "easeInOut" },
-      });
-    }
-  };
-
-  return (
-    <motion.div
-      animate={controls}
-      onClick={handleClick}
-      className={`bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex justify-between items-center transition-all cursor-pointer ${
-        onClick
-          ? "hover:border-slate-300 hover:scale-[1.02] active:scale-95"
-          : "active:scale-95"
-      }`}
-    >
-      <div>
-        <p className="text-slate-500 text-[10px] font-black uppercase tracking-tighter">
-          {label}
-        </p>
-        <p className={`font-black text-slate-800 ${String(value || 0).length >= 6 ? "text-2xl" : String(value || 0).length >= 5 ? "text-3xl" : "text-4xl"}`}>
-          {value || 0}
-        </p>
-      </div>
-
-      {/* Visual Icon Box */}
-      <div className={`w-12 h-12 rounded-2xl ${bgColor} flex items-center justify-center`}>
-        <Icon size={20} className={iconColor} />
-      </div>
-    </motion.div>
   );
 }
