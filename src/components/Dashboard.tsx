@@ -547,6 +547,41 @@ export default function Dashboard() {
       </div>
 
       <div className="max-w-2xl mx-auto">
+      {/* Badges — compact summary card; the full grid lives on its own page
+          (/stats/badges). Moved here from Cards so progress/motivation content
+          lives in one place instead of split across two tabs. Placed first since
+          it's the most motivating glance before the day's to-do list. */}
+      <Link
+        href="/stats/badges"
+        className="mx-4 mt-4 flex items-center justify-between gap-3 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm hover:border-indigo-200 transition-all"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          {earnedBadges.size > 0 ? (
+            <div className="flex -space-x-2 shrink-0">
+              {BADGES.filter((b) => earnedBadges.has(b.key)).slice(0, 4).map((badge) => (
+                <span
+                  key={badge.key}
+                  className="w-9 h-9 rounded-full bg-slate-50 border-2 border-white flex items-center justify-center text-base shadow-sm"
+                >
+                  {badge.icon}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
+              <Trophy size={16} className="text-slate-300" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-slate-700">Badges</p>
+            <p className="text-[10px] text-slate-500 font-medium">
+              {earnedBadges.size}/{BADGES.length} earned
+            </p>
+          </div>
+        </div>
+        <ChevronRight size={18} className="text-slate-300 shrink-0" />
+      </Link>
+
       {/* Today — grouped together and placed right under the header since this is
           the most actionable content on the page (what to do today), rather than
           scattered between the skill/vocab breakdown sections below. */}
@@ -734,40 +769,6 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-
-      {/* Badges — compact summary card; the full grid lives on its own page
-          (/stats/badges). Moved here from Cards so progress/motivation content
-          lives in one place instead of split across two tabs. */}
-      <Link
-        href="/stats/badges"
-        className="mx-4 mt-3 flex items-center justify-between gap-3 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm hover:border-indigo-200 transition-all"
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          {earnedBadges.size > 0 ? (
-            <div className="flex -space-x-2 shrink-0">
-              {BADGES.filter((b) => earnedBadges.has(b.key)).slice(0, 4).map((badge) => (
-                <span
-                  key={badge.key}
-                  className="w-9 h-9 rounded-full bg-slate-50 border-2 border-white flex items-center justify-center text-base shadow-sm"
-                >
-                  {badge.icon}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <div className="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
-              <Trophy size={16} className="text-slate-300" />
-            </div>
-          )}
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-slate-700">Badges</p>
-            <p className="text-[10px] text-slate-500 font-medium">
-              {earnedBadges.size}/{BADGES.length} earned
-            </p>
-          </div>
-        </div>
-        <ChevronRight size={18} className="text-slate-300 shrink-0" />
-      </Link>
 
       {/* Deck Stats — Mastered/Struggling/Avg Reflex/Avg Accuracy, moved here from
           Cards; all four now come from get_dashboard_data itself (see its migration)
