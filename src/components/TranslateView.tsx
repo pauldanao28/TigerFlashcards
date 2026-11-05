@@ -1,11 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, X, Mic, Square, ArrowRightLeft, List, Volume2 } from "lucide-react";
+import { ChevronLeft, X, Mic, Square, ArrowRightLeft, Loader2, List, Volume2, Check, Plus } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
 import { speak } from "@/lib/tts";
-import TappableText from "@/components/TappableText";
-import NewWordsPanel from "@/components/NewWordsPanel";
-import AddedWordsSummary from "@/components/AddedWordsSummary";
+import { queuePendingWords } from "@/lib/pendingWords";
+import TappableText, { kanjiRe } from "@/components/TappableText";
 import WordLookupSheet from "@/components/WordLookupSheet";
 import { useWordLookup } from "@/hooks/useWordLookup";
 import { useWordMining } from "@/hooks/useWordMining";
@@ -47,19 +46,39 @@ function getSpeechRecognitionCtor(): (new () => SRInstance) | null {
 /**
  * Paste (or speak) anything in any language and get it translated into Japanese —
  * casual and polite versions, each with a short explanation of what makes it that
- * register, plus tappable kanji using the exact same tap-to-lookup/add-to-deck flow
- * as the Reader and Watch (TappableText, useWordLookup, useWordMining).
+ * register, plus tappable kanji using the same tap-to-lookup flow as the Reader and
+ * Watch (TappableText, useWordLookup, useWordMining for highlighting/extraction).
+ * Unlike Reader/Watch, nothing here goes straight into the deck — a translated
+ * phrase is often just a one-off curiosity, not necessarily something to study, so
+ * "add" only ever stages a word into the same pending_words queue AddWordsSheet's
+ * Queue tab reviews later (queuePendingWords), never useAddWords.processWords.
  */
 export default function TranslateView({ userId, onClose }: { userId: string; onClose: () => void }) {
   const mining = useWordMining(userId);
   const { lookup, openLookup, setEditWord, closeLookup } = useWordLookup(userId);
   const handleWordTap = (word: string, e: React.MouseEvent | React.TouchEvent, reading = "") => openLookup(word, reading, e);
-  const isQueued = (w: string) => mining.addedWords.has(w) || mining.newWords.some((nw) => nw.word === w);
 
-  const [phase, setPhase] = useState<"input" | "loading" | "result">("input");
+  const [phase, setPhase] = useState<"input" | "result">("input");
   const [draft, setDraft] = useState("");
+  const [translating, setTranslating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<TranslateResult | null>(null);
+  const requestIdRef = useRef(0);
+
+  // Words staged into the pending_words queue this session — tap-to-add (the lookup
+  // sheet) and the panel below both just mark a word here instead of adding it to
+  // the deck; it disappears from "Not in your deck" once queued.
+  const [queuedWords, setQueuedWords] = useState<Set<string>>(new Set());
+  const [queuing, setQueuing] = useState(false);
+  const queueWords = async (words: string[]) => {
+    if (!words.length) return;
+    try {
+      await queuePendingWords(userId, words);
+      setQueuedWords((prev) => new Set([...prev, ...words]));
+    } catch {
+      setError("Couldn't queue that word — try again.");
+    }
+  };
 
   // ── Voice input (browser Web Speech API — free, no AI, same philosophy as the
   // Reader's read-aloud using SpeechSynthesis instead of a Gemini TTS call) ──
@@ -99,23 +118,31 @@ export default function TranslateView({ userId, onClose }: { userId: string; onC
     }
   };
 
+  // Stays on the input screen the whole time (no full-screen takeover) — the
+  // textbox is never locked, so clearing it and firing another translate() while
+  // one's still in flight is fine; the request id guard below just makes sure an
+  // older response landing late can't clobber a newer one.
   const translate = async () => {
     const text = draft.trim();
     if (!text) return;
-    recognitionRef.current?.stop();
-    setPhase("loading");
+    const id = ++requestIdRef.current;
+    setTranslating(true);
     setError(null);
     try {
       const res = await authedFetch("/api/translate", { method: "POST", body: JSON.stringify({ text }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Translation failed");
+      if (requestIdRef.current !== id) return;
       setResult(data as TranslateResult);
       setPhase("result");
+      setQueuedWords(new Set());
       const combined = `${data.casual.japanese}\n${data.polite.japanese}`;
       await Promise.all([mining.loadWordStatus(combined), mining.loadNewWords(combined)]);
     } catch (e) {
+      if (requestIdRef.current !== id) return;
       setError(e instanceof Error ? e.message : "Something went wrong");
-      setPhase("input");
+    } finally {
+      if (requestIdRef.current === id) setTranslating(false);
     }
   };
 
@@ -125,8 +152,12 @@ export default function TranslateView({ userId, onClose }: { userId: string; onC
     setDraft("");
     setResult(null);
     setError(null);
+    setQueuedWords(new Set());
     mining.clearNewWords();
   };
+
+  const visibleWords = mining.visibleNewWords.filter((w) => !queuedWords.has(w.word));
+  const visibleSelectedCount = visibleWords.filter((w) => mining.selectedNew.has(w.word)).length;
 
   return (
     <div className="fixed inset-0 z-[300] bg-slate-50 flex flex-col">
@@ -157,7 +188,7 @@ export default function TranslateView({ userId, onClose }: { userId: string; onC
           <p className="text-slate-500 text-sm font-medium mb-4 leading-relaxed">
             Type or speak anything, in any language — Gemini translates it into natural
             Japanese with both a casual and a polite version, each explained. Tap any kanji
-            to look it up and add it to your deck.
+            to look it up and queue it for Add Cards.
           </p>
 
           <div className="relative">
@@ -192,14 +223,15 @@ export default function TranslateView({ userId, onClose }: { userId: string; onC
           >
             <ArrowRightLeft size={16} /> Translate
           </button>
-        </div>
-      )}
 
-      {/* LOADING PHASE */}
-      {phase === "loading" && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Translating…</p>
+          {/* Below the textbox/button only, never a full-screen takeover — the
+              textbox stays put and editable the whole time a request is in flight. */}
+          {translating && (
+            <div className="flex items-center gap-2 mt-4 text-slate-400">
+              <Loader2 size={14} className="animate-spin" />
+              <span className="text-[10px] font-black uppercase tracking-widest">Translating…</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -257,32 +289,93 @@ export default function TranslateView({ userId, onClose }: { userId: string; onC
               </div>
             )}
 
-            <NewWordsPanel mining={mining} onWordTap={handleWordTap} />
+            {/* "Not in your deck" — same extraction as Reader/Watch (mining.loadNewWords),
+                but confirming here only queues into pending_words for later review in
+                Add Cards' Queue tab, never straight into the deck. */}
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-violet-600">
+                  Not in your deck · {visibleWords.length}
+                </p>
+                {visibleWords.length > 0 && (
+                  <button
+                    onClick={mining.toggleAllNewWords}
+                    className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-indigo-600 transition-colors"
+                  >
+                    {visibleSelectedCount === visibleWords.length ? "Select none" : "Select all"}
+                  </button>
+                )}
+              </div>
+
+              {mining.newWordsLoading ? (
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400">
+                  <Loader2 size={12} className="animate-spin" /> Finding words…
+                </div>
+              ) : mining.newWordsError ? (
+                <p className="text-xs font-bold text-rose-500">Couldn&apos;t build the word list — tapping words still works.</p>
+              ) : visibleWords.length === 0 ? (
+                <p className="text-xs font-bold text-slate-400">
+                  {queuedWords.size > 0 ? "All queued for Add Cards. 🎉" : "Every word here is already in your deck. 🎉"}
+                </p>
+              ) : (
+                <>
+                  <div className="flex flex-col divide-y divide-slate-50">
+                    {visibleWords.map((w) => {
+                      const checked = mining.selectedNew.has(w.word);
+                      return (
+                        <div key={w.word} className="flex items-center gap-3 py-2">
+                          <button
+                            onClick={() => mining.toggleNewWord(w.word)}
+                            aria-label={checked ? `Deselect ${w.word}` : `Select ${w.word}`}
+                            className={`w-5 h-5 shrink-0 rounded-md border-2 flex items-center justify-center transition-colors active:scale-90 ${checked ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-300 bg-white"}`}
+                          >
+                            {checked && <Check size={12} strokeWidth={3} />}
+                          </button>
+                          <button onClick={(e) => handleWordTap(w.word, e)} className="flex-1 min-w-0 text-left">
+                            <span className="text-base font-black text-slate-800">{w.word}</span>
+                            {w.reading && kanjiRe.test(w.word) && (
+                              <span className="text-xs font-bold text-indigo-500 ml-2">{w.reading}</span>
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const words = visibleWords.filter((w) => mining.selectedNew.has(w.word)).map((w) => w.word);
+                      setQueuing(true);
+                      await queueWords(words);
+                      setQueuing(false);
+                    }}
+                    disabled={queuing || visibleSelectedCount === 0}
+                    className="mt-3 w-full flex items-center justify-center gap-1.5 py-3 rounded-2xl text-xs font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-40"
+                  >
+                    {queuing ? (
+                      <><Loader2 size={12} className="animate-spin" /> Queuing…</>
+                    ) : (
+                      <><Plus size={12} /> Queue {visibleSelectedCount} for Add Cards</>
+                    )}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Word lookup (shared with the quizzes / Reader / Sensei chat) — queues into "Not in your deck" */}
+      {/* Word lookup (shared with the quizzes / Reader / Sensei chat) — queues into
+          pending_words here instead of straight into the deck (see file header). */}
       {lookup && (
         <WordLookupSheet
           lookup={lookup}
           onClose={closeLookup}
           onEditWord={setEditWord}
-          onAdd={(w) => mining.queueWord(w, lookup.reading)}
-          isAdded={isQueued}
+          onAdd={(w) => queueWords([w])}
+          isAdded={(w) => queuedWords.has(w)}
           addLabel="Add to List"
           addIcon={<List size={11} />}
           layerClassName={{ backdrop: "z-[310]", sheet: "z-[320] bottom-0 left-0 right-0" }}
-        />
-      )}
-
-      {/* Same "Words added" summary as the Add sheet (Study / Profile) */}
-      {mining.showSummary && (
-        <AddedWordsSummary
-          words={mining.addedWordsSummary}
-          onClose={mining.closeSummary}
-          onDelete={mining.removeAdded}
-          zClassName="z-[330]"
         />
       )}
     </div>
