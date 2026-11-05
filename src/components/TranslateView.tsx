@@ -227,22 +227,20 @@ export default function TranslateView({ userId, onClose }: { userId: string; onC
 
           {error && <p className="text-rose-500 font-bold text-xs mt-2">{error}</p>}
 
+          {/* Below the textbox only, never a full-screen takeover — the textbox
+              stays put the whole time a request is in flight. The button itself is
+              disabled while translating so a second tap can't fire a duplicate call. */}
           <button
             onClick={translate}
-            disabled={!draft.trim()}
+            disabled={translating || !draft.trim()}
             className="w-full mt-3 py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
           >
-            <ArrowRightLeft size={16} /> Translate
+            {translating ? (
+              <><Loader2 size={16} className="animate-spin" /> Translating…</>
+            ) : (
+              <><ArrowRightLeft size={16} /> Translate</>
+            )}
           </button>
-
-          {/* Below the textbox/button only, never a full-screen takeover — the
-              textbox stays put and editable the whole time a request is in flight. */}
-          {translating && (
-            <div className="flex items-center gap-2 mt-4 text-slate-400">
-              <Loader2 size={14} className="animate-spin" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Translating…</span>
-            </div>
-          )}
         </div>
       )}
 

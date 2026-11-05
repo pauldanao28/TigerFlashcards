@@ -18,12 +18,16 @@ ${text}
 2. Translate its meaning into natural Japanese, in TWO registers:
    - "casual": how a friend would say it, plain/casual speech (タメ口)
    - "polite": how you'd say it politely (です/ます, or proper keigo if the content calls for it)
-3. For each register, write a short 1-2 sentence English explanation of what makes that
-   version casual or polite specifically (word choice, verb form, sentence ending) — not a
-   dictionary gloss of the words.
+3. For each register, write a short 1-2 sentence explanation of what makes that version
+   casual or polite specifically (word choice, verb form, sentence ending) — not a dictionary
+   gloss of the words.
 4. Add one short overall "notes" string (1-3 sentences): anything that doesn't map 1:1 between
    the source language and Japanese, cultural context worth knowing, or how you resolved any
    ambiguity in the input.
+
+IMPORTANT: "explanation" and "notes" must always be written in English, regardless of the
+source language you detected in step 1 — never write them in Japanese or the source language.
+Only the "japanese" fields are in Japanese.
 
 Output ONLY raw JSON, no markdown fences. Japanese text plain, no furigana/parentheses:
 {
