@@ -104,6 +104,7 @@ export default function StatsPage() {
   const [autoPlayEn, setAutoPlayEn] = useState(false);
   const [maxStreak, setMaxStreak] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [quickFilter, setQuickFilter] = useState<"none" | "slowReflex" | "recentlyReviewed">("none");
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(50);
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
@@ -501,7 +502,7 @@ export default function StatsPage() {
       for (let from = 0; ; from += PAGE_SIZE) {
         const { data: page, error: pageErr } = await supabase
           .from("master_cards")
-          .select(`*, deck_cards!inner(deck_id, added_at), user_scores(scores_json, is_priority, prioritized_at, reflex_time_total_ms, reflex_attempts)`)
+          .select(`*, deck_cards!inner(deck_id, added_at), user_scores(scores_json, is_priority, prioritized_at, reflex_time_total_ms, reflex_attempts, updated_at)`)
           .eq("deck_cards.deck_id", defaultDeckId)
           .eq("user_scores.user_id", user.id)
           .order("added_at", { foreignTable: "deck_cards", ascending: false })
@@ -531,6 +532,7 @@ export default function StatsPage() {
         prioritized_at: card.user_scores?.[0]?.prioritized_at || null,
         reflex_time_total_ms: card.user_scores?.[0]?.reflex_time_total_ms ?? 0,
         reflex_attempts: card.user_scores?.[0]?.reflex_attempts ?? 0,
+        last_reviewed_at: card.user_scores?.[0]?.updated_at ?? null,
       }));
 
       setCards(flattened);
@@ -668,21 +670,47 @@ export default function StatsPage() {
   const masteredCount = (quickStats && cards.length === 0) ? quickStats.mastered : masteredList.length;
   const strugglingCount = (quickStats && cards.length === 0) ? quickStats.struggling : strugglingList.length;
 
+  // Slow Reflex / Recently Reviewed quick filters — same definitions StudyView's own
+  // Focus filter uses (slowReflexIds: reflex_attempts >= 3) and its "recently reviewed"
+  // history list (last_reviewed_at set + at least one real pass/fail, so brand-new
+  // words whose zeroed scores_json row alone touched last_reviewed_at don't show up).
+  const slowReflexIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const c of cards) {
+      if ((c.reflex_attempts ?? 0) >= 3) ids.add(c.id);
+    }
+    return ids;
+  }, [cards]);
+
+  const recentlyReviewedIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const c of cards) {
+      const total = (c.scores?.jp_to_en?.total ?? 0) + (c.scores?.en_to_jp?.total ?? 0);
+      if (c.last_reviewed_at && total > 0) ids.add(c.id);
+    }
+    return ids;
+  }, [cards]);
+
   const filteredCards = useMemo(() => {
     const query = searchQuery.toLowerCase();
-    return cards
-      .filter(
-        (card) =>
-          card.japanese.toLowerCase().includes(query) ||
-          card.reading.toLowerCase().includes(query) ||
-          card.english.toLowerCase().includes(query),
-      )
-      .sort((a, b) => {
-        const dateA = new Date(a.added_to_deck_at ?? 0).getTime();
-        const dateB = new Date(b.added_to_deck_at ?? 0).getTime();
-        return dateB - dateA;
-      });
-  }, [cards, searchQuery]);
+    let list = cards.filter(
+      (card) =>
+        card.japanese.toLowerCase().includes(query) ||
+        card.reading.toLowerCase().includes(query) ||
+        card.english.toLowerCase().includes(query),
+    );
+    if (quickFilter === "slowReflex") list = list.filter((c) => slowReflexIds.has(c.id));
+    if (quickFilter === "recentlyReviewed") list = list.filter((c) => recentlyReviewedIds.has(c.id));
+
+    return list.sort((a, b) => {
+      if (quickFilter === "recentlyReviewed") {
+        return (b.last_reviewed_at ?? "").localeCompare(a.last_reviewed_at ?? "");
+      }
+      const dateA = new Date(a.added_to_deck_at ?? 0).getTime();
+      const dateB = new Date(b.added_to_deck_at ?? 0).getTime();
+      return dateB - dateA;
+    });
+  }, [cards, searchQuery, quickFilter, slowReflexIds, recentlyReviewedIds]);
 
   const visibleCards = filteredCards.slice(0, displayLimit);
 
@@ -2252,6 +2280,30 @@ export default function StatsPage() {
               onMerged={() => fetchCards()}
             />
           )}
+
+          {/* Quick filters — same Slow Reflex/Leech signals StudyView's own Focus
+              filter uses, applied to the card list in place instead of another
+              entry-point card stacked above the list (Cards already grew too tall
+              once this session; don't repeat that). */}
+          <div className="flex gap-1.5 mb-3 overflow-x-auto pb-0.5">
+            {([
+              ["slowReflex", "🐌 Slow Reflex"],
+              ["recentlyReviewed", "🕐 Recently Reviewed"],
+            ] as const).map(([key, label]) => {
+              const isActive = quickFilter === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => { setQuickFilter(isActive ? "none" : key); setDisplayLimit(20); }}
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                    isActive ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-500 border-slate-200"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
 
           {/* Search + manual refresh — the page already revalidates itself in the
               background on load (stale-while-revalidate), this is just for forcing it
