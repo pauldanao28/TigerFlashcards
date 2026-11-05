@@ -601,15 +601,12 @@ export default function Dashboard() {
         <div className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Today</p>
           <div className="grid grid-cols-3 gap-3 text-center">
-            <button
-              onClick={() => { fetchHistory(); setShowCelebration(true); }}
-              className="active:scale-95 transition-all"
-            >
+            <div>
               <p className="text-xl font-black text-slate-800 tabular-nums">
                 {daily_count}<span className="text-slate-300 text-sm">/{REVIEW_TARGET}</span>
               </p>
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Reviews</p>
-            </button>
+            </div>
             <div>
               <p className={`text-xl font-black tabular-nums ${mastered_today >= MASTERED_GOAL ? "text-emerald-600" : "text-slate-800"}`}>
                 {mastered_today}<span className="text-slate-300 text-sm">/{MASTERED_GOAL}</span>
@@ -621,6 +618,15 @@ export default function Dashboard() {
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Not Yet Mastered</p>
             </div>
           </div>
+          <button
+            onClick={() => { fetchHistory(); setShowCelebration(true); }}
+            className="w-full flex items-center justify-between mt-4 pt-3 border-t border-slate-100 active:scale-[0.99] transition-all"
+          >
+            <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-600">
+              <BarChart3 size={13} /> 14-Day Progress
+            </span>
+            <ChevronRight size={15} className="text-slate-300" />
+          </button>
         </div>
       )}
 

@@ -1556,41 +1556,41 @@ export default function StatsPage() {
             </div>
           )}
 
-          <div className="flex justify-between items-start gap-4 mb-8">
+          <div className="flex justify-between items-start gap-3 mb-8">
             {/* Left Side: Deck Title & Edit Logic */}
-            <div className="flex flex-col">
+            <div className="flex flex-col min-w-0 flex-1">
               {isEditingTitle ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                   <input
                     type="text"
                     value={tempTitle}
                     onChange={(e) => setTempTitle(e.target.value)}
-                    className="text-2xl md:text-3xl font-extrabold text-slate-800 bg-transparent border-b-2 border-indigo-500 outline-none px-1 py-0 min-w-[200px]"
+                    className="text-xl md:text-3xl font-extrabold text-slate-800 bg-transparent border-b-2 border-indigo-500 outline-none px-1 py-0 min-w-0 flex-1"
                     autoFocus
                     onKeyDown={(e) => e.key === "Enter" && updateDeckTitle()}
                     onBlur={() => !tempTitle.trim() && setIsEditingTitle(false)}
                   />
                   <button
                     onClick={updateDeckTitle}
-                    className="bg-emerald-500 text-white px-3 py-1 rounded-lg text-xs font-bold shadow-sm hover:bg-emerald-600 transition-colors"
+                    className="shrink-0 bg-emerald-500 text-white px-3 py-1 rounded-lg text-xs font-bold shadow-sm hover:bg-emerald-600 transition-colors"
                   >
                     {t.save}
                   </button>
                   <button
                     onClick={() => setIsEditingTitle(false)}
-                    className="bg-slate-200 text-slate-600 px-3 py-1 rounded-lg text-xs font-bold hover:bg-slate-300 transition-colors"
+                    className="shrink-0 bg-slate-200 text-slate-600 px-3 py-1 rounded-lg text-xs font-bold hover:bg-slate-300 transition-colors"
                   >
                     <X size={13} />
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center gap-3">
-                  <h1 className="text-2xl md:text-3xl font-black text-slate-800 leading-tight tracking-tight">
+                <div className="flex items-center gap-3 min-w-0">
+                  <h1 className="text-2xl md:text-3xl font-black text-slate-800 leading-tight tracking-tight truncate min-w-0">
                     {deckTitle}
                   </h1>
                   <button
                     onClick={() => setIsEditingTitle(true)}
-                    className="p-1.5 bg-slate-200/50 text-slate-400 rounded-lg hover:bg-indigo-100 hover:text-indigo-600 transition-all active:scale-90"
+                    className="shrink-0 p-1.5 bg-slate-200/50 text-slate-400 rounded-lg hover:bg-indigo-100 hover:text-indigo-600 transition-all active:scale-90"
                     title="Rename Deck"
                   >
                     <svg
