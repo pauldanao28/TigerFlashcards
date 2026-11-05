@@ -51,21 +51,38 @@ export function useWordLookup(userId: string | null | undefined) {
   const [lookup, setLookup] = useState<WordLookup | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Needed to confirm actual deck membership (see checkDeck below) — fetched once,
+  // lazily, same minimal pattern useWordMining already uses for the same id.
+  const [deckId, setDeckId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!userId) return;
+    supabase.from("decks").select("id").eq("user_id", userId).eq("is_default", true).maybeSingle()
+      .then(({ data }) => setDeckId(data?.id ?? null));
+  }, [userId]);
+
   useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
 
   // Results are dropped if the user has since moved on to a different word.
   const patch = (word: string, fields: Partial<WordLookup>) =>
     setLookup((prev) => (prev && prev.editWord === word ? { ...prev, ...fields } : prev));
 
+  // A user_scores row existing isn't proof the word is in the deck — a card whose
+  // deck_cards link was ever removed without its score row (an older code path, a
+  // partial failure, a one-off data edit) left the two out of sync, and this card
+  // then permanently showed as "already added"/"Weak" on every future lookup even
+  // though it had been removed. Deck membership is the actual source of truth.
   const checkDeck = useCallback(async (word: string) => {
     const { data: card } = await supabase.from("master_cards").select("id").eq("japanese", word).maybeSingle();
-    const { data: score } = card && userId
+    if (!card || !deckId) { patch(word, { deckStatus: "new", deckAccuracy: undefined }); return; }
+    const { data: link } = await supabase.from("deck_cards").select("card_id").eq("deck_id", deckId).eq("card_id", card.id).maybeSingle();
+    if (!link) { patch(word, { deckStatus: "new", deckAccuracy: undefined }); return; }
+    const { data: score } = userId
       ? await supabase.from("user_scores").select("scores_json").eq("user_id", userId).eq("card_id", card.id).maybeSingle()
       : { data: null };
     if (!score) { patch(word, { deckStatus: "new", deckAccuracy: undefined }); return; }
     const { status, accuracy } = deckStatusFromScores((score.scores_json ?? {}) as ScoresJson);
     patch(word, { deckStatus: status, deckAccuracy: accuracy });
-  }, [userId]);
+  }, [userId, deckId]);
 
   const fetchJisho = useCallback((word: string, allowCompounds: boolean) => {
     const isSingleKanji = allowCompounds && word.length === 1 && kanjiRe.test(word);
