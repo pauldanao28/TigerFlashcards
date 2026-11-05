@@ -91,42 +91,6 @@ function QuizzesInner() {
           </div>
         </button>
 
-        {/* Translate */}
-        <button
-          onClick={() => setShowTranslate(true)}
-          className="bg-white rounded-2xl p-5 border-2 border-indigo-100 shadow-sm active:scale-95 transition-all text-left w-full relative overflow-hidden"
-        >
-          <span className="absolute top-3 right-3 text-[8px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
-            New
-          </span>
-          <div className="flex items-center gap-4">
-            <span className="text-3xl">🔄</span>
-            <div className="flex-1">
-              <p className="font-black text-slate-900">Translate</p>
-              <p className="text-xs text-slate-400 mt-0.5">Type or speak any language — get casual &amp; polite Japanese, explained</p>
-            </div>
-            <span className="text-slate-300 text-lg">›</span>
-          </div>
-        </button>
-
-        {/* Weak Words Quiz */}
-        <button
-          onClick={() => setShowWeakWords(true)}
-          className="bg-white rounded-2xl p-5 border-2 border-indigo-100 shadow-sm active:scale-95 transition-all text-left w-full relative overflow-hidden"
-        >
-          <span className="absolute top-3 right-3 text-[8px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
-            New
-          </span>
-          <div className="flex items-center gap-4">
-            <span className="text-3xl">😓</span>
-            <div className="flex-1">
-              <p className="font-black text-slate-900">Weak Words Quiz</p>
-              <p className="text-xs text-slate-400 mt-0.5">Slow, weak, or struggling today — reviewed in a sentence, with a kanji clue if you need it</p>
-            </div>
-            <span className="text-slate-300 text-lg">›</span>
-          </div>
-        </button>
-
         {/* Reading / Sentence Quiz */}
         <button
           onClick={() => setShowSentence(true)}

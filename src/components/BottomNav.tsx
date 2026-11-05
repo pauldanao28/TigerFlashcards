@@ -41,6 +41,9 @@ type QuickAction = {
   kanji?: string;
   bg: string;
   color: string;
+  // Number badge on the tile's icon, same spot/style as the queue-count badge on
+  // Add Cards elsewhere — only Weak Words Quiz has one so far.
+  badgeKey?: "weakWords";
 };
 
 // The 5 quiz/content modes (each opened via /quizzes?open=... same as every other
@@ -54,7 +57,7 @@ const QUICK_ACTIONS: QuickAction[] = [
   { href: "/quizzes?open=sentence", label: "Reading Quiz", icon: ScrollText, bg: "bg-indigo-50", color: "text-indigo-600" },
   { href: "/quizzes?open=listening", label: "Listening Quiz", icon: Headphones, bg: "bg-sky-50", color: "text-sky-600" },
   { href: "/quizzes?open=grammar", label: "Grammar Quiz", icon: PenTool, bg: "bg-violet-50", color: "text-violet-600" },
-  { href: "/quizzes?open=weak_words", label: "Weak Words Quiz", icon: Frown, bg: "bg-rose-50", color: "text-rose-600" },
+  { href: "/quizzes?open=weak_words", label: "Weak Words Quiz", icon: Frown, bg: "bg-rose-50", color: "text-rose-600", badgeKey: "weakWords" },
   { href: "/quizzes?open=watch", label: "Watcher", icon: MonitorPlay, bg: "bg-orange-50", color: "text-orange-600" },
   { href: "/quizzes?open=reader", label: "Reader", icon: BookOpen, bg: "bg-teal-50", color: "text-teal-600" },
   { href: "/study/kana", label: "Kana Practice", icon: Languages, bg: "bg-emerald-50", color: "text-emerald-600" },
@@ -89,20 +92,25 @@ function BottomNavInner() {
   const [avatar, setAvatar] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [streak, setStreak] = useState(0);
+  const [weakWordsCount, setWeakWordsCount] = useState<number | null>(null);
 
   // Fetched lazily (only once the Quick Actions sheet is opened) since most page
-  // loads never touch Add Cards/Friends — no need to pay for this on every
-  // navigation. Covers both tiles' data needs in one profile row.
+  // loads never touch Add Cards/Friends/the Weak Words badge — no need to pay for
+  // this on every navigation. Covers all three tiles' data needs in one round trip.
+  // count_weak_words is a cheap server-side count (see its migration), not the full
+  // per-card fetch WeakWordsQuiz's own load() does when the quiz actually starts.
   useEffect(() => {
     if (!showQuickActions || !user || defaultDeckId) return;
     (async () => {
-      const [{ data: deck }, { data: profile }] = await Promise.all([
+      const todaySg = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+      const [{ data: deck }, { data: profile }, { data: weakCount }] = await Promise.all([
         supabase.from("decks").select("id").eq("user_id", user.id).eq("is_default", true).single(),
         supabase
           .from("profiles")
           .select("is_admin, blocked_words, full_name, avatar_url, referral_code, streak_count")
           .eq("id", user.id)
           .single(),
+        supabase.rpc("count_weak_words", { p_today: todaySg }),
       ]);
       if (deck) setDefaultDeckId(deck.id);
       if (profile) {
@@ -113,6 +121,7 @@ function BottomNavInner() {
         setReferralCode(profile.referral_code);
         setStreak(profile.streak_count || 0);
       }
+      if (typeof weakCount === "number") setWeakWordsCount(weakCount);
     })();
   }, [showQuickActions, user, defaultDeckId]);
 
@@ -160,14 +169,20 @@ function BottomNavInner() {
   };
 
   const renderQuickActionTile = (item: QuickAction) => {
+    const badgeCount = item.badgeKey === "weakWords" ? weakWordsCount : null;
     const inner = (
       <>
-        <span className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${item.bg}`}>
+        <span className={`relative w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${item.bg}`}>
           {item.kanji ? (
             <span className={`text-base font-black ${item.color}`}>{item.kanji}</span>
           ) : item.icon ? (
             <item.icon size={20} className={item.color} />
           ) : null}
+          {!!badgeCount && (
+            <span className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[9px] font-black rounded-full w-4 h-4 flex items-center justify-center">
+              {badgeCount > 9 ? "9+" : badgeCount}
+            </span>
+          )}
         </span>
         <span className="text-[11px] font-bold text-slate-700 text-center leading-tight">{item.label}</span>
       </>
