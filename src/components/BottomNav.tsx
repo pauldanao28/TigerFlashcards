@@ -41,9 +41,9 @@ type QuickAction = {
   kanji?: string;
   bg: string;
   color: string;
-  // Number badge on the tile's icon, same spot/style as the queue-count badge on
-  // Add Cards elsewhere — only Weak Words Quiz has one so far.
-  badgeKey?: "weakWords";
+  // Number badge on the tile's icon, same spot/style as the queue-count badge
+  // elsewhere (e.g. SentenceQuiz's own word list icon).
+  badgeKey?: "weakWords" | "addCards";
 };
 
 // The 5 quiz/content modes (each opened via /quizzes?open=... same as every other
@@ -52,7 +52,7 @@ type QuickAction = {
 // Add Cards opens AddWordsSheet in place (via `action`, not `href`) rather than
 // navigating to Cards — it must work the same from whichever page the user is on.
 const QUICK_ACTIONS: QuickAction[] = [
-  { action: "addCards", label: "Add Cards", icon: Plus, bg: "bg-fuchsia-50", color: "text-fuchsia-600" },
+  { action: "addCards", label: "Add Cards", icon: Plus, bg: "bg-fuchsia-50", color: "text-fuchsia-600", badgeKey: "addCards" },
   { href: "/quizzes?open=translate", label: "Translate", icon: ArrowRightLeft, bg: "bg-lime-50", color: "text-lime-600" },
   { href: "/quizzes?open=sentence", label: "Reading Quiz", icon: ScrollText, bg: "bg-indigo-50", color: "text-indigo-600" },
   { href: "/quizzes?open=listening", label: "Listening Quiz", icon: Headphones, bg: "bg-sky-50", color: "text-sky-600" },
@@ -93,12 +93,17 @@ function BottomNavInner() {
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [streak, setStreak] = useState(0);
   const [weakWordsCount, setWeakWordsCount] = useState<number | null>(null);
+  const [pendingWordsCount, setPendingWordsCount] = useState<number | null>(null);
 
   // Fetched lazily (only once the Quick Actions sheet is opened) since most page
   // loads never touch Add Cards/Friends/the Weak Words badge — no need to pay for
   // this on every navigation. Covers all three tiles' data needs in one round trip.
   // count_weak_words is a cheap server-side count (see its migration), not the full
   // per-card fetch WeakWordsQuiz's own load() does when the quiz actually starts.
+  // pending_words is just read off the same profile row — no extra query for it.
+  // Both counts are a one-time-per-session snapshot, same as everything else this
+  // effect loads — onQueueCountChange below keeps pendingWordsCount live only while
+  // AddWordsSheet itself is actually interacted with.
   useEffect(() => {
     if (!showQuickActions || !user || defaultDeckId) return;
     (async () => {
@@ -107,7 +112,7 @@ function BottomNavInner() {
         supabase.from("decks").select("id").eq("user_id", user.id).eq("is_default", true).single(),
         supabase
           .from("profiles")
-          .select("is_admin, blocked_words, full_name, avatar_url, referral_code, streak_count")
+          .select("is_admin, blocked_words, full_name, avatar_url, referral_code, streak_count, pending_words")
           .eq("id", user.id)
           .single(),
         supabase.rpc("count_weak_words", { p_today: todaySg }),
@@ -120,6 +125,7 @@ function BottomNavInner() {
         setAvatar(profile.avatar_url);
         setReferralCode(profile.referral_code);
         setStreak(profile.streak_count || 0);
+        setPendingWordsCount((profile.pending_words || []).length);
       }
       if (typeof weakCount === "number") setWeakWordsCount(weakCount);
     })();
@@ -169,7 +175,7 @@ function BottomNavInner() {
   };
 
   const renderQuickActionTile = (item: QuickAction) => {
-    const badgeCount = item.badgeKey === "weakWords" ? weakWordsCount : null;
+    const badgeCount = item.badgeKey === "weakWords" ? weakWordsCount : item.badgeKey === "addCards" ? pendingWordsCount : null;
     const inner = (
       <>
         <span className={`relative w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${item.bg}`}>
@@ -269,6 +275,7 @@ function BottomNavInner() {
           blocklist={blocklist}
           open={showAddCards}
           onClose={() => setShowAddCards(false)}
+          onQueueCountChange={setPendingWordsCount}
         />
       )}
 
