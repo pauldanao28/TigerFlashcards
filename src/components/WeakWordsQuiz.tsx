@@ -280,6 +280,14 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id,card_id" });
 
+    // Same fire-and-forget "what did I get wrong today" log StudyView's Fail grade
+    // writes — this card was already pulled from that same signal, so missing it
+    // again here should count the same as missing it in a normal review.
+    if (!passed) {
+      supabase.rpc("record_daily_struggle", { target_user_id: userId, target_card_id: card.id })
+        .then(({ error }) => { if (error) console.error("Error recording daily struggle:", error); });
+    }
+
     setResults((prev) => [...prev, { card, passed, newPercent }]);
   };
 
