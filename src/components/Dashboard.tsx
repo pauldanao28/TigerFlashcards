@@ -13,9 +13,10 @@ import BadgeToast from "@/components/BadgeToast";
 import NotificationBell from "@/components/NotificationBell";
 import ShareButton from "@/components/ShareButton";
 import { SKILL_TILE, type SkillKey } from "@/lib/skillTheme";
-import { Share2 } from "lucide-react";
+import { Share2, ChevronRight, Trophy, TrendingUp } from "lucide-react";
 import { useFriendsContext } from "@/context/FriendsContext";
 import { pickDailyQuests, questProgress } from "@/lib/dailyQuests";
+import { BADGES } from "@/lib/badges";
 
 type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
 
@@ -36,6 +37,14 @@ interface ProfileScores {
   cards_added_today: number;
   daily_quests_enabled: boolean;
   still_learning: number;
+  mastered_count: number;
+  struggling_count: number;
+  avg_reflex_seconds: number | null;
+  avg_accuracy: number | null;
+  jp_tries: number;
+  jp_pass: number;
+  en_tries: number;
+  en_pass: number;
   vocab_score: number | null;
   reading_score: number | null;
   listening_score: number | null;
@@ -282,6 +291,8 @@ export default function Dashboard() {
   const [badgeQueue, setBadgeQueue] = useState<string[]>([]);
   const [isStatsShareOpen, setIsStatsShareOpen] = useState(false);
   const [selectedPos, setSelectedPos] = useState<string | null>(null);
+  const [earnedBadges, setEarnedBadges] = useState<Set<string>>(new Set());
+  const [grammarStats, setGrammarStats] = useState<{ mastered: number; total: number } | null>(null);
   const { friends, fetchFriends, socialToast, dismissSocialToast } = useFriendsContext();
 
   useEffect(() => {
@@ -315,6 +326,14 @@ export default function Dashboard() {
         cards_added_today: raw.cards_added_today ?? 0,
         daily_quests_enabled: raw.daily_quests_enabled ?? true,
         still_learning: raw.still_learning ?? 0,
+        mastered_count: raw.mastered_count ?? 0,
+        struggling_count: raw.struggling_count ?? 0,
+        avg_reflex_seconds: raw.avg_reflex_seconds ?? null,
+        avg_accuracy: raw.avg_accuracy ?? null,
+        jp_tries: raw.jp_tries ?? 0,
+        jp_pass: raw.jp_pass ?? 0,
+        en_tries: raw.en_tries ?? 0,
+        en_pass: raw.en_pass ?? 0,
         vocab_score: raw.vocab_score ?? 0,
         reading_score: raw.reading_score ?? null,
         listening_score: raw.listening_score ?? null,
@@ -342,6 +361,34 @@ export default function Dashboard() {
     // onAuthStateChange emits a new object reference on every event (token refresh,
     // tab focus, etc.) even for the same session, which was re-triggering this whole
     // fetch-and-recompute sequence repeatedly and made the displayed numbers flicker.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // Badges + Grammar summary cards — moved here from the Cards page so progress/
+  // motivation content lives in one place. Both are cheap, targeted reads (not the
+  // full-deck fetch get_dashboard_data above was built to avoid), same queries the
+  // Cards/Grammar pages themselves use.
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("user_badges")
+      .select("badge_key")
+      .eq("user_id", user.id)
+      .then(({ data: rows, error }) => {
+        if (error) { console.error("Error fetching badges:", error.message); return; }
+        setEarnedBadges(new Set((rows ?? []).map((b) => b.badge_key)));
+      });
+
+    (async () => {
+      const [{ count: total }, { data: sData, error }] = await Promise.all([
+        supabase.from("grammar_patterns").select("id", { count: "exact", head: true }),
+        supabase.from("user_grammar_scores").select("total, percent").eq("user_id", user.id),
+      ]);
+      if (error) { console.error("Error fetching grammar scores:", error.message); return; }
+      const mastered = (sData ?? []).filter((s) => s.total >= 3 && s.percent >= 80).length;
+      setGrammarStats({ mastered, total: total ?? 0 });
+    })();
+    // Same user?.id-not-user rationale as the load() effect above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -624,6 +671,163 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Badges — compact summary card; the full grid lives on its own page
+          (/stats/badges). Moved here from Cards so progress/motivation content
+          lives in one place instead of split across two tabs. */}
+      <Link
+        href="/stats/badges"
+        className="mx-4 mt-3 flex items-center justify-between gap-3 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm hover:border-indigo-200 transition-all"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          {earnedBadges.size > 0 ? (
+            <div className="flex -space-x-2 shrink-0">
+              {BADGES.filter((b) => earnedBadges.has(b.key)).slice(0, 4).map((badge) => (
+                <span
+                  key={badge.key}
+                  className="w-9 h-9 rounded-full bg-slate-50 border-2 border-white flex items-center justify-center text-base shadow-sm"
+                >
+                  {badge.icon}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
+              <Trophy size={16} className="text-slate-300" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-slate-700">Badges</p>
+            <p className="text-[10px] text-slate-500 font-medium">
+              {earnedBadges.size}/{BADGES.length} earned
+            </p>
+          </div>
+        </div>
+        <ChevronRight size={18} className="text-slate-300 shrink-0" />
+      </Link>
+
+      {/* Grammar — same compact-card-to-full-page pattern as Badges. */}
+      {grammarStats && grammarStats.total > 0 && (
+        <Link
+          href="/stats/grammar"
+          className="mx-4 mt-3 flex items-center justify-between gap-3 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm hover:border-indigo-200 transition-all"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-full bg-violet-50 border border-violet-100 flex items-center justify-center shrink-0 text-base">
+              📝
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-slate-700">Grammar</p>
+              <p className="text-[10px] text-slate-500 font-medium">
+                {grammarStats.mastered}/{grammarStats.total} learned
+              </p>
+            </div>
+          </div>
+          <ChevronRight size={18} className="text-slate-300 shrink-0" />
+        </Link>
+      )}
+
+      {/* Deck Stats — Mastered/Struggling/Avg Reflex/Avg Accuracy, moved here from
+          Cards; all four now come from get_dashboard_data itself (see its migration)
+          instead of a client-side full-deck fetch, so this stays as cheap as the rest
+          of Home. */}
+      {data.deck_size > 0 && (
+        <div className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Deck Stats</p>
+          <div className="grid grid-cols-2 gap-3 text-center">
+            <div>
+              <p className="text-xl font-black text-emerald-600 tabular-nums">{data.mastered_count}</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Mastered</p>
+            </div>
+            <div>
+              <p className="text-xl font-black text-rose-600 tabular-nums">{data.struggling_count}</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Struggling</p>
+            </div>
+            {data.avg_reflex_seconds != null && (
+              <div>
+                <p className="text-xl font-black text-amber-600 tabular-nums">{data.avg_reflex_seconds.toFixed(1)}s</p>
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Avg Reflex Speed</p>
+              </div>
+            )}
+            {data.avg_accuracy != null && (
+              <div>
+                <p className="text-xl font-black text-indigo-600 tabular-nums">{data.avg_accuracy}%</p>
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Avg Accuracy</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Directional Comparison — JP→EN (recognition) vs EN→JP (recall), moved here
+          from Cards. */}
+      {(data.jp_tries + data.en_tries) > 0 && (
+        <div className="mx-4 mt-3 bg-slate-800 rounded-[2.5rem] p-6 text-white shadow-xl border border-slate-700 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full -mr-16 -mt-16 blur-3xl" />
+          <div className="flex flex-col md:flex-row gap-8 items-center">
+            <div className="flex-1 w-full">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 text-[10px] font-black rounded-md border border-indigo-500/30 uppercase tracking-widest">
+                  Recognition
+                </span>
+                <p className="text-xs font-bold text-slate-500">🇯🇵 → 🇺🇸</p>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase">Tries</p>
+                  <p className="text-xl font-black">{data.jp_tries.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-indigo-400 uppercase">Accuracy</p>
+                  <p className="text-xl font-black">
+                    {data.jp_tries > 0 ? Math.round((data.jp_pass / data.jp_tries) * 100) : 0}%
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-emerald-500 uppercase">Pass</p>
+                  <p className="text-xl font-black text-emerald-400">{data.jp_pass.toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+            <div className="hidden md:block w-px h-16 bg-slate-700/50" />
+            <div className="flex-1 w-full">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 text-[10px] font-black rounded-md border border-orange-500/30 uppercase tracking-widest">
+                  Recall
+                </span>
+                <p className="text-xs font-bold text-slate-500">🇺🇸 → 🇯🇵</p>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase">Tries</p>
+                  <p className="text-xl font-black">{data.en_tries.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-orange-400 uppercase">Accuracy</p>
+                  <p className="text-xl font-black">
+                    {data.en_tries > 0 ? Math.round((data.en_pass / data.en_tries) * 100) : 0}%
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-emerald-500 uppercase">Pass</p>
+                  <p className="text-xl font-black text-emerald-400">{data.en_pass.toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Advanced Stats — separate page, all live-computed. */}
+      <Link
+        href="/stats/insights"
+        className="mx-4 mt-3 flex items-center justify-between bg-white px-6 py-4 rounded-2xl shadow-sm border border-slate-100 font-black text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.99]"
+      >
+        <span className="flex items-center gap-2 text-sm">
+          <TrendingUp size={16} className="text-slate-400" /> Advanced Stats
+        </span>
+        <span className="text-slate-500 text-xs">View →</span>
+      </Link>
       </div>
 
       {/* Part of speech detail modal */}

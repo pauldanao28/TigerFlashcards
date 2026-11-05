@@ -7,18 +7,16 @@ import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
 import { translations } from "@/lib/languages";
 import { useUploadGuard } from "@/context/UploadGuardContext";
-import { BADGES } from "@/lib/badges";
 import { useAppAlert } from "@/context/AlertContext";
 import { motion, useAnimationControls } from "framer-motion";
 import Logo from "@/components/Logo";
-import { calculateGlobalStats } from "@/lib/stats";
 import LoadingScreen from "@/components/LoadingScreen";
 import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
 import AddWordsSheet from "@/components/AddWordsSheet";
 import DuplicatesSheet from "@/components/DuplicatesSheet";
 import CardDetailModal from "@/components/CardDetailModal";
 import { findDuplicates, skipDeckDuplicates } from "@/lib/duplicates";
-import { AlertTriangle, Ban, BarChart3, Bell, BookOpen, ChevronLeft, ChevronRight, Flag, Gamepad2, Gift, Headphones, ImageIcon, Layers, List, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Volume2, X, Zap } from "lucide-react";
+import { AlertTriangle, Ban, BarChart3, Bell, BookOpen, ChevronLeft, Flag, Gamepad2, Gift, Headphones, ImageIcon, Layers, List, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, Target, TrendingDown, Trophy, Volume2, X, Zap } from "lucide-react";
 import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from "@/lib/push";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { validateUsername, isUsernameTaken, type UsernameProblem } from "@/lib/username";
@@ -157,8 +155,6 @@ export default function StatsPage() {
   const [autoPlayJp, setAutoPlayJp] = useState(true);
   const [autoPlayEn, setAutoPlayEn] = useState(false);
   const [maxStreak, setMaxStreak] = useState(0);
-  const [earnedBadges, setEarnedBadges] = useState<Set<string>>(new Set());
-  const [grammarStats, setGrammarStats] = useState<{ mastered: number; total: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(50);
@@ -385,37 +381,15 @@ export default function StatsPage() {
     return () => subscription.unsubscribe();
   }, []); // Empty array means this ONLY runs once on mount
 
-  // Re-checks (not just reads) on every visit — a cheap idempotent RPC call, and the
-  // only other check-and-award call sites (StudyView after a goal, Dashboard on load)
-  // won't have run yet for someone who opens Cards first.
+  // Re-checks (not just reads) on every visit — a cheap idempotent RPC call, kept
+  // here (even though Badges no longer displays on this page) so someone who opens
+  // Cards before ever visiting Home still gets prompt awarding; Home and StudyView's
+  // own checks cover the toast/display side now.
   useEffect(() => {
     if (!user) return;
     supabase.rpc("check_and_award_badges").then(({ error }) => {
       if (error) console.error("Error checking badges:", error.message);
     });
-    supabase
-      .from("user_badges")
-      .select("badge_key")
-      .eq("user_id", user.id)
-      .then(({ data, error }) => {
-        if (error) { console.error("Error fetching badges:", error.message); return; }
-        setEarnedBadges(new Set((data ?? []).map((b) => b.badge_key)));
-      });
-  }, [user]);
-
-  // Grammar summary for the compact card — same mastery bar (>=3 attempts, >=80%)
-  // as /learn/[level] and /stats/grammar use.
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      const [{ count: total }, { data: sData, error }] = await Promise.all([
-        supabase.from("grammar_patterns").select("id", { count: "exact", head: true }),
-        supabase.from("user_grammar_scores").select("total, percent").eq("user_id", user.id),
-      ]);
-      if (error) { console.error("Error fetching grammar scores:", error.message); return; }
-      const mastered = (sData ?? []).filter((s) => s.total >= 3 && s.percent >= 80).length;
-      setGrammarStats({ mastered, total: total ?? 0 });
-    })();
   }, [user]);
 
   // 1. Fetch the user's basic info first
@@ -775,44 +749,6 @@ export default function StatsPage() {
     }));
   };
 
-  // Prefer quickStats (loaded fast) for number display; fall back to full cards once loaded.
-  const totalCards = quickStats?.total ?? cards.length;
-  const globalStats = useMemo(() => {
-    if (quickStats && cards.length === 0) {
-      return { jp: quickStats.jp, en: quickStats.en };
-    }
-    return calculateGlobalStats(cards);
-  }, [cards, quickStats]);
-
-  // 1. Global Totals (Tries, Pass, Fail)
-  // Separate Global Totals for both directions
-  // const globalStats = useMemo(() => {
-  //   return cards.reduce(
-  //     (acc, card) => {
-  //       const s = card.scores;
-  //       if (s) {
-  //         const jp = s.jp_to_en || { total: 0, pass: 0, fail: 0 };
-  //         const en = s.en_to_jp || { total: 0, pass: 0, fail: 0 };
-
-  //         // Accumulate Japanese -> English
-  //         acc.jp.tries += jp.total || 0;
-  //         acc.jp.pass += jp.pass || 0;
-  //         acc.jp.fail += jp.fail || 0;
-
-  //         // Accumulate English -> Japanese
-  //         acc.en.tries += en.total || 0;
-  //         acc.en.pass += en.pass || 0;
-  //         acc.en.fail += en.fail || 0;
-  //       }
-  //       return acc;
-  //     },
-  //     {
-  //       jp: { tries: 0, pass: 0, fail: 0 },
-  //       en: { tries: 0, pass: 0, fail: 0 },
-  //     },
-  //   );
-  // }, [cards]);
-
   // Mastered = max(jp_to_en, en_to_jp) ≥ 70% with at least one attempt
   const duplicates = useMemo(() => findDuplicates(cards), [cards]);
 
@@ -853,39 +789,6 @@ export default function StatsPage() {
   const masteredCount = (quickStats && cards.length === 0) ? quickStats.mastered : masteredList.length;
   const strugglingCount = (quickStats && cards.length === 0) ? quickStats.struggling : strugglingList.length;
 
-  // Average seconds to recall a word under Reflex Mode, across the whole deck — same
-  // per-card math as Study's Slow Recall list, just summed over every card instead of
-  // ranked one by one. null until at least one Reflex Mode pass exists anywhere.
-  const avgReflexSeconds = useMemo(() => {
-    let totalMs = 0;
-    let totalAttempts = 0;
-    for (const c of cards) {
-      totalMs += c.reflex_time_total_ms ?? 0;
-      totalAttempts += c.reflex_attempts ?? 0;
-    }
-    return totalAttempts > 0 ? totalMs / totalAttempts / 1000 : null;
-  }, [cards]);
-
-  // Average best-direction accuracy across every attempted card — same "whichever
-  // side is higher" philosophy as Struggling/Mastered's own per-card classification,
-  // just averaged instead of thresholded. Cards with zero attempts in either
-  // direction are excluded (an untried 0% would just measure how much of the deck
-  // is unstarted, not how well those cards are actually known); null with no
-  // attempted cards at all.
-  const avgBestAccuracy = useMemo(() => {
-    let sum = 0;
-    let count = 0;
-    for (const c of cards) {
-      const jp = c.scores?.jp_to_en;
-      const en = c.scores?.en_to_jp;
-      const totalAttempts = (jp?.total ?? 0) + (en?.total ?? 0);
-      if (totalAttempts === 0) continue;
-      sum += Math.max(jp?.percent ?? 0, en?.percent ?? 0);
-      count += 1;
-    }
-    return count > 0 ? Math.round(sum / count) : null;
-  }, [cards]);
-
   const filteredCards = useMemo(() => {
     const query = searchQuery.toLowerCase();
     return cards
@@ -903,14 +806,6 @@ export default function StatsPage() {
   }, [cards, searchQuery]);
 
   const visibleCards = filteredCards.slice(0, displayLimit);
-
-  // Keeps big tries counts (19,095 reviews deep into a word) from blowing out
-  // the fixed-width stat tiles — "19.1K" reads fine at the same size "19095" doesn't.
-  const formatCount = (n: number) => {
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
-    if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
-    return String(n);
-  };
 
   const getPosColor = (pos: string) => {
     const p = pos?.toLowerCase() || "";
@@ -1851,72 +1746,15 @@ export default function StatsPage() {
             </Link>
           </div>
 
-          {/* Badges — compact summary card; the full grid lives on its own page
-              (/stats/badges) so it doesn't dominate the Cards page. Awarding
-              itself happens server-side (check_and_award_badges), this just
-              reads the result. */}
-          <Link
-            href="/stats/badges"
-            className="flex items-center justify-between gap-3 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm mb-8 hover:border-indigo-200 transition-all"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              {earnedBadges.size > 0 ? (
-                <div className="flex -space-x-2 shrink-0">
-                  {BADGES.filter((b) => earnedBadges.has(b.key)).slice(0, 4).map((badge) => (
-                    <span
-                      key={badge.key}
-                      className="w-9 h-9 rounded-full bg-slate-50 border-2 border-white flex items-center justify-center text-base shadow-sm"
-                    >
-                      {badge.icon}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <div className="w-9 h-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
-                  <Trophy size={16} className="text-slate-300" />
-                </div>
-              )}
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-slate-700">Badges</p>
-                <p className="text-[10px] text-slate-500 font-medium">
-                  {earnedBadges.size}/{BADGES.length} earned
-                </p>
-              </div>
-            </div>
-            <ChevronRight size={18} className="text-slate-300 shrink-0" />
-          </Link>
-
-          {/* Grammar — compact summary card; the full pattern list (all JLPT levels,
-              filterable) lives on its own page, same pattern as Badges. */}
-          {grammarStats && grammarStats.total > 0 && (
-            <Link
-              href="/stats/grammar"
-              className="flex items-center justify-between gap-3 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm mb-8 hover:border-indigo-200 transition-all"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-full bg-violet-50 border border-violet-100 flex items-center justify-center shrink-0 text-base">
-                  📝
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-slate-700">Grammar</p>
-                  <p className="text-[10px] text-slate-500 font-medium">
-                    {grammarStats.mastered}/{grammarStats.total} learned
-                  </p>
-                </div>
-              </div>
-              <ChevronRight size={18} className="text-slate-300 shrink-0" />
-            </Link>
-          )}
-
-          {/* Stats Cards */}
+          {/* Stats Cards — Mastered/Struggling/Daily Progress kept here (not moved to
+              Home with the rest of stats) because tapping them opens real drill-down
+              features: a celebration + filtered card list for Mastered/Struggling, a
+              celebration + review-history chart for Daily Progress. Everything else
+              that used to live in this section (Vocabulary/Avg Reflex/Avg Accuracy
+              numbers, the Directional Comparison widget, Badges, Grammar, and the
+              Advanced Stats link) was pure display with no interaction, so it moved
+              to Home instead. */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6 mb-8">
-            <StatCard
-              label={t.vocabulary}
-              value={totalCards}
-              bgColor="bg-indigo-50"
-              iconColor="text-indigo-500"
-              icon={BookOpen}
-            />
             <StatCard
               label={t.mastered}
               value={masteredCount}
@@ -1933,7 +1771,6 @@ export default function StatsPage() {
               icon={TrendingDown}
               onClick={() => setShowStrugglingCelebration(true)}
             />
-
             <StatCard
               label={t.daily_progress}
               value={reviewsToday}
@@ -1945,136 +1782,6 @@ export default function StatsPage() {
                 setShowCelebration(true);
               }}
             />
-
-            {avgReflexSeconds != null && (
-              <StatCard
-                label="Avg Reflex Speed"
-                value={`${avgReflexSeconds.toFixed(1)}s`}
-                bgColor="bg-amber-50"
-                iconColor="text-amber-500"
-                icon={Zap}
-              />
-            )}
-
-            {avgBestAccuracy != null && (
-              <StatCard
-                label="Avg Accuracy"
-                value={`${avgBestAccuracy}%`}
-                bgColor="bg-emerald-50"
-                iconColor="text-emerald-500"
-                icon={TrendingUp}
-              />
-            )}
-
-            {/* Directional Comparison Dashboard */}
-            <div className="col-span-2 md:col-span-3 bg-slate-800 rounded-[2.5rem] p-6 text-white shadow-xl border border-slate-700 relative overflow-hidden">
-              {/* Subtle Background Decoration */}
-              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full -mr-16 -mt-16 blur-3xl" />
-
-              <div className="flex flex-col md:flex-row gap-8 items-center">
-                {/* Left Side: JP → EN */}
-                <div className="flex-1 w-full">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 text-[10px] font-black rounded-md border border-indigo-500/30 uppercase tracking-widest">
-                      {t.recognition}
-                    </span>
-                    <p className="text-xs font-bold text-slate-500">🇯🇵 → 🇺🇸</p>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-500 uppercase">
-                        {t.tries}
-                      </p>
-                      <p className="text-xl font-black">
-                        {formatCount(globalStats.jp.tries)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-indigo-400 uppercase">
-                        {t.accuracy}
-                      </p>
-                      <p className="text-xl font-black">
-                        {globalStats.jp.tries > 0
-                          ? Math.round(
-                              (globalStats.jp.pass / globalStats.jp.tries) *
-                                100,
-                            )
-                          : 0}
-                        %
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-emerald-500 uppercase">
-                        {t.pass}
-                      </p>
-                      <p className="text-xl font-black text-emerald-400">
-                        {formatCount(globalStats.jp.pass)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Center Divider (Desktop Only) */}
-                <div className="hidden md:block w-px h-16 bg-slate-700/50" />
-
-                {/* Right Side: EN → JP */}
-                <div className="flex-1 w-full">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 text-[10px] font-black rounded-md border border-orange-500/30 uppercase tracking-widest">
-                      {t.recall}
-                    </span>
-                    <p className="text-xs font-bold text-slate-500">🇺🇸 → 🇯🇵</p>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-500 uppercase">
-                        {t.tries}
-                      </p>
-                      <p className="text-xl font-black">
-                        {formatCount(globalStats.en.tries)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-orange-400 uppercase">
-                        {t.accuracy}
-                      </p>
-                      <p className="text-xl font-black">
-                        {globalStats.en.tries > 0
-                          ? Math.round(
-                              (globalStats.en.pass / globalStats.en.tries) *
-                                100,
-                            )
-                          : 0}
-                        %
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-emerald-500 uppercase">
-                        {t.pass}
-                      </p>
-                      <p className="text-xl font-black text-emerald-400">
-                        {formatCount(globalStats.en.pass)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Advanced Stats — separate page, all live-computed (no AI except the
-              admin-only Analyze button inside it). */}
-          <div className="mb-10">
-            <Link
-              href="/stats/insights"
-              className="w-full flex items-center justify-between bg-white px-6 py-4 rounded-2xl shadow-sm border border-slate-100 font-black text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.99]"
-            >
-              <span className="flex items-center gap-2 text-sm">
-                <TrendingUp size={16} className="text-slate-400" /> Advanced Stats
-              </span>
-              <span className="text-slate-500 text-xs">View →</span>
-            </Link>
           </div>
 
           {/* Struggling Today — one entry point for both today-only signals: cards
