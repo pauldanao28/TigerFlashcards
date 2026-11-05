@@ -670,6 +670,13 @@ export default function StatsPage() {
   const masteredCount = (quickStats && cards.length === 0) ? quickStats.mastered : masteredList.length;
   const strugglingCount = (quickStats && cards.length === 0) ? quickStats.struggling : strugglingList.length;
 
+  // Same per-card reflex math as StudyView's own Slow Recall ranking.
+  const avgReflexSeconds = (c: FlashcardData): number | null => {
+    const attempts = c.reflex_attempts ?? 0;
+    if (attempts < 3) return null;
+    return (c.reflex_time_total_ms ?? 0) / attempts / 1000;
+  };
+
   // Slow Reflex / Recently Reviewed quick filters — same definitions StudyView's own
   // Focus filter uses (slowReflexIds: reflex_attempts >= 3) and its "recently reviewed"
   // history list (last_reviewed_at set + at least one real pass/fail, so brand-new
@@ -703,6 +710,9 @@ export default function StatsPage() {
     if (quickFilter === "recentlyReviewed") list = list.filter((c) => recentlyReviewedIds.has(c.id));
 
     return list.sort((a, b) => {
+      if (quickFilter === "slowReflex") {
+        return (avgReflexSeconds(b) ?? 0) - (avgReflexSeconds(a) ?? 0);
+      }
       if (quickFilter === "recentlyReviewed") {
         return (b.last_reviewed_at ?? "").localeCompare(a.last_reviewed_at ?? "");
       }
@@ -2442,6 +2452,11 @@ export default function StatsPage() {
                         </span>
                       );
                     })()}
+                    {quickFilter === "slowReflex" && avgReflexSeconds(card) != null && (
+                      <span className="ml-1.5 text-[9px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter bg-amber-50 text-amber-600 border-amber-200">
+                        🐌 {avgReflexSeconds(card)!.toFixed(1)}s avg ×{card.reflex_attempts}
+                      </span>
+                    )}
                     <div className="text-sm font-bold text-indigo-500">
                       {card.reading}
                     </div>
@@ -2508,6 +2523,11 @@ export default function StatsPage() {
                             className={`ml-1.5 text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getJlptColor(card.jlpt_level)}`}
                           >
                             {card.jlpt_level}
+                          </span>
+                        )}
+                        {quickFilter === "slowReflex" && avgReflexSeconds(card) != null && (
+                          <span className="ml-1.5 text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter bg-amber-50 text-amber-600 border-amber-200">
+                            🐌 {avgReflexSeconds(card)!.toFixed(1)}s avg ×{card.reflex_attempts}
                           </span>
                         )}
                         <div className="text-xs text-indigo-500 font-medium">
