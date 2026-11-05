@@ -565,10 +565,14 @@ export const SocialDock = ({
                           {/* Quest-done indicator — additional to the 3 quiz markers
                               above, not a replacement. Each friend's quest set is
                               personalized (pickDailyQuests), so this is a plain done/
-                              not-done badge rather than per-quest detail. */}
-                          {friendQuestsDone(friend) && (
-                            <span title="Finished today's quests" className="text-[9px] leading-none">🎯</span>
-                          )}
+                              not-done badge rather than per-quest detail. Same grey-out-
+                              until-done treatment as the quiz markers, not hidden. */}
+                          <span
+                            title={friendQuestsDone(friend) ? "Finished today's quests" : "Hasn't finished today's quests yet"}
+                            className={`text-[9px] leading-none ${friendQuestsDone(friend) ? "" : "opacity-25 grayscale"}`}
+                          >
+                            🎯
+                          </span>
                         </div>
                         <span
                           className={`text-[9px] font-black uppercase tracking-tighter transition-colors ${
