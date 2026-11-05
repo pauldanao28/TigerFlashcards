@@ -24,10 +24,6 @@ function QuizzesInner() {
   const [showWatch, setShowWatch] = useState(false);
   const [showTranslate, setShowTranslate] = useState(false);
   const [showWeakWords, setShowWeakWords] = useState(false);
-  // Same count_weak_words RPC BottomNav's Quick Actions badge uses — disables the
-  // desktop-only Weak Words Quiz card below instead of letting it open straight
-  // into the quiz's own "nothing to review" empty state.
-  const [weakWordsCount, setWeakWordsCount] = useState<number | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -36,10 +32,6 @@ function QuizzesInner() {
       setUserId(uid);
       const { data } = await supabase.from("profiles").select("is_admin").eq("id", uid).single();
       setIsAdmin(!!data?.is_admin);
-      const todaySg = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
-      supabase.rpc("count_weak_words", { p_today: todaySg }).then(({ data: count }) => {
-        if (typeof count === "number") setWeakWordsCount(count);
-      });
       const open = searchParams.get("open");
       if (open === "sentence") setShowSentence(true);
       else if (open === "listening") setShowListening(true);
@@ -118,25 +110,16 @@ function QuizzesInner() {
           </div>
         </button>
 
-        {/* Weak Words Quiz — desktop only, same reason as Translate above.
-            Disabled once the count is confirmed 0, instead of opening straight into
-            the quiz's own "nothing to review" empty state. */}
+        {/* Weak Words Quiz — desktop only, same reason as Translate above. The quiz
+            itself disables its own Start button when there's nothing to review,
+            rather than this card blocking the open. */}
         <button
-          onClick={() => { if (weakWordsCount !== 0) setShowWeakWords(true); }}
-          disabled={weakWordsCount === 0}
-          className={`hidden md:block bg-white rounded-2xl p-5 border-2 shadow-sm transition-all text-left w-full relative overflow-hidden ${
-            weakWordsCount === 0 ? "border-slate-100 opacity-60 cursor-not-allowed" : "border-indigo-100 active:scale-95"
-          }`}
+          onClick={() => setShowWeakWords(true)}
+          className="hidden md:block bg-white rounded-2xl p-5 border-2 border-indigo-100 shadow-sm active:scale-95 transition-all text-left w-full relative overflow-hidden"
         >
-          {weakWordsCount === 0 ? (
-            <span className="absolute top-3 right-3 text-[8px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
-              Nothing to review
-            </span>
-          ) : (
-            <span className="absolute top-3 right-3 text-[8px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
-              New
-            </span>
-          )}
+          <span className="absolute top-3 right-3 text-[8px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+            New
+          </span>
           <div className="flex items-center gap-4">
             <span className="text-3xl">😓</span>
             <div className="flex-1">

@@ -153,6 +153,18 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
   const refreshUsage = () => getTodayUsage(userId, "quiz_weak_words").then(setUsage);
   useEffect(() => { refreshUsage(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Same count_weak_words RPC BottomNav's Quick Actions badge uses — greys out the
+  // Start button below instead of blocking the entry points (Quick Actions tile,
+  // the desktop Practice card) that open this quiz, so those stay clickable even
+  // when there's nothing to review today.
+  const [weakWordsCount, setWeakWordsCount] = useState<number | null>(null);
+  useEffect(() => {
+    const todaySg = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+    supabase.rpc("count_weak_words", { p_today: todaySg }).then(({ data: count }) => {
+      if (typeof count === "number") setWeakWordsCount(count);
+    });
+  }, []);
+
   // Warn on accidental refresh/tab-close mid-quiz — same as the other quizzes.
   useEffect(() => {
     if (phase !== "quiz") return;
@@ -346,9 +358,14 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
               Daily limit reached — come back tomorrow!
             </p>
           )}
+          {weakWordsCount === 0 && (
+            <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">
+              Nothing to review today — come back later!
+            </p>
+          )}
           <button
             onClick={() => { setStarting(true); load(); }}
-            disabled={starting || (!isAdmin && usage != null && usage.remaining <= 0)}
+            disabled={starting || weakWordsCount === 0 || (!isAdmin && usage != null && usage.remaining <= 0)}
             className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] active:scale-95 transition-all shadow-sm disabled:opacity-40 flex items-center justify-center gap-2"
           >
             {starting ? <Loader2 size={14} className="animate-spin" /> : null}

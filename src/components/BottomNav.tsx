@@ -186,13 +186,9 @@ function BottomNavInner() {
       item.badgeKey === "addCards" ? pendingWordsCount :
       item.badgeKey === "friends" ? pendingFriendsCount :
       null;
-    // Nothing to disable until the count has actually loaded (null = not fetched
-    // yet) — only a confirmed 0 struggling-today cards disables the tile, so it
-    // doesn't flash disabled before showQuickActions' lazy fetch resolves.
-    const isDisabled = item.badgeKey === "weakWords" && weakWordsCount === 0;
     const inner = (
       <>
-        <span className={`relative w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${item.bg} ${isDisabled ? "opacity-40" : ""}`}>
+        <span className={`relative w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${item.bg}`}>
           {item.kanji ? (
             <span className={`text-base font-black ${item.color}`}>{item.kanji}</span>
           ) : item.icon ? (
@@ -204,18 +200,10 @@ function BottomNavInner() {
             </span>
           )}
         </span>
-        <span className={`text-[11px] font-bold text-center leading-tight ${isDisabled ? "text-slate-300" : "text-slate-700"}`}>{item.label}</span>
-        {isDisabled && <span className="text-[8px] font-bold text-slate-300 -mt-1.5">Nothing to review</span>}
+        <span className="text-[11px] font-bold text-slate-700 text-center leading-tight">{item.label}</span>
       </>
     );
     const className = "flex flex-col items-center gap-2 p-4 rounded-2xl border border-slate-100 bg-slate-50 active:scale-95 transition-all";
-    if (isDisabled) {
-      return (
-        <div key={item.label} className={`${className} opacity-70 cursor-not-allowed active:scale-100`}>
-          {inner}
-        </div>
-      );
-    }
     if (item.action === "addCards" || item.action === "friends") {
       return (
         <button
