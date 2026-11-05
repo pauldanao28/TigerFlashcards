@@ -175,9 +175,10 @@ function BottomNavInner() {
   };
 
   // Already loaded globally (FriendsProvider at the root layout) — no extra fetch,
-  // unlike the other two badges. Counts both directions, same as the Study Circle
-  // sheet's own "Pending" tab badge, so the two numbers never disagree.
-  const pendingFriendsCount = friends.filter((f) => f.status === "pending").length;
+  // unlike the other two badges. Incoming requests only (someone adding you) — a
+  // request you sent doesn't need any action from you, so it shouldn't nag here.
+  // Same !isSentByMe check SocialDock's own "new request" dot already uses.
+  const pendingFriendsCount = friends.filter((f) => f.status === "pending" && !f.isSentByMe).length;
 
   const renderQuickActionTile = (item: QuickAction) => {
     const badgeCount =
