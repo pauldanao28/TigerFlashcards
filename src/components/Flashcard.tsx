@@ -525,9 +525,13 @@ export default function Flashcard({
                 </p>
               )}
 
+              {/* transition-none, not transition-all like the front side's span — a
+                  CSS transition on font-size means the shrink-to-fit effect's
+                  synchronous scrollHeight read (right after bumping backSizeIdx) still
+                  reflects the pre-transition size, so it can under-shrink and leave
+                  the reading line above clipped by the container's overflow-hidden. */}
               <h2
-                className={`font-bold leading-tight break-words w-full
-    ${isReady ? "transition-all duration-300" : "transition-none"}
+                className={`font-bold leading-tight break-words w-full transition-none
     ${backSizeLadder[backSizeIdx]}`}
               >
                 {backText}
