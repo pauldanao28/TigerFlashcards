@@ -131,6 +131,23 @@ export function useWordMining(userId: string) {
     return [...newWords, ...manualWords.filter((w) => !seen.has(w.word))];
   }, [newWords, manualWords]);
 
+  // JLPT level per "not in your deck" word, from Jisho (same source WordLookupSheet's
+  // own badge uses) — the server tokenizer that builds this list (kuromoji) has no
+  // JLPT data of its own. One lookup per word the first time it shows up here, cached
+  // in a ref so it's never re-fetched (words in/out of kanjiOnly don't need a re-ask).
+  const [jlptByWord, setJlptByWord] = useState<Record<string, string[]>>({});
+  const jlptRequestedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const w of allNewWords) {
+      if (jlptRequestedRef.current.has(w.word)) continue;
+      jlptRequestedRef.current.add(w.word);
+      fetch(`/api/jisho?word=${encodeURIComponent(w.word)}`)
+        .then((r) => r.json())
+        .then((d) => setJlptByWord((prev) => ({ ...prev, [w.word]: d.found ? (d.jlpt ?? []) : [] })))
+        .catch(() => setJlptByWord((prev) => ({ ...prev, [w.word]: [] })));
+    }
+  }, [allNewWords]);
+
   const [kanjiOnly, setKanjiOnly] = useState(false);
   useEffect(() => { setKanjiOnly(loadKanjiOnly()); }, []);
   const toggleKanjiOnly = () =>
@@ -240,6 +257,7 @@ export function useWordMining(userId: string) {
     newWords: allNewWords,
     visibleNewWords,
     visibleSelectedCount,
+    jlptByWord,
     kanjiOnly,
     toggleKanjiOnly,
     selectedNew,

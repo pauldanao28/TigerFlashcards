@@ -77,6 +77,11 @@ export default function NewWordsPanel({
                     {w.reading && kanjiRe.test(w.word) && (
                       <span className="text-xs font-bold text-indigo-500 ml-2">{w.reading}</span>
                     )}
+                    {mining.jlptByWord[w.word]?.[0] && (
+                      <span className="ml-1.5 bg-amber-100 text-amber-700 text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                        {mining.jlptByWord[w.word][0].toUpperCase()}
+                      </span>
+                    )}
                   </button>
                   <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 shrink-0">{w.pos}</span>
                 </div>

@@ -71,23 +71,6 @@ export default function TranslateView({ userId, onClose }: { userId: string; onC
   const [queuedWords, setQueuedWords] = useState<Set<string>>(new Set());
   const [queuing, setQueuing] = useState(false);
 
-  // JLPT level per "not in your deck" word, from Jisho (same source WordLookupSheet's
-  // own badge uses) — the server tokenizer that builds that list (kuromoji) has no
-  // JLPT data of its own, so each word gets one extra lookup once it shows up here.
-  // Cached in a ref (not state) so a word already requested is never re-fetched.
-  const [jlptByWord, setJlptByWord] = useState<Record<string, string[]>>({});
-  const jlptRequestedRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    for (const w of mining.newWords) {
-      if (jlptRequestedRef.current.has(w.word)) continue;
-      jlptRequestedRef.current.add(w.word);
-      fetch(`/api/jisho?word=${encodeURIComponent(w.word)}`)
-        .then((r) => r.json())
-        .then((d) => setJlptByWord((prev) => ({ ...prev, [w.word]: d.found ? (d.jlpt ?? []) : [] })))
-        .catch(() => setJlptByWord((prev) => ({ ...prev, [w.word]: [] })));
-    }
-  }, [mining.newWords]);
-
   const queueWords = async (words: string[]) => {
     if (!words.length) return;
     try {
@@ -346,9 +329,9 @@ export default function TranslateView({ userId, onClose }: { userId: string; onC
                             {w.reading && kanjiRe.test(w.word) && (
                               <span className="text-xs font-bold text-indigo-500 ml-2">{w.reading}</span>
                             )}
-                            {jlptByWord[w.word]?.[0] && (
+                            {mining.jlptByWord[w.word]?.[0] && (
                               <span className="ml-1.5 bg-amber-100 text-amber-700 text-[9px] font-black px-1.5 py-0.5 rounded-full">
-                                {jlptByWord[w.word][0].toUpperCase()}
+                                {mining.jlptByWord[w.word][0].toUpperCase()}
                               </span>
                             )}
                           </button>
