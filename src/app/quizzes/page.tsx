@@ -122,7 +122,7 @@ function QuizzesInner() {
             <span className="text-3xl">😓</span>
             <div className="flex-1">
               <p className="font-black text-slate-900">Weak Words Quiz</p>
-              <p className="text-xs text-slate-400 mt-0.5">Slow, weak, or struggling today — reviewed in a sentence, with a kanji clue if you need it</p>
+              <p className="text-xs text-slate-400 mt-0.5">Cards you&apos;re struggling with today — reviewed in a sentence, with a kanji clue if you need it</p>
             </div>
             <span className="text-slate-300 text-lg">›</span>
           </div>

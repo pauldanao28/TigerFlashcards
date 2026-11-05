@@ -87,10 +87,9 @@ function HighlightedSentence({ sentence, word, reading, onWordTap }: { sentence:
 }
 
 /**
- * A special quiz round built entirely from cards you're currently struggling with —
- * slow reflex (reflex_attempts ≥ 3), weak (10+ tries, <30% combined accuracy), or
- * failed 3+ times today (daily_struggles) — rather than a random/weighted deck pick.
- * AI writes a sentence per word (same 【bracket】 convention as the Reading Quiz) plus
+ * A special quiz round built entirely from cards you're actually struggling with
+ * today — failed 3+ times today (daily_struggles) — rather than a random/weighted
+ * deck pick. AI writes a sentence per word (same 【bracket】 convention as the Reading Quiz) plus
  * 4 answer choices; a correct pick still counts as a real review (updates
  * user_scores.jp_to_en), same as any other quiz. A "Clue" button reuses the existing
  * kanji mnemonic feature (confirm → /api/mnemonic → cached on the card).
@@ -183,54 +182,40 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
     setQueuedWords(new Set());
 
     try {
-      const PAGE = 1000;
-      const allRows: Record<string, unknown>[] = [];
-      for (let from = 0; ; from += PAGE) {
-        const { data: page, error: pageErr } = await supabase
-          .from("user_scores")
-          .select("scores_json, reflex_attempts, master_cards!card_id(id, japanese, reading, english, mnemonic)")
-          .eq("user_id", userId)
-          .range(from, from + PAGE - 1);
-        if (pageErr) throw new Error("Could not load your cards");
-        if (page) allRows.push(...page);
-        if (!page || page.length < PAGE) break;
+      // Struggling today — cards failed 3+ times today (daily_struggles), same
+      // signal Cards' "Struggling Today" surfaces. The only pool source now, so
+      // fetch just those card ids instead of paginating the whole deck.
+      const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+      const { data: struggles, error: strugglesErr } = await supabase
+        .from("daily_struggles")
+        .select("card_id")
+        .eq("user_id", userId)
+        .eq("struggle_date", sgToday)
+        .gte("fail_count", DAILY_STRUGGLE_THRESHOLD);
+      if (strugglesErr) throw new Error("Could not load your cards");
+
+      const poolCardIds = (struggles ?? []).map((s) => s.card_id);
+      if (poolCardIds.length === 0) {
+        setPhase("empty");
+        return;
       }
 
-      const allCards: DeckRow[] = allRows
+      const { data: rows, error: rowsErr } = await supabase
+        .from("user_scores")
+        .select("scores_json, reflex_attempts, master_cards!card_id(id, japanese, reading, english, mnemonic)")
+        .eq("user_id", userId)
+        .in("card_id", poolCardIds);
+      if (rowsErr) throw new Error("Could not load your cards");
+
+      const pool: DeckRow[] = (rows ?? [])
         .map((row) => {
-          const card = (row as { master_cards?: DeckRow }).master_cards;
+          const card = (row as unknown as { master_cards?: DeckRow }).master_cards;
           if (!card) return null;
           const s = (row.scores_json as DeckRow["scores"]) || { jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 }, en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 } };
           return { ...card, scores: s, reflex_attempts: (row.reflex_attempts as number) ?? 0 };
         })
         .filter((c): c is DeckRow => c !== null);
 
-      if (allCards.length === 0) throw new Error("Add some cards to your deck first");
-
-      // Slow reflex / weak — same deck-wide definitions Cards' quick filters use.
-      const poolIds = new Set<string>();
-      for (const c of allCards) {
-        const jp = c.scores?.jp_to_en;
-        const en = c.scores?.en_to_jp;
-        const total = (jp?.total ?? 0) + (en?.total ?? 0);
-        const pass = (jp?.pass ?? 0) + (en?.pass ?? 0);
-        const combinedPct = total > 0 ? Math.round((pass / total) * 100) : 0;
-        if (total >= 10 && combinedPct < 30) poolIds.add(c.id);
-        if ((c.reflex_attempts ?? 0) >= 3) poolIds.add(c.id);
-      }
-
-      // Struggling today — cards failed 3+ times today (daily_struggles), same
-      // signal Cards' "Struggling Today" surfaces.
-      const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
-      const { data: struggles } = await supabase
-        .from("daily_struggles")
-        .select("card_id")
-        .eq("user_id", userId)
-        .eq("struggle_date", sgToday)
-        .gte("fail_count", DAILY_STRUGGLE_THRESHOLD);
-      (struggles ?? []).forEach((s) => poolIds.add(s.card_id));
-
-      const pool = allCards.filter((c) => poolIds.has(c.id));
       if (pool.length === 0) {
         setPhase("empty");
         return;
@@ -342,10 +327,9 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
           <div>
             <h2 className="text-xl font-black text-slate-900 mb-2">Review your weak words</h2>
             <p className="text-slate-500 font-medium text-sm leading-relaxed">
-              Pulls up to {POOL_SIZE} cards you&apos;re actually struggling with — slow to
-              recall, low accuracy, or failed a few times today — and quizzes you on
-              each in an AI-written sentence. A Clue button can generate a kanji
-              mnemonic if you&apos;re stuck.
+              Pulls up to {POOL_SIZE} cards you&apos;re struggling with today — failed a
+              few times — and quizzes you on each in an AI-written sentence. A Clue
+              button can generate a kanji mnemonic if you&apos;re stuck.
             </p>
           </div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">Up to {POOL_SIZE} questions · ~3–5 min</p>
@@ -371,7 +355,7 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
           <span className="text-5xl">🎉</span>
           <p className="text-slate-700 font-black text-base">Nothing to review right now!</p>
           <p className="text-slate-400 font-medium text-sm leading-relaxed">
-            No cards are slow, weak, or struggling today — come back once some are.
+            No cards are struggling today — come back once some are.
           </p>
           <button onClick={onClose} className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest active:scale-95 transition-all">
             Close

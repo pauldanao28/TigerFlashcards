@@ -5,8 +5,8 @@ import { checkAndRecordUsage } from "@/lib/rateLimit";
 
 // Same sentence + 【bracket】 generation as /api/quiz/sentences, plus multiple-choice
 // (choices/answer/explanation) for the Weak Words Quiz — reviewing cards picked for
-// being slow-reflex/weak/struggling (client-side selection, this route only writes
-// the quiz content for whichever cards it's handed).
+// struggling today (client-side selection, this route only writes the quiz content
+// for whichever cards it's handed).
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
 
