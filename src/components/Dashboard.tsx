@@ -476,7 +476,11 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-slate-50 pb-28 md:pb-8">
       {/* Header */}
-      <div className="bg-white border-b border-slate-100 px-5 pt-14 md:pt-8 pb-6">
+      <div className="bg-white border-b border-slate-100 px-5 md:px-0 pt-14 md:pt-8 pb-6">
+        {/* Same max width + inset as the cards below (max-w-2xl, mx-4), so the
+            greeting, pills, and level banner line up with them on desktop instead
+            of stretching across the whole page. */}
+        <div className="max-w-2xl mx-auto md:px-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{greeting}</p>
@@ -549,6 +553,7 @@ export default function Dashboard() {
 
         {/* Overall level banner */}
         <OverallBanner level={overallLevel} score={Math.round(overallScore)} />
+        </div>
       </div>
 
       <div className="max-w-2xl mx-auto">
