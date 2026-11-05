@@ -13,6 +13,7 @@ import {
 import { useAppAlert } from "@/context/AlertContext";
 import { FriendProfileModal } from "@/components/FriendProfileModal";
 import ShareButton from "@/components/ShareButton";
+import { pickDailyQuests, questProgress } from "@/lib/dailyQuests";
 
 export const SocialDock = ({
   userId, // Added your unique ID
@@ -197,6 +198,30 @@ export const SocialDock = ({
   const topRanked = rankedFriends.slice(0, RANK_LIMIT);
   const myRankedRow = rankedFriends.find((f) => f.isMe);
   const showMyRowBelow = !!myRankedRow && myRankedRow.rank > RANK_LIMIT;
+
+  // Same quest set + progress rules Dashboard.tsx's Today's Quests card uses for
+  // you, just run against a friend's own id/signals (quizToday, dailyProgress,
+  // masteredToday, cardsAddedToday — the last two from get_friends_quest_progress_
+  // today) instead of the signed-in user's own dashboard data.
+  const todaySg = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+  const friendQuestsDone = (friend: {
+    id: string;
+    dailyProgress?: number;
+    masteredToday?: number;
+    cardsAddedToday?: number;
+    quizToday?: { reading: boolean; listening: boolean; grammar: boolean } | null;
+  }): boolean => {
+    const quests = pickDailyQuests(friend.id, todaySg);
+    return quests.every(
+      (q) =>
+        questProgress(q.key, {
+          daily_count: friend.dailyProgress ?? 0,
+          mastered_today: friend.masteredToday ?? 0,
+          cards_added_today: friend.cardsAddedToday ?? 0,
+          done_today_quizzes: friend.quizToday ?? { reading: false, listening: false, grammar: false },
+        }) >= q.target,
+    );
+  };
 
   return (
     <>
@@ -533,6 +558,13 @@ export const SocialDock = ({
                               {emoji}
                             </span>
                           ))}
+                          {/* Quest-done indicator — additional to the 3 quiz markers
+                              above, not a replacement. Each friend's quest set is
+                              personalized (pickDailyQuests), so this is a plain done/
+                              not-done badge rather than per-quest detail. */}
+                          {friendQuestsDone(friend) && (
+                            <span title="Finished today's quests" className="text-[9px] leading-none">🎯</span>
+                          )}
                         </div>
                         <span
                           className={`text-[9px] font-black uppercase tracking-tighter transition-colors ${

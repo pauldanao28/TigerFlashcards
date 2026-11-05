@@ -42,6 +42,7 @@ export function useFriends() {
     const todaySg = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
 
     const quizTodayPromise = supabase.rpc("get_friends_quiz_today", { p_today: today });
+    const questProgressPromise = supabase.rpc("get_friends_quest_progress_today", { p_today: todaySg });
 
     const { data } = await supabase
       .from("friendships")
@@ -72,6 +73,15 @@ export function useFriends() {
     type QuizToday = { reading: boolean; listening: boolean; grammar: boolean };
     const quizByFriend = new Map<string, QuizToday>(
       ((quizToday ?? []) as (QuizToday & { friend_id: string })[]).map(({ friend_id, ...q }) => [friend_id, q]),
+    );
+
+    // Best-effort too — the quest-done indicator just doesn't render without it.
+    const { data: questProgress } = await questProgressPromise;
+    type QuestProgress = { mastered_today: number; cards_added_today: number };
+    const questProgressByFriend = new Map<string, QuestProgress>(
+      ((questProgress ?? []) as (QuestProgress & { friend_id: string })[]).map(
+        ({ friend_id, ...p }) => [friend_id, p],
+      ),
     );
 
     const formatted = data
@@ -115,6 +125,8 @@ export function useFriends() {
           isOnline: friendProfile.is_online,
           nLevel,
           quizToday: quizByFriend.get(friendProfile.id) ?? null,
+          masteredToday: questProgressByFriend.get(friendProfile.id)?.mastered_today ?? 0,
+          cardsAddedToday: questProgressByFriend.get(friendProfile.id)?.cards_added_today ?? 0,
         };
       })
       .filter((f): f is any => f !== null)
