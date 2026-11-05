@@ -1,15 +1,18 @@
 "use client";
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { AnimatePresence } from "framer-motion";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Home, BookOpen, ScrollText, BarChart2, X, Gamepad2, Languages, Headphones, PenTool, MonitorPlay, Plus } from "lucide-react";
+import { Home, BookOpen, ScrollText, BarChart2, X, Gamepad2, Languages, Headphones, PenTool, MonitorPlay, Plus, Users } from "lucide-react";
 import { useUploadGuard } from "@/context/UploadGuardContext";
 import { useAppAlert } from "@/context/AlertContext";
 import { useAuth } from "@/context/AuthContext";
+import { useFriendsContext } from "@/context/FriendsContext";
 import { useIsMiniViewport } from "@/lib/useMiniViewport";
 import { supabase } from "@/lib/supabase";
 import Logo from "@/components/Logo";
 import AddWordsSheet from "@/components/AddWordsSheet";
+import { SocialDock } from "@/components/SocialDock";
 
 type Tab = {
   href: string;
@@ -32,7 +35,7 @@ const TABS_AFTER: Tab[] = [
 
 type QuickAction = {
   href?: string;
-  action?: "addCards";
+  action?: "addCards" | "friends";
   label: string;
   icon?: React.ComponentType<{ size?: number; className?: string }>;
   kanji?: string;
@@ -55,9 +58,12 @@ const QUICK_ACTIONS: QuickAction[] = [
   { href: "/study/kana", label: "Kana Practice", icon: Languages, bg: "bg-emerald-50", color: "text-emerald-600" },
 ];
 
+// Friends opens the Study Circle sheet in place (like Add Cards) rather than
+// navigating anywhere — there's no dedicated /friends page of your own to go to.
 const QUICK_ACTION_PAGES: QuickAction[] = [
   { href: "/sensei", label: "Sensei", kanji: "先生", bg: "bg-rose-50", color: "text-rose-600" },
   { href: "/minigames", label: "Mini Games", icon: Gamepad2, bg: "bg-amber-50", color: "text-amber-600" },
+  { action: "friends", label: "Friends", icon: Users, bg: "bg-cyan-50", color: "text-cyan-600" },
 ];
 
 const SHOW_ON = new Set(["/", "/study", "/quizzes", "/sensei", "/stats"]);
@@ -70,25 +76,40 @@ function BottomNavInner() {
   const { isBusy } = useUploadGuard();
   const { showConfirm } = useAppAlert();
   const { user, loading } = useAuth();
+  const { friends, fetchFriends } = useFriendsContext();
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [showAddCards, setShowAddCards] = useState(false);
+  const [showFriends, setShowFriends] = useState(false);
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [blocklist, setBlocklist] = useState<string[]>([]);
+  const [username, setUsername] = useState("");
+  const [avatar, setAvatar] = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [streak, setStreak] = useState(0);
 
   // Fetched lazily (only once the Quick Actions sheet is opened) since most page
-  // loads never touch Add Cards — no need to pay for this on every navigation.
+  // loads never touch Add Cards/Friends — no need to pay for this on every
+  // navigation. Covers both tiles' data needs in one profile row.
   useEffect(() => {
     if (!showQuickActions || !user || defaultDeckId) return;
     (async () => {
       const [{ data: deck }, { data: profile }] = await Promise.all([
         supabase.from("decks").select("id").eq("user_id", user.id).eq("is_default", true).single(),
-        supabase.from("profiles").select("is_admin, blocked_words").eq("id", user.id).single(),
+        supabase
+          .from("profiles")
+          .select("is_admin, blocked_words, full_name, avatar_url, referral_code, streak_count")
+          .eq("id", user.id)
+          .single(),
       ]);
       if (deck) setDefaultDeckId(deck.id);
       if (profile) {
         setIsAdmin(!!profile.is_admin);
         setBlocklist(profile.blocked_words || []);
+        setUsername(profile.full_name || "");
+        setAvatar(profile.avatar_url);
+        setReferralCode(profile.referral_code);
+        setStreak(profile.streak_count || 0);
       }
     })();
   }, [showQuickActions, user, defaultDeckId]);
@@ -150,11 +171,15 @@ function BottomNavInner() {
       </>
     );
     const className = "flex flex-col items-center gap-2 p-4 rounded-2xl border border-slate-100 bg-slate-50 active:scale-95 transition-all";
-    if (item.action === "addCards") {
+    if (item.action === "addCards" || item.action === "friends") {
       return (
         <button
           key={item.label}
-          onClick={() => { setShowQuickActions(false); setShowAddCards(true); }}
+          onClick={() => {
+            setShowQuickActions(false);
+            if (item.action === "addCards") setShowAddCards(true);
+            else setShowFriends(true);
+          }}
           className={className}
         >
           {inner}
@@ -229,6 +254,21 @@ function BottomNavInner() {
           onClose={() => setShowAddCards(false)}
         />
       )}
+
+      <AnimatePresence>
+        {showFriends && user?.id && (
+          <SocialDock
+            userId={user.id}
+            username={username}
+            myStreak={streak}
+            myAvatar={avatar}
+            referralCode={referralCode}
+            friends={friends}
+            onClose={() => setShowFriends(false)}
+            fetchFriends={fetchFriends}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }
