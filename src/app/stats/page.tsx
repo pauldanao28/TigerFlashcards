@@ -104,7 +104,7 @@ export default function StatsPage() {
   const [autoPlayEn, setAutoPlayEn] = useState(false);
   const [maxStreak, setMaxStreak] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
-  const [quickFilter, setQuickFilter] = useState<"none" | "slowReflex" | "recentlyReviewed">("none");
+  const [quickFilter, setQuickFilter] = useState<"none" | "slowReflex" | "recentlyReviewed" | "weakWords" | "favorites">("none");
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(50);
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
@@ -677,10 +677,20 @@ export default function StatsPage() {
     return (c.reflex_time_total_ms ?? 0) / attempts / 1000;
   };
 
-  // Slow Reflex / Recently Reviewed quick filters — same definitions StudyView's own
-  // Focus filter uses (slowReflexIds: reflex_attempts >= 3) and its "recently reviewed"
-  // history list (last_reviewed_at set + at least one real pass/fail, so brand-new
-  // words whose zeroed scores_json row alone touched last_reviewed_at don't show up).
+  // Combined jp_to_en + en_to_jp pass rate — same definition StudyView's
+  // cardOverallPercent uses for Weak Words.
+  const cardOverallPercent = (c: FlashcardData): number => {
+    const jp = c.scores?.jp_to_en;
+    const en = c.scores?.en_to_jp;
+    const pass = (jp?.pass || 0) + (en?.pass || 0);
+    const total = (jp?.total || 0) + (en?.total || 0);
+    return total > 0 ? Math.round((pass / total) * 100) : 0;
+  };
+
+  // Slow Reflex / Recently Reviewed / Weak Words / Favorites quick filters — same
+  // definitions StudyView's own Focus filter and Weak Words/Priority Words lists used
+  // before those moved here (slowReflexIds: reflex_attempts >= 3; weakWordsIds: 10+
+  // tries but <30% combined accuracy; favoritesIds: starred via the priority toggle).
   const slowReflexIds = useMemo(() => {
     const ids = new Set<string>();
     for (const c of cards) {
@@ -698,6 +708,25 @@ export default function StatsPage() {
     return ids;
   }, [cards]);
 
+  const weakWordsIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const c of cards) {
+      const jp = c.scores?.jp_to_en;
+      const en = c.scores?.en_to_jp;
+      const total = (jp?.total ?? 0) + (en?.total ?? 0);
+      if (total >= 10 && cardOverallPercent(c) < 30) ids.add(c.id);
+    }
+    return ids;
+  }, [cards]);
+
+  const favoritesIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const c of cards) {
+      if (c.is_priority) ids.add(c.id);
+    }
+    return ids;
+  }, [cards]);
+
   const filteredCards = useMemo(() => {
     const query = searchQuery.toLowerCase();
     let list = cards.filter(
@@ -708,10 +737,18 @@ export default function StatsPage() {
     );
     if (quickFilter === "slowReflex") list = list.filter((c) => slowReflexIds.has(c.id));
     if (quickFilter === "recentlyReviewed") list = list.filter((c) => recentlyReviewedIds.has(c.id));
+    if (quickFilter === "weakWords") list = list.filter((c) => weakWordsIds.has(c.id));
+    if (quickFilter === "favorites") list = list.filter((c) => favoritesIds.has(c.id));
 
     return list.sort((a, b) => {
       if (quickFilter === "slowReflex") {
         return (avgReflexSeconds(b) ?? 0) - (avgReflexSeconds(a) ?? 0);
+      }
+      if (quickFilter === "weakWords") {
+        return cardOverallPercent(a) - cardOverallPercent(b);
+      }
+      if (quickFilter === "favorites") {
+        return (b.prioritized_at ?? "").localeCompare(a.prioritized_at ?? "");
       }
       if (quickFilter === "recentlyReviewed") {
         return (b.last_reviewed_at ?? "").localeCompare(a.last_reviewed_at ?? "");
@@ -720,7 +757,7 @@ export default function StatsPage() {
       const dateB = new Date(b.added_to_deck_at ?? 0).getTime();
       return dateB - dateA;
     });
-  }, [cards, searchQuery, quickFilter, slowReflexIds, recentlyReviewedIds]);
+  }, [cards, searchQuery, quickFilter, slowReflexIds, recentlyReviewedIds, weakWordsIds, favoritesIds]);
 
   const visibleCards = filteredCards.slice(0, displayLimit);
 
@@ -2291,14 +2328,16 @@ export default function StatsPage() {
             />
           )}
 
-          {/* Quick filters — same Slow Reflex/Leech signals StudyView's own Focus
-              filter uses, applied to the card list in place instead of another
-              entry-point card stacked above the list (Cards already grew too tall
-              once this session; don't repeat that). */}
+          {/* Quick filters — same signals StudyView's own Focus filter and its Weak
+              Words/Priority Words lists used before those moved here, applied to the
+              card list in place instead of another entry-point card stacked above the
+              list (Cards already grew too tall once this session; don't repeat that). */}
           <div className="flex gap-1.5 mb-3 overflow-x-auto pb-0.5">
             {([
               ["slowReflex", "🐌 Slow Reflex"],
               ["recentlyReviewed", "🕐 Recently Reviewed"],
+              ["weakWords", "😓 Weak Words"],
+              ["favorites", "⭐ Favorites"],
             ] as const).map(([key, label]) => {
               const isActive = quickFilter === key;
               return (
@@ -2457,6 +2496,11 @@ export default function StatsPage() {
                         🐌 {avgReflexSeconds(card)!.toFixed(1)}s avg ×{card.reflex_attempts}
                       </span>
                     )}
+                    {quickFilter === "weakWords" && (
+                      <span className="ml-1.5 text-[9px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter bg-rose-50 text-rose-600 border-rose-200">
+                        😓 {cardOverallPercent(card)}%
+                      </span>
+                    )}
                     <div className="text-sm font-bold text-indigo-500">
                       {card.reading}
                     </div>
@@ -2528,6 +2572,11 @@ export default function StatsPage() {
                         {quickFilter === "slowReflex" && avgReflexSeconds(card) != null && (
                           <span className="ml-1.5 text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter bg-amber-50 text-amber-600 border-amber-200">
                             🐌 {avgReflexSeconds(card)!.toFixed(1)}s avg ×{card.reflex_attempts}
+                          </span>
+                        )}
+                        {quickFilter === "weakWords" && (
+                          <span className="ml-1.5 text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter bg-rose-50 text-rose-600 border-rose-200">
+                            😓 {cardOverallPercent(card)}%
                           </span>
                         )}
                         <div className="text-xs text-indigo-500 font-medium">

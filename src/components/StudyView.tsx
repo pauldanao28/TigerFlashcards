@@ -33,7 +33,7 @@ import CardDetailModal from "@/components/CardDetailModal";
 import { FlashcardData, KanjiMnemonic } from "@/lib/types";
 import { useIsMiniViewport } from "@/lib/useMiniViewport";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, History, Star, TrendingDown, Lightbulb, Loader2, X, Menu, Zap, ExternalLink, Filter, Volume2 } from "lucide-react";
+import { Plus, History, Star, Lightbulb, Loader2, X, Menu, Zap, ExternalLink, Filter, Volume2 } from "lucide-react";
 const DAILY_GOAL = 10;
 const MASTERY_MIN_TRIES = 5;
 const PRIORITY_CAP = 30;
@@ -243,8 +243,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const [pendingWordCount, setPendingWordCount] = useState(0);
   const [blocklist, setBlocklist] = useState<string[]>([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [showPriorityModal, setShowPriorityModal] = useState(false);
-  const [showWeakModal, setShowWeakModal] = useState(false);
   const [showSlowRecallModal, setShowSlowRecallModal] = useState(false);
   const [showQuickSettings, setShowQuickSettings] = useState(false);
   // Tapping a word in Weak Words / Slow Recall opens the exact same detail view as
@@ -1437,29 +1435,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       .slice(0, 20);
   }, [cards]);
 
-  const priorityList = useMemo(() => {
-    return cards
-      .filter((c) => c.is_priority)
-      .sort((a, b) => (b.prioritized_at || "").localeCompare(a.prioritized_at || ""));
-  }, [cards]);
-
-  // Words with enough reps to trust the number (10+) but still badly below mastery
-  // (<30%) — these are the ones worth deliberately drilling, not just drifting into
-  // via the weighted-random pool.
-  const weakWordsList = useMemo(() => {
-    return cards
-      .filter((c) => {
-        const jp = c.scores?.jp_to_en;
-        const en = c.scores?.en_to_jp;
-        const total = (jp?.total ?? 0) + (en?.total ?? 0);
-        return total >= 10 && cardOverallPercent(c) < 30;
-      })
-      .sort((a, b) => cardOverallPercent(a) - cardOverallPercent(b))
-      .slice(0, 20);
-  }, [cards]);
-
   // Words that take the longest to recall under Reflex Mode specifically — separate
-  // from weakWordsList, which is about not knowing a word at all. 3+ attempts before
+  // from Weak Words (moved to Cards), which is about not knowing a word at all. 3+ attempts before
   // trusting the average, same spirit as weakWordsList's 10+. Top 10 slowest only.
   const slowRecallList = useMemo(() => {
     return cards
@@ -2095,20 +2072,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                       <History size={18} className="text-slate-500" />
                     </button>
                     <button
-                      onClick={() => { setShowPriorityModal(true); setShowQuickMenu(false); }}
-                      className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
-                      title="Priority Words"
-                    >
-                      <Star size={18} className="text-amber-500" fill={cards.some((c) => c.is_priority) ? "currentColor" : "none"} />
-                    </button>
-                    <button
-                      onClick={() => { setShowWeakModal(true); setShowQuickMenu(false); }}
-                      className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
-                      title="Weak Words"
-                    >
-                      <TrendingDown size={18} className="text-rose-500" />
-                    </button>
-                    <button
                       onClick={() => { setShowSlowRecallModal(true); setShowQuickMenu(false); }}
                       className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
                       title="Slow Recall (Reflex Mode)"
@@ -2222,20 +2185,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     title="Recently Reviewed"
                   >
                     <History size={20} className="text-slate-500" />
-                  </button>
-                  <button
-                    onClick={() => { setShowPriorityModal(true); setShowQuickMenu(false); }}
-                    className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
-                    title="Priority Words"
-                  >
-                    <Star size={20} className="text-amber-500" fill={cards.some((c) => c.is_priority) ? "currentColor" : "none"} />
-                  </button>
-                  <button
-                    onClick={() => { setShowWeakModal(true); setShowQuickMenu(false); }}
-                    className="relative flex items-center justify-center w-12 h-12 rounded-2xl border bg-white border-slate-50 shadow-sm hover:scale-105 active:scale-95 transition-all"
-                    title="Weak Words"
-                  >
-                    <TrendingDown size={20} className="text-rose-500" />
                   </button>
                   <button
                     onClick={() => { setShowSlowRecallModal(true); setShowQuickMenu(false); }}
@@ -3121,167 +3070,11 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         )}
       </AnimatePresence>
 
-      {/* Priority Words Modal — rolling cap of 30, prioritize/unprioritize */}
+      {/* Slow Recall Modal — Priority Words and Weak Words moved to the Cards page as
+          quick filters on the deck list (Slow Reflex/Recently Reviewed moved there
+          earlier the same way). Slow Recall stays here since it's reflex-specific and
+          not part of that move. */}
       <AnimatePresence>
-        {showPriorityModal && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[220] bg-black/20"
-              onClick={() => setShowPriorityModal(false)}
-            />
-            <motion.div
-              initial={{ y: 60, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 60, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 320, damping: 28 }}
-              className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[221] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm max-h-[80vh] flex flex-col"
-              style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
-            >
-              <div className="flex items-center justify-between mb-4 shrink-0">
-                <div className="flex items-center gap-2">
-                  <Star size={16} className="text-amber-500" fill="currentColor" />
-                  <p className="text-slate-800 font-black text-sm uppercase tracking-tight">Priority Words</p>
-                </div>
-                <button onClick={() => setShowPriorityModal(false)} className="text-slate-300 hover:text-slate-500">✕</button>
-              </div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3 shrink-0">
-                {priorityList.length}/{PRIORITY_CAP} starred — tap ★ on a card to add more
-              </p>
-              <div className="flex-1 overflow-y-auto space-y-2 -mx-1 px-1">
-                {priorityList.length === 0 ? (
-                  <p className="text-center text-slate-400 text-xs font-bold py-8">
-                    No priority words yet — star a card during study to pull it into rotation more often.
-                  </p>
-                ) : (
-                  priorityList.map((c) => (
-                    <div
-                      key={c.id}
-                      className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <p className="font-black text-slate-800 text-sm truncate">{c.japanese}</p>
-                          {c.jlpt_level && (
-                            <span className={`shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-md border uppercase tracking-tighter ${JLPT_BADGE_COLOR[c.jlpt_level]}`}>
-                              {c.jlpt_level}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-slate-400 text-[11px] font-medium truncate">
-                          {c.reading} • {c.english}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => togglePriority(c)}
-                        className="shrink-0 p-2 rounded-full hover:bg-amber-100 active:scale-90 transition-all"
-                        title="Remove from Priority"
-                      >
-                        <Star size={18} className="text-amber-500" fill="currentColor" />
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* Weak Words Modal — 10+ tries but still under 30% combined accuracy; a
-          deliberate "drill these" list, separate from the algorithm's own weighted pull
-          toward weak cards (which can take a while to actually surface a given word). */}
-      <AnimatePresence>
-        {showWeakModal && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[220] bg-black/20"
-              onClick={() => setShowWeakModal(false)}
-            />
-            <motion.div
-              initial={{ y: 60, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 60, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 320, damping: 28 }}
-              className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[221] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm max-h-[80vh] flex flex-col"
-              style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
-            >
-              <div className="flex items-center justify-between mb-4 shrink-0">
-                <div className="flex items-center gap-2">
-                  <TrendingDown size={16} className="text-rose-500" />
-                  <p className="text-slate-800 font-black text-sm uppercase tracking-tight">Weak Words</p>
-                </div>
-                <button onClick={() => setShowWeakModal(false)} className="text-slate-300 hover:text-slate-500">✕</button>
-              </div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3 shrink-0">
-                Under 30% accuracy with 10+ tries
-              </p>
-              <div className="flex-1 overflow-y-auto space-y-2 -mx-1 px-1">
-                {weakWordsList.length === 0 ? (
-                  <p className="text-center text-slate-400 text-xs font-bold py-8">
-                    No words this weak with enough tries yet — that&apos;s a good thing.
-                  </p>
-                ) : (
-                  weakWordsList.map((c) => {
-                    const pct = cardOverallPercent(c);
-                    return (
-                      <div
-                        key={c.id}
-                        onClick={() => setDetailCard(c)}
-                        className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3 cursor-pointer active:opacity-70 transition-opacity"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <p className="font-black text-slate-800 text-sm truncate">{c.japanese}</p>
-                            {c.jlpt_level && (
-                              <span className={`shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-md border uppercase tracking-tighter ${JLPT_BADGE_COLOR[c.jlpt_level]}`}>
-                                {c.jlpt_level}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-slate-400 text-[11px] font-medium truncate">
-                            {c.reading} • {c.english}
-                          </p>
-                        </div>
-                        <div className="shrink-0 flex items-center gap-2">
-                          <span className="text-[10px] font-black px-2 py-1 rounded-full bg-rose-100 text-rose-700">
-                            {pct}%
-                          </span>
-                          {KANJI_RE.test(c.japanese) && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleWeakWordMnemonic(c); }}
-                              className="p-1.5 rounded-full hover:bg-amber-100 active:scale-90 transition-all"
-                              title="Remember this kanji"
-                            >
-                              <Lightbulb size={16} className={c.mnemonic ? "text-amber-500" : "text-slate-300"} />
-                            </button>
-                          )}
-                          <button
-                            onClick={(e) => { e.stopPropagation(); togglePriority(c); }}
-                            className="p-1.5 rounded-full hover:bg-amber-100 active:scale-90 transition-all"
-                            title={c.is_priority ? "Remove from Priority" : "Add to Priority"}
-                          >
-                            <Star
-                              size={16}
-                              className={c.is_priority ? "text-amber-500" : "text-slate-300"}
-                              fill={c.is_priority ? "currentColor" : "none"}
-                            />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </motion.div>
-          </>
-        )}
-
         {showSlowRecallModal && (
           <>
             <motion.div
