@@ -3,7 +3,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence } from "framer-motion";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Home, BookOpen, ScrollText, BarChart2, X, Gamepad2, Languages, Headphones, PenTool, MonitorPlay, Plus, Users, ArrowRightLeft } from "lucide-react";
+import { Home, BookOpen, ScrollText, BarChart2, X, Gamepad2, Languages, Headphones, PenTool, MonitorPlay, Plus, Users, ArrowRightLeft, Frown } from "lucide-react";
 import { useUploadGuard } from "@/context/UploadGuardContext";
 import { useAppAlert } from "@/context/AlertContext";
 import { useAuth } from "@/context/AuthContext";
@@ -54,6 +54,7 @@ const QUICK_ACTIONS: QuickAction[] = [
   { href: "/quizzes?open=sentence", label: "Reading Quiz", icon: ScrollText, bg: "bg-indigo-50", color: "text-indigo-600" },
   { href: "/quizzes?open=listening", label: "Listening Quiz", icon: Headphones, bg: "bg-sky-50", color: "text-sky-600" },
   { href: "/quizzes?open=grammar", label: "Grammar Quiz", icon: PenTool, bg: "bg-violet-50", color: "text-violet-600" },
+  { href: "/quizzes?open=weak_words", label: "Weak Words Quiz", icon: Frown, bg: "bg-rose-50", color: "text-rose-600" },
   { href: "/quizzes?open=watch", label: "Watcher", icon: MonitorPlay, bg: "bg-orange-50", color: "text-orange-600" },
   { href: "/quizzes?open=reader", label: "Reader", icon: BookOpen, bg: "bg-teal-50", color: "text-teal-600" },
   { href: "/study/kana", label: "Kana Practice", icon: Languages, bg: "bg-emerald-50", color: "text-emerald-600" },

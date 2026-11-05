@@ -11,6 +11,7 @@ export const AI_DAILY_LIMITS = {
   quiz_grammar: 8,       // grammar quiz rounds per day
   quiz_sentences: 8,     // reading quiz rounds per day
   quiz_listening: 8,     // listening quiz rounds per day
+  quiz_weak_words: 8,    // weak-words review quiz rounds per day
   reader_generate: 15,    // AI-written reading passages per day
   reader_annotate: 25,    // passages glossed (pasted or generated) per day
   reader_ask: 30,         // "ask about this passage" questions per day
@@ -34,6 +35,7 @@ export const AI_DAILY_LIMITS_PREMIUM = {
   quiz_grammar: 30,
   quiz_sentences: 30,
   quiz_listening: 30,
+  quiz_weak_words: 30,
   reader_generate: 50,
   reader_annotate: 80,
   reader_ask: 100,
