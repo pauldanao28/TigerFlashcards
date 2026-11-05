@@ -197,8 +197,17 @@ export default function TranslateView({ userId, onClose }: { userId: string; onC
               onChange={(e) => setDraft(e.target.value.slice(0, MAX_CHARS))}
               rows={6}
               placeholder="Type anything, in any language…"
-              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 pr-14 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none leading-relaxed"
+              className={`w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none leading-relaxed ${speechSupported ? "pr-24" : "pr-14"}`}
             />
+            {draft.length > 0 && (
+              <button
+                onClick={() => { recognitionRef.current?.stop(); setDraft(""); }}
+                aria-label="Clear text"
+                className={`absolute top-3 w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 active:scale-90 transition-all ${speechSupported ? "right-14" : "right-3"}`}
+              >
+                <X size={16} />
+              </button>
+            )}
             {speechSupported && (
               <button
                 onClick={toggleListening}
