@@ -15,7 +15,7 @@ import ShareButton from "@/components/ShareButton";
 import { SKILL_TILE, type SkillKey } from "@/lib/skillTheme";
 import { Share2, ChevronRight, Trophy, TrendingUp, BookOpen, Headphones, PenTool, Layers, BarChart3, X } from "lucide-react";
 import { useFriendsContext } from "@/context/FriendsContext";
-import { pickDailyQuests, questProgress } from "@/lib/dailyQuests";
+import { pickDailyQuests, questProgress, type QuestProgressSource } from "@/lib/dailyQuests";
 import { BADGES } from "@/lib/badges";
 import { CONFETTI_PARTICLES } from "@/lib/confetti";
 import SparkLine from "@/components/SparkLine";
@@ -312,6 +312,10 @@ export default function Dashboard() {
   const [quizHistory, setQuizHistory] = useState<
     { study_date: string; reading: number | null; listening: number | null; grammar: number | null }[]
   >([]);
+  // Which of the last 14 days had all 3 of that day's quests completed — same
+  // pickDailyQuests/questProgress derivation Today's Quests uses, just replayed
+  // against each past day's signals instead of today's (see get_quest_history).
+  const [questDoneDates, setQuestDoneDates] = useState<Set<string>>(new Set());
   const [historyTab, setHistoryTab] = useState<"flashcards" | "quizzes">("flashcards");
   const [showHistory, setShowHistory] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -326,7 +330,7 @@ export default function Dashboard() {
     fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 13);
     const since = fourteenDaysAgo.toLocaleDateString("en-CA");
 
-    const [{ data: reviewData }, { data: quizData }] = await Promise.all([
+    const [{ data: reviewData }, { data: quizData }, { data: questHistory }] = await Promise.all([
       supabase
         .from("user_review_counts")
         .select("study_date, count")
@@ -339,7 +343,17 @@ export default function Dashboard() {
         .eq("user_id", user.id)
         .gte("study_date", since)
         .order("study_date", { ascending: false }),
+      supabase.rpc("get_quest_history", { p_days: 14 }),
     ]);
+
+    const doneDates = new Set<string>();
+    for (const day of (questHistory ?? []) as (QuestProgressSource & { study_date: string })[]) {
+      const quests = pickDailyQuests(user.id, day.study_date);
+      if (quests.length > 0 && quests.every((q) => questProgress(q.key, day) >= q.target)) {
+        doneDates.add(day.study_date);
+      }
+    }
+    setQuestDoneDates(doneDates);
 
     // Build full 14-day grid (newest first: index 0 = today)
     const days: string[] = [];
@@ -1108,6 +1122,14 @@ export default function Dashboard() {
                               </span>
                               <span className="text-[7px] font-bold text-slate-300 mt-0.5">
                                 {new Date(day.study_date).getDate()}
+                              </span>
+                              {/* All 3 of that day's quests completed — same derivation Today's
+                                  Quests uses, replayed against that day's signals. */}
+                              <span
+                                className={`mt-1 text-[8px] leading-none ${questDoneDates.has(day.study_date) ? "text-emerald-400" : "text-slate-200"}`}
+                                title={questDoneDates.has(day.study_date) ? "All quests completed" : "Quests not completed"}
+                              >
+                                ●
                               </span>
                             </div>
                           </div>
