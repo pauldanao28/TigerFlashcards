@@ -21,6 +21,8 @@ export interface AddedWordSummary {
 }
 
 export interface RelatedWord {
+  id: string; // already a real master_cards row — /api/related-words enriches and
+              // upserts it server-side, so adding it is a plain link, no AI call.
   japanese: string;
   reading: string;
   english: string;
@@ -103,6 +105,33 @@ export function useAddWords({
     ]);
     if (deckRes.error) throw deckRes.error;
     if (scoreRes.error) throw scoreRes.error;
+  };
+
+  // A related-word suggestion already has a real master_cards row (enriched and
+  // upserted server-side by /api/related-words) — adding it is just a link, no AI
+  // call, unlike processWords' own path which would re-check master_cards and
+  // potentially call /api/generate again. Replaces the summary with this word (and
+  // fetches related words for IT), so tapping through suggestions chains instead
+  // of stacking — same UX processWords' own single-add path already has.
+  const addRelatedWord = async (w: RelatedWord) => {
+    if (!deckId || !userId) return;
+    try {
+      await performLinking([w.id]);
+      const summaryEntry: AddedWordSummary = skippedFor.get(w.id) ?? {
+        id: w.id,
+        japanese: w.japanese,
+        reading: w.reading,
+        english: w.english,
+        jlpt_level: w.jlpt_level,
+        alreadyInDeck: false,
+      };
+      setAddedWordsSummary([summaryEntry]);
+      setShowSummary(true);
+      onAdded?.();
+      fetchRelatedWords(summaryEntry);
+    } catch {
+      showAlert("Couldn't add that word — try again.");
+    }
   };
 
   // Cards already linked to this deck before this call touches them — queried per-batch of
@@ -340,5 +369,6 @@ export function useAddWords({
     deleteFromSummary,
     relatedWords,
     relatedWordsLoading,
+    addRelatedWord,
   };
 }
