@@ -290,8 +290,11 @@ grant execute on function get_dashboard_data(date) to authenticated;
 
 -- get_friends_quest_progress_today: add the same two signals per friend, so the
 -- Study Circle's 🎯 badge is accurate for a friend whose personalized quest set
--- happens to include Translate or Read/Watch.
-create or replace function get_friends_quest_progress_today(p_today date)
+-- happens to include Translate or Read/Watch. Postgres won't let CREATE OR REPLACE
+-- change a function's return columns (only its body) — drop first.
+drop function if exists get_friends_quest_progress_today(date);
+
+create function get_friends_quest_progress_today(p_today date)
 returns table (
   friend_id uuid,
   mastered_today int,
