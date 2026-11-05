@@ -186,7 +186,7 @@ export default function TranslateView({ userId, onClose }: { userId: string; onC
         <div className="flex-1 overflow-y-auto px-5 py-6 max-w-xl mx-auto w-full">
           <h2 className="text-xl font-black text-slate-900 mb-1">Say it in Japanese</h2>
           <p className="text-slate-500 text-sm font-medium mb-4 leading-relaxed">
-            Type or speak anything, in any language — Gemini translates it into natural
+            Type or speak anything, in any language — AI translates it into natural
             Japanese with both a casual and a polite version, each explained. Tap any kanji
             to look it up and queue it for Add Cards.
           </p>
