@@ -59,7 +59,6 @@ export default function TranslateView({ userId, onClose }: { userId: string; onC
   const { lookup, openLookup, setEditWord, closeLookup } = useWordLookup(userId);
   const handleWordTap = (word: string, e: React.MouseEvent | React.TouchEvent, reading = "") => openLookup(word, reading, e);
 
-  const [phase, setPhase] = useState<"input" | "result">("input");
   const [draft, setDraft] = useState("");
   const [translating, setTranslating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -135,7 +134,6 @@ export default function TranslateView({ userId, onClose }: { userId: string; onC
       if (!res.ok) throw new Error(data.error || "Translation failed");
       if (requestIdRef.current !== id) return;
       setResult(data as TranslateResult);
-      setPhase("result");
       setQueuedWords(new Set());
       markFeatureUsedToday("translate");
       const combined = `${data.casual.japanese}\n${data.polite.japanese}`;
@@ -148,16 +146,6 @@ export default function TranslateView({ userId, onClose }: { userId: string; onC
     }
   };
 
-  const reset = () => {
-    recognitionRef.current?.stop();
-    setPhase("input");
-    setDraft("");
-    setResult(null);
-    setError(null);
-    setQueuedWords(new Set());
-    mining.clearNewWords();
-  };
-
   const visibleWords = mining.visibleNewWords.filter((w) => !queuedWords.has(w.word));
   const visibleSelectedCount = visibleWords.filter((w) => mining.selectedNew.has(w.word)).length;
 
@@ -166,88 +154,83 @@ export default function TranslateView({ userId, onClose }: { userId: string; onC
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white shrink-0">
         <button
-          onClick={phase === "result" ? reset : onClose}
+          onClick={onClose}
           className="flex items-center gap-0.5 text-slate-400 hover:text-slate-700 active:scale-90 transition-all"
         >
           <ChevronLeft size={14} />
-          <span className="text-[9px] font-black uppercase tracking-widest">
-            {phase === "result" ? "New Translation" : "Back"}
-          </span>
+          <span className="text-[9px] font-black uppercase tracking-widest">Back</span>
         </button>
         <div className="flex items-center gap-2">
           <ArrowRightLeft size={15} className="text-indigo-500" />
           <span className="font-black text-[11px] uppercase tracking-widest text-slate-700">Translate</span>
         </div>
         <div className="w-[92px] flex justify-end">
-          {phase !== "result" && <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 text-slate-400 active:scale-90"><X size={16} /></button>}
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 text-slate-400 active:scale-90"><X size={16} /></button>
         </div>
       </div>
 
-      {/* INPUT PHASE */}
-      {phase === "input" && (
-        <div className="flex-1 overflow-y-auto px-5 py-6 max-w-xl mx-auto w-full">
-          <h2 className="text-xl font-black text-slate-900 mb-1">Say it in Japanese</h2>
-          <p className="text-slate-500 text-sm font-medium mb-4 leading-relaxed">
-            Type or speak anything, in any language — AI translates it into natural
-            Japanese with both a casual and a polite version, each explained. Tap any kanji
-            to look it up and queue it for Add Cards.
-          </p>
+      {/* Everything on one scrollable screen — translating/queuing never swaps to a
+          separate screen, and the translation + explanations land right below the
+          button instead of behind a "go to results" step. */}
+      <div className="flex-1 overflow-y-auto px-5 py-6 max-w-xl mx-auto w-full">
+        <h2 className="text-xl font-black text-slate-900 mb-1">Say it in Japanese</h2>
+        <p className="text-slate-500 text-sm font-medium mb-4 leading-relaxed">
+          Type or speak anything, in any language — AI translates it into natural
+          Japanese with both a casual and a polite version, each explained. Tap any kanji
+          to look it up and queue it for Add Cards.
+        </p>
 
-          <div className="relative">
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value.slice(0, MAX_CHARS))}
-              rows={6}
-              placeholder="Type anything, in any language…"
-              className={`w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none leading-relaxed ${speechSupported ? "pr-24" : "pr-14"}`}
-            />
-            {draft.length > 0 && (
-              <button
-                onClick={() => { recognitionRef.current?.stop(); setDraft(""); }}
-                aria-label="Clear text"
-                className={`absolute top-3 w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 active:scale-90 transition-all ${speechSupported ? "right-14" : "right-3"}`}
-              >
-                <X size={16} />
-              </button>
-            )}
-            {speechSupported && (
-              <button
-                onClick={toggleListening}
-                aria-label={listening ? "Stop recording" : "Speak instead of typing"}
-                className={`absolute right-3 top-3 w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-90 ${
-                  listening ? "bg-rose-500 text-white animate-pulse" : "bg-indigo-50 text-indigo-500"
-                }`}
-              >
-                {listening ? <Square size={14} /> : <Mic size={16} />}
-              </button>
-            )}
-          </div>
-          <p className="text-right text-[10px] font-bold text-slate-300 mt-1">{draft.length}/{MAX_CHARS}</p>
-          {listening && <p className="text-[10px] font-black uppercase tracking-widest text-rose-500 mt-1">Listening…</p>}
-
-          {error && <p className="text-rose-500 font-bold text-xs mt-2">{error}</p>}
-
-          {/* Below the textbox only, never a full-screen takeover — the textbox
-              stays put the whole time a request is in flight. The button itself is
-              disabled while translating so a second tap can't fire a duplicate call. */}
-          <button
-            onClick={translate}
-            disabled={translating || !draft.trim()}
-            className="w-full mt-3 py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
-          >
-            {translating ? (
-              <><Loader2 size={16} className="animate-spin" /> Translating…</>
-            ) : (
-              <><ArrowRightLeft size={16} /> Translate</>
-            )}
-          </button>
+        <div className="relative">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value.slice(0, MAX_CHARS))}
+            rows={6}
+            placeholder="Type anything, in any language…"
+            className={`w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none leading-relaxed ${speechSupported ? "pr-24" : "pr-14"}`}
+          />
+          {draft.length > 0 && (
+            <button
+              onClick={() => { recognitionRef.current?.stop(); setDraft(""); }}
+              aria-label="Clear text"
+              className={`absolute top-3 w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 active:scale-90 transition-all ${speechSupported ? "right-14" : "right-3"}`}
+            >
+              <X size={16} />
+            </button>
+          )}
+          {speechSupported && (
+            <button
+              onClick={toggleListening}
+              aria-label={listening ? "Stop recording" : "Speak instead of typing"}
+              className={`absolute right-3 top-3 w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-90 ${
+                listening ? "bg-rose-500 text-white animate-pulse" : "bg-indigo-50 text-indigo-500"
+              }`}
+            >
+              {listening ? <Square size={14} /> : <Mic size={16} />}
+            </button>
+          )}
         </div>
-      )}
+        <p className="text-right text-[10px] font-bold text-slate-300 mt-1">{draft.length}/{MAX_CHARS}</p>
+        {listening && <p className="text-[10px] font-black uppercase tracking-widest text-rose-500 mt-1">Listening…</p>}
 
-      {/* RESULT PHASE */}
-      {phase === "result" && result && (
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-xl mx-auto w-full px-5 py-6">
+        {error && <p className="text-rose-500 font-bold text-xs mt-2">{error}</p>}
+
+        {/* The button itself is disabled while translating so a second tap can't
+            fire a duplicate call; everything below it stays on this same screen. */}
+        <button
+          onClick={translate}
+          disabled={translating || !draft.trim()}
+          className="w-full mt-3 py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
+        >
+          {translating ? (
+            <><Loader2 size={16} className="animate-spin" /> Translating…</>
+          ) : (
+            <><ArrowRightLeft size={16} /> Translate</>
+          )}
+        </button>
+
+        {/* Result — appears right below the button, same screen, no navigation. */}
+        {result && (
+          <div className="mt-6">
             <div className="flex items-center justify-between mb-3 px-1">
               <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                 Detected: {result.detectedLanguage}
@@ -370,8 +353,8 @@ export default function TranslateView({ userId, onClose }: { userId: string; onC
               )}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Word lookup (shared with the quizzes / Reader / Sensei chat) — queues into
           pending_words here instead of straight into the deck (see file header). */}
