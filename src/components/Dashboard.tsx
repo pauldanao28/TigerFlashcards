@@ -13,10 +13,12 @@ import BadgeToast from "@/components/BadgeToast";
 import NotificationBell from "@/components/NotificationBell";
 import ShareButton from "@/components/ShareButton";
 import { SKILL_TILE, type SkillKey } from "@/lib/skillTheme";
-import { Share2, ChevronRight, Trophy, TrendingUp } from "lucide-react";
+import { Share2, ChevronRight, Trophy, TrendingUp, BookOpen, Headphones, PenTool, Layers, BarChart3, X } from "lucide-react";
 import { useFriendsContext } from "@/context/FriendsContext";
 import { pickDailyQuests, questProgress } from "@/lib/dailyQuests";
 import { BADGES } from "@/lib/badges";
+import { CONFETTI_PARTICLES } from "@/lib/confetti";
+import SparkLine from "@/components/SparkLine";
 
 type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
 
@@ -301,7 +303,65 @@ export default function Dashboard() {
   const [selectedPos, setSelectedPos] = useState<string | null>(null);
   const [earnedBadges, setEarnedBadges] = useState<Set<string>>(new Set());
   const [grammarStats, setGrammarStats] = useState<{ mastered: number; total: number } | null>(null);
+  // Daily Progress — moved here from Cards (see fetchHistory below for why: both
+  // queries are cheap daily-aggregate tables, not the full per-card dataset, so this
+  // doesn't cost Home anything like Mastered/Struggling's drill-down would).
+  const [dailyHistory, setDailyHistory] = useState<{ study_date: string; count: number }[]>([]);
+  const [quizHistory, setQuizHistory] = useState<
+    { study_date: string; reading: number | null; listening: number | null; grammar: number | null }[]
+  >([]);
+  const [historyTab, setHistoryTab] = useState<"flashcards" | "quizzes">("flashcards");
+  const [showHistory, setShowHistory] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
   const { friends, fetchFriends, socialToast, dismissSocialToast } = useFriendsContext();
+
+  // Same 14-day history fetch that used to live on Cards (user_review_counts +
+  // quiz_daily_stats — small per-day aggregates, not the full deck).
+  const fetchHistory = async () => {
+    if (!user) return;
+
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 13);
+    const since = fourteenDaysAgo.toLocaleDateString("en-CA");
+
+    const [{ data: reviewData }, { data: quizData }] = await Promise.all([
+      supabase
+        .from("user_review_counts")
+        .select("study_date, count")
+        .eq("user_id", user.id)
+        .gte("study_date", since)
+        .order("study_date", { ascending: false }),
+      supabase
+        .from("quiz_daily_stats")
+        .select("study_date, quiz_type, correct, total")
+        .eq("user_id", user.id)
+        .gte("study_date", since)
+        .order("study_date", { ascending: false }),
+    ]);
+
+    // Build full 14-day grid (newest first: index 0 = today)
+    const days: string[] = [];
+    for (let i = 0; i < 14; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      days.push(d.toLocaleDateString("en-CA"));
+    }
+
+    // Pad vocab to full 14 days (0 for days with no reviews)
+    const vocabMap = new Map((reviewData ?? []).map((r) => [r.study_date, r.count]));
+    setDailyHistory(days.map((date) => ({ study_date: date, count: vocabMap.get(date) ?? 0 })));
+    const acc: Record<string, Record<string, { correct: number; total: number }>> = {};
+    for (const row of quizData ?? []) {
+      if (!acc[row.study_date]) acc[row.study_date] = {};
+      const prev = acc[row.study_date][row.quiz_type] ?? { correct: 0, total: 0 };
+      acc[row.study_date][row.quiz_type] = { correct: prev.correct + row.correct, total: prev.total + row.total };
+    }
+    setQuizHistory(days.map((date) => {
+      const d = acc[date] ?? {};
+      const pct = (type: string) => (d[type]?.total ? Math.round((d[type].correct / d[type].total) * 100) : null);
+      return { study_date: date, reading: pct("reading"), listening: pct("listening"), grammar: pct("grammar") };
+    }));
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -557,12 +617,15 @@ export default function Dashboard() {
         <div className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Today</p>
           <div className="grid grid-cols-3 gap-3 text-center">
-            <div>
+            <button
+              onClick={() => { fetchHistory(); setShowCelebration(true); }}
+              className="active:scale-95 transition-all"
+            >
               <p className="text-xl font-black text-slate-800 tabular-nums">
                 {daily_count}<span className="text-slate-300 text-sm">/{REVIEW_TARGET}</span>
               </p>
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Reviews</p>
-            </div>
+            </button>
             <div>
               <p className={`text-xl font-black tabular-nums ${mastered_today >= MASTERED_GOAL ? "text-emerald-600" : "text-slate-800"}`}>
                 {mastered_today}<span className="text-slate-300 text-sm">/{MASTERED_GOAL}</span>
@@ -897,6 +960,289 @@ export default function Dashboard() {
         onDismiss={dismissSocialToast}
       />
       <BadgeToast queue={badgeQueue} onAdvance={() => setBadgeQueue((prev) => prev.slice(1))} />
+
+      {/* --- Celebration Modal (Daily Progress) --- */}
+      {showCelebration && (() => {
+        const msg = daily_count === 0
+          ? { emoji: "📚", line1: "No reviews yet today,", line2: "let's change that!" }
+          : daily_count >= 20
+          ? { emoji: "🔥", line1: `${daily_count} words practiced`, line2: "You're on fire today!" }
+          : { emoji: "🎉", line1: `${daily_count} ${daily_count === 1 ? "word" : "words"} practiced`, line2: "today — great work!" };
+        return (
+          <div className="fixed inset-0 z-[225] flex items-center justify-center p-4">
+            {CONFETTI_PARTICLES.map((c, i) => (
+              <motion.div
+                key={i}
+                className="absolute pointer-events-none"
+                style={{
+                  backgroundColor: c.color,
+                  width: c.w,
+                  height: c.h,
+                  borderRadius: c.round ? "50%" : "2px",
+                  left: `${c.left}%`,
+                  top: -16,
+                }}
+                initial={{ y: -16, opacity: 1, rotate: 0 }}
+                animate={{ y: "105vh", x: c.drift, opacity: [1, 1, 0.6, 0], rotate: 400 }}
+                transition={{ duration: 2, delay: c.delay, ease: [0.2, 0.8, 0.6, 1] }}
+              />
+            ))}
+            <motion.div
+              className="absolute inset-0 bg-indigo-950/70 backdrop-blur-lg"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.25 }}
+              onClick={() => { setShowCelebration(false); setShowHistory(true); }}
+            />
+            <motion.div
+              className="relative z-10 bg-white rounded-[3rem] p-10 text-center max-w-xs w-full shadow-2xl overflow-hidden"
+              initial={{ scale: 0.6, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              transition={{ type: "spring", stiffness: 360, damping: 24, delay: 0.05 }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-b from-indigo-50/60 to-transparent pointer-events-none" />
+              <motion.div
+                className="text-6xl mb-5 select-none"
+                initial={{ scale: 0, rotate: -15 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: "spring", stiffness: 500, damping: 20, delay: 0.15 }}
+              >
+                {msg.emoji}
+              </motion.div>
+              <motion.p
+                className="text-5xl font-black text-indigo-600 tracking-tight leading-none mb-3"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.22, duration: 0.35 }}
+              >
+                {msg.line1}
+              </motion.p>
+              <motion.p
+                className="text-base font-bold text-slate-500 mb-8"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.32, duration: 0.3 }}
+              >
+                {msg.line2}
+              </motion.p>
+              <motion.button
+                onClick={() => { setShowCelebration(false); setShowHistory(true); }}
+                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-200"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4, duration: 0.3 }}
+                whileTap={{ scale: 0.96 }}
+              >
+                See Full Progress →
+              </motion.button>
+            </motion.div>
+          </div>
+        );
+      })()}
+
+      {/* --- Daily Activity Overlay --- */}
+      {showHistory && (
+        <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 sm:p-6">
+          <div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-300"
+            onClick={() => setShowHistory(false)}
+          />
+          <div className="relative w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-slate-50 flex justify-between items-start bg-gradient-to-b from-slate-50/50 to-transparent">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+                  <h3 className="text-2xl font-black text-slate-800 uppercase italic tracking-tight">
+                    ✨ Activity Log
+                  </h3>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setHistoryTab("flashcards")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${historyTab === "flashcards" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
+                  >
+                    <Layers size={11} /> Flashcards
+                  </button>
+                  <button
+                    onClick={() => setHistoryTab("quizzes")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${historyTab === "quizzes" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
+                  >
+                    <BarChart3 size={11} /> Quizzes
+                  </button>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowHistory(false)}
+                className="h-10 w-10 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-800 hover:shadow-sm transition-all active:scale-90 shrink-0 ml-3"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-8 md:p-10 overflow-y-auto custom-scrollbar">
+              {historyTab === "flashcards" && (
+                <>
+                  <div className="relative bg-slate-50/50 rounded-[2.5rem] p-6 border border-slate-100 mb-8">
+                    <div className="absolute inset-0 grid grid-rows-4 px-6 py-6 opacity-[0.03] pointer-events-none">
+                      {[...Array(4)].map((_, i) => (
+                        <div key={i} className="border-t border-black w-full" />
+                      ))}
+                    </div>
+                    <div className="relative flex items-end justify-between gap-1.5 md:gap-3 h-56">
+                      {[...dailyHistory].reverse().map((day, i) => {
+                        const maxCount = Math.max(...dailyHistory.map((d) => d.count), 1);
+                        const heightPercentage = Math.max((day.count / maxCount) * 100, 4);
+                        const isToday = i === dailyHistory.length - 1;
+                        return (
+                          <div key={day.study_date} className="flex-1 flex flex-col items-center group h-full justify-end">
+                            <div className="relative w-full flex flex-col justify-end h-full">
+                              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-black px-2.5 py-1.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100 pointer-events-none z-10 shadow-xl">
+                                {day.count} <span className="text-slate-400 font-bold ml-0.5">pts</span>
+                              </div>
+                              <div
+                                style={{ height: `${heightPercentage}%` }}
+                                className={`w-full rounded-t-2xl transition-all duration-700 ease-out cursor-default ${
+                                  isToday
+                                    ? "bg-gradient-to-t from-indigo-600 to-indigo-400 shadow-lg shadow-indigo-100"
+                                    : "bg-slate-200 group-hover:bg-slate-300 group-hover:shadow-md"
+                                }`}
+                              />
+                            </div>
+                            <div className="mt-4 flex flex-col items-center">
+                              <span className={`text-[8px] font-black uppercase tracking-tighter ${isToday ? "text-indigo-600" : "text-slate-400"}`}>
+                                {new Date(day.study_date).toLocaleDateString("en-SG", { weekday: "short" })}
+                              </span>
+                              <span className="text-[7px] font-bold text-slate-300 mt-0.5">
+                                {new Date(day.study_date).getDate()}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-indigo-100 transition-colors">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-500">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                            </svg>
+                          </div>
+                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Total</p>
+                        </div>
+                        <SparkLine values={[...dailyHistory].reverse().map((d) => d.count)} color="#6366f1" />
+                      </div>
+                      <p className="text-3xl font-black text-slate-800 tracking-tight">
+                        {dailyHistory.reduce((acc, curr) => acc + curr.count, 0)}
+                        <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">Reviews</span>
+                      </p>
+                    </div>
+
+                    <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-emerald-100 transition-colors">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-500">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Average</p>
+                        </div>
+                        <SparkLine values={[...dailyHistory].reverse().map((d) => d.count)} color="#10b981" />
+                      </div>
+                      <p className="text-3xl font-black text-slate-800 tracking-tight">
+                        {Math.round(dailyHistory.reduce((acc, curr) => acc + curr.count, 0) / (dailyHistory.length || 1))}
+                        <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">Daily</span>
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {historyTab === "quizzes" && (
+                <div>
+                  {(() => {
+                    const vocabVals = [...dailyHistory].reverse().map((d) => d.count);
+                    const readVals = [...quizHistory].reverse().map((d) => d.reading);
+                    const listenVals = [...quizHistory].reverse().map((d) => d.listening);
+                    const grammarVals = [...quizHistory].reverse().map((d) => d.grammar);
+                    const tiles = [
+                      { key: "vocab",   label: "Vocab",   icon: Layers,     color: "#6366f1", values: vocabVals,   today: dailyHistory[0]?.count ?? 0, unit: "" },
+                      { key: "read",    label: "Read",    icon: BookOpen,   color: "#4f46e5", values: readVals,    today: quizHistory[0]?.reading,     unit: "%" },
+                      { key: "listen",  label: "Listen",  icon: Headphones, color: "#7c3aed", values: listenVals,  today: quizHistory[0]?.listening,   unit: "%" },
+                      { key: "grammar", label: "Grammar", icon: PenTool,    color: "#d97706", values: grammarVals, today: quizHistory[0]?.grammar,     unit: "%" },
+                    ];
+                    return (
+                      <div className="grid grid-cols-2 gap-3 mb-6">
+                        {tiles.map((tile) => (
+                          <div key={tile.key} className="bg-white rounded-2xl border border-slate-100 px-3 pt-3 pb-2.5 flex flex-col gap-1">
+                            <p className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1" style={{ color: tile.color }}>
+                              <tile.icon size={10} /> {tile.label}
+                            </p>
+                            <SparkLine values={tile.values} color={tile.color} />
+                            <p className="text-sm font-black text-slate-700 leading-none">
+                              {tile.today !== null && tile.today !== undefined
+                                ? <>{tile.today}{tile.unit}</>
+                                : <span className="text-slate-300 text-xs font-bold">—</span>}
+                              {tile.unit === "" && <span className="text-[9px] font-bold text-slate-300 ml-1">today</span>}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Last 7 Days</p>
+                  <div className="flex items-center gap-3 mb-1 px-2">
+                    <span className="w-20 shrink-0" />
+                    <span className="flex-1 flex justify-center text-indigo-400"><BookOpen size={12} /></span>
+                    <span className="flex-1 flex justify-center text-violet-400"><Headphones size={12} /></span>
+                    <span className="flex-1 flex justify-center text-amber-400"><PenTool size={12} /></span>
+                  </div>
+                  <div className="space-y-0.5">
+                    {quizHistory.slice(0, 7).map((row, i) => {
+                      const isToday = i === 0;
+                      const dot = (pct: number | null) => {
+                        if (pct === null) return <span className="text-slate-200 text-lg leading-none">·</span>;
+                        const color = pct >= 80 ? "text-emerald-400" : pct >= 60 ? "text-amber-400" : "text-rose-400";
+                        return <span className={`text-base leading-none ${color}`} title={`${pct}%`}>●</span>;
+                      };
+                      return (
+                        <div key={row.study_date} className={`flex items-center gap-3 py-2 px-2 rounded-xl ${isToday ? "bg-indigo-50" : ""}`}>
+                          <div className="w-20 shrink-0 flex items-center gap-1.5">
+                            <span className={`text-[10px] font-black ${isToday ? "text-indigo-600" : "text-slate-500"}`}>
+                              {new Date(row.study_date + "T00:00:00").toLocaleDateString("en-SG", { month: "short", day: "numeric" })}
+                            </span>
+                            {isToday && <span className="text-[8px] font-black text-indigo-300 uppercase tracking-widest">now</span>}
+                          </div>
+                          <span className="flex-1 flex justify-center">{dot(row.reading)}</span>
+                          <span className="flex-1 flex justify-center">{dot(row.listening)}</span>
+                          <span className="flex-1 flex justify-center">{dot(row.grammar)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center gap-4 mt-5 px-2">
+                    <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Key</span>
+                    <span className="flex items-center gap-1 text-[9px] font-bold text-slate-500"><span className="text-emerald-400">●</span> ≥80%</span>
+                    <span className="flex items-center gap-1 text-[9px] font-bold text-slate-500"><span className="text-amber-400">●</span> ≥60%</span>
+                    <span className="flex items-center gap-1 text-[9px] font-bold text-slate-500"><span className="text-rose-400">●</span> &lt;60%</span>
+                    <span className="flex items-center gap-1 text-[9px] font-bold text-slate-500"><span className="text-slate-200 text-sm">·</span> none</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 bg-slate-50/50 text-center mt-auto border-t border-slate-50">
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] opacity-60">
+                Focus • Consistency • Mastery
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <AnimatePresence>
         {isSocialOpen && user?.id && (

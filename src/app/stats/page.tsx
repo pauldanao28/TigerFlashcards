@@ -16,7 +16,8 @@ import AddWordsSheet from "@/components/AddWordsSheet";
 import DuplicatesSheet from "@/components/DuplicatesSheet";
 import CardDetailModal from "@/components/CardDetailModal";
 import { findDuplicates, skipDeckDuplicates } from "@/lib/duplicates";
-import { AlertTriangle, Ban, BarChart3, Bell, BookOpen, ChevronLeft, Flag, Gamepad2, Gift, Headphones, ImageIcon, Layers, List, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, Target, TrendingDown, Trophy, Volume2, X, Zap } from "lucide-react";
+import { CONFETTI_PARTICLES } from "@/lib/confetti";
+import { AlertTriangle, Ban, BarChart3, Bell, ChevronLeft, Flag, Gamepad2, Gift, ImageIcon, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, TrendingDown, Trophy, Volume2, X, Zap } from "lucide-react";
 import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from "@/lib/push";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { validateUsername, isUsernameTaken, type UsernameProblem } from "@/lib/username";
@@ -85,59 +86,6 @@ function computeQuickStats(rows: { user_scores?: { scores_json?: any }[] }[]): Q
   return { total, mastered, struggling, jp: { tries: jpTries, pass: jpPass, fail: jpFail }, en: { tries: enTries, pass: enPass, fail: enFail } };
 }
 
-function SparkLine({ values, color }: { values: (number | null)[]; color: string }) {
-  const W = 64, H = 28;
-  const pts = values
-    .map((v, i) => ({ v, i }))
-    .filter((p): p is { v: number; i: number } => p.v !== null);
-  if (pts.length === 0) return (
-    <div style={{ width: W, height: H }} className="flex items-center">
-      <div className="w-full h-px bg-slate-100" />
-    </div>
-  );
-  if (pts.length === 1) {
-    const cx = ((pts[0].i / Math.max(values.length - 1, 1)) * W).toFixed(1);
-    const cy = (H / 2).toFixed(1);
-    return (
-      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
-        <line x1="0" y1={cy} x2={W} y2={cy} stroke={color} strokeWidth="1" strokeOpacity="0.2" strokeDasharray="3,3" />
-        <circle cx={cx} cy={cy} r="2.5" fill={color} />
-      </svg>
-    );
-  }
-  const min = Math.min(...pts.map((p) => p.v));
-  const max = Math.max(...pts.map((p) => p.v), min + 1);
-  const x = (i: number) => (i / (values.length - 1)) * W;
-  const y = (v: number) => H - 2 - ((v - min) / (max - min)) * (H - 6);
-  const line = pts.map((p) => `${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ");
-  const area = `${x(pts[0].i).toFixed(1)},${H} ${pts.map((p) => `${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ")} ${x(pts[pts.length - 1].i).toFixed(1)},${H}`;
-  const last = pts[pts.length - 1];
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
-      <polygon points={area} fill={color} fillOpacity="0.15" />
-      <polyline points={line} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={x(last.i).toFixed(1)} cy={y(last.v).toFixed(1)} r="2.5" fill={color} />
-    </svg>
-  );
-}
-
-const CONFETTI_PARTICLES = [
-  { color: "#6366f1", left: 8,  delay: 0,    drift: -40, h: 10, w: 10, round: true  },
-  { color: "#f59e0b", left: 18, delay: 0.1,  drift: 35,  h: 6,  w: 12, round: false },
-  { color: "#10b981", left: 28, delay: 0.25, drift: -20, h: 8,  w: 8,  round: true  },
-  { color: "#f43f5e", left: 38, delay: 0.05, drift: 50,  h: 6,  w: 10, round: false },
-  { color: "#3b82f6", left: 50, delay: 0.2,  drift: -55, h: 10, w: 6,  round: false },
-  { color: "#8b5cf6", left: 60, delay: 0.15, drift: 25,  h: 6,  w: 8,  round: true  },
-  { color: "#f59e0b", left: 70, delay: 0.3,  drift: -30, h: 8,  w: 8,  round: false },
-  { color: "#6366f1", left: 80, delay: 0.1,  drift: 45,  h: 6,  w: 6,  round: true  },
-  { color: "#10b981", left: 90, delay: 0.2,  drift: -50, h: 10, w: 6,  round: true  },
-  { color: "#f43f5e", left: 13, delay: 0.35, drift: 60,  h: 6,  w: 10, round: false },
-  { color: "#3b82f6", left: 33, delay: 0.08, drift: -65, h: 8,  w: 8,  round: true  },
-  { color: "#8b5cf6", left: 55, delay: 0.22, drift: 30,  h: 6,  w: 6,  round: false },
-  { color: "#f43f5e", left: 43, delay: 0.18, drift: -45, h: 8,  w: 6,  round: true  },
-  { color: "#6366f1", left: 75, delay: 0.28, drift: 55,  h: 6,  w: 10, round: false },
-];
-
 export default function StatsPage() {
   const router = useRouter();
   const t = translations.en;
@@ -197,18 +145,8 @@ export default function StatsPage() {
   // Tapped card's JP→EN/EN→JP detail — shown in a small modal instead of inline, so the
   // collapsed list card stays compact.
   const [scoreDetailCard, setScoreDetailCard] = useState<FlashcardData | null>(null);
-  const [dailyHistory, setDailyHistory] = useState<
-    { study_date: string; count: number }[]
-  >([]);
-  const [quizHistory, setQuizHistory] = useState<
-    { study_date: string; reading: number | null; listening: number | null; grammar: number | null }[]
-  >([]);
-  const [historyTab, setHistoryTab] = useState<"flashcards" | "quizzes">("flashcards");
-  const [showHistory, setShowHistory] = useState(false);
-  const [showCelebration, setShowCelebration] = useState(false);
   const [showMasteredCelebration, setShowMasteredCelebration] = useState(false);
   const [showStrugglingCelebration, setShowStrugglingCelebration] = useState(false);
-  const [reviewsToday, setReviewsToday] = useState(0);
   const [previewPack, setPreviewPack] = useState<any | null>(null);
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [showAddSheet, setShowAddSheet] = useState(false);
@@ -244,82 +182,6 @@ export default function StatsPage() {
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [uploadBusy]);
-
-  useEffect(() => {
-    const fetchTodayCount = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Get today's date in YYYY-MM-DD format (Singapore Time)
-      const today = new Date().toLocaleDateString("en-CA", {
-        timeZone: "Asia/Singapore",
-      });
-
-      const { data, error } = await supabase
-        .from("user_review_counts")
-        .select("count")
-        .eq("user_id", user.id)
-        .eq("study_date", today)
-        .single();
-
-      if (!error && data) {
-        setReviewsToday(data.count);
-      }
-    };
-
-    fetchTodayCount();
-  }, []);
-
-  const fetchHistory = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const fourteenDaysAgo = new Date();
-    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 13);
-    const since = fourteenDaysAgo.toLocaleDateString("en-CA");
-
-    const [{ data: reviewData }, { data: quizData }] = await Promise.all([
-      supabase
-        .from("user_review_counts")
-        .select("study_date, count")
-        .eq("user_id", user.id)
-        .gte("study_date", since)
-        .order("study_date", { ascending: false }),
-      supabase
-        .from("quiz_daily_stats")
-        .select("study_date, quiz_type, correct, total")
-        .eq("user_id", user.id)
-        .gte("study_date", since)
-        .order("study_date", { ascending: false }),
-    ]);
-
-    // Build full 14-day grid (newest first: index 0 = today)
-    const days: string[] = [];
-    for (let i = 0; i < 14; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      days.push(d.toLocaleDateString("en-CA"));
-    }
-
-    // Pad vocab to full 14 days (0 for days with no reviews)
-    const vocabMap = new Map((reviewData ?? []).map(r => [r.study_date, r.count]));
-    setDailyHistory(days.map(date => ({ study_date: date, count: vocabMap.get(date) ?? 0 })));
-    const acc: Record<string, Record<string, { correct: number; total: number }>> = {};
-    for (const row of quizData ?? []) {
-      if (!acc[row.study_date]) acc[row.study_date] = {};
-      const prev = acc[row.study_date][row.quiz_type] ?? { correct: 0, total: 0 };
-      acc[row.study_date][row.quiz_type] = { correct: prev.correct + row.correct, total: prev.total + row.total };
-    }
-    setQuizHistory(days.map(date => {
-      const d = acc[date] ?? {};
-      const pct = (type: string) => d[type]?.total ? Math.round((d[type].correct / d[type].total) * 100) : null;
-      return { study_date: date, reading: pct("reading"), listening: pct("listening"), grammar: pct("grammar") };
-    }));
-  };
 
   const fetchStarterPacks = async () => {
     const { data, error } = await supabase.from("starter_packs").select("*").order("created_at"); // Fetches id, name, description, card_data, etc.
@@ -1746,15 +1608,13 @@ export default function StatsPage() {
             </Link>
           </div>
 
-          {/* Stats Cards — Mastered/Struggling/Daily Progress kept here (not moved to
-              Home with the rest of stats) because tapping them opens real drill-down
-              features: a celebration + filtered card list for Mastered/Struggling, a
-              celebration + review-history chart for Daily Progress. Everything else
-              that used to live in this section (Vocabulary/Avg Reflex/Avg Accuracy
-              numbers, the Directional Comparison widget, Badges, Grammar, and the
-              Advanced Stats link) was pure display with no interaction, so it moved
-              to Home instead. */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6 mb-8">
+          {/* Stats Cards — Mastered/Struggling kept here (not moved to Home with the
+              rest of stats) because tapping them opens a real drill-down feature: a
+              celebration + filtered card list, which needs the full per-card dataset
+              only this page fetches. Daily Progress moved to Home along with
+              everything else that was pure display or backed by cheap daily-aggregate
+              tables rather than the full deck. */}
+          <div className="grid grid-cols-2 gap-3 md:gap-6 mb-8">
             <StatCard
               label={t.mastered}
               value={masteredCount}
@@ -1770,17 +1630,6 @@ export default function StatsPage() {
               iconColor="text-rose-500"
               icon={TrendingDown}
               onClick={() => setShowStrugglingCelebration(true)}
-            />
-            <StatCard
-              label={t.daily_progress}
-              value={reviewsToday}
-              bgColor="bg-amber-50"
-              iconColor="text-amber-500"
-              icon={Target}
-              onClick={() => {
-                fetchHistory();
-                setShowCelebration(true);
-              }}
             />
           </div>
 
@@ -1996,92 +1845,6 @@ export default function StatsPage() {
             </div>
           )}
 
-          {/* --- Celebration Modal --- */}
-          {showCelebration && (() => {
-            const msg = reviewsToday === 0
-              ? { emoji: "📚", line1: "No reviews yet today,", line2: "let's change that!" }
-              : reviewsToday >= 20
-              ? { emoji: "🔥", line1: `${reviewsToday} words practiced`, line2: "You're on fire today!" }
-              : { emoji: "🎉", line1: `${reviewsToday} ${reviewsToday === 1 ? "word" : "words"} practiced`, line2: "today — great work!" };
-            return (
-              <div className="fixed inset-0 z-[225] flex items-center justify-center p-4">
-                {/* Confetti particles */}
-                {CONFETTI_PARTICLES.map((c, i) => (
-                  <motion.div
-                    key={i}
-                    className="absolute pointer-events-none"
-                    style={{
-                      backgroundColor: c.color,
-                      width: c.w,
-                      height: c.h,
-                      borderRadius: c.round ? "50%" : "2px",
-                      left: `${c.left}%`,
-                      top: -16,
-                    }}
-                    initial={{ y: -16, opacity: 1, rotate: 0 }}
-                    animate={{ y: "105vh", x: c.drift, opacity: [1, 1, 0.6, 0], rotate: 400 }}
-                    transition={{ duration: 2, delay: c.delay, ease: [0.2, 0.8, 0.6, 1] }}
-                  />
-                ))}
-                {/* Backdrop */}
-                <motion.div
-                  className="absolute inset-0 bg-indigo-950/70 backdrop-blur-lg"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.25 }}
-                  onClick={() => { setShowCelebration(false); setShowHistory(true); }}
-                />
-                {/* Card */}
-                <motion.div
-                  className="relative z-10 bg-white rounded-[3rem] p-10 text-center max-w-xs w-full shadow-2xl overflow-hidden"
-                  initial={{ scale: 0.6, opacity: 0, y: 30 }}
-                  animate={{ scale: 1, opacity: 1, y: 0 }}
-                  transition={{ type: "spring", stiffness: 360, damping: 24, delay: 0.05 }}
-                >
-                  {/* Background glow */}
-                  <div className="absolute inset-0 bg-gradient-to-b from-indigo-50/60 to-transparent pointer-events-none" />
-                  {/* Emoji */}
-                  <motion.div
-                    className="text-6xl mb-5 select-none"
-                    initial={{ scale: 0, rotate: -15 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    transition={{ type: "spring", stiffness: 500, damping: 20, delay: 0.15 }}
-                  >
-                    {msg.emoji}
-                  </motion.div>
-                  {/* Count */}
-                  <motion.p
-                    className="text-5xl font-black text-indigo-600 tracking-tight leading-none mb-3"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.22, duration: 0.35 }}
-                  >
-                    {msg.line1}
-                  </motion.p>
-                  <motion.p
-                    className="text-base font-bold text-slate-500 mb-8"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.32, duration: 0.3 }}
-                  >
-                    {msg.line2}
-                  </motion.p>
-                  {/* CTA */}
-                  <motion.button
-                    onClick={() => { setShowCelebration(false); setShowHistory(true); }}
-                    className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-700 transition-all active:scale-95 shadow-lg shadow-indigo-200"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4, duration: 0.3 }}
-                    whileTap={{ scale: 0.96 }}
-                  >
-                    See Full Progress →
-                  </motion.button>
-                </motion.div>
-              </div>
-            );
-          })()}
-
           {/* --- Mastered Celebration Modal --- */}
           {showMasteredCelebration && (() => {
             const msg = masteredCount === 0
@@ -2207,257 +1970,6 @@ export default function StatsPage() {
               </div>
             );
           })()}
-
-          {/* --- Daily Activity Overlay --- */}
-          {showHistory && (
-            <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 sm:p-6">
-              {/* Backdrop */}
-              <div
-                className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-300"
-                onClick={() => setShowHistory(false)}
-              />
-
-              <div className="relative w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
-                {/* Header */}
-                <div className="p-6 border-b border-slate-50 flex justify-between items-start bg-gradient-to-b from-slate-50/50 to-transparent">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
-                      <h3 className="text-2xl font-black text-slate-800 uppercase italic tracking-tight">
-                        {t.activity_log}
-                      </h3>
-                    </div>
-                    {/* Tabs */}
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setHistoryTab("flashcards")}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${historyTab === "flashcards" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
-                      >
-                        <Layers size={11} /> Flashcards
-                      </button>
-                      <button
-                        onClick={() => setHistoryTab("quizzes")}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${historyTab === "quizzes" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-400 hover:bg-slate-200"}`}
-                      >
-                        <BarChart3 size={11} /> Quizzes
-                      </button>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setShowHistory(false)}
-                    className="h-10 w-10 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-800 hover:shadow-sm transition-all active:scale-90 shrink-0 ml-3"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-
-                <div className="p-8 md:p-10 overflow-y-auto custom-scrollbar">
-                  {historyTab === "flashcards" && (
-                    <>
-                      {/* The Visual Chart Area */}
-                      <div className="relative bg-slate-50/50 rounded-[2.5rem] p-6 border border-slate-100 mb-8">
-                        {/* Subtle Grid Lines Background */}
-                        <div className="absolute inset-0 grid grid-rows-4 px-6 py-6 opacity-[0.03] pointer-events-none">
-                          {[...Array(4)].map((_, i) => (
-                            <div key={i} className="border-t border-black w-full" />
-                          ))}
-                        </div>
-
-                        <div className="relative flex items-end justify-between gap-1.5 md:gap-3 h-56">
-                          {[...dailyHistory].reverse().map((day, i) => {
-                            const maxCount = Math.max(
-                              ...dailyHistory.map((d) => d.count),
-                              1,
-                            );
-                            const heightPercentage = Math.max(
-                              (day.count / maxCount) * 100,
-                              4,
-                            );
-                            const isToday = i === dailyHistory.length - 1;
-
-                            return (
-                              <div
-                                key={day.study_date}
-                                className="flex-1 flex flex-col items-center group h-full justify-end"
-                              >
-                                <div className="relative w-full flex flex-col justify-end h-full">
-                                  <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-black px-2.5 py-1.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100 pointer-events-none z-10 shadow-xl">
-                                    {day.count}{" "}
-                                    <span className="text-slate-400 font-bold ml-0.5">
-                                      pts
-                                    </span>
-                                  </div>
-
-                                  <div
-                                    style={{ height: `${heightPercentage}%` }}
-                                    className={`w-full rounded-t-2xl transition-all duration-700 ease-out cursor-default
-                            ${
-                              isToday
-                                ? "bg-gradient-to-t from-indigo-600 to-indigo-400 shadow-lg shadow-indigo-100"
-                                : "bg-slate-200 group-hover:bg-slate-300 group-hover:shadow-md"
-                            }`}
-                                  />
-                                </div>
-                                <div className="mt-4 flex flex-col items-center">
-                                  <span
-                                    className={`text-[8px] font-black uppercase tracking-tighter ${isToday ? "text-indigo-600" : "text-slate-400"}`}
-                                  >
-                                    {new Date(day.study_date).toLocaleDateString(
-                                      "en-SG",
-                                      { weekday: "short" },
-                                    )}
-                                  </span>
-                                  <span className="text-[7px] font-bold text-slate-300 mt-0.5">
-                                    {new Date(day.study_date).getDate()}
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Stats Summary Cards */}
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-indigo-100 transition-colors">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-500">
-                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                  <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-                                </svg>
-                              </div>
-                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                {t.total}
-                              </p>
-                            </div>
-                            <SparkLine values={[...dailyHistory].reverse().map((d) => d.count)} color="#6366f1" />
-                          </div>
-                          <p className="text-3xl font-black text-slate-800 tracking-tight">
-                            {dailyHistory.reduce((acc, curr) => acc + curr.count, 0)}
-                            <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">
-                              {t.reviews}
-                            </span>
-                          </p>
-                        </div>
-
-                        <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-emerald-100 transition-colors">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-500">
-                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                </svg>
-                              </div>
-                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                {t.average}
-                              </p>
-                            </div>
-                            <SparkLine values={[...dailyHistory].reverse().map((d) => d.count)} color="#10b981" />
-                          </div>
-                          <p className="text-3xl font-black text-slate-800 tracking-tight">
-                            {Math.round(dailyHistory.reduce((acc, curr) => acc + curr.count, 0) / (dailyHistory.length || 1))}
-                            <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">
-                              {t.daily}
-                            </span>
-                          </p>
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  {historyTab === "quizzes" && (
-                    <div>
-                      {/* Sparkline summary tiles */}
-                      {(() => {
-                        const vocabVals = [...dailyHistory].reverse().map((d) => d.count);
-                        const readVals = [...quizHistory].reverse().map((d) => d.reading);
-                        const listenVals = [...quizHistory].reverse().map((d) => d.listening);
-                        const grammarVals = [...quizHistory].reverse().map((d) => d.grammar);
-                        const tiles = [
-                          { key: "vocab",   label: "Vocab",   icon: Layers,      color: "#6366f1", values: vocabVals,   today: dailyHistory[0]?.count ?? 0,      unit: "" },
-                          { key: "read",    label: "Read",    icon: BookOpen,    color: "#4f46e5", values: readVals,    today: quizHistory[0]?.reading,           unit: "%" },
-                          { key: "listen",  label: "Listen",  icon: Headphones,  color: "#7c3aed", values: listenVals,  today: quizHistory[0]?.listening,         unit: "%" },
-                          { key: "grammar", label: "Grammar", icon: PenTool,     color: "#d97706", values: grammarVals, today: quizHistory[0]?.grammar,           unit: "%" },
-                        ];
-                        return (
-                          <div className="grid grid-cols-2 gap-3 mb-6">
-                            {tiles.map((tile) => (
-                              <div key={tile.key} className="bg-white rounded-2xl border border-slate-100 px-3 pt-3 pb-2.5 flex flex-col gap-1">
-                                <p className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1" style={{ color: tile.color }}>
-                                  <tile.icon size={10} /> {tile.label}
-                                </p>
-                                <SparkLine values={tile.values} color={tile.color} />
-                                <p className="text-sm font-black text-slate-700 leading-none">
-                                  {tile.today !== null && tile.today !== undefined
-                                    ? <>{tile.today}{tile.unit}</>
-                                    : <span className="text-slate-300 text-xs font-bold">—</span>}
-                                  {tile.unit === "" && <span className="text-[9px] font-bold text-slate-300 ml-1">today</span>}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">
-                        Last 7 Days
-                      </p>
-                      {/* Column headers */}
-                      <div className="flex items-center gap-3 mb-1 px-2">
-                        <span className="w-20 shrink-0" />
-                        <span className="flex-1 flex justify-center text-indigo-400"><BookOpen size={12} /></span>
-                        <span className="flex-1 flex justify-center text-violet-400"><Headphones size={12} /></span>
-                        <span className="flex-1 flex justify-center text-amber-400"><PenTool size={12} /></span>
-                      </div>
-                      {/* Rows */}
-                      <div className="space-y-0.5">
-                        {quizHistory.slice(0, 7).map((row, i) => {
-                          const isToday = i === 0;
-                          const dot = (pct: number | null) => {
-                            if (pct === null) return <span className="text-slate-200 text-lg leading-none">·</span>;
-                            const color = pct >= 80 ? "text-emerald-400" : pct >= 60 ? "text-amber-400" : "text-rose-400";
-                            return (
-                              <span className={`text-base leading-none ${color}`} title={`${pct}%`}>●</span>
-                            );
-                          };
-                          return (
-                            <div
-                              key={row.study_date}
-                              className={`flex items-center gap-3 py-2 px-2 rounded-xl ${isToday ? "bg-indigo-50" : ""}`}
-                            >
-                              <div className="w-20 shrink-0 flex items-center gap-1.5">
-                                <span className={`text-[10px] font-black ${isToday ? "text-indigo-600" : "text-slate-500"}`}>
-                                  {new Date(row.study_date + "T00:00:00").toLocaleDateString("en-SG", { month: "short", day: "numeric" })}
-                                </span>
-                                {isToday && <span className="text-[8px] font-black text-indigo-300 uppercase tracking-widest">now</span>}
-                              </div>
-                              <span className="flex-1 flex justify-center">{dot(row.reading)}</span>
-                              <span className="flex-1 flex justify-center">{dot(row.listening)}</span>
-                              <span className="flex-1 flex justify-center">{dot(row.grammar)}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {/* Legend */}
-                      <div className="flex items-center gap-4 mt-5 px-2">
-                        <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Key</span>
-                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-500"><span className="text-emerald-400">●</span> ≥80%</span>
-                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-500"><span className="text-amber-400">●</span> ≥60%</span>
-                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-500"><span className="text-rose-400">●</span> &lt;60%</span>
-                        <span className="flex items-center gap-1 text-[9px] font-bold text-slate-500"><span className="text-slate-200 text-sm">·</span> none</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-6 bg-slate-50/50 text-center mt-auto border-t border-slate-50">
-                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] opacity-60">
-                    {t.motto_focus} • {t.motto_consistency} • {t.motto_mastery}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
 
 
           {/* --- Starter Pack Preview Overlay --- */}
