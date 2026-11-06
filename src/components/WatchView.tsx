@@ -487,8 +487,12 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
     openExplain(i, lines[i].text, context, { source: "watch", sourceTitle: videoTitle });
   };
 
-  // Already queued in "Not in your deck", or fully added.
-  const isQueued = (w: string) => mining.addedWords.has(w) || mining.newWords.some((nw) => nw.word === w);
+  // addedWords catches a word added THIS session before wordStatus has reloaded to
+  // reflect it; getWordStatus(w) !== "new" is the real deck-membership check — a
+  // word already mastered/weak/known from before today was never in mining.newWords
+  // (that's only the "not in your deck" list), so checking membership in it here
+  // was backwards and left already-owned words showing "+ Add" instead of "Added".
+  const isQueued = (w: string) => mining.addedWords.has(w) || mining.getWordStatus(w) !== "new";
 
   // Tapping a word pauses the video so there's time to read the lookup.
   const handleWordTap = (word: string, e: React.MouseEvent | React.TouchEvent, reading = "") => {

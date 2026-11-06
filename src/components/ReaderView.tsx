@@ -48,8 +48,13 @@ function passageTitle(p: SavedPassage): string {
  */
 export default function ReaderView({ userId, onClose }: { userId: string; onClose: () => void }) {
   const mining = useWordMining(userId);
-  const { addedWords, queueWord, newWords, getWordStatus } = mining;
-  const isQueued = (w: string) => addedWords.has(w) || newWords.some((nw) => nw.word === w);
+  const { addedWords, queueWord, getWordStatus } = mining;
+  // addedWords catches a word added THIS session before wordStatus has reloaded to
+  // reflect it; getWordStatus(w) !== "new" is the real deck-membership check — a
+  // word already mastered/weak/known from before today was never in `newWords`
+  // (that's only the "not in your deck" list), so checking membership in it here
+  // was backwards and left already-owned words showing "+ Add" instead of "Added".
+  const isQueued = (w: string) => addedWords.has(w) || getWordStatus(w) !== "new";
 
   const [phase, setPhase] = useState<"input" | "loading" | "reading">("input");
   const [draft, setDraft] = useState("");
