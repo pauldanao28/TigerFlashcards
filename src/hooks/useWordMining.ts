@@ -30,15 +30,24 @@ export function useWordMining(userId: string) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [blocklist, setBlocklist] = useState<string[]>([]);
 
+  // loadWordStatus awaits this instead of reading `deckId` directly — a word
+  // genuinely in the deck was showing as "not in deck" when it ran before this
+  // mount-time fetch resolved (deckId still null reads the same as "no deck").
+  // Awaiting the in-flight fetch itself closes that race outright, rather than
+  // relying on the caller happening to wait long enough before calling in.
+  const deckIdPromiseRef = useRef<Promise<string | null> | null>(null);
+
   useEffect(() => {
     if (!userId) return;
-    Promise.all([
+    deckIdPromiseRef.current = Promise.all([
       supabase.from("decks").select("id").eq("user_id", userId).eq("is_default", true).maybeSingle(),
       supabase.from("profiles").select("is_admin, blocked_words").eq("id", userId).maybeSingle(),
     ]).then(([deckRes, profileRes]) => {
-      setDeckId(deckRes.data?.id ?? null);
+      const id = deckRes.data?.id ?? null;
+      setDeckId(id);
       setIsAdmin(!!profileRes.data?.is_admin);
       setBlocklist(profileRes.data?.blocked_words ?? []);
+      return id;
     });
   }, [userId]);
 
@@ -90,6 +99,12 @@ export function useWordMining(userId: string) {
     // Status per card text, for both the written form and the dictionary form.
     const statusByJapanese = new Map<string, { status: WordStatus; accuracy?: number }>();
     const candidates = [...new Set(words.flatMap((w) => [w, forms[w] ?? w]))];
+    // Wait for the mount-time deck id fetch if it's still in flight — reading the
+    // `deckId` state directly here could still be null on a fast call (e.g.
+    // reopening a saved passage right after navigating in), which read exactly
+    // like "no deck" below and marked everything as not-in-deck, even words that
+    // genuinely are.
+    const resolvedDeckId = deckIdPromiseRef.current ? await deckIdPromiseRef.current : deckId;
     // Chunked so long texts (full video transcripts) don't blow past PostgREST's URL limit.
     for (let i = 0; i < candidates.length; i += 100) {
       const chunk = candidates.slice(i, i + 100);
@@ -104,8 +119,8 @@ export function useWordMining(userId: string) {
       // deck_cards link was ever removed without its score row left it permanently
       // highlighted as "known" here even after it left the deck. Same bug class
       // useWordLookup's checkDeck fixes; deck membership is the actual source of truth.
-      const { data: links } = deckId && cardIds.length
-        ? await supabase.from("deck_cards").select("card_id").eq("deck_id", deckId).in("card_id", cardIds)
+      const { data: links } = resolvedDeckId && cardIds.length
+        ? await supabase.from("deck_cards").select("card_id").eq("deck_id", resolvedDeckId).in("card_id", cardIds)
         : { data: [] as { card_id: string }[] };
       const linkedIds = new Set((links ?? []).map((l) => l.card_id));
 
