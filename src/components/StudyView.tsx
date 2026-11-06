@@ -1945,6 +1945,21 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           {/* Top-right controls — Study Circle + Mode toggle */}
           <div className="flex flex-col items-end gap-2 pointer-events-auto shrink-0">
             <div className="relative flex items-center gap-2 shrink-0">
+              {/* Same POOL_SIZE threshold WeakWordsQuiz.tsx samples from — only
+                  shown once there's a full round's worth, same as the Quick
+                  Actions badge. Subtle icon instead of the earlier banner. */}
+              {weakWordsCount >= 10 && (
+                <Link
+                  href="/quizzes?open=weak_words"
+                  title={`${weakWordsCount} struggling today`}
+                  className="shrink-0 relative flex items-center justify-center w-11 h-11 rounded-2xl border border-rose-100 bg-rose-50 text-rose-500 shadow-sm active:scale-95 transition-all"
+                >
+                  <span className="text-lg leading-none">😓</span>
+                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
+                    {weakWordsCount > 9 ? "9+" : weakWordsCount}
+                  </span>
+                </Link>
+              )}
               <button
                 onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
                 title={language === "jp" ? t.recognition : t.recall}
@@ -2332,22 +2347,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               </span>
             )}
           </div>
-
-          {/* Weak Words pool banner — only once it's a full round's worth (same
-              POOL_SIZE WeakWordsQuiz.tsx samples from), so this doesn't nag over a
-              couple of slow cards; the Quick Actions badge already covers that. */}
-          {weakWordsCount >= 10 && (
-            <Link
-              href="/quizzes?open=weak_words"
-              className="flex items-center gap-2 bg-rose-50 border border-rose-100 text-rose-600 rounded-full px-4 py-2 mb-2 active:scale-95 transition-all"
-            >
-              <span className="text-base shrink-0">😓</span>
-              <span className="text-[11px] font-black uppercase tracking-widest flex-1">
-                {weakWordsCount} struggling today — review them
-              </span>
-              <span className="text-rose-300 text-base shrink-0">›</span>
-            </Link>
-          )}
 
           {/* --- 3b. CARD ANCHOR (Locked Position) --- */}
           <div className="w-full flex-1 flex flex-col justify-center items-center relative min-h-0 pt-2 md:pt-0">
