@@ -100,9 +100,18 @@ export function useWordMining(userId: string) {
         : { data: [] as { card_id: string; scores_json: ScoresJson }[] };
       const scoreByCardId = new Map((scores ?? []).map((s) => [s.card_id, s.scores_json as ScoresJson]));
 
+      // A user_scores row existing isn't proof the word is in the deck — a card whose
+      // deck_cards link was ever removed without its score row left it permanently
+      // highlighted as "known" here even after it left the deck. Same bug class
+      // useWordLookup's checkDeck fixes; deck membership is the actual source of truth.
+      const { data: links } = deckId && cardIds.length
+        ? await supabase.from("deck_cards").select("card_id").eq("deck_id", deckId).in("card_id", cardIds)
+        : { data: [] as { card_id: string }[] };
+      const linkedIds = new Set((links ?? []).map((l) => l.card_id));
+
       for (const card of cards ?? []) {
         const s = scoreByCardId.get(card.id);
-        if (!s) continue; // in the shared library but not in this user's deck
+        if (!s || !linkedIds.has(card.id)) continue; // in the shared library but not in this user's deck
         statusByJapanese.set(card.japanese, deckStatusFromScores(s));
       }
     }
