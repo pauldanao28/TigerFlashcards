@@ -2111,15 +2111,15 @@ export default function StatsPage() {
           {/* Search + manual refresh — the page already revalidates itself in the
               background on load (stale-while-revalidate), this is just for forcing it
               on demand instead of waiting. */}
-          <div className="flex items-center gap-2 mb-6">
+          <div className="flex items-center gap-2 mb-4">
             <div className="relative flex-1">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
-                <Search size={16} />
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <Search size={14} />
               </div>
               <input
                 type="text"
                 placeholder={t.search_placeholder}
-                className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="w-full pl-10 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
@@ -2131,17 +2131,17 @@ export default function StatsPage() {
               onClick={() => fetchCards()}
               disabled={cardsLoading}
               title="Refresh"
-              className="shrink-0 w-12 h-12 flex items-center justify-center bg-white border border-slate-200 rounded-2xl shadow-sm text-slate-400 hover:text-indigo-600 active:scale-90 transition-all disabled:opacity-50"
+              className="shrink-0 w-9 h-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl shadow-sm text-slate-400 hover:text-indigo-600 active:scale-90 transition-all disabled:opacity-50"
             >
-              <RefreshCw size={16} className={cardsLoading ? "animate-spin" : ""} />
+              <RefreshCw size={14} className={cardsLoading ? "animate-spin" : ""} />
             </button>
           </div>
 
           {/* Card list skeleton while full content loads */}
           {cardsLoading && cards.length === 0 && (
-            <div className="space-y-3 mb-6">
+            <div className="space-y-2.5 mb-6">
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="bg-white rounded-[2rem] border border-slate-100 p-6 animate-pulse">
+                <div key={i} className="bg-white rounded-2xl border border-slate-100 p-4 animate-pulse">
                   <div className="h-5 bg-slate-100 rounded-full w-1/3 mb-3" />
                   <div className="h-3 bg-slate-100 rounded-full w-1/2" />
                 </div>
