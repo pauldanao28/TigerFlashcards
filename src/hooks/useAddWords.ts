@@ -57,10 +57,15 @@ export function useAddWords({
 
   // "Related Words" — shown only after a deliberate single-word add (not a batch),
   // below the summary. Fetched separately from the add itself so a slow/failed AI
-  // call never blocks the add from completing.
+  // call never blocks the add from completing. relatedWordsAttempted distinguishes
+  // "this add wasn't a single-word one, section stays hidden" from "it was, and
+  // this is what came back (possibly nothing)" — without it, a quota-exhausted or
+  // failed fetch looks identical to the section never having run at all.
   const [relatedWords, setRelatedWords] = useState<RelatedWord[]>([]);
   const [relatedWordsLoading, setRelatedWordsLoading] = useState(false);
+  const [relatedWordsAttempted, setRelatedWordsAttempted] = useState(false);
   const fetchRelatedWords = async (card: { japanese: string; reading: string; english: string }) => {
+    setRelatedWordsAttempted(true);
     setRelatedWordsLoading(true);
     try {
       const res = await authedFetch("/api/related-words", {
@@ -181,6 +186,7 @@ export function useAddWords({
     // A fresh add always clears stale suggestions from whatever was added before —
     // re-populated below only when this turns out to be a single-word add.
     setRelatedWords([]);
+    setRelatedWordsAttempted(false);
 
     setLoading(true);
     setUploadBusy(true);
@@ -325,9 +331,13 @@ export function useAddWords({
         onAdded?.();
         // A deliberate single-word add (not a batch) gets "Related Words" suggestions —
         // fired in the background, not awaited, so a slow AI call never delays the add
-        // itself finishing.
-        if (uniqueInputWords.length === 1 && finalSummary.length === 1) {
-          fetchRelatedWords(finalSummary[0]);
+        // itself finishing. Matched by the normalized word rather than requiring
+        // finalSummary.length === 1, since the AI can still return more than one card
+        // for what the user typed as a single item (e.g. it read as a short phrase) —
+        // that shouldn't silently suppress the suggestions.
+        if (uniqueInputWords.length === 1) {
+          const singleWordCard = finalSummary.find((c) => c.japanese === uniqueInputWords[0]) ?? finalSummary[0];
+          fetchRelatedWords(singleWordCard);
         }
       }
     } catch (e: any) {
@@ -369,6 +379,7 @@ export function useAddWords({
     deleteFromSummary,
     relatedWords,
     relatedWordsLoading,
+    relatedWordsAttempted,
     addRelatedWord,
   };
 }

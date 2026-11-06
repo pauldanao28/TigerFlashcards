@@ -518,7 +518,14 @@ export default function Flashcard({
                 mismatch to act on, and the fixed-height card outside this div just
                 silently clipped whatever didn't fit. This is what makes clientHeight
                 reflect the real available space so that check actually fires. */}
-            <div ref={backContentRef} className="flex-1 min-h-0 flex flex-col items-center justify-center w-full overflow-hidden">
+            {/* pt-8: the jlpt_level/partOfSpeech badges above are absolutely positioned
+                (top-4, ~14px tall past this div's own padding edge) — without this, a
+                vertically-centered block tall enough to nearly fill this container has
+                near-zero top margin and sits right under those badges, which is exactly
+                what the shrink-to-fit effect doesn't prevent (it only guards against
+                scroll overflow, not against this leftover gap being too small). This
+                reserves real clearance unconditionally instead. */}
+            <div ref={backContentRef} className="flex-1 min-h-0 flex flex-col items-center justify-center w-full overflow-hidden pt-8">
               {(language === "jp" || language === "en") && card?.reading && (
                 <p className={`text-indigo-200 ${READING_SIZE_LADDER[backSizeIdx]} mb-2 font-medium tracking-wide animate-fade-in truncate w-full`}>
                   {card?.reading}

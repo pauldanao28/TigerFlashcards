@@ -31,6 +31,7 @@ export default function AddedWordsSummary({
   onDelete,
   relatedWords,
   relatedWordsLoading,
+  relatedWordsAttempted,
   onAddRelated,
   zClassName = "z-[260]",
 }: {
@@ -39,6 +40,9 @@ export default function AddedWordsSummary({
   onDelete: (word: AddedWordSummary) => void;
   relatedWords?: RelatedWord[];
   relatedWordsLoading?: boolean;
+  // Distinguishes "not applicable here" (section hidden) from "ran, found nothing"
+  // (an empty-state message instead of the section silently not appearing at all).
+  relatedWordsAttempted?: boolean;
   onAddRelated?: (word: RelatedWord) => void;
   zClassName?: string;
 }) {
@@ -160,7 +164,7 @@ export default function AddedWordsSummary({
             </div>
           ))}
 
-          {(relatedWordsLoading || (relatedWords && relatedWords.length > 0)) && (
+          {(relatedWordsLoading || relatedWordsAttempted) && (
             <div className="pt-1">
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 px-1">
                 Related Words
@@ -170,9 +174,13 @@ export default function AddedWordsSummary({
                   <Loader2 size={14} className="animate-spin" />
                   <span className="text-[10px] font-bold uppercase tracking-widest">Finding related words…</span>
                 </div>
+              ) : !relatedWords || relatedWords.length === 0 ? (
+                <p className="text-center text-xs text-slate-400 font-medium py-3">
+                  No related words available right now.
+                </p>
               ) : (
                 <div className="space-y-2">
-                  {relatedWords!.map((w) => (
+                  {relatedWords.map((w) => (
                     <button
                       key={w.japanese}
                       onClick={() => onAddRelated?.(w)}

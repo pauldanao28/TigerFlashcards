@@ -46,6 +46,7 @@ export default function AddWordsSheet({
     deleteFromSummary,
     relatedWords,
     relatedWordsLoading,
+    relatedWordsAttempted,
     addRelatedWord,
   } = useAddWords({ userId, deckId, isAdmin, blocklist, onAdded });
 
@@ -317,6 +318,7 @@ export default function AddWordsSheet({
           onDelete={(word) => deleteFromSummary(word.id)}
           relatedWords={relatedWords}
           relatedWordsLoading={relatedWordsLoading}
+          relatedWordsAttempted={relatedWordsAttempted}
           onAddRelated={addRelatedWord}
         />
       )}
