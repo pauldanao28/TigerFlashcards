@@ -2150,7 +2150,7 @@ export default function StatsPage() {
           )}
 
           {/* List Views (Mobile & Desktop) */}
-          <div className="md:hidden space-y-4">
+          <div className="md:hidden space-y-2.5">
             {visibleCards.map((card) => {
               const isNew =
                 new Date().getTime() -
@@ -2160,18 +2160,18 @@ export default function StatsPage() {
               return (
                 <div
                   key={card.id}
-                  className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden"
+                  className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden"
                 >
                   {/* ACTION BUTTONS (Top Right) */}
-                  <div className="absolute top-4 right-4 flex items-center gap-1">
+                  <div className="absolute top-2.5 right-2.5 flex items-center gap-0.5">
                     {/* PRIORITY STAR */}
                     <button
                       onClick={() => toggleCardPriority(card)}
-                      className="w-8 h-8 flex items-center justify-center active:scale-90 transition-all"
+                      className="w-7 h-7 flex items-center justify-center active:scale-90 transition-all"
                       title={card.is_priority ? "Remove from Priority" : "Add to Priority"}
                     >
                       <Star
-                        size={16}
+                        size={14}
                         className={card.is_priority ? "text-amber-500" : "text-slate-300"}
                         fill={card.is_priority ? "currentColor" : "none"}
                       />
@@ -2180,11 +2180,11 @@ export default function StatsPage() {
                     {/* DELETE BUTTON */}
                     <button
                       onClick={() => deleteCard(card.id)}
-                      className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-rose-500 active:scale-90 transition-all"
+                      className="w-7 h-7 flex items-center justify-center text-slate-300 hover:text-rose-500 active:scale-90 transition-all"
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4"
+                        className="h-3.5 w-3.5"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -2203,8 +2203,8 @@ export default function StatsPage() {
                     onClick={() => setScoreDetailCard(card)}
                   >
                     {/* Flex container to keep Japanese and Badge together */}
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <div className="text-2xl font-black text-slate-800 leading-none">
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      <div className="text-lg font-black text-slate-800 leading-none">
                         {card.japanese}
                       </div>
 
@@ -2264,10 +2264,10 @@ export default function StatsPage() {
                         <Lightbulb size={14} className={card.mnemonic ? "text-amber-500" : "text-slate-300"} />
                       </button>
                     )}
-                    <div className="text-sm font-bold text-indigo-500">
+                    <div className="text-xs font-bold text-indigo-500 mt-0.5">
                       {card.reading}
                     </div>
-                    <div className="text-slate-600 mt-1">{card.english}</div>
+                    <div className="text-sm text-slate-600 mt-0.5">{card.english}</div>
                   </div>
                 </div>
               );
