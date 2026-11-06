@@ -1945,21 +1945,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           {/* Top-right controls — Study Circle + Mode toggle */}
           <div className="flex flex-col items-end gap-2 pointer-events-auto shrink-0">
             <div className="relative flex items-center gap-2 shrink-0">
-              {/* Same POOL_SIZE threshold WeakWordsQuiz.tsx samples from — only
-                  shown once there's a full round's worth, same as the Quick
-                  Actions badge. Subtle icon instead of the earlier banner. */}
-              {weakWordsCount >= 10 && (
-                <Link
-                  href="/quizzes?open=weak_words"
-                  title={`${weakWordsCount} struggling today`}
-                  className="shrink-0 relative flex items-center justify-center w-11 h-11 rounded-2xl border border-rose-100 bg-rose-50 text-rose-500 shadow-sm active:scale-95 transition-all"
-                >
-                  <span className="text-lg leading-none">😓</span>
-                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white">
-                    {weakWordsCount > 9 ? "9+" : weakWordsCount}
-                  </span>
-                </Link>
-              )}
               <button
                 onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
                 title={language === "jp" ? t.recognition : t.recall}
@@ -2345,6 +2330,17 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                   </span>
                 )}
               </span>
+            )}
+
+            {/* Same POOL_SIZE threshold WeakWordsQuiz.tsx samples from — only shown
+                once there's a full round's worth, same as the Quick Actions badge. */}
+            {weakWordsCount >= 10 && (
+              <Link
+                href="/quizzes?open=weak_words"
+                className="block text-[10px] font-black text-rose-400 uppercase tracking-[0.3em] text-center mt-1 active:opacity-70"
+              >
+                😓 {t.struggling} ({weakWordsCount})
+              </Link>
             )}
           </div>
 
