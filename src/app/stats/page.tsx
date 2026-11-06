@@ -60,8 +60,10 @@ function savePersistedCardsCache(cache: StatsCardsCache) {
 const PRIORITY_CAP = 30;
 
 // A card needs this many Fail grades on the same day to show up in "Struggling
-// Today" — a single slip doesn't count, a repeated one does.
-const DAILY_STRUGGLE_THRESHOLD = 3;
+// Today" — a single slip doesn't count, a repeated one does. Same threshold (and
+// cleared_at exclusion) WeakWordsQuiz/count_weak_words use, so this list and the
+// Study page's "Struggling (N)" badge always agree on the same number.
+const DAILY_STRUGGLE_THRESHOLD = 2;
 
 export default function StatsPage() {
   const router = useRouter();
@@ -374,6 +376,7 @@ export default function StatsPage() {
       .eq("user_id", user.id)
       .eq("struggle_date", sgToday)
       .gte("fail_count", DAILY_STRUGGLE_THRESHOLD)
+      .is("cleared_at", null)
       .order("fail_count", { ascending: false });
     if (error) { console.error("Error fetching daily struggles:", error); return; }
     if (!struggles || struggles.length === 0) { setDailyStruggles([]); return; }
