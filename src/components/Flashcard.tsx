@@ -595,11 +595,15 @@ export default function Flashcard({
               <div className="mt-4 pt-4 border-t border-indigo-400/50 w-full shrink-0">
                 {card?.exampleSentence?.jp && (
                   <div className="mb-4 px-2 text-center">
-                    <p className="text-base italic text-indigo-50 line-clamp-3 overflow-hidden break-words">
+                    {/* Supporting content, not the card's main point — kept smaller than
+                        the reading/meaning's own floor (READING_SIZE_LADDER/backSizeLadder
+                        both bottom out at text-xs) so a heavily-shrunk card never leaves
+                        the example sentence reading larger than the word it's for. */}
+                    <p className="text-sm italic text-indigo-50 line-clamp-3 overflow-hidden break-words">
                       "{card.exampleSentence.jp}"
                     </p>
                     {card.exampleSentence.en && (
-                      <p className="text-xs text-indigo-200/80 mt-1 line-clamp-2 overflow-hidden break-words">
+                      <p className="text-[10px] text-indigo-200/80 mt-1 line-clamp-2 overflow-hidden break-words">
                         {card.exampleSentence.en}
                       </p>
                     )}
