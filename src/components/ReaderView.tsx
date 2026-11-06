@@ -543,6 +543,19 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
                     onClick={sentence.speakable ? () => speakAt(i) : undefined}
                     className={`${sentence.speakable ? "cursor-pointer" : ""} ${i === readIdx ? "bg-indigo-50 rounded-lg ring-1 ring-indigo-100" : ""}`}
                   >
+                    {/* A dedicated tap target — most of a sentence's text is itself
+                        tappable (TappableText, for word lookup), so taps meant to select
+                        the line for Explain were landing on words instead and opening the
+                        lookup sheet. Same per-line Sparkles button Watch already has. */}
+                    {sentence.speakable && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); explainSentence(speakable.indexOf(i)); }}
+                        aria-label="Explain this line"
+                        className="inline-flex align-middle mr-1.5 -mt-0.5 p-1 rounded-md text-violet-300 hover:text-violet-600 hover:bg-violet-50 transition-colors"
+                      >
+                        <Sparkles size={13} />
+                      </button>
+                    )}
                     <TappableText text={sentence.text} keyPrefix={`s${i}`} onWordTap={(word, reading, e) => handleWordTap(word, e, reading)} getStatus={getWordStatus} />
                   </span>
                 ))}
