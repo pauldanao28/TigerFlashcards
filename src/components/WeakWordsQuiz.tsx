@@ -13,9 +13,10 @@ import { useWordLookup } from "@/hooks/useWordLookup";
 import type { KanjiMnemonic } from "@/lib/types";
 
 const POOL_SIZE = 10;
-// Same threshold Cards' "Struggling Today" uses — a single slip doesn't count today,
-// a repeated one does.
-const DAILY_STRUGGLE_THRESHOLD = 3;
+// Lower than Cards' "Struggling Today" (3) — this quiz's whole purpose is a pool
+// to work through, so it should fill up faster than the stricter "what did I get
+// wrong today" diary chip does.
+const DAILY_STRUGGLE_THRESHOLD = 2;
 
 interface ScoreDir { pass: number; fail: number; total: number; percent: number }
 interface DeckRow {
@@ -194,16 +195,17 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
     setQueuedWords(new Set());
 
     try {
-      // Struggling today — cards failed 3+ times today (daily_struggles), same
-      // signal Cards' "Struggling Today" surfaces. The only pool source now, so
-      // fetch just those card ids instead of paginating the whole deck.
+      // Struggling today — cards failed 2+ times today (daily_struggles) and not
+      // yet cleared (answered correctly in this quiz already today). The only pool
+      // source now, so fetch just those card ids instead of paginating the whole deck.
       const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
       const { data: struggles, error: strugglesErr } = await supabase
         .from("daily_struggles")
         .select("card_id")
         .eq("user_id", userId)
         .eq("struggle_date", sgToday)
-        .gte("fail_count", DAILY_STRUGGLE_THRESHOLD);
+        .gte("fail_count", DAILY_STRUGGLE_THRESHOLD)
+        .is("cleared_at", null);
       if (strugglesErr) throw new Error("Could not load your cards");
 
       const poolCardIds = (struggles ?? []).map((s) => s.card_id);
@@ -298,6 +300,14 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
     if (!passed) {
       supabase.rpc("record_daily_struggle", { target_user_id: userId, target_card_id: card.id })
         .then(({ error }) => { if (error) console.error("Error recording daily struggle:", error); });
+    } else {
+      // Getting it right here clears it from today's pool (cleared_at, not a
+      // fail_count reset — daily_struggles stays an accurate "what did I get
+      // wrong today" diary) so it stops reappearing once mastered today. A later
+      // fresh fail (here or in regular Study) re-qualifies it automatically —
+      // record_daily_struggle resets cleared_at on every new fail.
+      supabase.rpc("clear_daily_struggle", { target_user_id: userId, target_card_id: card.id })
+        .then(({ error }) => { if (error) console.error("Error clearing daily struggle:", error); });
     }
 
     setResults((prev) => [...prev, { card, passed, newPercent }]);
