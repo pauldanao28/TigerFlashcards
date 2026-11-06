@@ -17,13 +17,19 @@ function QuizzesInner() {
   const searchParams = useSearchParams();
   const [userId, setUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [showSentence, setShowSentence] = useState(false);
-  const [showListening, setShowListening] = useState(false);
-  const [showGrammar, setShowGrammar] = useState(false);
-  const [showReader, setShowReader] = useState(false);
-  const [showWatch, setShowWatch] = useState(false);
-  const [showTranslate, setShowTranslate] = useState(false);
-  const [showWeakWords, setShowWeakWords] = useState(false);
+  // Initialized from the URL synchronously (not in the effect below) so the overlay
+  // is already open on the very first render that shows anything — otherwise the
+  // bare Practice page painted for one frame before the effect ran, which is what
+  // made tapping Reader/Watch/etc. from Quick Actions look like it detoured through
+  // Practice before landing where it was actually headed.
+  const open = searchParams.get("open");
+  const [showSentence, setShowSentence] = useState(open === "sentence");
+  const [showListening, setShowListening] = useState(open === "listening");
+  const [showGrammar, setShowGrammar] = useState(open === "grammar");
+  const [showReader, setShowReader] = useState(open === "reader");
+  const [showWatch, setShowWatch] = useState(open === "watch");
+  const [showTranslate, setShowTranslate] = useState(open === "translate");
+  const [showWeakWords, setShowWeakWords] = useState(open === "weak_words");
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -32,16 +38,8 @@ function QuizzesInner() {
       setUserId(uid);
       const { data } = await supabase.from("profiles").select("is_admin").eq("id", uid).single();
       setIsAdmin(!!data?.is_admin);
-      const open = searchParams.get("open");
-      if (open === "sentence") setShowSentence(true);
-      else if (open === "listening") setShowListening(true);
-      else if (open === "grammar") setShowGrammar(true);
-      else if (open === "reader") setShowReader(true);
-      else if (open === "watch") setShowWatch(true);
-      else if (open === "translate") setShowTranslate(true);
-      else if (open === "weak_words") setShowWeakWords(true);
     });
-  }, [router, searchParams]);
+  }, [router]);
 
   if (!userId) return <LoadingScreen />;
 
