@@ -613,7 +613,7 @@ export default function Flashcard({
                 <div className="flex justify-center items-center gap-4 relative">
                   <button
                     onClick={(e) => handlePlayAudio(e, true)}
-                    className="p-3 bg-white/10 hover:bg-white/20 rounded-full transition-all border border-white/20 active:scale-95"
+                    className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all border border-white/20 active:scale-95 text-sm"
                   >
                     🔊
                   </button>
@@ -621,10 +621,10 @@ export default function Flashcard({
                   {card?.japanese && KANJI_RE.test(card.japanese) && (
                     <button
                       onClick={handleOpenMnemonic}
-                      className="p-3 bg-white/10 hover:bg-white/20 rounded-full transition-all border border-white/20 active:scale-95"
+                      className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all border border-white/20 active:scale-95"
                       title="Remember this kanji"
                     >
-                      <Lightbulb size={18} />
+                      <Lightbulb size={14} />
                     </button>
                   )}
 
