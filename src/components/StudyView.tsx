@@ -222,6 +222,10 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   // current card state alone — only the live transition tells you a mastery (or
   // review) happened "today".
   const [masteredToday, setMasteredToday] = useState(0);
+  // Same count_weak_words RPC BottomNav's Quick Actions badge uses — surfaces a
+  // banner below once the pool has a full round's worth (POOL_SIZE in
+  // WeakWordsQuiz.tsx), rather than leaving it passive/badge-only.
+  const [weakWordsCount, setWeakWordsCount] = useState(0);
   const [reviewsToday, setReviewsToday] = useState(0);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
@@ -419,7 +423,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     const fetchUserEnvironment = async () => {
       // Fetch Profile & Deck in parallel for speed
       const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
-      const [profileRes, deckRes, reviewCountRes, masteryCountRes] = await Promise.all([
+      const [profileRes, deckRes, reviewCountRes, masteryCountRes, weakWordsRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user?.id).maybeSingle(),
         supabase
           .from("decks")
@@ -439,9 +443,11 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           .eq("user_id", user?.id)
           .eq("mastery_date", sgToday)
           .maybeSingle(),
+        supabase.rpc("count_weak_words", { p_today: sgToday }),
       ]);
       if (reviewCountRes.data) setReviewsToday(reviewCountRes.data.count);
       if (masteryCountRes.data) setMasteredToday(masteryCountRes.data.count);
+      if (typeof weakWordsRes.data === "number") setWeakWordsCount(weakWordsRes.data);
 
       if (profileRes.data) {
         const p = profileRes.data;
@@ -2326,6 +2332,22 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               </span>
             )}
           </div>
+
+          {/* Weak Words pool banner — only once it's a full round's worth (same
+              POOL_SIZE WeakWordsQuiz.tsx samples from), so this doesn't nag over a
+              couple of slow cards; the Quick Actions badge already covers that. */}
+          {weakWordsCount >= 10 && (
+            <Link
+              href="/quizzes?open=weak_words"
+              className="flex items-center gap-2 bg-rose-50 border border-rose-100 text-rose-600 rounded-full px-4 py-2 mb-2 active:scale-95 transition-all"
+            >
+              <span className="text-base shrink-0">😓</span>
+              <span className="text-[11px] font-black uppercase tracking-widest flex-1">
+                {weakWordsCount} struggling today — review them
+              </span>
+              <span className="text-rose-300 text-base shrink-0">›</span>
+            </Link>
+          )}
 
           {/* --- 3b. CARD ANCHOR (Locked Position) --- */}
           <div className="w-full flex-1 flex flex-col justify-center items-center relative min-h-0 pt-2 md:pt-0">
