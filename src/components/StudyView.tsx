@@ -2049,6 +2049,16 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 </button>
               </div>
             )}
+            {/* Same POOL_SIZE threshold WeakWordsQuiz.tsx samples from — only shown
+                once there's a full round's worth, same as the Quick Actions badge. */}
+            {weakWordsCount >= 10 && (
+              <Link
+                href="/quizzes?open=weak_words"
+                className="block text-[9px] font-black text-rose-400 tabular-nums pr-1 active:opacity-70"
+              >
+                😓 {t.struggling} ({weakWordsCount})
+              </Link>
+            )}
           </div>
         </div>
 
@@ -2154,6 +2164,14 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                   🎯 {masteredToday}/{MASTERED_GOAL}
                 </button>
               </div>
+            )}
+            {weakWordsCount >= 10 && (
+              <Link
+                href="/quizzes?open=weak_words"
+                className="block text-[10px] font-black text-rose-400 tabular-nums pr-1 hover:text-rose-500"
+              >
+                😓 {t.struggling} ({weakWordsCount})
+              </Link>
             )}
           </div>
           <div className="flex items-center gap-6 h-14">
@@ -2330,17 +2348,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                   </span>
                 )}
               </span>
-            )}
-
-            {/* Same POOL_SIZE threshold WeakWordsQuiz.tsx samples from — only shown
-                once there's a full round's worth, same as the Quick Actions badge. */}
-            {weakWordsCount >= 10 && (
-              <Link
-                href="/quizzes?open=weak_words"
-                className="block text-[10px] font-black text-rose-400 uppercase tracking-[0.3em] text-center mt-1 active:opacity-70"
-              >
-                😓 {t.struggling} ({weakWordsCount})
-              </Link>
             )}
           </div>
 

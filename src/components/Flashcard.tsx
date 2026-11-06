@@ -378,17 +378,28 @@ export default function Flashcard({
   const [backSizeIdx, setBackSizeIdx] = useState(0);
   const backSizeLadder = isBackJapanese ? BACK_JP_SIZE_LADDER : BACK_EN_SIZE_LADDER;
 
-  useEffect(() => {
-    setBackSizeIdx(0);
-  }, [card?.id]);
+  // The reset-to-0 on card change used to be a separate plain useEffect — but that
+  // runs as a passive effect, AFTER this layout effect's own shrink-convergence
+  // chain (triggered by its setBackSizeIdx calls) already fully resolves against
+  // the PREVIOUS card's leftover index, not 0. The reset then fires late, kicking
+  // off a second convergence from scratch — on some cards (more total content:
+  // grammar badges, te-form, a longer example sentence) that extra churn could
+  // still leave the card under-shrunk when it got interrupted or settled on a
+  // mismeasured step. Resetting inside this same layout effect, gated on a ref,
+  // keeps the whole reset-then-converge sequence synchronous and pre-paint.
+  const lastSizedCardIdRef = useRef<string | undefined>(undefined);
 
   useLayoutEffect(() => {
     const el = backContentRef.current;
     if (!el) return;
+    if (lastSizedCardIdRef.current !== card?.id) {
+      lastSizedCardIdRef.current = card?.id;
+      if (backSizeIdx !== 0) { setBackSizeIdx(0); return; }
+    }
     if (el.scrollHeight > el.clientHeight && backSizeIdx < backSizeLadder.length - 1) {
       setBackSizeIdx((i) => i + 1);
     }
-  }, [backSizeIdx, backText, isBackJapanese, backSizeLadder.length]);
+  }, [backSizeIdx, backText, isBackJapanese, backSizeLadder.length, card?.id]);
 
   return (
     <>
