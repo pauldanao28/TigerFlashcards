@@ -115,9 +115,10 @@ export function useAddWords({
   // A related-word suggestion already has a real master_cards row (enriched and
   // upserted server-side by /api/related-words) — adding it is just a link, no AI
   // call, unlike processWords' own path which would re-check master_cards and
-  // potentially call /api/generate again. Replaces the summary with this word (and
-  // fetches related words for IT), so tapping through suggestions chains instead
-  // of stacking — same UX processWords' own single-add path already has.
+  // potentially call /api/generate again. Appends to the existing summary and
+  // drops it from the suggestions list — it does NOT fetch a new round of related
+  // words for it, so suggestions only ever come from the one word the user
+  // deliberately single-added, not an unbounded chain from tapping through them.
   const addRelatedWord = async (w: RelatedWord) => {
     if (!deckId || !userId) return;
     try {
@@ -130,10 +131,9 @@ export function useAddWords({
         jlpt_level: w.jlpt_level,
         alreadyInDeck: false,
       };
-      setAddedWordsSummary([summaryEntry]);
-      setShowSummary(true);
+      setAddedWordsSummary((prev) => [...prev.filter((c) => c.id !== summaryEntry.id), summaryEntry]);
+      setRelatedWords((prev) => prev.filter((r) => r.id !== w.id));
       onAdded?.();
-      fetchRelatedWords(summaryEntry);
     } catch {
       showAlert("Couldn't add that word — try again.");
     }
