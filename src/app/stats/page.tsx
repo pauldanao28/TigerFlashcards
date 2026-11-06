@@ -17,7 +17,7 @@ import AddWordsSheet from "@/components/AddWordsSheet";
 import DuplicatesSheet from "@/components/DuplicatesSheet";
 import CardDetailModal from "@/components/CardDetailModal";
 import { findDuplicates, skipDeckDuplicates } from "@/lib/duplicates";
-import { AlertTriangle, Ban, BarChart3, Bell, ChevronLeft, ChevronRight, Flag, Gamepad2, Gift, ImageIcon, Lightbulb, Loader2, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, TrendingDown, Volume2, X, Zap } from "lucide-react";
+import { AlertTriangle, Ban, BarChart3, Bell, ChevronLeft, Flag, Gamepad2, Gift, ImageIcon, Lightbulb, Loader2, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, TrendingDown, Volume2, X, Zap } from "lucide-react";
 import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from "@/lib/push";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { validateUsername, isUsernameTaken, type UsernameProblem } from "@/lib/username";
@@ -1698,59 +1698,45 @@ export default function StatsPage() {
               </p>
             </div>
 
-            {/* Right Side: compact Mini Games icon button, same row as the title */}
-            <Link
-              href="/minigames"
-              title={t.mini_games}
-              className="shrink-0 p-3.5 bg-indigo-50 rounded-2xl shadow-sm text-indigo-700 border border-indigo-100 hover:bg-indigo-100 active:scale-95 transition-all"
-            >
-              <Gamepad2 size={20} />
-            </Link>
-          </div>
-
-          {/* Grammar — compact summary card; the full pattern list (all JLPT levels,
-              filterable) lives on its own page. Kept on Cards (not Home) since it's
-              "your learned content" alongside the vocabulary deck, same category as
-              the card list below it rather than the progress/motivation stuff on
-              Home. */}
-          {grammarStats && grammarStats.total > 0 && (
-            <Link
-              href="/stats/grammar"
-              className="flex items-center justify-between gap-3 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm mb-8 hover:border-indigo-200 transition-all"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-full bg-violet-50 border border-violet-100 flex items-center justify-center shrink-0 text-base">
-                  📝
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-slate-700">Grammar</p>
-                  <p className="text-[10px] text-slate-500 font-medium">
-                    {grammarStats.mastered}/{grammarStats.total} learned
-                  </p>
-                </div>
-              </div>
-              <ChevronRight size={18} className="text-slate-300 shrink-0" />
-            </Link>
-          )}
-
-          {/* Struggling Today — one entry point for both today-only signals: cards
-              failed DAILY_STRUGGLE_THRESHOLD+ times, and Reader/Watch lines tapped
-              "Explain". Hidden on a clean day, same as Starter Packs. */}
-          {(dailyStruggles.length > 0 || dailyExplainedLines.length > 0) && (
-            <div className="mb-10">
-              <button
-                onClick={() => setShowDailyStruggles(true)}
-                className="w-full flex items-center justify-between bg-white px-6 py-4 rounded-2xl shadow-sm border border-slate-100 font-black text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.99]"
+            {/* Right Side: Grammar / Struggling Today / Mini Games as compact icon
+                buttons instead of full-width cards below — same destinations
+                (Grammar's own page; Struggling's existing modal via
+                setShowDailyStruggles; Mini Games), just collapsed into this row so
+                the quick filters + search + card list start right after it. */}
+            <div className="shrink-0 flex items-center gap-2">
+              {grammarStats && grammarStats.total > 0 && (
+                <Link
+                  href="/stats/grammar"
+                  title={`Grammar — ${grammarStats.mastered}/${grammarStats.total} learned`}
+                  className="relative p-2.5 bg-violet-50 rounded-2xl shadow-sm text-violet-700 border border-violet-100 hover:bg-violet-100 active:scale-95 transition-all"
+                >
+                  <PenTool size={18} />
+                  <span className="absolute -top-1.5 -right-1.5 bg-violet-600 text-white text-[9px] font-black rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center border-2 border-white">
+                    {grammarStats.mastered}
+                  </span>
+                </Link>
+              )}
+              {(dailyStruggles.length > 0 || dailyExplainedLines.length > 0) && (
+                <button
+                  onClick={() => setShowDailyStruggles(true)}
+                  title="Struggling Today"
+                  className="relative p-2.5 bg-rose-50 rounded-2xl shadow-sm text-rose-500 border border-rose-100 hover:bg-rose-100 active:scale-95 transition-all"
+                >
+                  <TrendingDown size={18} />
+                  <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center border-2 border-white">
+                    {dailyStruggles.length + dailyExplainedLines.length}
+                  </span>
+                </button>
+              )}
+              <Link
+                href="/minigames"
+                title={t.mini_games}
+                className="p-2.5 bg-indigo-50 rounded-2xl shadow-sm text-indigo-700 border border-indigo-100 hover:bg-indigo-100 active:scale-95 transition-all"
               >
-                <span className="flex items-center gap-2 text-sm">
-                  <TrendingDown size={16} className="text-rose-400" /> Struggling Today
-                </span>
-                <span className="flex items-center gap-2 text-slate-500 text-xs">
-                  {dailyStruggles.length + dailyExplainedLines.length} items <span>→</span>
-                </span>
-              </button>
+                <Gamepad2 size={18} />
+              </Link>
             </div>
-          )}
+          </div>
 
           {/* Starter Packs Section — hidden once every pack has been added, so it's not
               permanent real estate for users with nothing left to add. */}
