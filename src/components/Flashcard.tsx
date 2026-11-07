@@ -314,13 +314,13 @@ export default function Flashcard({
   // enough that even that tier still overflows.
   const BACK_JP_SIZE_LADDER = ["text-5xl sm:text-6xl", "text-4xl", "text-3xl", "text-2xl", "text-xl", "text-lg", "text-base"];
   const BACK_EN_SIZE_LADDER = ["text-3xl sm:text-4xl", "text-3xl", "text-2xl", "text-xl", "text-lg", "text-base", "text-sm", "text-xs"];
-  // The reading line above backText was fixed at text-lg regardless of backSizeIdx —
-  // a long meaning (3+ lines) shrinks backText several tiers down, but the reading
-  // held its size, so the two together could still overflow backContentRef's
-  // measured height; overflow-hidden then clipped whichever edge didn't fit, cutting
-  // off (or visually garbling) the reading specifically since it sits at the top.
-  // Shrinking it in step with backSizeIdx keeps total height in check instead.
-  const READING_SIZE_LADDER = ["text-lg", "text-base", "text-sm", "text-sm", "text-xs", "text-xs", "text-xs", "text-xs"];
+  // Kanji and its furigana reading are never shrunk — both are naturally short, and
+  // they're the actual flashcard content, not filler that should visually recede.
+  // The example sentence/translation (below) are the adjustable levers for a card
+  // whose meaning or footer content is what's actually long.
+  const READING_SIZE = "text-lg";
+  const SENTENCE_SIZE_LADDER = ["text-sm", "text-sm", "text-sm", "text-xs", "text-xs", "text-xs", "text-[11px]", "text-[11px]"];
+  const TRANSLATION_SIZE_LADDER = ["text-[10px]", "text-[10px]", "text-[10px]", "text-[10px]", "text-[9px]", "text-[9px]", "text-[9px]", "text-[9px]"];
 
   const getFontSize = (text: string, isJapanese: boolean) => {
     const len = text.length;
@@ -538,7 +538,7 @@ export default function Flashcard({
                 reserves real clearance unconditionally instead. */}
             <div ref={backContentRef} className="flex-1 min-h-0 flex flex-col items-center justify-center w-full overflow-hidden pt-8">
               {(language === "jp" || language === "en") && card?.reading && (
-                <p className={`text-indigo-200 ${READING_SIZE_LADDER[backSizeIdx]} mb-2 font-medium tracking-wide animate-fade-in truncate w-full`}>
+                <p className={`text-indigo-200 ${READING_SIZE} mb-2 font-medium tracking-wide animate-fade-in truncate w-full`}>
                   {card?.reading}
                 </p>
               )}
@@ -547,10 +547,14 @@ export default function Flashcard({
                   CSS transition on font-size means the shrink-to-fit effect's
                   synchronous scrollHeight read (right after bumping backSizeIdx) still
                   reflects the pre-transition size, so it can under-shrink and leave
-                  the reading line above clipped by the container's overflow-hidden. */}
+                  content below clipped by the container's overflow-hidden. Kanji
+                  itself (isBackJapanese) is pinned to the ladder's largest tier rather
+                  than shrinking — the sentence/translation below are the lever for
+                  that direction, since the kanji+reading here are naturally short and
+                  are the actual flashcard content, not filler. */}
               <h2
                 className={`font-bold leading-tight break-words w-full transition-none
-    ${backSizeLadder[backSizeIdx]}`}
+    ${isBackJapanese ? backSizeLadder[0] : backSizeLadder[backSizeIdx]}`}
               >
                 {backText}
               </h2>
@@ -595,15 +599,15 @@ export default function Flashcard({
               <div className="mt-4 pt-4 border-t border-indigo-400/50 w-full shrink-0">
                 {card?.exampleSentence?.jp && (
                   <div className="mb-4 px-2 text-center">
-                    {/* Supporting content, not the card's main point — kept smaller than
-                        the reading/meaning's own floor (READING_SIZE_LADDER/backSizeLadder
-                        both bottom out at text-xs) so a heavily-shrunk card never leaves
-                        the example sentence reading larger than the word it's for. */}
-                    <p className="text-sm italic text-indigo-50 line-clamp-3 overflow-hidden break-words">
+                    {/* Supporting content, not the card's main point — shrinks with
+                        backSizeIdx (kanji/reading don't) so there's still a real lever
+                        for a card whose footer content is what's actually long, even in
+                        the Recall direction where the heading itself is pinned too. */}
+                    <p className={`${SENTENCE_SIZE_LADDER[backSizeIdx]} italic text-indigo-50 line-clamp-3 overflow-hidden break-words`}>
                       "{card.exampleSentence.jp}"
                     </p>
                     {card.exampleSentence.en && (
-                      <p className="text-[10px] text-indigo-200/80 mt-1 line-clamp-2 overflow-hidden break-words">
+                      <p className={`${TRANSLATION_SIZE_LADDER[backSizeIdx]} text-indigo-200/80 mt-1 line-clamp-2 overflow-hidden break-words`}>
                         {card.exampleSentence.en}
                       </p>
                     )}
