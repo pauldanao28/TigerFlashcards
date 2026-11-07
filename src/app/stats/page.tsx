@@ -2114,7 +2114,7 @@ export default function StatsPage() {
             {showFilterMenu && (
               <>
                 <div className="fixed inset-0 z-20" onClick={() => setShowFilterMenu(false)} />
-                <div className="absolute right-0 top-full mt-2 z-30 grid grid-cols-2 gap-1.5 p-3 w-56 bg-white rounded-2xl border border-slate-100 shadow-xl">
+                <div className="absolute right-0 top-full mt-2 z-30 flex flex-col gap-1.5 p-3 w-48 bg-white rounded-2xl border border-slate-100 shadow-xl">
                   {([
                     ["mastered", "🏆 Mastered"],
                     ["favorites", "⭐ Favorites"],
@@ -2131,7 +2131,7 @@ export default function StatsPage() {
                           setDisplayLimit(20);
                           setShowFilterMenu(false);
                         }}
-                        className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 truncate ${
+                        className={`w-full px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 text-left whitespace-nowrap ${
                           isActive ? "bg-indigo-600 text-white border-indigo-600" : "bg-slate-50 text-slate-500 border-slate-200"
                         }`}
                       >
