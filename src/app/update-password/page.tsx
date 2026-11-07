@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase, PW_RECOVERY_KEY } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-import { useLang } from "@/context/LanguageContext";
+import { translations } from "@/lib/languages";
+import { useAppAlert } from "@/context/AlertContext";
 
 export default function UpdatePassword() {
   const router = useRouter();
-  const { t } = useLang();
+  const t = translations.en;
+  const { showAlert } = useAppAlert();
 
   // States
   const [currentPassword, setCurrentPassword] = useState("");
@@ -19,7 +21,64 @@ export default function UpdatePassword() {
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
     const initAuth = async () => {
+      // Supabase's recovery link can arrive in two shapes depending on the
+      // project's auth flow type: the legacy implicit flow puts the token in
+      // a #access_token= hash, which onAuthStateChange below detects on its
+      // own and fires PASSWORD_RECOVERY for. The PKCE flow instead puts a
+      // ?code= in the query string — this app already needs exchangeCodeFor
+      // Session for that elsewhere (see /auth/callback, built for Google/
+      // Facebook sign-in), and the same project-wide flow-type setting
+      // governs recovery links too. Without handling it here, a PKCE
+      // recovery link would find no session and the listener below would
+      // just bounce the user straight back to "/" before they ever saw the
+      // form — so check for it first, before relying on the event listener.
+      // Supabase sends the visitor back here with error/error_description (in
+      // the query string for a PKCE redirect, or the hash for the implicit
+      // flow) when the recovery link itself is expired, already used, or
+      // otherwise invalid — before this check, that case fell through
+      // silently to the "no session" redirect further down with no
+      // indication of what went wrong.
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const linkErrorDescription =
+        new URLSearchParams(window.location.search).get("error_description") ||
+        hashParams.get("error_description");
+      if (linkErrorDescription) {
+        await showAlert(linkErrorDescription.replace(/\+/g, " "));
+        router.push("/");
+        return;
+      }
+
+      const code = new URLSearchParams(window.location.search).get("code");
+      if (code) {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+        if (!error) {
+          // Same social-provider check as the implicit-flow path below — a
+          // Google/Facebook account has no password to reset, so it should
+          // see the "managed elsewhere" message here too, not the set-new-
+          // password form. This branch returns early (it doesn't reach the
+          // check further down), so it needs its own copy.
+          if (data.session?.user?.app_metadata?.provider !== "email") {
+            setIsSocialUser(true);
+          } else {
+            setIsRecovery(true);
+          }
+          setCheckingAuth(false);
+          // Drop the code from the URL so a refresh doesn't try to reuse
+          // (and fail to reuse) an already-consumed one-time code.
+          window.history.replaceState({}, "", window.location.pathname);
+          return;
+        }
+        // A code was present but exchanging it failed (expired, already used,
+        // tampered with) — say so instead of silently falling through to the
+        // ambiguous "not logged in" path below, which would redirect home
+        // with no explanation at all.
+        await showAlert("This reset link is invalid or has expired. Please request a new one.");
+        router.push("/");
+        return;
+      }
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -28,6 +87,15 @@ export default function UpdatePassword() {
       if (session?.user?.app_metadata?.provider !== "email" && session) {
         setIsSocialUser(true);
       }
+
+      // A recovery link already signed them in and fired PASSWORD_RECOVERY before
+      // this page subscribed (see PW_RECOVERY_KEY in lib/supabase) — the listener
+      // below only ever sees INITIAL_SESSION, so use the flag recorded at load.
+      let recoveryFlag = false;
+      try {
+        recoveryFlag = sessionStorage.getItem(PW_RECOVERY_KEY) === "1";
+      } catch {}
+      if (recoveryFlag && session) setIsRecovery(true);
 
       // 2. Listen for the recovery event or active sessions
       const {
@@ -43,11 +111,14 @@ export default function UpdatePassword() {
         setCheckingAuth(false);
       });
 
-      return () => subscription.unsubscribe();
+      // initAuth is async, so a cleanup returned from it would be ignored by
+      // useEffect — hand it to the effect's own cleanup instead.
+      unsubscribe = () => subscription.unsubscribe();
     };
 
     initAuth();
-  }, [router]);
+    return () => unsubscribe?.();
+  }, [router, showAlert]);
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,7 +135,7 @@ export default function UpdatePassword() {
       });
 
       if (signInError) {
-        alert(t.wrong_password);
+        await showAlert(t.wrong_password);
         setLoading(false);
         return;
       }
@@ -76,9 +147,12 @@ export default function UpdatePassword() {
     });
 
     if (error) {
-      alert(error.message);
+      await showAlert(error.message);
     } else {
-      alert(t.password_updated_success);
+      try {
+        sessionStorage.removeItem(PW_RECOVERY_KEY);
+      } catch {}
+      await showAlert(t.password_updated_success);
       router.push("/");
     }
     setLoading(false);
@@ -178,7 +252,13 @@ export default function UpdatePassword() {
         )}
 
         <button
-          onClick={() => router.push("/")}
+          onClick={() => {
+            // Leaving without resetting — stop AuthContext routing this tab back here
+            try {
+              sessionStorage.removeItem(PW_RECOVERY_KEY);
+            } catch {}
+            router.push("/");
+          }}
           className="mt-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-300 hover:text-slate-500 transition-colors text-center"
         >
           {t.cancel_btn}

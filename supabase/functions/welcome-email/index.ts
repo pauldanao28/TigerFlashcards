@@ -6,6 +6,17 @@ serve(async (req) => {
   const payload = await req.json()
   const { email, full_name } = payload.record // Triggered by 'profiles' table
 
+  if (!email) {
+    return new Response(JSON.stringify({ done: false, error: 'No email on record' }), { status: 400 })
+  }
+
+  // handle_new_user creates the profile at signup with a 'G_' + id placeholder name
+  // when none was given — never greet someone by that.
+  const trimmed = (full_name ?? '').trim()
+  const name = !trimmed || trimmed.startsWith('G_')
+    ? 'there'
+    : trimmed.replace(/[&<>"']/g, (c: string) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!))
+
   const emailHtml = `
     <div style="font-family: sans-serif; max-width: 600px; border: 2px solid #000; padding: 40px; background: #fff;">
       <h1 style="font-size: 40px; font-weight: 900; font-style: italic; text-transform: uppercase; letter-spacing: -2px; margin: 0;">
@@ -16,10 +27,10 @@ serve(async (req) => {
       </p>
       
       <p style="font-size: 16px; line-height: 1.6; color: #1e293b;">
-        Hey ${full_name || 'there'}, your account is ready. You can now create your flashcards and study them.
+        Hey ${name}, your account is ready. You can now create your flashcards and study them.
       </p>
 
-      <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; pt-20px;">
+      <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
          <a href="https://flashkado.app/" 
             style="display: inline-block; background: #000; color: #fff; padding: 15px 30px; text-decoration: none; font-weight: 900; font-size: 14px; text-transform: uppercase;">
             Open Dashboard ⚡️
@@ -28,7 +39,7 @@ serve(async (req) => {
     </div>
   `
 
-  await fetch('https://api.resend.com/emails', {
+  const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -41,6 +52,12 @@ serve(async (req) => {
       html: emailHtml,
     }),
   })
+
+  if (!res.ok) {
+    const err = await res.text()
+    console.error('Welcome email send failed:', err)
+    return new Response(JSON.stringify({ done: false, error: err }), { status: 502 })
+  }
 
   return new Response(JSON.stringify({ done: true }), { status: 200 })
 })

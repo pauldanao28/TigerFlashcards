@@ -4,7 +4,14 @@ import React from "react";
 const UserTable = ({ users }: { users: any[] }) => {
   return (
     <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/40 border border-slate-100 overflow-hidden">
-      <table className="w-full text-left text-sm">
+      {/* A plain <table> doesn't reflow on a narrow screen — without this, the card's
+          own overflow-hidden just silently clipped whatever didn't fit (the stray
+          cut-off colored dot, "0"/"TODAY" squished together) instead of letting you
+          scroll to it. min-w keeps every column at a sane width instead of being
+          force-compressed, with overflow-x-auto scoped to just the table so the
+          card's own rounded corners still clip cleanly. */}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[820px] text-left text-sm">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-100">
             <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">
@@ -96,9 +103,14 @@ const UserTable = ({ users }: { users: any[] }) => {
               <td className="p-6 text-center">
                 <div className="flex flex-col items-center gap-1">
                   <div className="flex items-center gap-2">
+                    {/* deck_size (their own deck) is the headline number here — the
+                        secondary badge below is total_cards_added, which is actually
+                        "cards this user originated in the SHARED library"
+                        (master_cards.creator_id), not their deck size, since most of
+                        a deck is typically cards someone else already created. */}
                     <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-800 text-[11px] font-black">
-                      {user.total_cards_added || 0}
-                      <span className="opacity-40 text-[9px] ml-1">TOTAL</span>
+                      {user.deck_size || 0}
+                      <span className="opacity-40 text-[9px] ml-1">IN DECK</span>
                     </span>
 
                     {/* Daily Add Badge - Glows amber if they are hitting the limit */}
@@ -116,7 +128,7 @@ const UserTable = ({ users }: { users: any[] }) => {
                   </div>
 
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                    {user.cards_studied} Studied
+                    {user.cards_studied} Studied · {user.total_cards_added || 0} Contributed
                   </span>
                 </div>
               </td>
@@ -139,7 +151,8 @@ const UserTable = ({ users }: { users: any[] }) => {
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   );
 };

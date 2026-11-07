@@ -6,15 +6,36 @@ export interface MasterCard {
   reading: string;
   english: string;
   level?: number;
-  partOfSpeech?: 'verb' | 'noun' | 'adjective' | 'particle' | string;
+  jlpt_level?: 'N5' | 'N4' | 'N3' | 'N2' | 'N1' | null;
+  partOfSpeech?: 'noun' | 'verb' | 'adjective' | 'adverb' | 'particle' | 'pronoun' | 'conjunction' | 'number' | 'phrase' | string;
   exampleSentence?: {
     jp: string;
     en: string;
   };
   alternatives?: string[];
-  contextNote?: string;
   is_public: boolean;
   created_at: string;
+  mnemonic?: KanjiMnemonic | null;
+  // Verb/adjective grammar metadata — filled in lazily from Jisho the first time an
+  // eligible card is drawn in Study (see StudyView's fill-in effect), null until then.
+  te_form?: string | null;
+  transitivity?: 'transitive' | 'intransitive' | null;
+  verb_type?: 'godan' | 'ichidan' | 'irregular' | null;
+  adjective_type?: 'i' | 'na' | null;
+  // Only set for a suru-capable noun — the English meaning of its する usage, which can
+  // genuinely differ from "english" above (急行 "express train" vs 急行する "to rush to").
+  suru_meaning?: string | null;
+}
+
+export interface KanjiMnemonicEntry {
+  character: string;
+  radicals: string;
+  story: string;
+}
+
+export interface KanjiMnemonic {
+  entries: KanjiMnemonicEntry[];
+  origin?: string;
 }
 
 // 2. The Personal Progress (from user_scores table)
@@ -44,6 +65,22 @@ export type FlashcardData = MasterCard & {
   scores: UserScore['scores_json'];
   next_review_at: string;
   added_to_deck_at?: string | null;
+  is_priority?: boolean;
+  prioritized_at?: string | null;
+  last_reviewed_at?: string | null;
+  // Separate from `scores` above — sum of how long each Reflex Mode PASS took to
+  // answer, in ms. Only a Pass contributes (a Fail isn't a "how long did recall
+  // take" data point); never touches the real pass/fail accuracy. Divide by
+  // reflex_attempts for the average — that's the "slow recall" ranking metric.
+  reflex_time_total_ms?: number;
+  reflex_attempts?: number;
 };
 
 export type StudyMode = 'recognition' | 'production';
+// "Explain this line" result (Reader sentences / Watch captions) — /api/reader/explain
+export interface LineExplanation {
+  translation: string;
+  grammar: { pattern: string; explanation: string }[];
+  words: { word: string; reading: string; meaning: string }[];
+  note: string;
+}

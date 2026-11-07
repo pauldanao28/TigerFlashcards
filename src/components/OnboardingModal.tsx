@@ -1,8 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAppAlert } from "@/context/AlertContext";
+import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
+import { skipDeckDuplicates } from "@/lib/duplicates";
+import { validateUsername, isUsernameTaken } from "@/lib/username";
 
 interface OnboardingProps {
   userId: string;
@@ -15,15 +19,60 @@ export default function OnboardingModal({
   defaultName,
   onComplete,
 }: OnboardingProps) {
-  const [step, setStep] = useState(1); // 1: Name, 2: Path Selection
-  const [name, setName] = useState(defaultName || "");
+  const { showAlert } = useAppAlert();
+  // A Google sign-up's name, made username-safe (no spaces, max 10). If it passes the
+  // usual rules and isn't taken, the name step is skipped — they can rename any time
+  // in Settings. Step 0 is that brief availability check.
+  const autoName = (defaultName || "").replace(/\s+/g, "").slice(0, 10);
+  const canAutoName = !validateUsername(autoName);
+  const [step, setStep] = useState(canAutoName ? 0 : 1); // 0: checking auto name, 1: Name, 2: Path Selection
+  const [name, setName] = useState(autoName);
+  const [autoNamed, setAutoNamed] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const CONST_DEFAULT_DECK_NAME = "My Deck";
 
+  // The signup trigger (handle_new_user) creates the default deck now, so this
+  // normally just finds it — the insert only runs for accounts made before that.
+  const getOrCreateDefaultDeck = async (): Promise<{ id: string }> => {
+    const { data: existing, error: findErr } = await supabase
+      .from("decks")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("is_default", true)
+      .maybeSingle();
+    if (findErr) throw findErr;
+    if (existing) return existing;
+
+    const { data: created, error: createErr } = await supabase
+      .from("decks")
+      .insert([{ user_id: userId, title: CONST_DEFAULT_DECK_NAME, is_default: true }])
+      .select("id")
+      .single();
+    if (createErr) throw createErr;
+    return created;
+  };
+
   const [lang, setLang] = useState<"en" | "jp">("en"); // Local toggle state
   const [isChecking, setIsChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (step !== 0) return;
+    let cancelled = false;
+    isUsernameTaken(autoName, userId)
+      .then((taken) => {
+        if (cancelled) return;
+        setAutoNamed(!taken);
+        setStep(taken ? 1 : 2);
+      })
+      .catch(() => {
+        if (!cancelled) setStep(1);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [step, autoName, userId]);
 
   const t = {
     en: {
@@ -32,6 +81,9 @@ export default function OnboardingModal({
       init: "I'm ready. Let's go. →",
       welcome: "Welcome",
       choose: "Choose your starting point:",
+      auto_named: "You're",
+      change_later: "Change it anytime in Settings",
+      change: "Change",
       n5_title: "JLPT N5 KICKSTART",
       n5_desc: "Start with 30 essential words. Best for beginners.",
       n5_btn: "Select Protocol →",
@@ -53,6 +105,9 @@ export default function OnboardingModal({
       init: "準備完了。行こう。 →",
       welcome: "ようこそ",
       choose: "開始プロトコルを選択してください：",
+      auto_named: "ユーザー名：",
+      change_later: "設定からいつでも変更できます",
+      change: "変更",
       n5_title: "日本語能力試験 N5",
       n5_desc: "必須単語30語から始めましょう。初心者に最適です。",
       n5_btn: "プロトコルを選択 →",
@@ -74,25 +129,16 @@ export default function OnboardingModal({
   const handleNameSubmit = async () => {
     const trimmedName = name.trim();
 
-    // 1. Basic Validation
-    if (trimmedName.length < 2) return setError(t.too_short);
-    if (trimmedName.length > 10) return setError(t.too_long);
-    if (name.includes(" ")) return setError(t.no_spaces);
+    // 1. Basic Validation (rules shared with AccountSetupGuard via lib/username)
+    const problem = validateUsername(name);
+    if (problem && problem !== "taken") return setError(t[problem]);
 
     setIsChecking(true);
     setError(null);
 
     try {
       // 2. Check Uniqueness in Supabase
-      const { data, error: fetchError } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("full_name", trimmedName)
-        .maybeSingle();
-
-      if (fetchError) throw fetchError;
-
-      if (data && data.id !== userId) {
+      if (await isUsernameTaken(trimmedName, userId)) {
         setError(t.taken);
       } else {
         // Name is unique, proceed to path selection
@@ -120,31 +166,61 @@ export default function OnboardingModal({
 
       const n5Words = pack.card_data as any[];
 
-      // Upsert cards and get IDs
-      const { data: uploadedCards, error: mErr } = await supabase
-        .from("master_cards")
-        .upsert(
-          n5Words.map((w) => ({ ...w, creator_id: userId })),
-          { onConflict: "japanese" },
-        )
-        .select("id");
+      // Reuse existing master_cards rows untouched (master_cards is a shared
+      // library — another user may have already added one of these words),
+      // only inserting genuinely new ones, normalized on the way in.
+      const CHUNK = 150;
+      const existingByJapanese = new Map<string, { id: string }>();
+      for (let i = 0; i < n5Words.length; i += CHUNK) {
+        const chunk = n5Words.slice(i, i + CHUNK).map((w) => w.japanese);
+        const { data: existing } = await supabase
+          .from("master_cards")
+          .select("id, japanese")
+          .in("japanese", chunk);
+        (existing ?? []).forEach((row) => existingByJapanese.set(row.japanese, row));
+      }
 
-      if (mErr || !uploadedCards) throw mErr;
-      const cardIds = uploadedCards.map((c) => c.id);
+      const newWords = n5Words.filter((w) => !existingByJapanese.has(w.japanese));
+      let insertedCards: { id: string }[] = [];
+      if (newWords.length > 0) {
+        // upsert, not insert — master_cards.japanese is unique, and N5 Kickstart is
+        // the default/recommended path, so any two brand-new users onboarding around
+        // the same time race on inserting the exact same 30 words (none of them exist
+        // yet for either). A plain insert aborts the whole batch with a unique-
+        // violation for whichever one loses the race, failing their entire onboarding
+        // over words someone else was simultaneously adding — upsert with onConflict
+        // makes this collision a no-op instead, same pattern useAddWords.ts already
+        // uses for the equivalent step.
+        const { data: inserted, error: mErr } = await supabase
+          .from("master_cards")
+          .upsert(
+            newWords.map((w) => ({
+              ...w,
+              english: typeof w.english === "string" ? normalizeEnglish(w.english) : w.english,
+              reading: typeof w.reading === "string" ? stripParens(w.reading) : w.reading,
+              partOfSpeech: typeof w.partOfSpeech === "string" ? normalizePartOfSpeech(w.partOfSpeech) : w.partOfSpeech,
+              creator_id: userId,
+            })),
+            { onConflict: "japanese" },
+          )
+          .select("id");
+        if (mErr || !inserted) throw mErr;
+        insertedCards = inserted;
+      }
 
-      // Create Default Deck
-      const { data: deck, error: dErr } = await supabase
-        .from("decks")
-        .insert([
-          { user_id: userId, title: CONST_DEFAULT_DECK_NAME, is_default: true },
-        ])
-        .select("id")
-        .single();
+      const packIds = [...existingByJapanese.values(), ...insertedCards].map((c) => c.id);
 
-      if (dErr) throw dErr;
+      const deck = await getOrCreateDefaultDeck();
 
-      // Batch link
-      await Promise.all([
+      // Leave out the pack's own duplicates (みず next to 水) — lib/duplicates
+      const { ids: cardIds } = await skipDeckDuplicates(deck.id, packIds);
+
+      // Batch link — errors used to be discarded here too (same class of bug as the
+      // two already fixed below/in skipToManual): a failed insert left the deck
+      // created but empty, and the user — who explicitly chose N5 Kickstart — would
+      // silently land on the generic "Empty Deck" screen instead of their 30 words,
+      // with has_onboarded still getting set true right after as if nothing went wrong.
+      const [deckCardsRes, userScoresRes] = await Promise.all([
         supabase
           .from("deck_cards")
           .insert(cardIds.map((id) => ({ deck_id: deck.id, card_id: id }))),
@@ -152,13 +228,22 @@ export default function OnboardingModal({
           cardIds.map((id) => ({
             user_id: userId,
             card_id: id,
-            scores_json: { jp_to_en: { percent: 0 }, en_to_jp: { percent: 0 } },
+            scores_json: {
+              jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
+              en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
+            },
           })),
         ),
       ]);
+      if (deckCardsRes.error) throw deckCardsRes.error;
+      if (userScoresRes.error) throw userScoresRes.error;
 
       // FINAL STEP: Update Profile with Name AND Onboarded Status
-      await supabase
+      // full_name has a unique constraint, and step 1's "is this name taken?" check
+      // isn't atomic with this write — a name claimed by someone else in that gap
+      // fails this update silently if unchecked, leaving has_onboarded stuck false
+      // even though the deck/cards above were already created.
+      const { error: profileErr } = await supabase
         .from("profiles")
         .update({
           full_name: name.trim(),
@@ -166,12 +251,13 @@ export default function OnboardingModal({
           imported_packs: [pack.id],
         })
         .eq("id", userId);
+      if (profileErr) throw profileErr;
 
       localStorage.setItem("show_first_timer_hint", "true");
 
       onComplete(true);
     } catch (error: any) {
-      alert(error.message);
+      showAlert(error.message);
     } finally {
       setLoading(false);
     }
@@ -181,23 +267,25 @@ export default function OnboardingModal({
   const skipToManual = async () => {
     setLoading(true);
     try {
-      await supabase
-        .from("decks")
-        .insert([
-          { user_id: userId, title: CONST_DEFAULT_DECK_NAME, is_default: true },
-        ]);
-      await supabase
+      // Both calls' errors used to be silently discarded — a failed deck insert
+      // (RLS denial, constraint violation, etc.) left the account "onboarded" with
+      // no default deck at all, which the Study page couldn't recover from on its
+      // own (infinite loading screen — see fetchInitialData's hasLoadedOnce fix).
+      await getOrCreateDefaultDeck();
+
+      const { error: profileErr } = await supabase
         .from("profiles")
         .update({
           full_name: name.trim(),
           has_onboarded: true,
         })
         .eq("id", userId);
+      if (profileErr) throw profileErr;
 
-      onComplete(false);
+      localStorage.setItem("show_first_timer_hint", "true");
       router.push("/stats");
     } catch (err) {
-      alert("Initialization failed.");
+      showAlert(err instanceof Error ? err.message : "Initialization failed.");
     } finally {
       setLoading(false);
     }
@@ -222,6 +310,10 @@ export default function OnboardingModal({
       </div>
 
       <AnimatePresence mode="wait">
+        {step === 0 && (
+          <div className="w-10 h-10 border-4 border-slate-700 border-t-white rounded-full animate-spin" />
+        )}
+
         {step === 1 && (
           <motion.div
             key="step1"
@@ -302,6 +394,17 @@ export default function OnboardingModal({
                 {t.welcome}, {name}!
               </h1>
               <p className="text-slate-400 text-lg font-medium">{t.choose}</p>
+              {autoNamed && (
+                <p className="text-slate-400 text-xs font-medium mt-3">
+                  {t.auto_named} <span className="font-black text-white">{name}</span> · {t.change_later} ·{" "}
+                  <button
+                    onClick={() => { setAutoNamed(false); setStep(1); }}
+                    className="font-black text-indigo-300 underline underline-offset-2"
+                  >
+                    {t.change}
+                  </button>
+                </p>
+              )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <button
