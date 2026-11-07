@@ -536,66 +536,74 @@ export default function Flashcard({
                 what the shrink-to-fit effect doesn't prevent (it only guards against
                 scroll overflow, not against this leftover gap being too small). This
                 reserves real clearance unconditionally instead. */}
-            <div ref={backContentRef} className="flex-1 min-h-0 flex flex-col items-center justify-center w-full overflow-hidden pt-8">
-              {(language === "jp" || language === "en") && card?.reading && (
-                <p className={`text-indigo-200 ${READING_SIZE} mb-2 font-medium tracking-wide animate-fade-in truncate w-full`}>
-                  {card?.reading}
-                </p>
-              )}
+            <div ref={backContentRef} className="flex-1 min-h-0 flex flex-col w-full overflow-hidden pt-8">
+              {/* Content group — centered within whatever space is left above the
+                  footer below (which is shrink-0, a fixed sibling, not part of this
+                  centered group) — so the footer's position no longer depends on how
+                  much reading/heading/badge content there is above it; the Listen/
+                  Lightbulb/Report row always lands in roughly the same place instead
+                  of drifting with every card. */}
+              <div className="flex-1 min-h-0 flex flex-col items-center justify-center w-full overflow-hidden">
+                {(language === "jp" || language === "en") && card?.reading && (
+                  <p className={`text-indigo-200 ${READING_SIZE} mb-2 font-medium tracking-wide animate-fade-in truncate w-full`}>
+                    {card?.reading}
+                  </p>
+                )}
 
-              {/* transition-none, not transition-all like the front side's span — a
-                  CSS transition on font-size means the shrink-to-fit effect's
-                  synchronous scrollHeight read (right after bumping backSizeIdx) still
-                  reflects the pre-transition size, so it can under-shrink and leave
-                  content below clipped by the container's overflow-hidden. Kanji
-                  itself (isBackJapanese) is pinned to the ladder's largest tier rather
-                  than shrinking — the sentence/translation below are the lever for
-                  that direction, since the kanji+reading here are naturally short and
-                  are the actual flashcard content, not filler. */}
-              <h2
-                className={`font-bold leading-tight break-words w-full transition-none
+                {/* transition-none, not transition-all like the front side's span — a
+                    CSS transition on font-size means the shrink-to-fit effect's
+                    synchronous scrollHeight read (right after bumping backSizeIdx) still
+                    reflects the pre-transition size, so it can under-shrink and leave
+                    content below clipped by the container's overflow-hidden. Kanji
+                    itself (isBackJapanese) is pinned to the ladder's largest tier rather
+                    than shrinking — the sentence/translation below are the lever for
+                    that direction, since the kanji+reading here are naturally short and
+                    are the actual flashcard content, not filler. */}
+                <h2
+                  className={`font-bold leading-tight break-words w-full transition-none
     ${isBackJapanese ? backSizeLadder[0] : backSizeLadder[backSizeIdx]}`}
-              >
-                {backText}
-              </h2>
+                >
+                  {backText}
+                </h2>
 
-              {(card?.transitivity || card?.verb_type || card?.adjective_type) && (
-                <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3">
-                  {card?.partOfSpeech === "noun" && (card?.transitivity || card?.verb_type) && (
-                    <span className="text-indigo-200 text-[10px] font-bold">{suruLabel(card.japanese)}:</span>
-                  )}
-                  {card?.transitivity && (
-                    <span className="px-2.5 py-1 bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10">
-                      {card.transitivity === "transitive" ? "Transitive" : "Intransitive"}
-                    </span>
-                  )}
-                  {card?.verb_type && (
-                    <span className="px-2.5 py-1 bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10">
-                      {card.verb_type === "godan" ? "Godan" : card.verb_type === "ichidan" ? "Ichidan" : "Irregular"}
-                    </span>
-                  )}
-                  {card?.adjective_type && (
-                    <span className="px-2.5 py-1 bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10">
-                      {card.adjective_type === "i" ? "い-adjective" : "な-adjective"}
-                    </span>
-                  )}
-                </div>
-              )}
-              {/* Only actual verbs — a suru-noun's te-form (勉強して) is redundant next
-                  to its own badges + suru_meaning line right below. */}
-              {card?.te_form && card?.partOfSpeech === "verb" && (
-                <p className="text-indigo-200 text-xs font-medium mt-1.5">
-                  Te-form: <span className="text-white font-bold">{card.te_form}</span>
-                </p>
-              )}
-              {card?.suru_meaning && (
-                <p className="text-indigo-200 text-xs font-medium mt-1.5 line-clamp-2" title={card.suru_meaning}>
-                  {suruLabel(card.japanese)}: <span className="text-white font-bold">{card.suru_meaning}</span>
-                </p>
-              )}
+                {(card?.transitivity || card?.verb_type || card?.adjective_type) && (
+                  <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3">
+                    {card?.partOfSpeech === "noun" && (card?.transitivity || card?.verb_type) && (
+                      <span className="text-indigo-200 text-[10px] font-bold">{suruLabel(card.japanese)}:</span>
+                    )}
+                    {card?.transitivity && (
+                      <span className="px-2.5 py-1 bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10">
+                        {card.transitivity === "transitive" ? "Transitive" : "Intransitive"}
+                      </span>
+                    )}
+                    {card?.verb_type && (
+                      <span className="px-2.5 py-1 bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10">
+                        {card.verb_type === "godan" ? "Godan" : card.verb_type === "ichidan" ? "Ichidan" : "Irregular"}
+                      </span>
+                    )}
+                    {card?.adjective_type && (
+                      <span className="px-2.5 py-1 bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10">
+                        {card.adjective_type === "i" ? "い-adjective" : "な-adjective"}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {/* Only actual verbs — a suru-noun's te-form (勉強して) is redundant next
+                    to its own badges + suru_meaning line right below. */}
+                {card?.te_form && card?.partOfSpeech === "verb" && (
+                  <p className="text-indigo-200 text-xs font-medium mt-1.5">
+                    Te-form: <span className="text-white font-bold">{card.te_form}</span>
+                  </p>
+                )}
+                {card?.suru_meaning && (
+                  <p className="text-indigo-200 text-xs font-medium mt-1.5 line-clamp-2" title={card.suru_meaning}>
+                    {suruLabel(card.japanese)}: <span className="text-white font-bold">{card.suru_meaning}</span>
+                  </p>
+                )}
+              </div>
 
-              {/* Was a separate mt-auto footer outside this scrollable box — see the
-                  comment above on why that's now folded in here instead. */}
+              {/* Footer — fixed position (shrink-0, not part of the centered group
+                  above), so Listen/Lightbulb/Report always land in the same place. */}
               <div className="mt-4 pt-4 border-t border-indigo-400/50 w-full shrink-0">
                 {card?.exampleSentence?.jp && (
                   <div className="mb-4 px-2 text-center">
