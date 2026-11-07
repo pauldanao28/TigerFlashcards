@@ -238,8 +238,8 @@ function BottomNavInner() {
             onClick={() => setShowQuickActions(true)}
             className="flex-1 flex flex-col items-center justify-center"
           >
-            <span className="relative -mt-8 active:scale-95 transition-all">
-              <Logo className="w-11 h-14" />
+            <span className="relative -mt-6 active:scale-95 transition-all">
+              <Logo className="w-9 h-11" />
             </span>
           </button>
           {TABS_AFTER.map(renderTab)}
