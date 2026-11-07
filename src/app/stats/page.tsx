@@ -17,7 +17,7 @@ import AddWordsSheet from "@/components/AddWordsSheet";
 import DuplicatesSheet from "@/components/DuplicatesSheet";
 import CardDetailModal from "@/components/CardDetailModal";
 import { findDuplicates, skipDeckDuplicates } from "@/lib/duplicates";
-import { AlertTriangle, Ban, BarChart3, Bell, ChevronLeft, Flag, Gamepad2, Gift, ImageIcon, Lightbulb, Loader2, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, Sparkles, Star, TrendingDown, Volume2, X, Zap } from "lucide-react";
+import { AlertTriangle, Ban, BarChart3, Bell, ChevronLeft, Flag, Gamepad2, Gift, ImageIcon, Lightbulb, Loader2, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, SlidersHorizontal, Sparkles, Star, TrendingDown, Volume2, X, Zap } from "lucide-react";
 import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from "@/lib/push";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { validateUsername, isUsernameTaken, type UsernameProblem } from "@/lib/username";
@@ -83,6 +83,9 @@ export default function StatsPage() {
   const [maxStreak, setMaxStreak] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [quickFilter, setQuickFilter] = useState<"none" | "slowReflex" | "recentlyReviewed" | "weakWords" | "favorites" | "mastered">("none");
+  // Collapsed into a dropdown off the search bar instead of their own row — absolutely
+  // positioned so opening/closing it never shifts the card list underneath.
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
   // "Remember this kanji" mnemonic generation — moved here from Study's Slow Recall/
   // Weak Words lists (both now gone from Study; this is the only place a kanji card
   // from either signal is browsable). Study's own in-review Flashcard view still has
@@ -2067,60 +2070,78 @@ export default function StatsPage() {
             />
           )}
 
-          {/* Quick filters — same signals StudyView's own Focus filter and its Weak
-              Words/Priority Words lists used before those moved here, applied to the
-              card list in place instead of another entry-point card stacked above the
-              list (Cards already grew too tall once this session; don't repeat that). */}
-          <div className="grid grid-cols-3 gap-1.5 mb-3">
-            {([
-              ["mastered", "🏆 Mastered"],
-              ["favorites", "⭐ Favorites"],
-              ["slowReflex", "🐌 Slow"],
-              ["recentlyReviewed", "🕐 Recent"],
-              ["weakWords", "😓 Weak"],
-            ] as const).map(([key, label]) => {
-              const isActive = quickFilter === key;
-              return (
-                <button
-                  key={key}
-                  onClick={() => { setQuickFilter(isActive ? "none" : key); setDisplayLimit(20); }}
-                  className={`w-full px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 truncate ${
-                    isActive ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-500 border-slate-200"
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Search + manual refresh — the page already revalidates itself in the
-              background on load (stale-while-revalidate), this is just for forcing it
-              on demand instead of waiting. */}
-          <div className="flex items-center gap-2 mb-4">
-            <div className="relative flex-1">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                <Search size={14} />
+          {/* Search + quick filters — same signals StudyView's own Focus filter and
+              its Weak Words/Priority Words lists used before those moved here,
+              applied to the card list in place. The filter chips used to be their own
+              row above the search bar; collapsed into a dropdown off this button
+              instead (and it takes the manual-refresh button's old slot — the page
+              already revalidates itself in the background on load) so there's one
+              less fixed-height block between the header and the card list. Dropdown
+              is absolutely positioned so opening/closing it never shifts the list. */}
+          <div className="relative mb-4">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <Search size={14} />
+                </div>
+                <input
+                  type="text"
+                  placeholder={t.search_placeholder}
+                  className="w-full pl-10 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setDisplayLimit(20);
+                  }}
+                />
               </div>
-              <input
-                type="text"
-                placeholder={t.search_placeholder}
-                className="w-full pl-10 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setDisplayLimit(20);
-                }}
-              />
+              <button
+                onClick={() => setShowFilterMenu((v) => !v)}
+                title="Filter"
+                className={`shrink-0 relative w-9 h-9 flex items-center justify-center border rounded-xl shadow-sm active:scale-90 transition-all ${
+                  showFilterMenu || quickFilter !== "none"
+                    ? "bg-indigo-600 border-indigo-600 text-white"
+                    : "bg-white border-slate-200 text-slate-400 hover:text-indigo-600"
+                }`}
+              >
+                <SlidersHorizontal size={14} />
+                {quickFilter !== "none" && !showFilterMenu && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white" />
+                )}
+              </button>
             </div>
-            <button
-              onClick={() => fetchCards()}
-              disabled={cardsLoading}
-              title="Refresh"
-              className="shrink-0 w-9 h-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl shadow-sm text-slate-400 hover:text-indigo-600 active:scale-90 transition-all disabled:opacity-50"
-            >
-              <RefreshCw size={14} className={cardsLoading ? "animate-spin" : ""} />
-            </button>
+
+            {showFilterMenu && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setShowFilterMenu(false)} />
+                <div className="absolute right-0 top-full mt-2 z-30 grid grid-cols-2 gap-1.5 p-3 w-56 bg-white rounded-2xl border border-slate-100 shadow-xl">
+                  {([
+                    ["mastered", "🏆 Mastered"],
+                    ["favorites", "⭐ Favorites"],
+                    ["slowReflex", "🐌 Slow"],
+                    ["recentlyReviewed", "🕐 Recent"],
+                    ["weakWords", "😓 Weak"],
+                  ] as const).map(([key, label]) => {
+                    const isActive = quickFilter === key;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => {
+                          setQuickFilter(isActive ? "none" : key);
+                          setDisplayLimit(20);
+                          setShowFilterMenu(false);
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 truncate ${
+                          isActive ? "bg-indigo-600 text-white border-indigo-600" : "bg-slate-50 text-slate-500 border-slate-200"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Card list skeleton while full content loads */}
