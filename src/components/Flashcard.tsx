@@ -556,12 +556,14 @@ export default function Flashcard({
                     reflects the pre-transition size, so it can under-shrink and leave
                     content below clipped by the container's overflow-hidden. Kanji
                     itself (isBackJapanese) is pinned to the ladder's largest tier rather
-                    than shrinking — the sentence/translation below are the lever for
-                    that direction, since the kanji+reading here are naturally short and
-                    are the actual flashcard content, not filler. */}
+                    than shrinking. For the English meaning, size comes from the text's
+                    own length (getFontSize) rather than backSizeIdx — a short meaning
+                    stays big even when a long example sentence elsewhere forces
+                    backSizeIdx up; the sentence/translation below are the lever for
+                    overflow in both directions, not this heading. */}
                 <h2
                   className={`font-bold leading-tight break-words w-full transition-none
-    ${isBackJapanese ? backSizeLadder[0] : backSizeLadder[backSizeIdx]}`}
+    ${isBackJapanese ? backSizeLadder[0] : getFontSize(backText, false)}`}
                 >
                   {backText}
                 </h2>
