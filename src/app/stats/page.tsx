@@ -1711,12 +1711,10 @@ export default function StatsPage() {
                 <Link
                   href="/stats/grammar"
                   title={`Grammar — ${grammarStats.mastered}/${grammarStats.total} learned`}
-                  className="relative p-2.5 bg-violet-50 rounded-2xl shadow-sm text-violet-700 border border-violet-100 hover:bg-violet-100 active:scale-95 transition-all"
+                  className="flex items-center gap-1.5 px-3 py-2.5 bg-violet-50 rounded-2xl shadow-sm text-violet-700 border border-violet-100 hover:bg-violet-100 active:scale-95 transition-all"
                 >
-                  <PenTool size={18} />
-                  <span className="absolute -top-1.5 -right-1.5 bg-violet-600 text-white text-[9px] font-black rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center border-2 border-white">
-                    {grammarStats.mastered}
-                  </span>
+                  <PenTool size={16} />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Grammar</span>
                 </Link>
               )}
               {(dailyStruggles.length > 0 || dailyExplainedLines.length > 0) && (
