@@ -401,6 +401,44 @@ export default function Flashcard({
     }
   }, [backSizeIdx, backText, isBackJapanese, backSizeLadder.length, card?.id]);
 
+  // getFontSize's English tiers (idx 0-4 of BACK_EN_SIZE_LADDER) give the meaning its
+  // "natural" size from its own length — but a meaning sharing the upper group with
+  // badges, a te-form line, and a suru_meaning line can still overflow that group
+  // even at its smallest natural tier, clipping whatever's last (usually the
+  // suru_meaning line). This is a second, independent shrink step on top of the
+  // natural size, triggered only by that group's own overflow — never for
+  // isBackJapanese, where kanji/furigana are pinned and sentence/translation below
+  // are the only lever.
+  const getBackEnNaturalIndex = (text: string) => {
+    const len = text.length;
+    if (len > 50) return 4;
+    if (len > 35) return 3;
+    if (len > 25) return 2;
+    if (len > 15) return 1;
+    return 0;
+  };
+  const upperContentRef = useRef<HTMLDivElement>(null);
+  const [headingShrinkIdx, setHeadingShrinkIdx] = useState(0);
+  const lastHeadingSizedCardIdRef = useRef<string | undefined>(undefined);
+
+  useLayoutEffect(() => {
+    if (isBackJapanese) return;
+    const el = upperContentRef.current;
+    if (!el) return;
+    if (lastHeadingSizedCardIdRef.current !== card?.id) {
+      lastHeadingSizedCardIdRef.current = card?.id;
+      if (headingShrinkIdx !== 0) { setHeadingShrinkIdx(0); return; }
+    }
+    const maxIdx = BACK_EN_SIZE_LADDER.length - 1 - getBackEnNaturalIndex(backText);
+    if (el.scrollHeight > el.clientHeight && headingShrinkIdx < maxIdx) {
+      setHeadingShrinkIdx((i) => i + 1);
+    }
+  }, [headingShrinkIdx, backText, isBackJapanese, card?.id, BACK_EN_SIZE_LADDER.length]);
+
+  const backHeadingClass = isBackJapanese
+    ? backSizeLadder[0]
+    : BACK_EN_SIZE_LADDER[Math.min(getBackEnNaturalIndex(backText) + headingShrinkIdx, BACK_EN_SIZE_LADDER.length - 1)];
+
   return (
     <>
     <div className="w-full max-w-[320px] h-full [perspective:1000px] touch-none mx-auto">
@@ -543,7 +581,7 @@ export default function Flashcard({
                   much reading/heading/badge content there is above it; the Listen/
                   Lightbulb/Report row always lands in roughly the same place instead
                   of drifting with every card. */}
-              <div className="flex-1 min-h-0 flex flex-col items-center justify-center w-full overflow-hidden">
+              <div ref={upperContentRef} className="flex-1 min-h-0 flex flex-col items-center justify-center w-full overflow-hidden">
                 {(language === "jp" || language === "en") && card?.reading && (
                   <p className={`text-indigo-200 ${READING_SIZE} mb-2 font-medium tracking-wide animate-fade-in truncate w-full`}>
                     {card?.reading}
@@ -551,19 +589,19 @@ export default function Flashcard({
                 )}
 
                 {/* transition-none, not transition-all like the front side's span — a
-                    CSS transition on font-size means the shrink-to-fit effect's
-                    synchronous scrollHeight read (right after bumping backSizeIdx) still
-                    reflects the pre-transition size, so it can under-shrink and leave
-                    content below clipped by the container's overflow-hidden. Kanji
-                    itself (isBackJapanese) is pinned to the ladder's largest tier rather
-                    than shrinking. For the English meaning, size comes from the text's
-                    own length (getFontSize) rather than backSizeIdx — a short meaning
-                    stays big even when a long example sentence elsewhere forces
-                    backSizeIdx up; the sentence/translation below are the lever for
-                    overflow in both directions, not this heading. */}
+                    CSS transition on font-size means a shrink effect's synchronous
+                    scrollHeight read (right after bumping an index) still reflects the
+                    pre-transition size, so it can under-shrink and leave content below
+                    clipped by the container's overflow-hidden. Kanji itself
+                    (isBackJapanese) is pinned to the ladder's largest tier rather than
+                    shrinking — sentence/translation below are the only lever there. The
+                    English meaning sizes from its own length first (backHeadingClass),
+                    so a short meaning stays big even when a long example sentence
+                    elsewhere forces backSizeIdx up; it only shrinks further, from that
+                    natural size, when the upper group (badges/te-form/suru_meaning)
+                    itself overflows — see headingShrinkIdx above. */}
                 <h2
-                  className={`font-bold leading-tight break-words w-full transition-none
-    ${isBackJapanese ? backSizeLadder[0] : getFontSize(backText, false)}`}
+                  className={`font-bold leading-tight break-words w-full transition-none ${backHeadingClass}`}
                 >
                   {backText}
                 </h2>
