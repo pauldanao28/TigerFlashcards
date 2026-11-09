@@ -419,21 +419,38 @@ export default function Flashcard({
   };
   const upperContentRef = useRef<HTMLDivElement>(null);
   const [headingShrinkIdx, setHeadingShrinkIdx] = useState(0);
+  // Last-resort lever for a card whose reading + heading + badges + te-form/
+  // suru_meaning still overflow the upper group even once the heading (EN
+  // direction only) is shrunk as far as it'll go — or, in the JP direction, where
+  // the heading never shrinks at all. Tightens the margins/text size of the
+  // "extras" below the heading so the pinned reading at the top never gets
+  // clipped by the centered group overflowing past its container.
+  const [compactExtras, setCompactExtras] = useState(false);
   const lastHeadingSizedCardIdRef = useRef<string | undefined>(undefined);
 
   useLayoutEffect(() => {
-    if (isBackJapanese) return;
     const el = upperContentRef.current;
     if (!el) return;
     if (lastHeadingSizedCardIdRef.current !== card?.id) {
       lastHeadingSizedCardIdRef.current = card?.id;
-      if (headingShrinkIdx !== 0) { setHeadingShrinkIdx(0); return; }
+      if (headingShrinkIdx !== 0 || compactExtras) {
+        setHeadingShrinkIdx(0);
+        setCompactExtras(false);
+        return;
+      }
     }
-    const maxIdx = BACK_EN_SIZE_LADDER.length - 1 - getBackEnNaturalIndex(backText);
-    if (el.scrollHeight > el.clientHeight && headingShrinkIdx < maxIdx) {
-      setHeadingShrinkIdx((i) => i + 1);
+    if (el.scrollHeight <= el.clientHeight) return;
+
+    if (!isBackJapanese) {
+      const maxIdx = BACK_EN_SIZE_LADDER.length - 1 - getBackEnNaturalIndex(backText);
+      if (headingShrinkIdx < maxIdx) {
+        setHeadingShrinkIdx((i) => i + 1);
+        return;
+      }
     }
-  }, [headingShrinkIdx, backText, isBackJapanese, card?.id, BACK_EN_SIZE_LADDER.length]);
+
+    if (!compactExtras) setCompactExtras(true);
+  }, [headingShrinkIdx, compactExtras, backText, isBackJapanese, card?.id, BACK_EN_SIZE_LADDER.length]);
 
   const backHeadingClass = isBackJapanese
     ? backSizeLadder[0]
@@ -583,7 +600,7 @@ export default function Flashcard({
                   of drifting with every card. */}
               <div ref={upperContentRef} className="flex-1 min-h-0 flex flex-col items-center justify-center w-full overflow-hidden">
                 {(language === "jp" || language === "en") && card?.reading && (
-                  <p className={`text-indigo-200 ${READING_SIZE} mb-2 font-medium tracking-wide animate-fade-in truncate w-full`}>
+                  <p className={`text-indigo-200 ${READING_SIZE} ${compactExtras ? "mb-1" : "mb-2"} font-medium tracking-wide animate-fade-in truncate w-full`}>
                     {card?.reading}
                   </p>
                 )}
@@ -607,22 +624,22 @@ export default function Flashcard({
                 </h2>
 
                 {(card?.transitivity || card?.verb_type || card?.adjective_type) && (
-                  <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3">
+                  <div className={`flex flex-wrap items-center justify-center gap-1.5 ${compactExtras ? "mt-1.5" : "mt-3"}`}>
                     {card?.partOfSpeech === "noun" && (card?.transitivity || card?.verb_type) && (
                       <span className="text-indigo-200 text-[10px] font-bold">{suruLabel(card.japanese)}:</span>
                     )}
                     {card?.transitivity && (
-                      <span className="px-2.5 py-1 bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10">
+                      <span className={`${compactExtras ? "px-2 py-0.5" : "px-2.5 py-1"} bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10`}>
                         {card.transitivity === "transitive" ? "Transitive" : "Intransitive"}
                       </span>
                     )}
                     {card?.verb_type && (
-                      <span className="px-2.5 py-1 bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10">
+                      <span className={`${compactExtras ? "px-2 py-0.5" : "px-2.5 py-1"} bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10`}>
                         {card.verb_type === "godan" ? "Godan" : card.verb_type === "ichidan" ? "Ichidan" : "Irregular"}
                       </span>
                     )}
                     {card?.adjective_type && (
-                      <span className="px-2.5 py-1 bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10">
+                      <span className={`${compactExtras ? "px-2 py-0.5" : "px-2.5 py-1"} bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10`}>
                         {card.adjective_type === "i" ? "い-adjective" : "な-adjective"}
                       </span>
                     )}
@@ -631,12 +648,12 @@ export default function Flashcard({
                 {/* Only actual verbs — a suru-noun's te-form (勉強して) is redundant next
                     to its own badges + suru_meaning line right below. */}
                 {card?.te_form && card?.partOfSpeech === "verb" && (
-                  <p className="text-indigo-200 text-xs font-medium mt-1.5">
+                  <p className={`text-indigo-200 ${compactExtras ? "text-[11px] mt-1" : "text-xs mt-1.5"} font-medium`}>
                     Te-form: <span className="text-white font-bold">{card.te_form}</span>
                   </p>
                 )}
                 {card?.suru_meaning && (
-                  <p className="text-indigo-200 text-xs font-medium mt-1.5 line-clamp-2" title={card.suru_meaning}>
+                  <p className={`text-indigo-200 ${compactExtras ? "text-[11px] mt-1" : "text-xs mt-1.5"} font-medium line-clamp-2`} title={card.suru_meaning}>
                     {suruLabel(card.japanese)}: <span className="text-white font-bold">{card.suru_meaning}</span>
                   </p>
                 )}
