@@ -15,8 +15,8 @@ language learner wants a memory aid for the word "${japanese}" (reading: ${readi
 
 For EACH of these kanji characters, in this exact order: ${kanji.join(", ")}
 
-1. "radicals": a short breakdown of the components that make up the character (e.g. "人 (person) + 木 (tree)"). If it's a single indivisible pictograph, briefly say what it depicts instead.
-2. "story": ONE vivid, memorable sentence turning those components (or the pictograph) into a mental image that ties them to the character's core meaning. Make it concrete and a little silly — memorable beats accurate.
+1. "radicals": Identify the radicals/components that make up the character and explain what EACH ONE depicts or means on its own, in plain language (e.g. "亻is the person radical — a simplified standing figure. 木 means tree, drawn as a trunk with branches."). If it's a single indivisible pictograph, briefly explain what the whole shape depicts instead. This comes first — ground the reader in what they're actually looking at before any mnemonic.
+2. "story": AFTER that breakdown, ONE vivid, memorable sentence (a mnemonic clue) that ties those radical meanings together into a mental image connecting them to the character's core meaning. Make it concrete and a little silly — memorable beats accurate.
 
 Then, only if genuinely interesting (skip entirely for ordinary/unremarkable characters), an "origin" field: one sentence on the word's etymology or how its kanji came to mean what they do.
 

@@ -729,11 +729,15 @@ export default function Flashcard({
             <div className="space-y-4">
               {card.mnemonic.entries.map((entry, i) => (
                 <div key={i} className="bg-slate-50 rounded-2xl p-4">
-                  <p className="text-3xl font-black text-slate-800 mb-1">{entry.character}</p>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-1.5">
-                    {entry.radicals}
+                  <p className="text-3xl font-black text-slate-800 mb-2">{entry.character}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-indigo-500 mb-1">
+                    Radicals
                   </p>
-                  <p className="text-sm text-slate-600 leading-snug">{entry.story}</p>
+                  <p className="text-sm text-slate-600 leading-snug mb-3">{entry.radicals}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-amber-500 mb-1">
+                    Memory Tip
+                  </p>
+                  <p className="text-sm text-slate-700 font-medium leading-snug">{entry.story}</p>
                 </div>
               ))}
               {card.mnemonic.origin && (
