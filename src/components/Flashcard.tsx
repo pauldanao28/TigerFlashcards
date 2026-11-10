@@ -372,43 +372,24 @@ export default function Flashcard({
   // outgrow the card even at getFontSize's smallest static tier once the reading,
   // badges, and example sentence below it are accounted for. Rather than letting it
   // scroll — which used to be the fallback here — this measures the actual rendered
-  // height and keeps stepping the font size down one tier at a time until the
-  // content genuinely fits, so the whole card is always visible at once.
+  // height and keeps stepping down a single, prioritized ladder of levers until the
+  // content genuinely fits, so the whole card is always visible at once. In order:
+  // 1. the footer's example sentence/translation (SENTENCE/TRANSLATION_SIZE_LADDER,
+  //    via backSizeIdx) — least important content, and shrinking it also frees up
+  //    more of the upper group's flex-1 share since the footer sits shrink-0 above it.
+  // 2. compactExtras — tightens the badges/te-form/suru_meaning spacing AND the
+  //    footer's own margins/padding, reclaiming fixed layout overhead rather than text.
+  // 3. headingShrinkIdx — the meaning itself, EN direction only (isBackJapanese pins
+  //    kanji/furigana and never shrinks them). True last resort: a short meaning on a
+  //    simple card should never pay for a few badges elsewhere, but a card crowded
+  //    enough to exhaust levers 1-2 still needs to fit without scrolling.
   const backContentRef = useRef<HTMLDivElement>(null);
+  const upperContentRef = useRef<HTMLDivElement>(null);
   const [backSizeIdx, setBackSizeIdx] = useState(0);
+  const [compactExtras, setCompactExtras] = useState(false);
+  const [headingShrinkIdx, setHeadingShrinkIdx] = useState(0);
   const backSizeLadder = isBackJapanese ? BACK_JP_SIZE_LADDER : BACK_EN_SIZE_LADDER;
 
-  // The reset-to-0 on card change used to be a separate plain useEffect — but that
-  // runs as a passive effect, AFTER this layout effect's own shrink-convergence
-  // chain (triggered by its setBackSizeIdx calls) already fully resolves against
-  // the PREVIOUS card's leftover index, not 0. The reset then fires late, kicking
-  // off a second convergence from scratch — on some cards (more total content:
-  // grammar badges, te-form, a longer example sentence) that extra churn could
-  // still leave the card under-shrunk when it got interrupted or settled on a
-  // mismeasured step. Resetting inside this same layout effect, gated on a ref,
-  // keeps the whole reset-then-converge sequence synchronous and pre-paint.
-  const lastSizedCardIdRef = useRef<string | undefined>(undefined);
-
-  useLayoutEffect(() => {
-    const el = backContentRef.current;
-    if (!el) return;
-    if (lastSizedCardIdRef.current !== card?.id) {
-      lastSizedCardIdRef.current = card?.id;
-      if (backSizeIdx !== 0) { setBackSizeIdx(0); return; }
-    }
-    if (el.scrollHeight > el.clientHeight && backSizeIdx < backSizeLadder.length - 1) {
-      setBackSizeIdx((i) => i + 1);
-    }
-  }, [backSizeIdx, backText, isBackJapanese, backSizeLadder.length, card?.id]);
-
-  // getFontSize's English tiers (idx 0-4 of BACK_EN_SIZE_LADDER) give the meaning its
-  // "natural" size from its own length — but a meaning sharing the upper group with
-  // badges, a te-form line, and a suru_meaning line can still overflow that group
-  // even at its smallest natural tier, clipping whatever's last (usually the
-  // suru_meaning line). This is a second, independent shrink step on top of the
-  // natural size, triggered only by that group's own overflow — never for
-  // isBackJapanese, where kanji/furigana are pinned and sentence/translation below
-  // are the only lever.
   const getBackEnNaturalIndex = (text: string) => {
     const len = text.length;
     if (len > 50) return 4;
@@ -417,40 +398,49 @@ export default function Flashcard({
     if (len > 15) return 1;
     return 0;
   };
-  const upperContentRef = useRef<HTMLDivElement>(null);
-  const [headingShrinkIdx, setHeadingShrinkIdx] = useState(0);
-  // Last-resort lever for a card whose reading + heading + badges + te-form/
-  // suru_meaning still overflow the upper group even once the heading (EN
-  // direction only) is shrunk as far as it'll go — or, in the JP direction, where
-  // the heading never shrinks at all. Tightens the margins/text size of the
-  // "extras" below the heading so the pinned reading at the top never gets
-  // clipped by the centered group overflowing past its container.
-  const [compactExtras, setCompactExtras] = useState(false);
-  const lastHeadingSizedCardIdRef = useRef<string | undefined>(undefined);
+
+  // The reset-to-0 on card change used to be a separate plain useEffect — but that
+  // runs as a passive effect, AFTER this layout effect's own shrink-convergence
+  // chain (triggered by its own setState calls) already fully resolves against the
+  // PREVIOUS card's leftover state. The reset then fires late, kicking off a second
+  // convergence from scratch — on some cards that extra churn could still leave the
+  // card under-shrunk when it got interrupted or settled on a mismeasured step.
+  // Resetting inside this same layout effect, gated on a ref, keeps the whole
+  // reset-then-converge sequence synchronous and pre-paint.
+  const lastSizedCardIdRef = useRef<string | undefined>(undefined);
 
   useLayoutEffect(() => {
-    const el = upperContentRef.current;
-    if (!el) return;
-    if (lastHeadingSizedCardIdRef.current !== card?.id) {
-      lastHeadingSizedCardIdRef.current = card?.id;
-      if (headingShrinkIdx !== 0 || compactExtras) {
-        setHeadingShrinkIdx(0);
+    const backEl = backContentRef.current;
+    const upperEl = upperContentRef.current;
+    if (!backEl || !upperEl) return;
+
+    if (lastSizedCardIdRef.current !== card?.id) {
+      lastSizedCardIdRef.current = card?.id;
+      if (backSizeIdx !== 0 || compactExtras || headingShrinkIdx !== 0) {
+        setBackSizeIdx(0);
         setCompactExtras(false);
+        setHeadingShrinkIdx(0);
         return;
       }
     }
-    if (el.scrollHeight <= el.clientHeight) return;
 
+    if (backEl.scrollHeight <= backEl.clientHeight && upperEl.scrollHeight <= upperEl.clientHeight) return;
+
+    if (backSizeIdx < SENTENCE_SIZE_LADDER.length - 1) {
+      setBackSizeIdx((i) => i + 1);
+      return;
+    }
+    if (!compactExtras) {
+      setCompactExtras(true);
+      return;
+    }
     if (!isBackJapanese) {
-      const maxIdx = BACK_EN_SIZE_LADDER.length - 1 - getBackEnNaturalIndex(backText);
-      if (headingShrinkIdx < maxIdx) {
+      const maxHeadingIdx = BACK_EN_SIZE_LADDER.length - 1 - getBackEnNaturalIndex(backText);
+      if (headingShrinkIdx < maxHeadingIdx) {
         setHeadingShrinkIdx((i) => i + 1);
-        return;
       }
     }
-
-    if (!compactExtras) setCompactExtras(true);
-  }, [headingShrinkIdx, compactExtras, backText, isBackJapanese, card?.id, BACK_EN_SIZE_LADDER.length]);
+  }, [backSizeIdx, compactExtras, headingShrinkIdx, backText, isBackJapanese, card?.id, SENTENCE_SIZE_LADDER.length, BACK_EN_SIZE_LADDER.length]);
 
   const backHeadingClass = isBackJapanese
     ? backSizeLadder[0]
@@ -660,10 +650,13 @@ export default function Flashcard({
               </div>
 
               {/* Footer — fixed position (shrink-0, not part of the centered group
-                  above), so Listen/Lightbulb/Report always land in the same place. */}
-              <div className="mt-4 pt-4 border-t border-indigo-400/50 w-full shrink-0">
+                  above), so Listen/Lightbulb/Report always land in the same place.
+                  compactExtras also tightens this footer's own margins/padding — a
+                  crowded upper group (badges/te-form/suru_meaning) reclaims fixed
+                  layout overhead here before the heading itself has to give up size. */}
+              <div className={`${compactExtras ? "mt-2 pt-2" : "mt-4 pt-4"} border-t border-indigo-400/50 w-full shrink-0`}>
                 {card?.exampleSentence?.jp && (
-                  <div className="mb-4 px-2 text-center">
+                  <div className={`${compactExtras ? "mb-2" : "mb-4"} px-2 text-center`}>
                     {/* Supporting content, not the card's main point — shrinks with
                         backSizeIdx (kanji/reading don't) so there's still a real lever
                         for a card whose footer content is what's actually long, even in
