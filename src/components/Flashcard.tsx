@@ -380,24 +380,17 @@ export default function Flashcard({
   // 2. compactExtras — tightens the badges/te-form/suru_meaning spacing AND the
   //    footer's own margins/padding, reclaiming fixed layout overhead rather than text.
   // 3. headingShrinkIdx — the meaning itself, EN direction only (isBackJapanese pins
-  //    kanji/furigana and never shrinks them). True last resort: a short meaning on a
-  //    simple card should never pay for a few badges elsewhere, but a card crowded
-  //    enough to exhaust levers 1-2 still needs to fit without scrolling.
+  //    kanji/furigana and never shrinks them). Always STARTS at the ladder's biggest
+  //    tier (index 0) and only steps down from real measured overflow — a length-based
+  //    guess at the "right" starting size used to shrink moderate-length meanings that
+  //    had genuine room to stay big, since a char-count heuristic can't know the actual
+  //    rendered height the way measuring backContentRef/upperContentRef directly can.
   const backContentRef = useRef<HTMLDivElement>(null);
   const upperContentRef = useRef<HTMLDivElement>(null);
   const [backSizeIdx, setBackSizeIdx] = useState(0);
   const [compactExtras, setCompactExtras] = useState(false);
   const [headingShrinkIdx, setHeadingShrinkIdx] = useState(0);
   const backSizeLadder = isBackJapanese ? BACK_JP_SIZE_LADDER : BACK_EN_SIZE_LADDER;
-
-  const getBackEnNaturalIndex = (text: string) => {
-    const len = text.length;
-    if (len > 50) return 4;
-    if (len > 35) return 3;
-    if (len > 25) return 2;
-    if (len > 15) return 1;
-    return 0;
-  };
 
   // The reset-to-0 on card change used to be a separate plain useEffect — but that
   // runs as a passive effect, AFTER this layout effect's own shrink-convergence
@@ -434,17 +427,12 @@ export default function Flashcard({
       setCompactExtras(true);
       return;
     }
-    if (!isBackJapanese) {
-      const maxHeadingIdx = BACK_EN_SIZE_LADDER.length - 1 - getBackEnNaturalIndex(backText);
-      if (headingShrinkIdx < maxHeadingIdx) {
-        setHeadingShrinkIdx((i) => i + 1);
-      }
+    if (!isBackJapanese && headingShrinkIdx < BACK_EN_SIZE_LADDER.length - 1) {
+      setHeadingShrinkIdx((i) => i + 1);
     }
   }, [backSizeIdx, compactExtras, headingShrinkIdx, backText, isBackJapanese, card?.id, SENTENCE_SIZE_LADDER.length, BACK_EN_SIZE_LADDER.length]);
 
-  const backHeadingClass = isBackJapanese
-    ? backSizeLadder[0]
-    : BACK_EN_SIZE_LADDER[Math.min(getBackEnNaturalIndex(backText) + headingShrinkIdx, BACK_EN_SIZE_LADDER.length - 1)];
+  const backHeadingClass = isBackJapanese ? backSizeLadder[0] : BACK_EN_SIZE_LADDER[headingShrinkIdx];
 
   return (
     <>
@@ -602,11 +590,9 @@ export default function Flashcard({
                     clipped by the container's overflow-hidden. Kanji itself
                     (isBackJapanese) is pinned to the ladder's largest tier rather than
                     shrinking — sentence/translation below are the only lever there. The
-                    English meaning sizes from its own length first (backHeadingClass),
-                    so a short meaning stays big even when a long example sentence
-                    elsewhere forces backSizeIdx up; it only shrinks further, from that
-                    natural size, when the upper group (badges/te-form/suru_meaning)
-                    itself overflows — see headingShrinkIdx above. */}
+                    English meaning (backHeadingClass) starts at its biggest tier too and
+                    only shrinks once the footer's own levers are exhausted — see the
+                    priority-ordered effect above. */}
                 <h2
                   className={`font-bold leading-tight break-words w-full transition-none ${backHeadingClass}`}
                 >
