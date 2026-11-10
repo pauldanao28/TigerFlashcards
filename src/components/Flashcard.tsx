@@ -322,7 +322,7 @@ export default function Flashcard({
   // much text to read comfortably at the big size. No in-between tiers: those kept
   // turning into multi-step state machines (see isHeadingBig/isTeFormBig below) that
   // were hard to reason about and easy to leave subtly wrong.
-  const HEADING_BIG = "text-5xl";
+  const HEADING_BIG = "text-4xl";
   const HEADING_SMALL = "text-2xl";
   const TE_FORM_BIG = "text-sm";
   const TE_FORM_SMALL = "text-xs";
