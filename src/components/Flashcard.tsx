@@ -319,8 +319,12 @@ export default function Flashcard({
   // The example sentence/translation (below) are the adjustable levers for a card
   // whose meaning or footer content is what's actually long.
   const READING_SIZE = "text-lg";
-  const SENTENCE_SIZE_LADDER = ["text-sm", "text-sm", "text-sm", "text-xs", "text-xs", "text-xs", "text-[11px]", "text-[11px]"];
-  const TRANSLATION_SIZE_LADDER = ["text-[10px]", "text-[10px]", "text-[10px]", "text-[10px]", "text-[9px]", "text-[9px]", "text-[9px]", "text-[9px]"];
+  // The example sentence/translation are supporting content, not something worth
+  // reading at length — always small and fixed, never part of the shrink ladder, so
+  // they never hog the room the meaning/te-form actually need to be legible.
+  const SENTENCE_SIZE = "text-xs";
+  const TRANSLATION_SIZE = "text-[9px]";
+  const TE_FORM_SIZE_LADDER = ["text-sm", "text-xs", "text-[11px]", "text-[10px]"];
 
   const getFontSize = (text: string, isJapanese: boolean) => {
     const len = text.length;
@@ -373,12 +377,13 @@ export default function Flashcard({
   // badges, and example sentence below it are accounted for. Rather than letting it
   // scroll — which used to be the fallback here — this measures the actual rendered
   // height and keeps stepping down a single, prioritized ladder of levers until the
-  // content genuinely fits, so the whole card is always visible at once. In order:
-  // 1. the footer's example sentence/translation (SENTENCE/TRANSLATION_SIZE_LADDER,
-  //    via backSizeIdx) — least important content, and shrinking it also frees up
-  //    more of the upper group's flex-1 share since the footer sits shrink-0 above it.
-  // 2. compactExtras — tightens the badges/te-form/suru_meaning spacing AND the
+  // content genuinely fits, so the whole card is always visible at once. The example
+  // sentence/translation are NOT a lever at all — always fixed small (SENTENCE_SIZE/
+  // TRANSLATION_SIZE above) so they never hog room the meaning/te-form need. In order:
+  // 1. compactExtras — tightens the badges/te-form/suru_meaning spacing AND the
   //    footer's own margins/padding, reclaiming fixed layout overhead rather than text.
+  // 2. teFormShrinkIdx — the te-form line, both directions (it's supporting content
+  //    regardless of which side the kanji is on).
   // 3. headingShrinkIdx — the meaning itself, EN direction only (isBackJapanese pins
   //    kanji/furigana and never shrinks them). Always STARTS at the ladder's biggest
   //    tier (index 0) and only steps down from real measured overflow — a length-based
@@ -387,8 +392,8 @@ export default function Flashcard({
   //    rendered height the way measuring backContentRef/upperContentRef directly can.
   const backContentRef = useRef<HTMLDivElement>(null);
   const upperContentRef = useRef<HTMLDivElement>(null);
-  const [backSizeIdx, setBackSizeIdx] = useState(0);
   const [compactExtras, setCompactExtras] = useState(false);
+  const [teFormShrinkIdx, setTeFormShrinkIdx] = useState(0);
   const [headingShrinkIdx, setHeadingShrinkIdx] = useState(0);
   const backSizeLadder = isBackJapanese ? BACK_JP_SIZE_LADDER : BACK_EN_SIZE_LADDER;
 
@@ -409,9 +414,9 @@ export default function Flashcard({
 
     if (lastSizedCardIdRef.current !== card?.id) {
       lastSizedCardIdRef.current = card?.id;
-      if (backSizeIdx !== 0 || compactExtras || headingShrinkIdx !== 0) {
-        setBackSizeIdx(0);
+      if (compactExtras || teFormShrinkIdx !== 0 || headingShrinkIdx !== 0) {
         setCompactExtras(false);
+        setTeFormShrinkIdx(0);
         setHeadingShrinkIdx(0);
         return;
       }
@@ -419,18 +424,18 @@ export default function Flashcard({
 
     if (backEl.scrollHeight <= backEl.clientHeight && upperEl.scrollHeight <= upperEl.clientHeight) return;
 
-    if (backSizeIdx < SENTENCE_SIZE_LADDER.length - 1) {
-      setBackSizeIdx((i) => i + 1);
-      return;
-    }
     if (!compactExtras) {
       setCompactExtras(true);
+      return;
+    }
+    if (teFormShrinkIdx < TE_FORM_SIZE_LADDER.length - 1) {
+      setTeFormShrinkIdx((i) => i + 1);
       return;
     }
     if (!isBackJapanese && headingShrinkIdx < BACK_EN_SIZE_LADDER.length - 1) {
       setHeadingShrinkIdx((i) => i + 1);
     }
-  }, [backSizeIdx, compactExtras, headingShrinkIdx, backText, isBackJapanese, card?.id, SENTENCE_SIZE_LADDER.length, BACK_EN_SIZE_LADDER.length]);
+  }, [compactExtras, teFormShrinkIdx, headingShrinkIdx, backText, isBackJapanese, card?.id, TE_FORM_SIZE_LADDER.length, BACK_EN_SIZE_LADDER.length]);
 
   const backHeadingClass = isBackJapanese ? backSizeLadder[0] : BACK_EN_SIZE_LADDER[headingShrinkIdx];
 
@@ -553,8 +558,8 @@ export default function Flashcard({
                 looking like the text was cut off mid-line (接続). Folding everything
                 into one column, sized by the shrink-to-fit effect above, keeps a real
                 boundary between content and footer instead. overflow-hidden is a
-                safety net only — backSizeIdx is what actually keeps this from ever
-                needing it. */}
+                safety net only — the priority-ordered shrink effect above is what
+                actually keeps this from ever needing it. */}
             {/* min-h-0: a flex child defaults to min-height:auto, which lets it grow
                 taller than its allotted space to fit its own content instead of being
                 capped — so scrollHeight and clientHeight stayed equal no matter how
@@ -628,7 +633,7 @@ export default function Flashcard({
                     unlike a godan/ichidan te-form's real sound change (読む→読んで) or even
                     来る→来て, which are worth showing. */}
                 {card?.te_form && card?.partOfSpeech === "verb" && !card?.japanese?.endsWith("する") && (
-                  <p className={`text-indigo-200 ${compactExtras ? "text-[11px] mt-1" : "text-xs mt-1.5"} font-medium`}>
+                  <p className={`text-indigo-200 ${TE_FORM_SIZE_LADDER[teFormShrinkIdx]} ${compactExtras ? "mt-1" : "mt-1.5"} font-medium`}>
                     Te-form: <span className="text-white font-bold">{card.te_form}</span>
                   </p>
                 )}
@@ -647,15 +652,13 @@ export default function Flashcard({
               <div className={`${compactExtras ? "mt-2 pt-2" : "mt-4 pt-4"} border-t border-indigo-400/50 w-full shrink-0`}>
                 {card?.exampleSentence?.jp && (
                   <div className={`${compactExtras ? "mb-2" : "mb-4"} px-2 text-center`}>
-                    {/* Supporting content, not the card's main point — shrinks with
-                        backSizeIdx (kanji/reading don't) so there's still a real lever
-                        for a card whose footer content is what's actually long, even in
-                        the Recall direction where the heading itself is pinned too. */}
-                    <p className={`${SENTENCE_SIZE_LADDER[backSizeIdx]} italic text-indigo-50 line-clamp-3 overflow-hidden break-words`}>
+                    {/* Always small and fixed — never a shrink lever. See SENTENCE_SIZE
+                        above for why. */}
+                    <p className={`${SENTENCE_SIZE} italic text-indigo-50 line-clamp-3 overflow-hidden break-words`}>
                       "{card.exampleSentence.jp}"
                     </p>
                     {card.exampleSentence.en && (
-                      <p className={`${TRANSLATION_SIZE_LADDER[backSizeIdx]} text-indigo-200/80 mt-1 line-clamp-2 overflow-hidden break-words`}>
+                      <p className={`${TRANSLATION_SIZE} text-indigo-200/80 mt-1 line-clamp-2 overflow-hidden break-words`}>
                         {card.exampleSentence.en}
                       </p>
                     )}
