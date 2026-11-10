@@ -308,29 +308,24 @@ export default function Flashcard({
     }
   };
 
-  // Back-face shrink-to-fit ladder, largest first — getFontSize's own smallest tier
-  // ("text-lg" / "text-base") is the starting point; these are the extra, smaller
-  // steps the measure-and-shrink effect below can fall through to for text long
-  // enough that even that tier still overflows.
-  const BACK_JP_SIZE_LADDER = ["text-5xl sm:text-6xl", "text-4xl", "text-3xl", "text-2xl", "text-xl", "text-lg", "text-base"];
-  // idx0 used to be "text-3xl sm:text-4xl" — the sm: breakpoint (640px+) never
-  // applies on a phone, so that tier rendered as plain text-3xl there: identical to
-  // idx1, making the "biggest" size indistinguishable from its own first shrink step
-  // and capping every simple card well below what the available room allowed. Then
-  // bumped from text-4xl to text-5xl — even text-4xl (36px, 2x the 18px reading)
-  // wasn't read as clearly bigger, so this makes the gap unambiguous.
-  const BACK_EN_SIZE_LADDER = ["text-5xl", "text-4xl", "text-3xl", "text-2xl", "text-xl", "text-lg", "text-base", "text-sm"];
-  // Kanji and its furigana reading are never shrunk — both are naturally short, and
-  // they're the actual flashcard content, not filler that should visually recede.
-  // The example sentence/translation (below) are the adjustable levers for a card
-  // whose meaning or footer content is what's actually long.
+  // Kanji's own pinned size on the back (Recall direction) — never shrunk, since
+  // both it and its furigana are naturally short and are the actual flashcard
+  // content, not filler that should visually recede.
+  const BACK_JP_PINNED_SIZE = "text-5xl sm:text-6xl";
   const READING_SIZE = "text-lg";
   // The example sentence/translation are supporting content, not something worth
-  // reading at length — always small and fixed, never part of the shrink ladder, so
-  // they never hog the room the meaning/te-form actually need to be legible.
+  // reading at length — always small and fixed, never adjustable, so they never hog
+  // the room the meaning/te-form actually need to be legible.
   const SENTENCE_SIZE = "text-xs";
   const TRANSLATION_SIZE = "text-[9px]";
-  const TE_FORM_SIZE_LADDER = ["text-sm", "text-xs", "text-[11px]", "text-[10px]"];
+  // Only two sizes, period — big by default, small only once there's genuinely too
+  // much text to read comfortably at the big size. No in-between tiers: those kept
+  // turning into multi-step state machines (see isHeadingBig/isTeFormBig below) that
+  // were hard to reason about and easy to leave subtly wrong.
+  const HEADING_BIG = "text-5xl";
+  const HEADING_SMALL = "text-2xl";
+  const TE_FORM_BIG = "text-sm";
+  const TE_FORM_SMALL = "text-xs";
 
   const getFontSize = (text: string, isJapanese: boolean) => {
     const len = text.length;
@@ -373,8 +368,8 @@ export default function Flashcard({
   // Use optional chaining here too
   const isBackJapanese = card ? backText === card.japanese : false;
 
-  // Shared with the size calc below (headingIdx/teFormIdx) so a te-form that isn't
-  // actually rendered (hidden for suru verbs) never affects the meaning's size.
+  // Shared with the size calc below (isHeadingBig/isTeFormBig) so a te-form that
+  // isn't actually rendered (hidden for suru verbs) never affects the meaning's size.
   const showsTeForm = !!(card?.te_form && card?.partOfSpeech === "verb" && !card?.japanese?.endsWith("する"));
 
   // Per-card accuracy/reflex-speed now lives in the header above the card (StudyView),
@@ -384,32 +379,30 @@ export default function Flashcard({
 
   // The meaning should read clearly bigger than the (fixed-size) reading above it by
   // default — only a meaning that's long for its own sake, or paired with a te-form
-  // that itself has real length to it, should give up some of that size. A typical
-  // 2-3 synonym meaning ("anew / again / properly", 23 chars) is NOT "long" here —
-  // it's the normal shape of this app's definitions and must stay at the biggest
-  // tier; only a meaning that's unusually long on its own (40+ chars) concedes size.
-  // showsTeForm (not just card?.te_form) gates the te-form bonus — one hidden for a
-  // suru verb takes no space and shouldn't shrink anything.
+  // that itself has real length to it, should give up that size. A typical 2-3
+  // synonym meaning ("anew / again / properly", 23 chars) is NOT "long" here — it's
+  // the normal shape of this app's definitions and must stay big; only a meaning
+  // that's unusually long on its own (30+ chars), or paired with a te-form that's
+  // itself got real length (5+ chars), drops to the small size. showsTeForm (not
+  // just card?.te_form) gates that check — a te-form hidden for a suru verb takes no
+  // space and shouldn't affect anything.
   //
   // This is a PURE calculation from the current card's own text — deliberately no
-  // React state and no measure-after-render effect. An earlier version measured
+  // React state and no measure-after-render effect, and only two possible outcomes
+  // (big or small) rather than a multi-tier ladder. An earlier version measured
   // scrollHeight/clientHeight and incrementally stepped a shrink index down (and
-  // reset it back up on card change) across three separate pieces of state
-  // (badge/spacing compaction, te-form size, heading size). After several rounds of
-  // tweaks that machinery became too easy to leave in a state nobody could fully
-  // reason about by inspection — exactly the kind of bug class a stateful effect
-  // invites. A plain function of this card's own backText/te_form length can't get
-  // "stuck" carrying over something from whichever card was shown before it.
+  // reset it back up on card change) across three separate pieces of state. After
+  // several rounds of tweaks that machinery became too easy to leave in a state
+  // nobody could fully reason about by inspection. A plain function of this card's
+  // own backText/te_form length can't get "stuck" carrying over something from
+  // whichever card was shown before it.
   const backTextLen = backText.length;
   const teFormLen = showsTeForm ? (card?.te_form?.length ?? 0) : 0;
-  const headingIdx = Math.min(
-    (backTextLen > 60 ? 2 : backTextLen > 40 ? 1 : 0) +
-      (teFormLen >= 5 ? 2 : teFormLen >= 3 ? 1 : 0),
-    BACK_EN_SIZE_LADDER.length - 1,
-  );
-  const teFormIdx = Math.min(teFormLen > 8 ? 2 : teFormLen > 5 ? 1 : 0, TE_FORM_SIZE_LADDER.length - 1);
-  const backSizeLadder = isBackJapanese ? BACK_JP_SIZE_LADDER : BACK_EN_SIZE_LADDER;
-  const backHeadingClass = isBackJapanese ? backSizeLadder[0] : BACK_EN_SIZE_LADDER[headingIdx];
+  const isHeadingBig = backTextLen <= 30 && teFormLen <= 4;
+  const isTeFormBig = teFormLen <= 4;
+  const backHeadingClass = isBackJapanese
+    ? BACK_JP_PINNED_SIZE
+    : isHeadingBig ? HEADING_BIG : HEADING_SMALL;
 
   return (
     <>
@@ -558,10 +551,9 @@ export default function Flashcard({
                   </p>
                 )}
 
-                {/* Kanji itself (isBackJapanese) is pinned to the ladder's largest tier
-                    rather than shrinking. The English meaning (backHeadingClass) is
-                    sized purely from its own + the te-form's length — see headingIdx
-                    above. */}
+                {/* Kanji itself (isBackJapanese) is pinned, never shrunk. The English
+                    meaning (backHeadingClass) is just big or small, from its own +
+                    the te-form's length — see isHeadingBig above. */}
                 <h2 className={`font-bold leading-tight break-words w-full ${backHeadingClass}`}>
                   {backText}
                 </h2>
@@ -595,7 +587,7 @@ export default function Flashcard({
                     unlike a godan/ichidan te-form's real sound change (読む→読んで) or even
                     来る→来て, which are worth showing. */}
                 {showsTeForm && (
-                  <p className={`text-indigo-200 ${TE_FORM_SIZE_LADDER[teFormIdx]} mt-1.5 font-medium`}>
+                  <p className={`text-indigo-200 ${isTeFormBig ? TE_FORM_BIG : TE_FORM_SMALL} mt-1.5 font-medium`}>
                     Te-form: <span className="text-white font-bold">{card.te_form}</span>
                   </p>
                 )}
