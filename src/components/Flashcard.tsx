@@ -382,18 +382,18 @@ export default function Flashcard({
 
   // The meaning should read clearly bigger than the (fixed-size) reading above it by
   // default — only a meaning that's long for its own sake, or paired with a te-form
-  // that itself has real length to it, should give up some of that size. This computes
-  // that starting point directly from both lengths, rather than always starting at the
-  // biggest tier and leaning entirely on measured overflow — a short meaning next to a
-  // short te-form (伺って) has no business shrinking just because a sibling card's
-  // badges happened to overflow; it should default to its natural, bigger-than-reading
-  // size and only concede room for genuinely long content. showsTeForm (not just
-  // card?.te_form) gates the bonus — a te-form hidden for a suru verb takes no space
-  // and so shouldn't shrink anything.
+  // that itself has real length to it, should give up some of that size. A typical
+  // 2-3 synonym meaning ("anew / again / properly", 23 chars) is NOT "long" here —
+  // it's the normal shape of this app's definitions and must stay at the biggest
+  // tier; only a meaning that's unusually long on its own (40+ chars) concedes size
+  // up front, and the measured-overflow effect below still corrects anything this
+  // guess gets wrong, so nothing actually clips. showsTeForm (not just card?.te_form)
+  // gates the te-form bonus — one hidden for a suru verb takes no space and
+  // shouldn't shrink anything.
   const backTextLen = backText.length;
   const teFormLen = showsTeForm ? (card?.te_form?.length ?? 0) : 0;
   const naturalHeadingIdx = Math.min(
-    (backTextLen > 50 ? 4 : backTextLen > 35 ? 3 : backTextLen > 25 ? 2 : backTextLen > 15 ? 1 : 0) +
+    (backTextLen > 60 ? 2 : backTextLen > 40 ? 1 : 0) +
       (teFormLen >= 5 ? 2 : teFormLen >= 3 ? 1 : 0),
     BACK_EN_SIZE_LADDER.length - 1,
   );
