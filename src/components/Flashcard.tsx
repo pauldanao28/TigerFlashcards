@@ -622,8 +622,12 @@ export default function Flashcard({
                   </div>
                 )}
                 {/* Only actual verbs — a suru-noun's te-form (勉強して) is redundant next
-                    to its own badges + suru_meaning line right below. */}
-                {card?.te_form && card?.partOfSpeech === "verb" && (
+                    to its own badges + suru_meaning line right below. Also skipped for a
+                    verb whose dictionary form itself ends in する (勉強する, 愛する, する
+                    itself) — its te-form is always just that + して, entirely predictable,
+                    unlike a godan/ichidan te-form's real sound change (読む→読んで) or even
+                    来る→来て, which are worth showing. */}
+                {card?.te_form && card?.partOfSpeech === "verb" && !card?.japanese?.endsWith("する") && (
                   <p className={`text-indigo-200 ${compactExtras ? "text-[11px] mt-1" : "text-xs mt-1.5"} font-medium`}>
                     Te-form: <span className="text-white font-bold">{card.te_form}</span>
                   </p>
