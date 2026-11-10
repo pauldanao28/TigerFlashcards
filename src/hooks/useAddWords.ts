@@ -96,22 +96,33 @@ export function useAddWords({
     const { ids: cardIds, skipped } = await skipDeckDuplicates(deckId, rawIds);
     skipped.forEach((d) => skippedFor.set(d.remove.id, { ...d.keep, alreadyInDeck: true }));
     if (cardIds.length === 0) return;
+
+    // A card already in the deck must NEVER get its user_scores row re-upserted with
+    // a blank scores_json — that wipes real progress back to zero, making a card
+    // studied many times look brand new again ("I already know this" button and
+    // all). Only genuinely new-to-this-deck cards get a fresh blank row; deck_cards
+    // itself is still safely re-upserted for all of them (idempotent membership).
+    const alreadyLinkedIds = await alreadyLinked(cardIds);
+    const newIds = cardIds.filter((id) => !alreadyLinkedIds.has(id));
+
     const [deckRes, scoreRes] = await Promise.all([
       supabase.from("deck_cards").upsert(
         cardIds.map((id) => ({ deck_id: deckId, card_id: id })),
         { onConflict: "deck_id,card_id" },
       ),
-      supabase.from("user_scores").upsert(
-        cardIds.map((id) => ({
-          user_id: userId,
-          card_id: id,
-          scores_json: {
-            jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
-            en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
-          },
-        })),
-        { onConflict: "user_id,card_id" },
-      ),
+      newIds.length > 0
+        ? supabase.from("user_scores").upsert(
+            newIds.map((id) => ({
+              user_id: userId,
+              card_id: id,
+              scores_json: {
+                jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
+                en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
+              },
+            })),
+            { onConflict: "user_id,card_id" },
+          )
+        : Promise.resolve({ error: null }),
     ]);
     if (deckRes.error) throw deckRes.error;
     if (scoreRes.error) throw scoreRes.error;
