@@ -313,7 +313,11 @@ export default function Flashcard({
   // steps the measure-and-shrink effect below can fall through to for text long
   // enough that even that tier still overflows.
   const BACK_JP_SIZE_LADDER = ["text-5xl sm:text-6xl", "text-4xl", "text-3xl", "text-2xl", "text-xl", "text-lg", "text-base"];
-  const BACK_EN_SIZE_LADDER = ["text-3xl sm:text-4xl", "text-3xl", "text-2xl", "text-xl", "text-lg", "text-base", "text-sm", "text-xs"];
+  // idx0 used to be "text-3xl sm:text-4xl" — the sm: breakpoint (640px+) never
+  // applies on a phone, so that tier rendered as plain text-3xl there: identical to
+  // idx1, making the "biggest" size indistinguishable from its own first shrink step
+  // and capping every simple card well below what the available room allowed.
+  const BACK_EN_SIZE_LADDER = ["text-4xl", "text-3xl", "text-2xl", "text-xl", "text-lg", "text-base", "text-sm", "text-xs"];
   // Kanji and its furigana reading are never shrunk — both are naturally short, and
   // they're the actual flashcard content, not filler that should visually recede.
   // The example sentence/translation (below) are the adjustable levers for a card
