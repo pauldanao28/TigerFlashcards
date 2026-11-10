@@ -936,6 +936,7 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
           words={mining.addedWordsSummary}
           onClose={mining.closeSummary}
           onDelete={mining.removeAdded}
+          limitApplied={mining.limitApplied}
           zClassName="z-[330]"
         />
       )}

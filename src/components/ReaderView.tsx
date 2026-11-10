@@ -662,6 +662,7 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
           words={mining.addedWordsSummary}
           onClose={mining.closeSummary}
           onDelete={mining.removeAdded}
+          limitApplied={mining.limitApplied}
           zClassName="z-[330]"
         />
       )}

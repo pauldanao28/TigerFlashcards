@@ -58,6 +58,7 @@ export function useWordMining(userId: string) {
     showSummary,
     setShowSummary,
     deleteFromSummary,
+    limitApplied,
   } = useAddWords({
     userId,
     deckId: deckId ?? "",
@@ -292,6 +293,7 @@ export function useWordMining(userId: string) {
     toggleNewWord,
     toggleAllNewWords,
     addSelectedNewWords,
+    limitApplied,
   };
 }
 

@@ -54,6 +54,11 @@ export function useAddWords({
   const [loading, setLoading] = useState(false);
   const [addedWordsSummary, setAddedWordsSummary] = useState<AddedWordSummary[]>([]);
   const [showSummary, setShowSummary] = useState(false);
+  // Whether DAILY_LIMIT actually truncated this batch — admin/premium accounts
+  // bypass or never approach it, so this must reflect the real check below, not
+  // a guess from the resulting word count (a big legitimate batch, or one mostly
+  // "already in deck", looks identical to a truncated one by count alone).
+  const [limitApplied, setLimitApplied] = useState(false);
 
   // "Related Words" — shown only after a deliberate single-word add (not a batch),
   // below the summary. Fetched separately from the add itself so a slow/failed AI
@@ -187,6 +192,7 @@ export function useAddWords({
     // re-populated below only when this turns out to be a single-word add.
     setRelatedWords([]);
     setRelatedWordsAttempted(false);
+    setLimitApplied(false);
 
     setLoading(true);
     setUploadBusy(true);
@@ -213,6 +219,7 @@ export function useAddWords({
         if (currentToday + uniqueInputWords.length > DAILY_LIMIT) {
           const allowedCount = DAILY_LIMIT - currentToday;
           wordsToActuallyProcess = uniqueInputWords.slice(0, allowedCount);
+          setLimitApplied(true);
           showAlert(t.partial_limit_msg);
         }
       }
@@ -381,5 +388,6 @@ export function useAddWords({
     relatedWordsLoading,
     relatedWordsAttempted,
     addRelatedWord,
+    limitApplied,
   };
 }

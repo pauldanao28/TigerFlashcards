@@ -33,6 +33,7 @@ export default function AddedWordsSummary({
   relatedWordsLoading,
   relatedWordsAttempted,
   onAddRelated,
+  limitApplied = false,
   zClassName = "z-[260]",
 }: {
   words: AddedWordSummary[];
@@ -44,6 +45,10 @@ export default function AddedWordsSummary({
   // (an empty-state message instead of the section silently not appearing at all).
   relatedWordsAttempted?: boolean;
   onAddRelated?: (word: RelatedWord) => void;
+  // Whether useAddWords' DAILY_LIMIT actually truncated this batch — admin/premium
+  // accounts bypass or raise that limit, so a big word count here doesn't mean a
+  // limit was hit; only the caller's real check does.
+  limitApplied?: boolean;
   zClassName?: string;
 }) {
   return (
@@ -82,7 +87,7 @@ export default function AddedWordsSummary({
                 </div>
               );
             })()}
-            {words.length >= 50 && (
+            {limitApplied && (
               <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-black border border-amber-200 animate-pulse">
                 {t.limit_notice}
               </span>

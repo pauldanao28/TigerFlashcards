@@ -48,6 +48,7 @@ export default function AddWordsSheet({
     relatedWordsLoading,
     relatedWordsAttempted,
     addRelatedWord,
+    limitApplied,
   } = useAddWords({ userId, deckId, isAdmin, blocklist, onAdded });
 
   const [input, setInput] = useState("");
@@ -320,6 +321,7 @@ export default function AddWordsSheet({
           relatedWordsLoading={relatedWordsLoading}
           relatedWordsAttempted={relatedWordsAttempted}
           onAddRelated={addRelatedWord}
+          limitApplied={limitApplied}
         />
       )}
 
