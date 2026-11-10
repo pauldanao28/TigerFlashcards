@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, useMotionValue, useTransform } from "framer-motion";
 import { Star, Lightbulb, Loader2, X } from "lucide-react";
@@ -373,8 +373,8 @@ export default function Flashcard({
   // Use optional chaining here too
   const isBackJapanese = card ? backText === card.japanese : false;
 
-  // Shared with the natural-size calc below (getBackEnNaturalIndex) so a te-form that
-  // isn't actually rendered (hidden for suru verbs) never affects the meaning's size.
+  // Shared with the size calc below (headingIdx/teFormIdx) so a te-form that isn't
+  // actually rendered (hidden for suru verbs) never affects the meaning's size.
   const showsTeForm = !!(card?.te_form && card?.partOfSpeech === "verb" && !card?.japanese?.endsWith("する"));
 
   // Per-card accuracy/reflex-speed now lives in the header above the card (StudyView),
@@ -387,82 +387,29 @@ export default function Flashcard({
   // that itself has real length to it, should give up some of that size. A typical
   // 2-3 synonym meaning ("anew / again / properly", 23 chars) is NOT "long" here —
   // it's the normal shape of this app's definitions and must stay at the biggest
-  // tier; only a meaning that's unusually long on its own (40+ chars) concedes size
-  // up front, and the measured-overflow effect below still corrects anything this
-  // guess gets wrong, so nothing actually clips. showsTeForm (not just card?.te_form)
-  // gates the te-form bonus — one hidden for a suru verb takes no space and
-  // shouldn't shrink anything.
+  // tier; only a meaning that's unusually long on its own (40+ chars) concedes size.
+  // showsTeForm (not just card?.te_form) gates the te-form bonus — one hidden for a
+  // suru verb takes no space and shouldn't shrink anything.
+  //
+  // This is a PURE calculation from the current card's own text — deliberately no
+  // React state and no measure-after-render effect. An earlier version measured
+  // scrollHeight/clientHeight and incrementally stepped a shrink index down (and
+  // reset it back up on card change) across three separate pieces of state
+  // (badge/spacing compaction, te-form size, heading size). After several rounds of
+  // tweaks that machinery became too easy to leave in a state nobody could fully
+  // reason about by inspection — exactly the kind of bug class a stateful effect
+  // invites. A plain function of this card's own backText/te_form length can't get
+  // "stuck" carrying over something from whichever card was shown before it.
   const backTextLen = backText.length;
   const teFormLen = showsTeForm ? (card?.te_form?.length ?? 0) : 0;
-  const naturalHeadingIdx = Math.min(
+  const headingIdx = Math.min(
     (backTextLen > 60 ? 2 : backTextLen > 40 ? 1 : 0) +
       (teFormLen >= 5 ? 2 : teFormLen >= 3 ? 1 : 0),
     BACK_EN_SIZE_LADDER.length - 1,
   );
-
-  // A long definition (or, in the other study direction, a long JP answer) can still
-  // outgrow the card even from that natural starting point once the reading, badges,
-  // and example sentence below it are accounted for. Rather than letting it scroll —
-  // which used to be the fallback here — this measures the actual rendered height and
-  // keeps stepping down a single, prioritized ladder of levers until the content
-  // genuinely fits, so the whole card is always visible at once. The example sentence/
-  // translation are NOT a lever at all — always fixed small (SENTENCE_SIZE/
-  // TRANSLATION_SIZE above) so they never hog room the meaning/te-form need. In order:
-  // 1. compactExtras — tightens the badges/te-form/suru_meaning spacing AND the
-  //    footer's own margins/padding, reclaiming fixed layout overhead rather than text.
-  // 2. teFormShrinkIdx — the te-form line, both directions (it's supporting content
-  //    regardless of which side the kanji is on).
-  // 3. headingShrinkIdx — the meaning itself, EN direction only (isBackJapanese pins
-  //    kanji/furigana and never shrinks them) — starting from getBackEnNaturalIndex,
-  //    not always 0, and only stepping down further from real measured overflow.
-  const backContentRef = useRef<HTMLDivElement>(null);
-  const upperContentRef = useRef<HTMLDivElement>(null);
-  const [compactExtras, setCompactExtras] = useState(false);
-  const [teFormShrinkIdx, setTeFormShrinkIdx] = useState(0);
-  const [headingShrinkIdx, setHeadingShrinkIdx] = useState(0);
+  const teFormIdx = Math.min(teFormLen > 8 ? 2 : teFormLen > 5 ? 1 : 0, TE_FORM_SIZE_LADDER.length - 1);
   const backSizeLadder = isBackJapanese ? BACK_JP_SIZE_LADDER : BACK_EN_SIZE_LADDER;
-
-  // The reset-on-card-change used to be a separate plain useEffect — but that runs as
-  // a passive effect, AFTER this layout effect's own shrink-convergence chain
-  // (triggered by its own setState calls) already fully resolves against the PREVIOUS
-  // card's leftover state. The reset then fires late, kicking off a second convergence
-  // from scratch — on some cards that extra churn could still leave the card
-  // under-shrunk when it got interrupted or settled on a mismeasured step. Resetting
-  // inside this same layout effect, gated on a ref, keeps the whole reset-then-converge
-  // sequence synchronous and pre-paint.
-  const lastSizedCardIdRef = useRef<string | undefined>(undefined);
-
-  useLayoutEffect(() => {
-    const backEl = backContentRef.current;
-    const upperEl = upperContentRef.current;
-    if (!backEl || !upperEl) return;
-
-    if (lastSizedCardIdRef.current !== card?.id) {
-      lastSizedCardIdRef.current = card?.id;
-      if (compactExtras || teFormShrinkIdx !== 0 || headingShrinkIdx !== naturalHeadingIdx) {
-        setCompactExtras(false);
-        setTeFormShrinkIdx(0);
-        setHeadingShrinkIdx(naturalHeadingIdx);
-        return;
-      }
-    }
-
-    if (backEl.scrollHeight <= backEl.clientHeight && upperEl.scrollHeight <= upperEl.clientHeight) return;
-
-    if (!compactExtras) {
-      setCompactExtras(true);
-      return;
-    }
-    if (teFormShrinkIdx < TE_FORM_SIZE_LADDER.length - 1) {
-      setTeFormShrinkIdx((i) => i + 1);
-      return;
-    }
-    if (!isBackJapanese && headingShrinkIdx < BACK_EN_SIZE_LADDER.length - 1) {
-      setHeadingShrinkIdx((i) => i + 1);
-    }
-  }, [compactExtras, teFormShrinkIdx, headingShrinkIdx, naturalHeadingIdx, isBackJapanese, card?.id, TE_FORM_SIZE_LADDER.length, BACK_EN_SIZE_LADDER.length]);
-
-  const backHeadingClass = isBackJapanese ? backSizeLadder[0] : BACK_EN_SIZE_LADDER[headingShrinkIdx];
+  const backHeadingClass = isBackJapanese ? backSizeLadder[0] : BACK_EN_SIZE_LADDER[headingIdx];
 
   return (
     <>
@@ -595,57 +542,47 @@ export default function Flashcard({
             {/* pt-8: the jlpt_level/partOfSpeech badges above are absolutely positioned
                 (top-4, ~14px tall past this div's own padding edge) — without this, a
                 vertically-centered block tall enough to nearly fill this container has
-                near-zero top margin and sits right under those badges, which is exactly
-                what the shrink-to-fit effect doesn't prevent (it only guards against
-                scroll overflow, not against this leftover gap being too small). This
-                reserves real clearance unconditionally instead. */}
-            <div ref={backContentRef} className="flex-1 min-h-0 flex flex-col w-full overflow-hidden pt-8">
+                near-zero top margin and sits right under those badges. This reserves
+                real clearance unconditionally. */}
+            <div className="flex-1 min-h-0 flex flex-col w-full overflow-hidden pt-8">
               {/* Content group — centered within whatever space is left above the
                   footer below (which is shrink-0, a fixed sibling, not part of this
                   centered group) — so the footer's position no longer depends on how
                   much reading/heading/badge content there is above it; the Listen/
                   Lightbulb/Report row always lands in roughly the same place instead
                   of drifting with every card. */}
-              <div ref={upperContentRef} className="flex-1 min-h-0 flex flex-col items-center justify-center w-full overflow-hidden">
+              <div className="flex-1 min-h-0 flex flex-col items-center justify-center w-full overflow-hidden">
                 {(language === "jp" || language === "en") && card?.reading && (
-                  <p className={`text-indigo-200 ${READING_SIZE} ${compactExtras ? "mb-1" : "mb-2"} font-medium tracking-wide animate-fade-in truncate w-full`}>
+                  <p className={`text-indigo-200 ${READING_SIZE} mb-2 font-medium tracking-wide animate-fade-in truncate w-full`}>
                     {card?.reading}
                   </p>
                 )}
 
-                {/* transition-none, not transition-all like the front side's span — a
-                    CSS transition on font-size means a shrink effect's synchronous
-                    scrollHeight read (right after bumping an index) still reflects the
-                    pre-transition size, so it can under-shrink and leave content below
-                    clipped by the container's overflow-hidden. Kanji itself
-                    (isBackJapanese) is pinned to the ladder's largest tier rather than
-                    shrinking — sentence/translation below are the only lever there. The
-                    English meaning (backHeadingClass) starts at its biggest tier too and
-                    only shrinks once the footer's own levers are exhausted — see the
-                    priority-ordered effect above. */}
-                <h2
-                  className={`font-bold leading-tight break-words w-full transition-none ${backHeadingClass}`}
-                >
+                {/* Kanji itself (isBackJapanese) is pinned to the ladder's largest tier
+                    rather than shrinking. The English meaning (backHeadingClass) is
+                    sized purely from its own + the te-form's length — see headingIdx
+                    above. */}
+                <h2 className={`font-bold leading-tight break-words w-full ${backHeadingClass}`}>
                   {backText}
                 </h2>
 
                 {(card?.transitivity || card?.verb_type || card?.adjective_type) && (
-                  <div className={`flex flex-wrap items-center justify-center gap-1.5 ${compactExtras ? "mt-1.5" : "mt-3"}`}>
+                  <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3">
                     {card?.partOfSpeech === "noun" && (card?.transitivity || card?.verb_type) && (
                       <span className="text-indigo-200 text-[10px] font-bold">{suruLabel(card.japanese)}:</span>
                     )}
                     {card?.transitivity && (
-                      <span className={`${compactExtras ? "px-2 py-0.5" : "px-2.5 py-1"} bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10`}>
+                      <span className="px-2.5 py-1 bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10">
                         {card.transitivity === "transitive" ? "Transitive" : "Intransitive"}
                       </span>
                     )}
                     {card?.verb_type && (
-                      <span className={`${compactExtras ? "px-2 py-0.5" : "px-2.5 py-1"} bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10`}>
+                      <span className="px-2.5 py-1 bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10">
                         {card.verb_type === "godan" ? "Godan" : card.verb_type === "ichidan" ? "Ichidan" : "Irregular"}
                       </span>
                     )}
                     {card?.adjective_type && (
-                      <span className={`${compactExtras ? "px-2 py-0.5" : "px-2.5 py-1"} bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10`}>
+                      <span className="px-2.5 py-1 bg-white/15 rounded-full text-[9px] font-black uppercase tracking-widest border border-white/10">
                         {card.adjective_type === "i" ? "い-adjective" : "な-adjective"}
                       </span>
                     )}
@@ -658,25 +595,22 @@ export default function Flashcard({
                     unlike a godan/ichidan te-form's real sound change (読む→読んで) or even
                     来る→来て, which are worth showing. */}
                 {showsTeForm && (
-                  <p className={`text-indigo-200 ${TE_FORM_SIZE_LADDER[teFormShrinkIdx]} ${compactExtras ? "mt-1" : "mt-1.5"} font-medium`}>
+                  <p className={`text-indigo-200 ${TE_FORM_SIZE_LADDER[teFormIdx]} mt-1.5 font-medium`}>
                     Te-form: <span className="text-white font-bold">{card.te_form}</span>
                   </p>
                 )}
                 {card?.suru_meaning && (
-                  <p className={`text-indigo-200 ${compactExtras ? "text-[11px] mt-1" : "text-xs mt-1.5"} font-medium line-clamp-2`} title={card.suru_meaning}>
+                  <p className="text-indigo-200 text-xs mt-1.5 font-medium line-clamp-2" title={card.suru_meaning}>
                     {suruLabel(card.japanese)}: <span className="text-white font-bold">{card.suru_meaning}</span>
                   </p>
                 )}
               </div>
 
               {/* Footer — fixed position (shrink-0, not part of the centered group
-                  above), so Listen/Lightbulb/Report always land in the same place.
-                  compactExtras also tightens this footer's own margins/padding — a
-                  crowded upper group (badges/te-form/suru_meaning) reclaims fixed
-                  layout overhead here before the heading itself has to give up size. */}
-              <div className={`${compactExtras ? "mt-2 pt-2" : "mt-4 pt-4"} border-t border-indigo-400/50 w-full shrink-0`}>
+                  above), so Listen/Lightbulb/Report always land in the same place. */}
+              <div className="mt-4 pt-4 border-t border-indigo-400/50 w-full shrink-0">
                 {card?.exampleSentence?.jp && (
-                  <div className={`${compactExtras ? "mb-2" : "mb-4"} px-2 text-center`}>
+                  <div className="mb-4 px-2 text-center">
                     {/* Always small and fixed — never a shrink lever. See SENTENCE_SIZE
                         above for why. */}
                     <p className={`${SENTENCE_SIZE} italic text-indigo-50 line-clamp-3 overflow-hidden break-words`}>
