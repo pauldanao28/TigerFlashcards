@@ -63,7 +63,7 @@ const PRIORITY_CAP = 30;
 // Today" — a single slip doesn't count, a repeated one does. Same threshold (and
 // cleared_at exclusion) WeakWordsQuiz/count_weak_words use, so this list and the
 // Study page's "Struggling (N)" badge always agree on the same number.
-const DAILY_STRUGGLE_THRESHOLD = 2;
+const DAILY_STRUGGLE_THRESHOLD = 3;
 
 export default function StatsPage() {
   const router = useRouter();

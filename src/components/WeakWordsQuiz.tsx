@@ -13,10 +13,9 @@ import { useWordLookup } from "@/hooks/useWordLookup";
 import type { KanjiMnemonic } from "@/lib/types";
 
 const POOL_SIZE = 10;
-// Lower than Cards' "Struggling Today" (3) — this quiz's whole purpose is a pool
-// to work through, so it should fill up faster than the stricter "what did I get
-// wrong today" diary chip does.
-const DAILY_STRUGGLE_THRESHOLD = 2;
+// Same threshold (and cleared_at exclusion) as Cards' "Struggling Today" and
+// count_weak_words, so this pool and that badge always agree on the same number.
+const DAILY_STRUGGLE_THRESHOLD = 3;
 
 interface ScoreDir { pass: number; fail: number; total: number; percent: number }
 interface DeckRow {
