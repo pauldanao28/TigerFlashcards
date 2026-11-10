@@ -371,29 +371,48 @@ export default function Flashcard({
   // Use optional chaining here too
   const isBackJapanese = card ? backText === card.japanese : false;
 
+  // Shared with the natural-size calc below (getBackEnNaturalIndex) so a te-form that
+  // isn't actually rendered (hidden for suru verbs) never affects the meaning's size.
+  const showsTeForm = !!(card?.te_form && card?.partOfSpeech === "verb" && !card?.japanese?.endsWith("する"));
+
   // Per-card accuracy/reflex-speed now lives in the header above the card (StudyView),
   // not here — this card's own vertical space is tight enough already (badges +
   // te-form can run close to the limit on their own) that reserving a line for it here
   // was part of what made the furigana-clipping problem worse, not just a symptom of it.
 
-  // A long definition (or, in the other study direction, a long JP answer) can
-  // outgrow the card even at getFontSize's smallest static tier once the reading,
-  // badges, and example sentence below it are accounted for. Rather than letting it
-  // scroll — which used to be the fallback here — this measures the actual rendered
-  // height and keeps stepping down a single, prioritized ladder of levers until the
-  // content genuinely fits, so the whole card is always visible at once. The example
-  // sentence/translation are NOT a lever at all — always fixed small (SENTENCE_SIZE/
+  // The meaning should read clearly bigger than the (fixed-size) reading above it by
+  // default — only a meaning that's long for its own sake, or paired with a te-form
+  // that itself has real length to it, should give up some of that size. This computes
+  // that starting point directly from both lengths, rather than always starting at the
+  // biggest tier and leaning entirely on measured overflow — a short meaning next to a
+  // short te-form (伺って) has no business shrinking just because a sibling card's
+  // badges happened to overflow; it should default to its natural, bigger-than-reading
+  // size and only concede room for genuinely long content. showsTeForm (not just
+  // card?.te_form) gates the bonus — a te-form hidden for a suru verb takes no space
+  // and so shouldn't shrink anything.
+  const backTextLen = backText.length;
+  const teFormLen = showsTeForm ? (card?.te_form?.length ?? 0) : 0;
+  const naturalHeadingIdx = Math.min(
+    (backTextLen > 50 ? 4 : backTextLen > 35 ? 3 : backTextLen > 25 ? 2 : backTextLen > 15 ? 1 : 0) +
+      (teFormLen >= 5 ? 2 : teFormLen >= 3 ? 1 : 0),
+    BACK_EN_SIZE_LADDER.length - 1,
+  );
+
+  // A long definition (or, in the other study direction, a long JP answer) can still
+  // outgrow the card even from that natural starting point once the reading, badges,
+  // and example sentence below it are accounted for. Rather than letting it scroll —
+  // which used to be the fallback here — this measures the actual rendered height and
+  // keeps stepping down a single, prioritized ladder of levers until the content
+  // genuinely fits, so the whole card is always visible at once. The example sentence/
+  // translation are NOT a lever at all — always fixed small (SENTENCE_SIZE/
   // TRANSLATION_SIZE above) so they never hog room the meaning/te-form need. In order:
   // 1. compactExtras — tightens the badges/te-form/suru_meaning spacing AND the
   //    footer's own margins/padding, reclaiming fixed layout overhead rather than text.
   // 2. teFormShrinkIdx — the te-form line, both directions (it's supporting content
   //    regardless of which side the kanji is on).
   // 3. headingShrinkIdx — the meaning itself, EN direction only (isBackJapanese pins
-  //    kanji/furigana and never shrinks them). Always STARTS at the ladder's biggest
-  //    tier (index 0) and only steps down from real measured overflow — a length-based
-  //    guess at the "right" starting size used to shrink moderate-length meanings that
-  //    had genuine room to stay big, since a char-count heuristic can't know the actual
-  //    rendered height the way measuring backContentRef/upperContentRef directly can.
+  //    kanji/furigana and never shrinks them) — starting from getBackEnNaturalIndex,
+  //    not always 0, and only stepping down further from real measured overflow.
   const backContentRef = useRef<HTMLDivElement>(null);
   const upperContentRef = useRef<HTMLDivElement>(null);
   const [compactExtras, setCompactExtras] = useState(false);
@@ -401,14 +420,14 @@ export default function Flashcard({
   const [headingShrinkIdx, setHeadingShrinkIdx] = useState(0);
   const backSizeLadder = isBackJapanese ? BACK_JP_SIZE_LADDER : BACK_EN_SIZE_LADDER;
 
-  // The reset-to-0 on card change used to be a separate plain useEffect — but that
-  // runs as a passive effect, AFTER this layout effect's own shrink-convergence
-  // chain (triggered by its own setState calls) already fully resolves against the
-  // PREVIOUS card's leftover state. The reset then fires late, kicking off a second
-  // convergence from scratch — on some cards that extra churn could still leave the
-  // card under-shrunk when it got interrupted or settled on a mismeasured step.
-  // Resetting inside this same layout effect, gated on a ref, keeps the whole
-  // reset-then-converge sequence synchronous and pre-paint.
+  // The reset-on-card-change used to be a separate plain useEffect — but that runs as
+  // a passive effect, AFTER this layout effect's own shrink-convergence chain
+  // (triggered by its own setState calls) already fully resolves against the PREVIOUS
+  // card's leftover state. The reset then fires late, kicking off a second convergence
+  // from scratch — on some cards that extra churn could still leave the card
+  // under-shrunk when it got interrupted or settled on a mismeasured step. Resetting
+  // inside this same layout effect, gated on a ref, keeps the whole reset-then-converge
+  // sequence synchronous and pre-paint.
   const lastSizedCardIdRef = useRef<string | undefined>(undefined);
 
   useLayoutEffect(() => {
@@ -418,10 +437,10 @@ export default function Flashcard({
 
     if (lastSizedCardIdRef.current !== card?.id) {
       lastSizedCardIdRef.current = card?.id;
-      if (compactExtras || teFormShrinkIdx !== 0 || headingShrinkIdx !== 0) {
+      if (compactExtras || teFormShrinkIdx !== 0 || headingShrinkIdx !== naturalHeadingIdx) {
         setCompactExtras(false);
         setTeFormShrinkIdx(0);
-        setHeadingShrinkIdx(0);
+        setHeadingShrinkIdx(naturalHeadingIdx);
         return;
       }
     }
@@ -439,7 +458,7 @@ export default function Flashcard({
     if (!isBackJapanese && headingShrinkIdx < BACK_EN_SIZE_LADDER.length - 1) {
       setHeadingShrinkIdx((i) => i + 1);
     }
-  }, [compactExtras, teFormShrinkIdx, headingShrinkIdx, backText, isBackJapanese, card?.id, TE_FORM_SIZE_LADDER.length, BACK_EN_SIZE_LADDER.length]);
+  }, [compactExtras, teFormShrinkIdx, headingShrinkIdx, naturalHeadingIdx, isBackJapanese, card?.id, TE_FORM_SIZE_LADDER.length, BACK_EN_SIZE_LADDER.length]);
 
   const backHeadingClass = isBackJapanese ? backSizeLadder[0] : BACK_EN_SIZE_LADDER[headingShrinkIdx];
 
@@ -636,7 +655,7 @@ export default function Flashcard({
                     itself) — its te-form is always just that + して, entirely predictable,
                     unlike a godan/ichidan te-form's real sound change (読む→読んで) or even
                     来る→来て, which are worth showing. */}
-                {card?.te_form && card?.partOfSpeech === "verb" && !card?.japanese?.endsWith("する") && (
+                {showsTeForm && (
                   <p className={`text-indigo-200 ${TE_FORM_SIZE_LADDER[teFormShrinkIdx]} ${compactExtras ? "mt-1" : "mt-1.5"} font-medium`}>
                     Te-form: <span className="text-white font-bold">{card.te_form}</span>
                   </p>
