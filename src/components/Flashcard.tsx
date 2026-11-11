@@ -405,7 +405,11 @@ export default function Flashcard({
   const teFormLen = showsTeForm ? (card?.te_form?.length ?? 0) : 0;
   const hasGrammarBadges = !!(card?.transitivity || card?.verb_type || card?.adjective_type);
   const isCrowded = hasGrammarBadges || showsTeForm;
-  const isHeadingBig = isCrowded ? backTextLen <= 15 && teFormLen <= 3 : backTextLen <= 30;
+  // 30 chars was still too generous even on a simple card ("atmosphere / mood /
+  // ambiance", 28 chars, no badges/te-form at all) — it wrapped to 3 lines at the
+  // big size and still clipped the reading above it. 25 is the new line between a
+  // confirmed-good case ("anew / again / properly", 23 chars) and that one.
+  const isHeadingBig = isCrowded ? backTextLen <= 15 && teFormLen <= 3 : backTextLen <= 25;
   const isTeFormBig = teFormLen <= 4;
   const backHeadingClass = isBackJapanese
     ? BACK_JP_PINNED_SIZE
