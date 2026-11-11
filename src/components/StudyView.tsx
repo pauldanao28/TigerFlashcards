@@ -69,6 +69,58 @@ interface StudyCacheEntry {
 }
 let _studyCache: StudyCacheEntry | null = null;
 
+// _studyCache alone only makes re-mounting the component instant *within the same
+// browser/app session* — it's a plain module variable, so a cold app restart (the
+// common case: closing and reopening the installed PWA) always starts from nothing
+// and pays the full network round trip before showing a single card. Persisting to
+// localStorage lets that cold start render instantly from yesterday's cards
+// (fetchInitialData above still runs and silently replaces it once the real fetch
+// lands — see the "only show the spinner if we have NO cards" comment there), the
+// same stale-then-refresh approach the service worker already uses for HTML.
+//
+// Split into two keys, not one: `cards` is the big one (a deck can be 1000+ rows)
+// and only changes when freshly fetched, while `current` is tiny and changes on
+// every single card reviewed — writing the whole deck back to localStorage on every
+// flip would be real, pointless work on every review.
+const studyCardsKey = (userId: string) => `flashkado_study_cards_${userId}`;
+const studyCurrentKey = (userId: string) => `flashkado_study_current_${userId}`;
+let _studyCacheHydrationAttempted = false;
+
+function getStudyCache(userId: string): StudyCacheEntry | null {
+  if (_studyCache?.userId === userId) return _studyCache;
+  if (_studyCacheHydrationAttempted || typeof window === "undefined") return null;
+  _studyCacheHydrationAttempted = true;
+  try {
+    const cardsRaw = localStorage.getItem(studyCardsKey(userId));
+    if (!cardsRaw) return null;
+    const { deckId, cards } = JSON.parse(cardsRaw) as { deckId: string | null; cards: FlashcardData[] };
+    let currentCard: FlashcardData | null = null;
+    try {
+      const currentRaw = localStorage.getItem(studyCurrentKey(userId));
+      if (currentRaw) currentCard = JSON.parse(currentRaw);
+    } catch { /* corrupt/missing — fine, fetchInitialData picks a card anyway */ }
+    const entry: StudyCacheEntry = { userId, cards, deckId, currentCard };
+    _studyCache = entry;
+    return entry;
+  } catch {
+    return null; // corrupt JSON, private-mode storage block, etc. — just fetch fresh
+  }
+}
+
+function persistStudyCards(userId: string, deckId: string | null, cards: FlashcardData[]) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(studyCardsKey(userId), JSON.stringify({ deckId, cards }));
+  } catch { /* quota exceeded or storage blocked — not worth surfacing to the user */ }
+}
+
+function persistStudyCurrentCard(userId: string, currentCard: FlashcardData | null) {
+  if (typeof window === "undefined" || !currentCard) return;
+  try {
+    localStorage.setItem(studyCurrentKey(userId), JSON.stringify(currentCard));
+  } catch { /* ignore */ }
+}
+
 // Device-local (not per-user — a shared master_cards row's grammar fields don't depend
 // on who's asking) record of which card ids have already had a verb/adjective grammar
 // lookup attempted, so a plain noun that turned out not to be suru-capable isn't
@@ -191,7 +243,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   // --- 1. State Management ---
   const [hasOnboarded, setHasOnboarded] = useState<boolean | null>(null);
 
-  const cached = _studyCache?.userId === user?.id ? _studyCache : null;
+  const cached = user ? getStudyCache(user.id) : null;
   const hasCachedData = !!cached && cached.cards.length > 0;
   const [cards, setCards] = useState<FlashcardData[]>(() => cached?.cards ?? []);
   const [currentCard, setCurrentCard] = useState<FlashcardData | null>(() => cached?.currentCard ?? null);
@@ -549,14 +601,14 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     // other columns (reporter identity, suggested-correction text) are admin-only,
     // and this is the narrow carve-out that exposes just the card_id a regular user
     // needs for suppression to work, nothing else.
-    const { data: pendingCardIds } = await supabase.rpc("get_pending_flagged_card_ids");
-    const flaggedCardIds = new Set((pendingCardIds ?? []).map((r: { card_id: string }) => r.card_id));
-
-    const allData: any[] = [];
-    let error = null;
+    //
+    // This RPC and the card pages below are all independent reads — the RPC doesn't
+    // gate the card fetch, it only filters the result afterward — so firing them
+    // together instead of awaiting the RPC first cuts a full sequential round trip
+    // off the slowest part of Study's initial load.
     const PAGE_SIZE = 1000;
-    for (let from = 0; ; from += PAGE_SIZE) {
-      const { data: page, error: pageErr } = await supabase
+    const fetchPage = (from: number) =>
+      supabase
         .from("master_cards")
         .select(
           `
@@ -572,9 +624,27 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         // separate paged queries, so rows can be skipped or duplicated across pages.
         .order("id", { ascending: true })
         .range(from, from + PAGE_SIZE - 1);
-      if (pageErr) { error = pageErr; break; }
-      if (page) allData.push(...page);
-      if (!page || page.length < PAGE_SIZE) break;
+
+    // Pages are independent range reads, so the first two (covering up to 2000
+    // cards — comfortably more than almost any deck) go out together instead of
+    // waiting on each other; only a deck big enough to need a third page falls
+    // back to fetching the rest sequentially below.
+    const [flaggedRes, page0Res, page1Res] = await Promise.all([
+      supabase.rpc("get_pending_flagged_card_ids"),
+      fetchPage(0),
+      fetchPage(PAGE_SIZE),
+    ]);
+    const flaggedCardIds = new Set((flaggedRes.data ?? []).map((r: { card_id: string }) => r.card_id));
+
+    const allData: any[] = [...(page0Res.data ?? []), ...(page1Res.data ?? [])];
+    let error = page0Res.error || page1Res.error;
+    if (!error && page1Res.data && page1Res.data.length === PAGE_SIZE) {
+      for (let from = PAGE_SIZE * 2; ; from += PAGE_SIZE) {
+        const { data: page, error: pageErr } = await fetchPage(from);
+        if (pageErr) { error = pageErr; break; }
+        if (page) allData.push(...page);
+        if (!page || page.length < PAGE_SIZE) break;
+      }
     }
     const data = allData.filter((card) => !flaggedCardIds.has(card.id));
 
@@ -620,14 +690,15 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   // When auth resolves, restore cached currentCard before fetchInitialData can pick a new one.
   useEffect(() => {
     if (!user) return;
-    const c = _studyCache?.userId === user.id ? _studyCache : null;
+    const c = getStudyCache(user.id);
     if (c?.currentCard && !currentCardRef.current) {
       setCurrentCard(c.currentCard);
       currentCardRef.current = c.currentCard;
     }
   }, [user]);
 
-  // Keep _studyCache.currentCard and currentCardRef in sync on every change.
+  // Keep _studyCache.currentCard, currentCardRef, and the small localStorage entry in
+  // sync on every change — cheap, so this can run on every single card reviewed.
   useEffect(() => {
     if (currentCard) {
       currentCardRef.current = currentCard;
@@ -635,14 +706,25 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     if (_studyCache && _studyCache.userId === user?.id && currentCard) {
       _studyCache.currentCard = currentCard;
     }
+    if (user?.id && currentCard) {
+      persistStudyCurrentCard(user.id, currentCard);
+    }
   }, [currentCard, user?.id]);
 
-  // Keep module-level cache in sync so re-mounting the component skips the loading spinner
+  // Keep module-level cache in sync so re-mounting the component skips the loading
+  // spinner, and persist the same thing to localStorage so a cold app restart does
+  // too — kept out of the effect above since `cards` (unlike currentCard) is the
+  // whole deck and only actually changes on a fresh fetch or a card edit, not on
+  // every card reviewed.
   useEffect(() => {
     if (user?.id && cards.length > 0) {
       _studyCache = { userId: user.id, cards, deckId: defaultDeckId, currentCard };
+      persistStudyCards(user.id, defaultDeckId, cards);
     }
-  }, [user?.id, cards, currentCard, defaultDeckId]);
+    // currentCard deliberately omitted — see the comment above: this effect should
+    // only re-run when the deck itself changes, not on every card reviewed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, cards, defaultDeckId]);
 
   // --- 6. Interaction Handlers ---
   // Date math lives server-side (update_streak RPC) now, not here — computing
