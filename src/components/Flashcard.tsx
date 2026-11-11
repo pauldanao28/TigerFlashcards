@@ -378,14 +378,19 @@ export default function Flashcard({
   // was part of what made the furigana-clipping problem worse, not just a symptom of it.
 
   // The meaning should read clearly bigger than the (fixed-size) reading above it by
-  // default — only a meaning that's long for its own sake, or paired with a te-form
-  // that itself has real length to it, should give up that size. A typical 2-3
-  // synonym meaning ("anew / again / properly", 23 chars) is NOT "long" here — it's
-  // the normal shape of this app's definitions and must stay big; only a meaning
-  // that's unusually long on its own (30+ chars), or paired with a te-form that's
-  // itself got real length (5+ chars), drops to the small size. showsTeForm (not
-  // just card?.te_form) gates that check — a te-form hidden for a suru verb takes no
-  // space and shouldn't affect anything.
+  // default — only a meaning that's long for its own sake, or crowded by other
+  // content below it (grammar badges, a te-form with real length), should give up
+  // that size. A typical 2-3 synonym meaning ("anew / again / properly", 23 chars)
+  // is NOT "long" on a card with nothing else below it — it's the normal shape of
+  // this app's definitions and must stay big there. But the SAME length starts
+  // wrapping to 2 lines at the big size, and on a card that also shows grammar
+  // badges and a te-form (every verb/adjective card), those two lines plus the
+  // badges plus the te-form genuinely don't fit above the reading, clipping it. So
+  // the length budget for "big" is tighter whenever those sit below it: this isn't
+  // about the te-form's own length distinctly from the badges' — either one being
+  // present means less room for the heading, so both tighten the same budget.
+  // showsTeForm (not just card?.te_form) gates that check — one hidden for a suru
+  // verb takes no space and shouldn't affect anything.
   //
   // This is a PURE calculation from the current card's own text — deliberately no
   // React state and no measure-after-render effect, and only two possible outcomes
@@ -394,11 +399,13 @@ export default function Flashcard({
   // reset it back up on card change) across three separate pieces of state. After
   // several rounds of tweaks that machinery became too easy to leave in a state
   // nobody could fully reason about by inspection. A plain function of this card's
-  // own backText/te_form length can't get "stuck" carrying over something from
+  // own backText/te_form/badges can't get "stuck" carrying over something from
   // whichever card was shown before it.
   const backTextLen = backText.length;
   const teFormLen = showsTeForm ? (card?.te_form?.length ?? 0) : 0;
-  const isHeadingBig = backTextLen <= 30 && teFormLen <= 4;
+  const hasGrammarBadges = !!(card?.transitivity || card?.verb_type || card?.adjective_type);
+  const isCrowded = hasGrammarBadges || showsTeForm;
+  const isHeadingBig = isCrowded ? backTextLen <= 15 && teFormLen <= 3 : backTextLen <= 30;
   const isTeFormBig = teFormLen <= 4;
   const backHeadingClass = isBackJapanese
     ? BACK_JP_PINNED_SIZE
