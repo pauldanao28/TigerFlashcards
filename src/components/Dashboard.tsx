@@ -668,6 +668,25 @@ export default function Dashboard() {
         );
       })()}
 
+      {/* A zero-card account otherwise lands here (Home, not /study) with nothing
+          telling it what to do — onboarding's starter-pack choice only ever shows on
+          /study, which a new or returning user might never visit on their own. */}
+      {data.deck_size === 0 && (
+        <Link
+          href="/stats"
+          className="mx-4 mt-3 flex items-center gap-3 bg-indigo-600 rounded-2xl p-4 shadow-sm active:scale-[0.98] transition-all"
+        >
+          <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center text-2xl shrink-0">
+            🎴
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-white font-black text-sm uppercase italic tracking-tight">Add your first words</p>
+            <p className="text-indigo-200 text-[11px] font-bold mt-0.5">Grab a starter pack to begin studying</p>
+          </div>
+          <ChevronRight size={18} className="text-indigo-200 shrink-0" />
+        </Link>
+      )}
+
       {data.deck_size > 0 && (
         <div className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Today</p>
