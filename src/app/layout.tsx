@@ -103,7 +103,31 @@ export default function RootLayout({
         {process.env.NODE_ENV === "production" && (
           <script
             dangerouslySetInnerHTML={{
-              __html: `if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js'); }`,
+              __html: `if ('serviceWorker' in navigator) {
+                // register('/sw.js') alone can leave an app build stuck for up to 24h —
+                // that's how long a browser may wait before even re-fetching sw.js to
+                // check for a new STATIC_CACHE version, regardless of how many times
+                // that version gets bumped. reg.update() forces an immediate check, both
+                // right away and whenever the (often-backgrounded) PWA becomes visible
+                // again — the moment a stale build is most likely to be sitting around.
+                navigator.serviceWorker.register('/sw.js').then(function (reg) {
+                  reg.update();
+                  document.addEventListener('visibilitychange', function () {
+                    if (document.visibilityState === 'visible') reg.update();
+                  });
+                });
+                // A new service worker taking over (it already calls skipWaiting +
+                // clients.claim on activate) used to still leave the CURRENTLY OPEN page
+                // running old JS until the user manually reopened the app a second time.
+                // Reloading once here — guarded so it can only ever fire once per page
+                // load — means an update is live after a single close/reopen instead of two.
+                var reloaded = false;
+                navigator.serviceWorker.addEventListener('controllerchange', function () {
+                  if (reloaded) return;
+                  reloaded = true;
+                  window.location.reload();
+                });
+              }`,
             }}
           />
         )}
