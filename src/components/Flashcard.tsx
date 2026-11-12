@@ -404,12 +404,19 @@ export default function Flashcard({
   const backTextLen = backText.length;
   const teFormLen = showsTeForm ? (card?.te_form?.length ?? 0) : 0;
   const hasGrammarBadges = !!(card?.transitivity || card?.verb_type || card?.adjective_type);
+  // A suru-capable noun's own suru_meaning line (交換する: exchange / interchange) is
+  // a whole extra row on top of its badges — badges alone already tighten the
+  // length budget, but that's not enough room left for a big (2-line) heading too.
+  // Simplest correct rule: any suru_meaning at all means small, no length check.
+  const hasSuruMeaning = !!card?.suru_meaning;
   const isCrowded = hasGrammarBadges || showsTeForm;
   // 30 chars was still too generous even on a simple card ("atmosphere / mood /
   // ambiance", 28 chars, no badges/te-form at all) — it wrapped to 3 lines at the
   // big size and still clipped the reading above it. 25 is the new line between a
   // confirmed-good case ("anew / again / properly", 23 chars) and that one.
-  const isHeadingBig = isCrowded ? backTextLen <= 15 && teFormLen <= 3 : backTextLen <= 25;
+  const isHeadingBig = hasSuruMeaning
+    ? false
+    : isCrowded ? backTextLen <= 15 && teFormLen <= 3 : backTextLen <= 25;
   const isTeFormBig = teFormLen <= 4;
   const backHeadingClass = isBackJapanese
     ? BACK_JP_PINNED_SIZE
