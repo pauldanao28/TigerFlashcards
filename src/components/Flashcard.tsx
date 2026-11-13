@@ -378,19 +378,10 @@ export default function Flashcard({
   // was part of what made the furigana-clipping problem worse, not just a symptom of it.
 
   // The meaning should read clearly bigger than the (fixed-size) reading above it by
-  // default — only a meaning that's long for its own sake, or crowded by other
-  // content below it (grammar badges, a te-form with real length), should give up
-  // that size. A typical 2-3 synonym meaning ("anew / again / properly", 23 chars)
-  // is NOT "long" on a card with nothing else below it — it's the normal shape of
-  // this app's definitions and must stay big there. But the SAME length starts
-  // wrapping to 2 lines at the big size, and on a card that also shows grammar
-  // badges and a te-form (every verb/adjective card), those two lines plus the
-  // badges plus the te-form genuinely don't fit above the reading, clipping it. So
-  // the length budget for "big" is tighter whenever those sit below it: this isn't
-  // about the te-form's own length distinctly from the badges' — either one being
-  // present means less room for the heading, so both tighten the same budget.
-  // showsTeForm (not just card?.te_form) gates that check — one hidden for a suru
-  // verb takes no space and shouldn't affect anything.
+  // default — only a meaning that's long enough to not read comfortably at the big
+  // size gives up that size. Just the meaning's own character count, nothing about
+  // badges/te-form/suru factored in — those still get their own room below via their
+  // own rendering, they don't change how big the meaning itself gets to be.
   //
   // This is a PURE calculation from the current card's own text — deliberately no
   // React state and no measure-after-render effect, and only two possible outcomes
@@ -399,28 +390,11 @@ export default function Flashcard({
   // reset it back up on card change) across three separate pieces of state. After
   // several rounds of tweaks that machinery became too easy to leave in a state
   // nobody could fully reason about by inspection. A plain function of this card's
-  // own backText/te_form/badges can't get "stuck" carrying over something from
-  // whichever card was shown before it.
+  // own backText can't get "stuck" carrying over something from whichever card was
+  // shown before it.
   const backTextLen = backText.length;
   const teFormLen = showsTeForm ? (card?.te_form?.length ?? 0) : 0;
-  const hasGrammarBadges = !!(card?.transitivity || card?.verb_type || card?.adjective_type);
-  // A te-form line or a suru_meaning line (交換する: exchange / interchange) is a
-  // whole extra row below the badges — reading + a big (2-line) heading + badges +
-  // either of those genuinely doesn't fit above the footer (max ~3 rows worth of
-  // room up there). Rather than keep tuning a length threshold for "how long is too
-  // long when X is also present," either one showing at all just means small,
-  // full stop — simplest correct rule, no character count needed for this case.
-  const hasSuruMeaning = !!card?.suru_meaning;
-  // 30 chars was still too generous even on a simple card ("atmosphere / mood /
-  // ambiance", 28 chars, no badges/te-form/suru at all) — it wrapped to 3 lines at
-  // the big size and still clipped the reading above it. 25 is the new line between
-  // a confirmed-good case ("anew / again / properly", 23 chars) and that one. Badges
-  // alone (an adjective's own badge, with neither te-form nor suru_meaning below it)
-  // still get the tighter 15-char budget — less room than a totally bare card, but
-  // not the "always small" case those two are.
-  const isHeadingBig = showsTeForm || hasSuruMeaning
-    ? false
-    : hasGrammarBadges ? backTextLen <= 15 : backTextLen <= 25;
+  const isHeadingBig = backTextLen <= 10;
   const isTeFormBig = teFormLen <= 4;
   const backHeadingClass = isBackJapanese
     ? BACK_JP_PINNED_SIZE
