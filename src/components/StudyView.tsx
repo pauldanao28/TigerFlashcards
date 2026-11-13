@@ -925,12 +925,15 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       }
 
       // 4. Update Profile Max Streak (only when current combo beats all-time best)
+      // — not awaited; nothing downstream reads the result, so it shouldn't hold up
+      // advancing to the next card either (same reasoning as the score upsert below).
       if (isPass && newSessionStreak > maxComboRef.current) {
         maxComboRef.current = newSessionStreak;
-        await supabase
+        supabase
           .from("profiles")
           .update({ max_streak: newSessionStreak })
-          .eq("id", user?.id);
+          .eq("id", user?.id)
+          .then(({ error }) => { if (error) console.error("Error updating max streak:", error.message); });
       }
 
       const reflexPatch =
@@ -940,19 +943,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               reflex_attempts: (currentCard.reflex_attempts ?? 0) + 1,
             }
           : null;
-
-      // 5. Database Sync (Upsert Score) — offline-safe: queues itself instead of
-      // being lost if there's no connection (see offlineScoreQueue.ts).
-      {
-        const { pendingCount } = await upsertScoreOrQueue(user.id, {
-          user_id: user.id,
-          card_id: currentCard.id,
-          scores_json: newScores,
-          updated_at: new Date().toISOString(),
-          ...(reflexPatch ?? {}),
-        });
-        setPendingSyncCount(pendingCount);
-      }
 
       // 5b. Update local card scores and recompute mastery from full deck
       {
@@ -1053,6 +1043,24 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       );
       setCurrentCard(getNextPriorityCard(pool.length > 0 ? pool : updatedCards, language, currentCard.id));
       setIsFlipped(false);
+
+      // Database Sync (Upsert Score) — deliberately NOT awaited, and fired after
+      // the card has already advanced, not before: this used to sit earlier in the
+      // function with an await in front of it, meaning every single swipe waited
+      // on a full network round trip before the UI could move on. Fine on a fast
+      // connection, but right after the app resumes from being backgrounded —
+      // before the connection/auth session has finished re-establishing — that
+      // wait (now up to upsertScoreOrQueue's own 6s timeout, since offline support
+      // was added) made the app feel stuck on every grade. It's offline-safe
+      // regardless of when it's called (queues itself on failure — see
+      // offlineScoreQueue.ts), so there's nothing it needs to block the UI for.
+      upsertScoreOrQueue(user.id, {
+        user_id: user.id,
+        card_id: currentCard.id,
+        scores_json: newScores,
+        updated_at: new Date().toISOString(),
+        ...(reflexPatch ?? {}),
+      }).then(({ pendingCount }) => setPendingSyncCount(pendingCount));
     },
     [
       currentCard,
@@ -1150,14 +1158,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     const knownStats = { pass: MASTERY_MIN_TRIES, fail: 0, total: MASTERY_MIN_TRIES, percent: 100 };
     const newScores = { jp_to_en: knownStats, en_to_jp: knownStats };
 
-    const { pendingCount } = await upsertScoreOrQueue(user.id, {
-      user_id: user.id,
-      card_id: currentCard.id,
-      scores_json: newScores,
-      updated_at: new Date().toISOString(),
-    });
-    setPendingSyncCount(pendingCount);
-
     const updatedCards = cards.map((c) =>
       c.id === currentCard.id ? { ...c, scores: newScores } : c,
     );
@@ -1181,6 +1181,17 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     );
     setCurrentCard(getNextPriorityCard(pool.length > 0 ? pool : updatedCards, language, currentCard.id));
     setIsFlipped(false);
+
+    // Database Sync (Upsert Score) — not awaited, fired after the card has
+    // already advanced. Same reasoning as handleScore: offline-safe regardless
+    // of when it's called, so it shouldn't block the swipe UI on a slow/
+    // re-establishing connection (e.g. right after the app resumes from background).
+    upsertScoreOrQueue(user.id, {
+      user_id: user.id,
+      card_id: currentCard.id,
+      scores_json: newScores,
+      updated_at: new Date().toISOString(),
+    }).then(({ pendingCount }) => setPendingSyncCount(pendingCount));
   }, [currentCard, user, cards, language, jlptFilters, posFilters, inStatusFilter, showHints, setCardMasteryToast]);
 
   // Rolling cap: starring a 31st word bumps whichever one has been starred longest,
