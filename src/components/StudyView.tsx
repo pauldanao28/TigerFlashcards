@@ -30,9 +30,10 @@ import SentenceQuiz from "@/components/SentenceQuiz";
 import ListeningQuiz from "@/components/ListeningQuiz";
 import AddWordsSheet from "@/components/AddWordsSheet";
 import { FlashcardData } from "@/lib/types";
+import { upsertScoreOrQueue, flushScoreQueue, readScoreQueue } from "@/lib/offlineScoreQueue";
 import { useIsMiniViewport } from "@/lib/useMiniViewport";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, History, Star, X, Menu, Zap, ExternalLink, Filter, Volume2 } from "lucide-react";
+import { Plus, History, Star, X, Menu, Zap, ExternalLink, Filter, Volume2, WifiOff, RefreshCw } from "lucide-react";
 const DAILY_GOAL = 10;
 const MASTERY_MIN_TRIES = 5;
 const PRIORITY_CAP = 30;
@@ -242,6 +243,16 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const isMiniMode = compact || autoMiniViewport;
   // --- 1. State Management ---
   const [hasOnboarded, setHasOnboarded] = useState<boolean | null>(null);
+
+  // Offline-safe studying: a graded answer's own score write queues itself (see
+  // offlineScoreQueue.ts) instead of being lost when there's no connection — this
+  // just tracks connectivity and the queue's size so the UI can show it. Initial
+  // value reads navigator.onLine directly rather than defaulting to true, so a cold
+  // app launch with no connection (e.g. opening it mid-flight) shows the banner
+  // immediately instead of only after the first failed request.
+  const [isOnline, setIsOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const cached = user ? getStudyCache(user.id) : null;
   const hasCachedData = !!cached && cached.cards.length > 0;
@@ -573,6 +584,37 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     return () => window.removeEventListener("focus", fetchStrugglingToday);
   }, [user]);
 
+  // Keeps isOnline in sync with the browser's own connectivity signal, and seeds
+  // pendingSyncCount from whatever's already queued (e.g. from a previous offline
+  // session that was closed before it could sync).
+  useEffect(() => {
+    if (!user) return;
+    setPendingSyncCount(readScoreQueue(user.id).length);
+
+    const runFlush = async () => {
+      setIsSyncing(true);
+      const { remaining } = await flushScoreQueue(user.id);
+      setPendingSyncCount(remaining);
+      setIsSyncing(false);
+    };
+    const handleOnline = () => { setIsOnline(true); runFlush(); };
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    // Coming back to a backgrounded/reopened PWA is the common "was I offline while
+    // this was closed?" moment, same reasoning as the service worker's own
+    // visibilitychange update check — the 'online' event alone only fires on an
+    // actual connectivity transition, not on reopening after one already happened.
+    const handleVisible = () => { if (document.visibilityState === "visible" && navigator.onLine) runFlush(); };
+    document.addEventListener("visibilitychange", handleVisible);
+    if (navigator.onLine) runFlush();
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      document.removeEventListener("visibilitychange", handleVisible);
+    };
+  }, [user]);
+
   // --- 4. Card Fetching (Triggers when Deck is ready) ---
   const fetchInitialData = useCallback(async () => {
     if (!user || !defaultDeckId) {
@@ -593,6 +635,13 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       setDataLoading(true);
     }
 
+    // Offline-safe: genuinely losing the network mid-request (not just a Postgrest-
+    // level error, which the existing `if (!error && data)` check below already
+    // handles by leaving cached cards in place) can throw instead of resolving to
+    // {error}. Without this, that throw would skip the setDataLoading(false)/
+    // setHasLoadedOnce(true) at the end and leave the page spinning forever — the
+    // exact "offline" moment this needs to degrade gracefully for, not break on.
+    try {
     // Cards with an unresolved report are excluded below — the example sentence is
     // generated once and stored on the shared master_cards row (not regenerated per
     // view), so a flagged bad sentence would otherwise keep reaching every learner
@@ -679,8 +728,15 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         _studyCache = { userId: user.id, cards: flattened, deckId: defaultDeckId, currentCard: currentCardRef.current };
       }
     }
-    setDataLoading(false);
-    setHasLoadedOnce(true);
+    } catch (e) {
+      // Offline or a dropped connection mid-request — leave whatever cards are
+      // already on screen (cache-restored or from a prior successful fetch) exactly
+      // as they are rather than erroring out.
+      console.error("fetchInitialData failed (likely offline):", e);
+    } finally {
+      setDataLoading(false);
+      setHasLoadedOnce(true);
+    }
   }, [user, defaultDeckId, hasOnboarded]);
 
   useEffect(() => {
@@ -870,17 +926,18 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
             }
           : null;
 
-      // 5. Database Sync (Upsert Score)
-      await supabase.from("user_scores").upsert(
-        {
-          user_id: user?.id,
+      // 5. Database Sync (Upsert Score) — offline-safe: queues itself instead of
+      // being lost if there's no connection (see offlineScoreQueue.ts).
+      {
+        const { pendingCount } = await upsertScoreOrQueue(user.id, {
+          user_id: user.id,
           card_id: currentCard.id,
           scores_json: newScores,
           updated_at: new Date().toISOString(),
           ...(reflexPatch ?? {}),
-        },
-        { onConflict: "user_id,card_id" },
-      );
+        });
+        setPendingSyncCount(pendingCount);
+      }
 
       // 5b. Update local card scores and recompute mastery from full deck
       {
@@ -1078,15 +1135,13 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     const knownStats = { pass: MASTERY_MIN_TRIES, fail: 0, total: MASTERY_MIN_TRIES, percent: 100 };
     const newScores = { jp_to_en: knownStats, en_to_jp: knownStats };
 
-    await supabase.from("user_scores").upsert(
-      {
-        user_id: user.id,
-        card_id: currentCard.id,
-        scores_json: newScores,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,card_id" },
-    );
+    const { pendingCount } = await upsertScoreOrQueue(user.id, {
+      user_id: user.id,
+      card_id: currentCard.id,
+      scores_json: newScores,
+      updated_at: new Date().toISOString(),
+    });
+    setPendingSyncCount(pendingCount);
 
     const updatedCards = cards.map((c) =>
       c.id === currentCard.id ? { ...c, scores: newScores } : c,
@@ -2412,6 +2467,26 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 </motion.div>
               )}
             </div>
+
+            {/* Offline-safe studying — a graded answer's own score always queues
+                locally (offlineScoreQueue.ts) instead of being lost, so this is purely
+                informational: "here's what's going on," not a blocker on anything. */}
+            {!isOnline && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-full">
+                <WifiOff size={11} className="text-slate-400" />
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                  Offline{pendingSyncCount > 0 ? ` · ${pendingSyncCount} saved locally` : ""}
+                </span>
+              </div>
+            )}
+            {isOnline && (isSyncing || pendingSyncCount > 0) && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 rounded-full">
+                <RefreshCw size={11} className="text-indigo-500 animate-spin" />
+                <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest">
+                  Syncing{pendingSyncCount > 0 ? ` ${pendingSyncCount}` : ""}…
+                </span>
+              </div>
+            )}
 
             {/* Accuracy info — card's avg Reflex Mode speed tacked on here too, rather
                 than on the card's own back face, which is tight on vertical space
