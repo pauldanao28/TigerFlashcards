@@ -33,7 +33,7 @@ import { FlashcardData } from "@/lib/types";
 import { upsertScoreOrQueue, flushScoreQueue, readScoreQueue } from "@/lib/offlineScoreQueue";
 import { useIsMiniViewport } from "@/lib/useMiniViewport";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, History, Star, X, Menu, Zap, ExternalLink, Filter, Volume2, WifiOff, RefreshCw } from "lucide-react";
+import { Plus, History, Star, X, Menu, Zap, ExternalLink, Filter, Volume2, WifiOff, Check } from "lucide-react";
 const DAILY_GOAL = 10;
 const MASTERY_MIN_TRIES = 5;
 const PRIORITY_CAP = 30;
@@ -85,6 +85,7 @@ let _studyCache: StudyCacheEntry | null = null;
 // flip would be real, pointless work on every review.
 const studyCardsKey = (userId: string) => `flashkado_study_cards_${userId}`;
 const studyCurrentKey = (userId: string) => `flashkado_study_current_${userId}`;
+const reflexModeKey = (userId: string) => `flashkado_reflex_mode_${userId}`;
 let _studyCacheHydrationAttempted = false;
 
 function getStudyCache(userId: string): StudyCacheEntry | null {
@@ -252,7 +253,10 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   // immediately instead of only after the first failed request.
   const [isOnline, setIsOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
-  const [isSyncing, setIsSyncing] = useState(false);
+  // Brief "✓ Synced" nudge after a flush actually clears something out of the
+  // queue — replaces a persistent "Syncing…" pill, which stuck around distractingly
+  // long on a slow connection for something the user never needs to act on.
+  const [justSyncedCount, setJustSyncedCount] = useState<number | null>(null);
 
   const cached = user ? getStudyCache(user.id) : null;
   const hasCachedData = !!cached && cached.cards.length > 0;
@@ -518,7 +522,19 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         setAutoPlayEn(p.auto_play_en ?? false);
         setSfxEnabled(p.sfx_enabled ?? true);
         setSwipeOnly(p.swipe_only ?? false);
-        setReflexMode(p.reflex_mode ?? false);
+        // This whole effect reruns on every Supabase auth token refresh (fires
+        // routinely, and reliably right when the app resumes from background) —
+        // without this, a toggle made around that moment could get silently
+        // reverted a moment later by this same re-fetch reading the DB before (or
+        // just as) the toggle's own write lands. Once this device has toggled it
+        // at least once, its own local choice wins over whatever the server read
+        // says; a fresh device/browser with no local record yet still picks up
+        // the server's value, same as before.
+        {
+          let localReflex: string | null = null;
+          try { localReflex = user?.id ? localStorage.getItem(reflexModeKey(user.id)) : null; } catch {}
+          setReflexMode(localReflex !== null ? localReflex === "true" : (p.reflex_mode ?? false));
+        }
         setPrefsLoaded(true);
         setHasOnboarded(p.has_onboarded);
         setProfileName(p.full_name);
@@ -592,10 +608,12 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     setPendingSyncCount(readScoreQueue(user.id).length);
 
     const runFlush = async () => {
-      setIsSyncing(true);
-      const { remaining } = await flushScoreQueue(user.id);
+      const { flushed, remaining } = await flushScoreQueue(user.id);
       setPendingSyncCount(remaining);
-      setIsSyncing(false);
+      if (flushed > 0) {
+        setJustSyncedCount(flushed);
+        setTimeout(() => setJustSyncedCount(null), 2200);
+      }
     };
     const handleOnline = () => { setIsOnline(true); runFlush(); };
     const handleOffline = () => setIsOnline(false);
@@ -1106,6 +1124,13 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     );
     setTimeout(() => setReflexToggleToast(null), next ? 3500 : 2000);
     if (user) {
+      // Written to localStorage first, synchronously, so this device's own choice
+      // is immune to the profile re-fetch below re-reading a not-yet-committed (or
+      // momentarily stale) DB row — that re-fetch reruns on every Supabase auth
+      // token refresh, which reliably fires right when the app resumes from
+      // background, i.e. exactly when a toggle made around then could otherwise
+      // get silently reverted a moment later.
+      try { localStorage.setItem(reflexModeKey(user.id), String(next)); } catch {}
       await supabase.from("profiles").update({ reflex_mode: next }).eq("id", user.id);
     }
   }, [reflexMode, user]);
@@ -2512,11 +2537,11 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 </span>
               </div>
             )}
-            {isOnline && (isSyncing || pendingSyncCount > 0) && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 rounded-full">
-                <RefreshCw size={11} className="text-indigo-500 animate-spin" />
-                <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest">
-                  Syncing{pendingSyncCount > 0 ? ` ${pendingSyncCount}` : ""}…
+            {isOnline && justSyncedCount != null && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 rounded-full">
+                <Check size={11} className="text-emerald-500" />
+                <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">
+                  Synced
                 </span>
               </div>
             )}
