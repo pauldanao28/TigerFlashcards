@@ -776,6 +776,26 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     fetchInitialData();
   }, [fetchInitialData]);
 
+  // Pick up newly added/edited cards (new words, an admin correction, another
+  // device's edit) whenever the connection comes back — the queue-flush effect
+  // above only pushes THIS device's own queued scores, it never re-pulls the
+  // deck itself, so without this, new data only ever arrived incidentally
+  // (whenever the Supabase auth token happened to refresh). Silent either way:
+  // fetchInitialData only shows a spinner when there are no cards on screen
+  // yet, so this never interrupts an active review session.
+  useEffect(() => {
+    const handleOnline = () => fetchInitialData();
+    const handleVisible = () => {
+      if (document.visibilityState === "visible" && navigator.onLine) fetchInitialData();
+    };
+    window.addEventListener("online", handleOnline);
+    document.addEventListener("visibilitychange", handleVisible);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      document.removeEventListener("visibilitychange", handleVisible);
+    };
+  }, [fetchInitialData]);
+
   // When auth resolves, restore cached currentCard before fetchInitialData can pick a new one.
   useEffect(() => {
     if (!user) return;
@@ -1663,10 +1683,10 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           <AnimatePresence>
             {swipeFeedback && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.5, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: -14 }}
-                exit={{ opacity: 0, scale: 1.1, y: -40 }}
-                className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-none"
+                initial={{ opacity: 0, scale: 0.5, y: 0 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 1.1, y: -16 }}
+                className="absolute inset-x-0 top-2 z-[100] flex justify-center pointer-events-none"
               >
                 <div
                   className={`px-4 py-2 rounded-full font-black text-base shadow-xl border-2 flex items-center gap-1.5 ${
@@ -2583,10 +2603,10 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 <AnimatePresence>
                   {swipeFeedback && (
                     <motion.div
-                      initial={{ opacity: 0, scale: 0.5, y: 10 }}
-                      animate={{ opacity: 1, scale: 1, y: -20 }}
-                      exit={{ opacity: 0, scale: 1.1, y: -60 }}
-                      className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-none"
+                      initial={{ opacity: 0, scale: 0.5, y: 0 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 1.1, y: -20 }}
+                      className="absolute inset-x-0 top-4 z-[100] flex justify-center pointer-events-none"
                     >
                       <div
                         className={`px-6 py-3 rounded-full font-black text-2xl shadow-2xl border-2 flex items-center gap-2 ${
