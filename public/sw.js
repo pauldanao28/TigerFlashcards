@@ -1,5 +1,5 @@
 // Bump version to purge any previously cached bad responses
-const STATIC_CACHE = "flashkado-static-v15";
+const STATIC_CACHE = "flashkado-static-v16";
 
 self.addEventListener("install", () => self.skipWaiting());
 

@@ -698,18 +698,33 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     const data = allData.filter((card) => !flaggedCardIds.has(card.id));
 
     if (!error && data) {
-      const flattened = data.map((card: any) => ({
-        ...card,
-        scores: card.user_scores?.[0]?.scores_json || {
-          jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
-          en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
-        },
-        is_priority: card.user_scores?.[0]?.is_priority || false,
-        prioritized_at: card.user_scores?.[0]?.prioritized_at || null,
-        last_reviewed_at: card.user_scores?.[0]?.updated_at || null,
-        reflex_time_total_ms: card.user_scores?.[0]?.reflex_time_total_ms ?? 0,
-        reflex_attempts: card.user_scores?.[0]?.reflex_attempts ?? 0,
-      }));
+      // A card graded offline queues its score locally (offlineScoreQueue.ts) and
+      // may not have reached the server yet by the time this live fetch resolves —
+      // reopening the app kicks off this fetch and the queue's own flush at the
+      // same time, and if the fetch wins that race, it would otherwise overwrite
+      // the correct, just-earned local score with the server's still-stale one
+      // (visibly regressing accuracy/mastery until the next card is graded).
+      // Anything still in the queue is by definition more current than whatever
+      // the server has, so it wins here regardless of which request happened to
+      // finish first.
+      const pendingByCard = new Map(
+        (user ? readScoreQueue(user.id) : []).map((entry) => [entry.payload.card_id, entry.payload]),
+      );
+      const flattened = data.map((card: any) => {
+        const pending = pendingByCard.get(card.id);
+        return {
+          ...card,
+          scores: pending?.scores_json ?? card.user_scores?.[0]?.scores_json ?? {
+            jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
+            en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
+          },
+          is_priority: card.user_scores?.[0]?.is_priority || false,
+          prioritized_at: card.user_scores?.[0]?.prioritized_at || null,
+          last_reviewed_at: pending?.updated_at ?? card.user_scores?.[0]?.updated_at ?? null,
+          reflex_time_total_ms: pending?.reflex_time_total_ms ?? card.user_scores?.[0]?.reflex_time_total_ms ?? 0,
+          reflex_attempts: pending?.reflex_attempts ?? card.user_scores?.[0]?.reflex_attempts ?? 0,
+        };
+      });
       setCards(flattened);
       if (flattened.length > 0) {
         // ✅ FIX: Only pick a new card if we don't already have one on screen.
