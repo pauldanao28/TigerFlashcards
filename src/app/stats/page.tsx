@@ -1,34 +1,99 @@
 "use client";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { FlashcardData } from "@/lib/types";
+import { FlashcardData, KanjiMnemonic } from "@/lib/types";
+import { authedFetch } from "@/lib/authedFetch";
 import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
-import { useLang } from "@/context/LanguageContext";
+import { translations } from "@/lib/languages";
+import { useUploadGuard } from "@/context/UploadGuardContext";
+import { useAppAlert } from "@/context/AlertContext";
 import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
-import { calculateGlobalStats } from "@/lib/stats";
 import LoadingScreen from "@/components/LoadingScreen";
+import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
+import AddWordsSheet from "@/components/AddWordsSheet";
+import DuplicatesSheet from "@/components/DuplicatesSheet";
+import CardDetailModal from "@/components/CardDetailModal";
+import { findDuplicates, skipDeckDuplicates } from "@/lib/duplicates";
+import { AlertTriangle, Ban, BarChart3, Bell, ChevronLeft, Flag, Gamepad2, Gift, ImageIcon, Lightbulb, Loader2, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, SlidersHorizontal, Sparkles, Star, TrendingDown, Volume2, X, Zap } from "lucide-react";
+import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from "@/lib/push";
+import { AVATAR_PRESETS } from "@/lib/avatars";
+import { validateUsername, isUsernameTaken, type UsernameProblem } from "@/lib/username";
+import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
+
+// Same test StudyView uses to decide whether a card has a kanji worth generating a
+// mnemonic for.
+const KANJI_RE = /[一-鿿]/;
+
+interface StatsCardsCache { userId: string; cards: FlashcardData[]; deckId: string; }
+// In-memory — survives in-app navigation back to this tab, but a real page reload
+// (pull-to-refresh, browser refresh, the app being relaunched) wipes it, since that
+// resets the whole JS runtime.
+let _statsCardsCache: StatsCardsCache | null = null;
+
+// Persisted — survives real reloads too. Convenience only (stale-while-revalidate: shown
+// instantly, then silently replaced once fetchCards' real network call lands), so every
+// access is guarded; a failure here (quota exceeded, private browsing) just means the
+// page falls back to its normal cold-load behavior.
+const cardsCacheKey = (userId: string) => `flashkado-cards-cache-${userId}`;
+function loadPersistedCardsCache(userId: string): StatsCardsCache | null {
+  try {
+    const raw = localStorage.getItem(cardsCacheKey(userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.userId === userId ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+function savePersistedCardsCache(cache: StatsCardsCache) {
+  try {
+    localStorage.setItem(cardsCacheKey(cache.userId), JSON.stringify(cache));
+  } catch {
+    // ignore — quota exceeded, private browsing, storage disabled, etc.
+  }
+}
+
+// Keep in sync with StudyView.tsx's rolling priority cap.
+const PRIORITY_CAP = 30;
+
+// A card needs this many Fail grades on the same day to show up in "Struggling
+// Today" — a single slip doesn't count, a repeated one does. Same threshold (and
+// cleared_at exclusion) WeakWordsQuiz/count_weak_words use, so this list and the
+// Study page's "Struggling (N)" badge always agree on the same number.
+const DAILY_STRUGGLE_THRESHOLD = 3;
 
 export default function StatsPage() {
   const router = useRouter();
-  const { t, setLang, lang } = useLang();
+  const t = translations.en;
+  const { isBusy: uploadBusy, setIsBusy: setUploadBusy } = useUploadGuard();
+  const { showAlert, showConfirm, showPrompt } = useAppAlert();
   const [cards, setCards] = useState<FlashcardData[]>([]);
-  const [input, setInput] = useState("");
-  const [batchInput, setBatchInput] = useState("");
-  const [showBatch, setShowBatch] = useState(false);
   const [loading, setLoading] = useState(false);
   const [initLoading, setInitLoading] = useState(false);
+  const [cardsLoading, setCardsLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [userBlocklist, setUserBlocklist] = useState<string[]>([]);
   const [showSettings, setShowSettings] = useState(false);
   const [newBlockWord, setNewBlockWord] = useState("");
   const [autoPlayJp, setAutoPlayJp] = useState(true);
   const [autoPlayEn, setAutoPlayEn] = useState(false);
-  const [streak, setStreak] = useState(0);
   const [maxStreak, setMaxStreak] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [quickFilter, setQuickFilter] = useState<"none" | "slowReflex" | "recentlyReviewed" | "weakWords" | "favorites" | "mastered">("none");
+  // Collapsed into a dropdown off the search bar instead of their own row — absolutely
+  // positioned so opening/closing it never shifts the card list underneath.
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
+  // "Remember this kanji" mnemonic generation — moved here from Study's Slow Recall/
+  // Weak Words lists (both now gone from Study; this is the only place a kanji card
+  // from either signal is browsable). Study's own in-review Flashcard view still has
+  // its own independent mnemonic trigger; this doesn't touch that.
+  const [mnemonicCard, setMnemonicCard] = useState<FlashcardData | null>(null);
+  const [mnemonicLoading, setMnemonicLoading] = useState(false);
+  const [mnemonicError, setMnemonicError] = useState<string | null>(null);
+  const [showDuplicates, setShowDuplicates] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(50);
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
   const [deckTitle, setDeckTitle] = useState("Main Deck");
@@ -36,8 +101,26 @@ export default function StatsPage() {
   const [tempTitle, setTempTitle] = useState("");
   const [starterPacks, setStarterPacks] = useState<any[]>([]);
   const [ownedPacks, setOwnedPacks] = useState<string[]>([]);
+  const [triage, setTriage] = useState<{ packName: string; cards: TriageCard[] } | null>(null);
+  const [swipeOnly, setSwipeOnly] = useState(false);
+  const [dailyStruggles, setDailyStruggles] = useState<
+    { card_id: string; fail_count: number; reflex_fail_count: number; japanese: string; reading: string; english: string; jlpt_level: string | null; partOfSpeech: string | null }[]
+  >([]);
+  const [showDailyStruggles, setShowDailyStruggles] = useState(false);
+  const [dailyExplainedLines, setDailyExplainedLines] = useState<
+    { source: "reader" | "watch"; line_text: string; source_title: string | null; explain_count: number }[]
+  >([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
+  const [nameDraft, setNameDraft] = useState<string | null>(null); // non-null while editing
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [nameSaving, setNameSaving] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [statsVisible, setStatsVisible] = useState(true);
+  const [dailyQuestsEnabled, setDailyQuestsEnabled] = useState(true);
+  const [pushState, setPushState] = useState<"subscribed" | "unsubscribed" | "unsupported" | "loading">("loading");
   const [feedbackForm, setFeedbackForm] = useState({
     type: "feedback",
     subject: "",
@@ -45,64 +128,48 @@ export default function StatsPage() {
   });
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [sent, setSent] = useState(false);
-  const [viewMode, setViewMode] = useState<"none" | "mastered" | "struggling">(
-    "none",
-  );
-  const [dailyHistory, setDailyHistory] = useState<
-    { study_date: string; count: number }[]
-  >([]);
-  const [showHistory, setShowHistory] = useState(false);
-  const [reviewsToday, setReviewsToday] = useState(0);
+  // Tapped card's JP→EN/EN→JP detail — shown in a small modal instead of inline, so the
+  // collapsed list card stays compact.
+  const [scoreDetailCard, setScoreDetailCard] = useState<FlashcardData | null>(null);
+  const [grammarStats, setGrammarStats] = useState<{ mastered: number; total: number } | null>(null);
   const [previewPack, setPreviewPack] = useState<any | null>(null);
-  const [addedWordsSummary, setAddedWordsSummary] = useState<any[]>([]);
-  const [showSummaryOverlay, setShowSummaryOverlay] = useState(false);
   const [sfxEnabled, setSfxEnabled] = useState(true);
+  const [showAddSheet, setShowAddSheet] = useState(false);
+  const [pendingWordCount, setPendingWordCount] = useState(0);
+  // Safety net: don't let the nav-guard get stuck "busy" forever if this page unmounts
+  // some other way (browser back/forward) while a batch upload was mid-flight.
+  useEffect(() => () => setUploadBusy(false), [setUploadBusy]);
 
   useEffect(() => {
-    const fetchTodayCount = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Get today's date in YYYY-MM-DD format (Singapore Time)
-      const today = new Date().toLocaleDateString("en-CA", {
-        timeZone: "Asia/Singapore",
-      });
-
-      const { data, error } = await supabase
-        .from("user_review_counts")
-        .select("count")
-        .eq("user_id", user.id)
-        .eq("study_date", today)
-        .single();
-
-      if (!error && data) {
-        setReviewsToday(data.count);
-      }
-    };
-
-    fetchTodayCount();
+    getPushSubscriptionState().then(setPushState);
   }, []);
 
-  const fetchHistory = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data } = await supabase
-      .from("user_review_counts")
-      .select("study_date, count")
-      .eq("user_id", user.id)
-      .order("study_date", { ascending: false })
-      .limit(14);
-
-    setDailyHistory(data || []);
+  const handleTogglePush = async () => {
+    if (pushState === "subscribed") {
+      await unsubscribeFromPush();
+      setPushState("unsubscribed");
+      return;
+    }
+    setPushState("loading");
+    const result = await subscribeToPush();
+    if (result.success) {
+      setPushState("subscribed");
+    } else {
+      setPushState("unsubscribed");
+      showAlert(result.error || "Couldn't enable notifications.");
+    }
   };
 
+  // Block browser-level navigation (tab close, URL bar, browser back/forward) during upload.
+  useEffect(() => {
+    if (!uploadBusy) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [uploadBusy]);
+
   const fetchStarterPacks = async () => {
-    const { data, error } = await supabase.from("starter_packs").select("*"); // Fetches id, name, description, card_data, etc.
+    const { data, error } = await supabase.from("starter_packs").select("*").order("created_at"); // Fetches id, name, description, card_data, etc.
     if (data) setStarterPacks(data);
   };
 
@@ -148,8 +215,10 @@ export default function StatsPage() {
     } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
 
-      // 2. Stop loading on any auth event (login, token refresh, etc.)
-      setInitLoading(false);
+      // Signing out still needs to drop the loading gate (nothing left to wait for);
+      // otherwise leave it to initData/fetchCards below, once there's real data to show
+      // instead of revealing the page with every stat still at its zero default.
+      if (!session) setInitLoading(false);
 
       if (event === "SIGNED_OUT") {
         window.location.href = "/";
@@ -159,22 +228,63 @@ export default function StatsPage() {
     return () => subscription.unsubscribe();
   }, []); // Empty array means this ONLY runs once on mount
 
+  // Re-checks (not just reads) on every visit — a cheap idempotent RPC call, kept
+  // here (even though Badges no longer displays on this page) so someone who opens
+  // Cards before ever visiting Home still gets prompt awarding; Home and StudyView's
+  // own checks cover the toast/display side now.
+  useEffect(() => {
+    if (!user) return;
+    supabase.rpc("check_and_award_badges").then(({ error }) => {
+      if (error) console.error("Error checking badges:", error.message);
+    });
+  }, [user]);
+
+  // Grammar summary for the compact card — same mastery bar (>=3 attempts, >=80%)
+  // and "touched" filter as /stats/grammar uses, so the count matches the full page.
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data: sData, error } = await supabase
+        .from("user_grammar_scores")
+        .select("total, percent")
+        .eq("user_id", user.id);
+      if (error) { console.error("Error fetching grammar scores:", error.message); return; }
+      const touched = (sData ?? []).filter((s) => s.total > 0);
+      const mastered = touched.filter((s) => s.total >= 3 && s.percent >= 80).length;
+      setGrammarStats({ mastered, total: touched.length });
+    })();
+  }, [user]);
+
   // 1. Fetch the user's basic info first
   useEffect(() => {
     const initData = async () => {
       if (user) {
         try {
-          // Promise.all waits for all functions to finish
-          // Note: Make sure your fetch functions are "async" and return the supabase promise!
-          await Promise.all([
+          // Cache hit (in-memory, else the persisted fallback): populate cards instantly
+          // so the page renders without waiting for the big fetch. fetchCards still runs
+          // below once defaultDeckId is set — on purpose, to revalidate this snapshot in
+          // the background rather than trusting it for the rest of the session.
+          const cached = (_statsCardsCache?.userId === user.id ? _statsCardsCache : null) ?? loadPersistedCardsCache(user.id);
+          if (cached) {
+            setCards(cached.cards);
+            setDefaultDeckId(cached.deckId);
+            setInitLoading(false);
+          }
+
+          const [, deckId] = await Promise.all([
             fetchProfile(),
             fetchDefaultDeck(),
             fetchStarterPacks(),
+            fetchDailyStruggles(),
+            fetchDailyExplainedLines(),
           ]);
+          // Nothing to wait for (no deck → fetchCards never runs) — reveal now. Otherwise
+          // leave the gate to fetchCards's own first-page handler, so the page doesn't
+          // show every stat at zero before the real numbers land.
+          if (!cached && !deckId) setInitLoading(false);
         } catch (error) {
           console.error("Error loading stats:", error);
-        } finally {
-          setInitLoading(false); // Only turn off once everything is done
+          setInitLoading(false);
         }
       }
     };
@@ -182,36 +292,63 @@ export default function StatsPage() {
     initData();
   }, [user]);
 
-  // 2. ONLY fetch cards once we have a valid Deck ID
+  // 2. ONLY fetch cards once we have a valid Deck ID — runs even after a cache hit above,
+  // to revalidate that snapshot in the background (stale-while-revalidate).
   useEffect(() => {
-    if (user && defaultDeckId) {
-      fetchCards();
-    }
-  }, [user, defaultDeckId]); // <--- Adding defaultDeckId to the dependency array is key
+    if (!user || !defaultDeckId) return;
+    fetchCards();
+  }, [user, defaultDeckId]);
+
+  // Struggling/Explained Today are both written to from Study — often a *separate*
+  // window (the Mini Mode popup), not just a different in-app page. visibilitychange
+  // alone doesn't reliably fire across separate windows (it's really meant for
+  // tab-switching/minimizing within one), so also listen for window focus, which does.
+  useEffect(() => {
+    if (!user) return;
+    const refetch = () => {
+      fetchDailyStruggles();
+      fetchDailyExplainedLines();
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") refetch(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", refetch);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", refetch);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const fetchProfile = async () => {
     const { data } = await supabase
       .from("profiles")
       .select(
-        "full_name, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, sfx_enabled, imported_packs, is_admin",
+        "full_name, avatar_url, streak_count, max_streak, blocked_words, auto_play_jp, auto_play_en, sfx_enabled, swipe_only, imported_packs, is_admin, is_premium, referral_code, stats_visible_to_friends, daily_quests_enabled",
       )
       .eq("id", user?.id)
       .single();
 
     if (data) {
-      setStreak(data.streak_count);
       setMaxStreak(data.max_streak || 0);
       setUserBlocklist(data.blocked_words || []);
       setAutoPlayJp(data.auto_play_jp);
       setAutoPlayEn(data.auto_play_en);
       setSfxEnabled(data.sfx_enabled);
+      setSwipeOnly(data.swipe_only ?? false);
       setOwnedPacks(data.imported_packs);
       setIsAdmin(data.is_admin);
+      setIsPremium(data.is_premium ?? false);
       setProfileName(data.full_name);
+      setAvatarUrl(data.avatar_url ?? null);
+      setReferralCode(data.referral_code ?? null);
+      setStatsVisible(data.stats_visible_to_friends ?? true);
+      setDailyQuestsEnabled(data.daily_quests_enabled ?? true);
     }
   };
 
-  const fetchDefaultDeck = async () => {
+  // Returns the deck id (or null if the user has none) so the caller can tell whether
+  // there's a card fetch to wait for before revealing the page.
+  const fetchDefaultDeck = async (): Promise<string | null> => {
     const { data } = await supabase
       .from("decks")
       .select("id, title")
@@ -222,7 +359,70 @@ export default function StatsPage() {
       setDefaultDeckId(data.id);
       setDeckTitle(data.title);
       setTempTitle(data.title);
+      return data.id;
     }
+    return null;
+  };
+
+  // "Struggling Today" — cards graded Fail at least DAILY_STRUGGLE_THRESHOLD times today
+  // (daily_struggles, written by StudyView's handleScore on every Fail grade), not the
+  // all-time accuracy-based metric. A single slip doesn't count; a repeated one does.
+  // Two plain queries + a client-side join, rather than an embedded
+  // daily_struggles → master_cards select — sidesteps any PostgREST schema-cache lag
+  // on the foreign key relationship (e.g. right after running the migration by hand).
+  const fetchDailyStruggles = async () => {
+    if (!user) return;
+    const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+    const { data: struggles, error } = await supabase
+      .from("daily_struggles")
+      .select("card_id, fail_count, reflex_fail_count")
+      .eq("user_id", user.id)
+      .eq("struggle_date", sgToday)
+      .gte("fail_count", DAILY_STRUGGLE_THRESHOLD)
+      .is("cleared_at", null)
+      .order("fail_count", { ascending: false });
+    if (error) { console.error("Error fetching daily struggles:", error); return; }
+    if (!struggles || struggles.length === 0) { setDailyStruggles([]); return; }
+
+    const { data: cardRows, error: cardErr } = await supabase
+      .from("master_cards")
+      .select("id, japanese, reading, english, jlpt_level, partOfSpeech")
+      .in("id", struggles.map((s) => s.card_id));
+    if (cardErr) { console.error("Error fetching struggling cards:", cardErr); return; }
+
+    const cardById = new Map((cardRows ?? []).map((c) => [c.id, c]));
+    setDailyStruggles(
+      struggles
+        .map((s) => {
+          const card = cardById.get(s.card_id);
+          return card ? { card_id: s.card_id, fail_count: s.fail_count, reflex_fail_count: s.reflex_fail_count ?? 0, japanese: card.japanese, reading: card.reading, english: card.english, jlpt_level: card.jlpt_level, partOfSpeech: card.partOfSpeech } : null;
+        })
+        .filter((row): row is NonNullable<typeof row> => !!row),
+    );
+  };
+
+  // "Explained Today" — Reader sentences / Watch caption lines tapped "Explain" today
+  // (daily_explained_lines, written by useLineExplain on a successful explain fetch).
+  const fetchDailyExplainedLines = async () => {
+    if (!user) return;
+    const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+    const { data, error } = await supabase
+      .from("daily_explained_lines")
+      .select("source, line_text, source_title, explain_count")
+      .eq("user_id", user.id)
+      .eq("explain_date", sgToday)
+      .order("first_explained_at", { ascending: true });
+    if (error) { console.error("Error fetching daily explained lines:", error); return; }
+    if (!data) return;
+    setDailyExplainedLines(data);
+  };
+
+  const copyDailyExplainedLinesForGemini = async () => {
+    const text = dailyExplainedLines
+      .map((l) => `[${l.source}${l.source_title ? ` — ${l.source_title}` : ""}] ${l.line_text}`)
+      .join("\n");
+    await navigator.clipboard.writeText(text);
+    showAlert("Copied!");
   };
 
   // 3. Add the update function
@@ -235,7 +435,7 @@ export default function StatsPage() {
       .eq("id", defaultDeckId);
 
     if (error) {
-      alert("Failed to update deck name");
+      showAlert("Failed to update deck name");
     } else {
       setDeckTitle(tempTitle.trim());
       setIsEditingTitle(false);
@@ -249,85 +449,90 @@ export default function StatsPage() {
   };
 
   const handleReport = async (cardId: string, currentMeaning: string) => {
-    const suggestion = window.prompt(t.report_placeholder);
+    const suggestion = await showPrompt(t.report_placeholder, { title: "Report a card" });
 
-    if (!suggestion || suggestion.trim() === "") return;
+    if (!suggestion) return;
 
     const { error } = await supabase.from("card_reports").insert({
       card_id: cardId,
       user_id: user?.id,
-      suggested_meaning: suggestion.trim(),
+      suggested_meaning: suggestion,
       status: "pending",
     });
 
     if (error) {
-      alert("Failed to send report.");
+      showAlert("Failed to send report.");
     } else {
-      alert(t.report_sent);
+      showAlert(t.report_sent);
     }
   };
 
-  // --- 2. Update processWords to save to Supabase ---
   const fetchCards = async () => {
-    if (!user || !defaultDeckId) {
-      //console.warn("fetchCards aborted: User or Deck ID missing");
-      return;
-    }
+    if (!user || !defaultDeckId) return;
 
+    setCardsLoading(true);
     try {
-      // 1. We query master_cards, but we use !inner on the join to filter the results
-      const { data, error } = await supabase
-        .from("master_cards")
-        .select(
-          `
-      *,
-      deck_cards!inner (
-        deck_id, added_at
-      ),
-      user_scores (
-        scores_json
-      )
-    `,
-        )
-        // 2. This filters the master_cards to ONLY ones in YOUR deck
-        .eq("deck_cards.deck_id", defaultDeckId)
-        // 3. This ensures you only get YOUR scores (not someone else's)
-        .eq("user_scores.user_id", user.id)
-        .order("added_at", { foreignTable: "deck_cards", ascending: false });
-
-      if (error) {
-        console.error("Fetch Error:", error.message);
-        return;
+      // One paginated fetch of full card data — this used to be two full passes over the
+      // same deck (a lean scores-only pass just to show stat numbers fast, then a full
+      // pass for the card list), which doubled the requests and data transferred for no
+      // real benefit: the full rows already carry scores_json too. Stats are set once
+      // after every page has landed (not per-page) — updating them as each page arrived
+      // made the numbers visibly count up page by page (0 → 1000 → 2000 → 2900) instead
+      // of just appearing once, correct.
+      const allData: any[] = [];
+      let error = null;
+      const PAGE_SIZE = 1000;
+      for (let from = 0; ; from += PAGE_SIZE) {
+        const { data: page, error: pageErr } = await supabase
+          .from("master_cards")
+          .select(`*, deck_cards!inner(deck_id, added_at), user_scores(scores_json, is_priority, prioritized_at, reflex_time_total_ms, reflex_attempts, updated_at)`)
+          .eq("deck_cards.deck_id", defaultDeckId)
+          .eq("user_scores.user_id", user.id)
+          .order("added_at", { foreignTable: "deck_cards", ascending: false })
+          // Tiebreaker for cards added in the same batch (identical added_at) — without
+          // a unique secondary key, .range() pagination can skip or duplicate rows among
+          // ties once the deck crosses one page.
+          .order("id", { ascending: true })
+          .range(from, from + PAGE_SIZE - 1);
+        if (pageErr) { error = pageErr; break; }
+        if (page) allData.push(...page);
+        if (!page || page.length < PAGE_SIZE) break;
       }
 
-      if (data) {
-        const flattened = data.map((card: any) => {
-          // user_scores is still an array from the join
-          const userStats = card.user_scores?.[0];
+      if (error) { console.error("Fetch Error:", (error as any).message); return; }
 
-          return {
-            ...card,
-            added_to_deck_at: card.deck_cards?.[0]?.added_at,
-            scores: userStats?.scores_json || {
-              jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
-              en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
-            },
-          };
-        });
+      const flattened = allData.map((card: any) => ({
+        ...card,
+        added_to_deck_at: card.deck_cards?.[0]?.added_at,
+        scores: card.user_scores?.[0]?.scores_json || {
+          jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
+          en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
+        },
+        is_priority: card.user_scores?.[0]?.is_priority || false,
+        prioritized_at: card.user_scores?.[0]?.prioritized_at || null,
+        reflex_time_total_ms: card.user_scores?.[0]?.reflex_time_total_ms ?? 0,
+        reflex_attempts: card.user_scores?.[0]?.reflex_attempts ?? 0,
+        last_reviewed_at: card.user_scores?.[0]?.updated_at ?? null,
+      }));
 
-        setCards(flattened);
+      setCards(flattened);
+      if (user && defaultDeckId) {
+        const freshCache: StatsCardsCache = { userId: user.id, cards: flattened, deckId: defaultDeckId };
+        _statsCardsCache = freshCache;
+        savePersistedCardsCache(freshCache);
       }
     } catch (err) {
       console.error("Unexpected Fetch Error:", err);
     } finally {
-      // 2. FINISH: Always turn off loading at the end
+      setCardsLoading(false);
       setInitLoading(false);
     }
   };
 
   const handleDeleteAccount = async () => {
     try {
-      if (!confirm(t.delete_confirm)) return;
+      const ok = await showConfirm(t.delete_confirm, { title: t.delete_account, confirmLabel: t.delete_btn, danger: true });
+      if (!ok) return;
 
       // Call the Postgres function we just created
       const { error } = await supabase.rpc("delete_user_forever");
@@ -344,240 +549,13 @@ export default function StatsPage() {
       window.location.href = "/";
     } catch (error) {
       console.error("Error deleting account:", error);
-      alert("Failed to delete account. Please try logging in again first.");
+      showAlert("Failed to delete account. Please try logging in again first.");
     }
   };
 
-  const processWords = async (inputList: string[]) => {
-    if (!user || !defaultDeckId)
-      return alert("Please log in and ensure deck is initialized.");
+  const deleteCard = async (id: string) => {
+    if (!(await showConfirm("Remove this card from your collection?"))) return;
 
-    const rawInput = inputList.join("\n").normalize("NFKC").trim();
-    if (!rawInput) return;
-
-    // --- 1. Tokenization Logic ---
-    let wordsToProcess: string[] = [];
-    const isEnglishInput = /^[A-Za-z0-9\s.,!?-]+$/.test(rawInput);
-
-    // NEW: Single Add Bypass
-    // If only one item is provided, we treat it as a deliberate single add
-    // and do NOT chop the kanji/words.
-    if (inputList.length === 1 && inputList[0].trim().length > 0) {
-      wordsToProcess = [inputList[0].trim()];
-    }
-    // Batch Add Logic
-    else if (isEnglishInput) {
-      wordsToProcess = inputList
-        .map((w) => w.trim())
-        .filter((w) => w.length > 0);
-    } else if (rawInput.includes(",") || rawInput.includes("-")) {
-      wordsToProcess = inputList.map((line) => line.split(/[,-]/)[0].trim());
-    } else {
-      // Only use the "Chopper" (Segmenter) if it's a batch add/sentence
-      const segmenter = new Intl.Segmenter("ja-JP", { granularity: "word" });
-      const segments = segmenter.segment(rawInput);
-      wordsToProcess = Array.from(segments)
-        .map((s) => s.segment.trim())
-        .filter((w) => {
-          const isJapanese = /[\u3040-\u30ff\u4e00-\u9faf]/.test(w);
-          const isNotBlocked = !userBlocklist.includes(w);
-          const isMeaningful = w.length > 1 || /[\u4e00-\u9faf]/.test(w);
-          return isJapanese && isNotBlocked && isMeaningful;
-        });
-    }
-
-    const uniqueInputWords = [...new Set(wordsToProcess)];
-    if (uniqueInputWords.length === 0) return;
-
-    setLoading(true);
-
-    /* --- NEW: PARTIAL DAILY LIMIT LOGIC --- */
-    let wordsToActuallyProcess = uniqueInputWords;
-    const DAILY_LIMIT = 50;
-
-    try {
-      const { data: performance } = await supabase
-        .from("admin_user_performance_master")
-        .select("cards_added_today")
-        .eq("id", user.id)
-        .single();
-
-      const currentToday = performance?.cards_added_today || 0;
-
-      if (currentToday >= DAILY_LIMIT) {
-        setLoading(false);
-        setInput("");
-        setBatchInput("");
-        return alert(
-          t.limit_reached_msg
-            .replace("{{current}}", currentToday.toString())
-            .replace("{{limit}}", DAILY_LIMIT.toString()),
-        );
-      }
-
-      if (currentToday + uniqueInputWords.length > DAILY_LIMIT) {
-        const allowedCount = DAILY_LIMIT - currentToday;
-        // Slice the array to only include what fits in the remaining quota
-        wordsToActuallyProcess = uniqueInputWords.slice(0, allowedCount);
-
-        // Optional: Inform the user we are only doing a partial add
-        alert(
-          t.partial_limit_msg.replace("{{count}}", allowedCount.toString()),
-        );
-      }
-    } catch (limitErr) {
-      console.error("Limit check failed, proceeding anyway:", limitErr);
-    }
-    /* --- END OF PARTIAL LIMIT LOGIC --- */
-
-    // Helper inside the function to handle the DB linking
-    const performLinking = async (cardIds: string[]) => {
-      const currentCardIds = new Set(cards.map((c) => c.id));
-      const idsToLink = cardIds.filter((id) => !currentCardIds.has(id));
-
-      if (idsToLink.length > 0) {
-        const [deckRes, scoreRes] = await Promise.all([
-          supabase.from("deck_cards").upsert(
-            idsToLink.map((id) => ({ deck_id: defaultDeckId, card_id: id })),
-            { onConflict: "deck_id,card_id" },
-          ),
-          supabase.from("user_scores").upsert(
-            idsToLink.map((id) => ({
-              user_id: user.id,
-              card_id: id,
-              scores_json: {
-                jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
-                en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
-              },
-            })),
-            { onConflict: "user_id,card_id" },
-          ),
-        ]);
-        if (deckRes.error) throw deckRes.error;
-        if (scoreRes.error) throw scoreRes.error;
-      }
-    };
-
-    let allProcessedCards: any[] = [];
-
-    try {
-      // --- 2. Step 1: Handle Existing Cards (Instant) ---
-      const { data: existingCards, error: searchErr } = await supabase
-        .from("master_cards")
-        .select("*")
-        .in("japanese", wordsToActuallyProcess);
-
-      if (searchErr) throw searchErr;
-
-      if (existingCards) {
-        allProcessedCards = [...existingCards];
-        const foundIds = existingCards.map((c) => c.id);
-        if (foundIds.length > 0) await performLinking(foundIds);
-      }
-
-      const existingMap = new Map(
-        existingCards?.map((c) => [c.japanese, c.id]) || [],
-      );
-      const wordsForAI = wordsToActuallyProcess.filter(
-        (w) => !existingMap.has(w),
-      );
-
-      // --- 3. Step 2: Handle New Words (AI) ---
-      if (wordsForAI.length > 0) {
-        try {
-          const res = await fetch("/api/generate", {
-            method: "POST",
-            body: JSON.stringify({ words: wordsForAI }),
-          });
-
-          if (!res.ok)
-            throw new Error(
-              res.status === 429 ? "AI Limit Reached" : "AI Error",
-            );
-
-          const items = await res.json();
-          const itemsArray = Array.isArray(items) ? items : [items];
-
-          // --- CRITICAL FIX: DE-DUPLICATE BY KANJI BEFORE UPSERT ---
-          const seen = new Set();
-          const deduplicatedItems = itemsArray
-            .map((item) => ({
-              japanese: String(item.japanese).trim(),
-              reading: String(item.reading || "").replace(/[a-zA-Z\s]/g, ""),
-              english: String(item.english || "").trim(),
-              partOfSpeech: String(item.partOfSpeech || "noun")
-                .trim()
-                .toLowerCase(),
-              exampleSentence: item.exampleSentence || { jp: "", en: "" },
-              creator_id: user.id,
-            }))
-            .filter((item) => {
-              if (seen.has(item.japanese)) return false;
-              seen.add(item.japanese);
-              return true;
-            });
-
-          // const { data: newCards, error: mErr } = await supabase
-          //   .from("master_cards")
-          //   .upsert(
-          //     itemsArray.map((item) => ({
-          //       japanese: String(item.japanese).trim(),
-          //       reading: String(item.reading || "").replace(/[a-zA-Z\s]/g, ""),
-          //       english: String(item.english || "").trim(),
-          //       partOfSpeech: String(item.partOfSpeech || "noun")
-          //         .trim()
-          //         .toLowerCase(),
-          //       exampleSentence: item.exampleSentence || { jp: "", en: "" },
-          //       creator_id: user.id,
-          //     })),
-          //     { onConflict: "japanese" },
-          //   )
-          //   .select("*");
-
-          const { data: newCards, error: mErr } = await supabase
-            .from("master_cards")
-            .upsert(deduplicatedItems, { onConflict: "japanese" }) // Japanese is the unique constraint
-            .select("*");
-
-          if (mErr) throw mErr;
-          if (newCards) {
-            allProcessedCards = [...allProcessedCards, ...newCards];
-            await performLinking(newCards.map((c) => c.id));
-          }
-        } catch (aiErr: any) {
-          console.error("AI Step Failed:", aiErr.message);
-          alert(`AI processing failed: ${aiErr.message}`);
-        }
-      }
-
-      // --- 3.5 Show Overlay ---
-      if (allProcessedCards.length > 0) {
-        const finalSummary = Array.from(
-          new Map(allProcessedCards.map((c) => [c.japanese, c])).values(),
-        );
-        setAddedWordsSummary(finalSummary);
-        setShowSummaryOverlay(true);
-        fetchCards();
-      }
-
-      // --- 4. Cleanup UI ---
-      setInput("");
-      setBatchInput("");
-      setShowBatch(false);
-    } catch (e: any) {
-      console.error("ProcessWords Error:", e);
-      alert(`Major Error: ${e.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const deleteCard = async (id: string, isFromSummary = false) => {
-    // Only show the browser confirm if it's NOT from the quick-summary overlay
-    if (!isFromSummary && !confirm("Remove this card from your collection?"))
-      return;
-
-    // 1. Database Cleanup (Linking & Scores)
     const { error: linkErr } = await supabase
       .from("deck_cards")
       .delete()
@@ -591,98 +569,206 @@ export default function StatsPage() {
       .eq("user_id", user?.id);
 
     if (linkErr || scoreErr) {
-      alert(`Could not delete: ${linkErr?.message || scoreErr?.message}`);
+      showAlert(`Could not delete: ${linkErr?.message || scoreErr?.message}`);
       return;
     }
 
-    // 2. Update Main List UI
     setCards((prev) => prev.filter((c) => c.id !== id));
+  };
 
-    // 3. Update Overlay UI (If applicable)
-    if (isFromSummary) {
-      setAddedWordsSummary((prev) => prev.filter((c) => c.id !== id));
+  // Rolling cap: starring a 31st word bumps whichever one has been starred longest,
+  // same rule as the Study tab's star toggle (they share the same user_scores columns).
+  const toggleCardPriority = async (card: FlashcardData) => {
+    if (!user) return;
+    const turningOn = !card.is_priority;
+    let demotedId: string | null = null;
+
+    if (turningOn) {
+      const current = cards.filter((c) => c.is_priority);
+      if (current.length >= PRIORITY_CAP) {
+        const oldest = [...current].sort((a, b) =>
+          (a.prioritized_at || "").localeCompare(b.prioritized_at || ""),
+        )[0];
+        if (oldest) {
+          demotedId = oldest.id;
+          await supabase.from("user_scores")
+            .update({ is_priority: false, prioritized_at: null })
+            .eq("user_id", user.id).eq("card_id", oldest.id);
+        }
+      }
+    }
+
+    const prioritized_at = turningOn ? new Date().toISOString() : null;
+    await supabase.from("user_scores")
+      .update({ is_priority: turningOn, prioritized_at })
+      .eq("user_id", user.id).eq("card_id", card.id);
+
+    setCards((prev) => prev.map((c) => {
+      if (c.id === card.id) return { ...c, is_priority: turningOn, prioritized_at };
+      if (demotedId && c.id === demotedId) return { ...c, is_priority: false, prioritized_at: null };
+      return c;
+    }));
+  };
+
+  const duplicates = useMemo(() => findDuplicates(cards), [cards]);
+
+  // Per-card status tag shown inline on every card row (independent of the quick
+  // filters below). Mastered = either direction ≥70% with 5+ passes; Struggling =
+  // best direction <40% with at least one attempt — looser than the Weak Words
+  // filter (10+ tries, <30% combined) on purpose, since this is just a glance tag,
+  // not a drill-down list.
+  const cardScoreStatus = (card: FlashcardData): "mastered" | "struggling" | null => {
+    const s = card.scores;
+    const jpMastered = (s?.jp_to_en?.pass || 0) >= 5 && (s?.jp_to_en?.percent || 0) >= 70;
+    const enMastered = (s?.en_to_jp?.pass || 0) >= 5 && (s?.en_to_jp?.percent || 0) >= 70;
+    if (jpMastered || enMastered) return "mastered";
+    const totalAttempts = (s?.jp_to_en?.total || 0) + (s?.en_to_jp?.total || 0);
+    const bestAccuracy = Math.max(s?.jp_to_en?.percent || 0, s?.en_to_jp?.percent || 0);
+    if (totalAttempts > 0 && bestAccuracy < 40) return "struggling";
+    return null;
+  };
+
+  // Same per-card reflex math as StudyView's own Slow Recall ranking.
+  const avgReflexSeconds = (c: FlashcardData): number | null => {
+    const attempts = c.reflex_attempts ?? 0;
+    if (attempts < 3) return null;
+    return (c.reflex_time_total_ms ?? 0) / attempts / 1000;
+  };
+
+  // Same generate/cache logic as StudyView's handleWeakWordMnemonic — confirm (it
+  // costs a daily AI lookup), generate via /api/mnemonic, persist on the card, and
+  // keep it cached so re-opening a card already carrying one skips the API call.
+  const handleMnemonic = async (card: FlashcardData) => {
+    setMnemonicCard(card);
+    if (card.mnemonic || mnemonicLoading) return;
+
+    const confirmed = await showConfirm(
+      `Generate a memory aid for ${card.japanese}? This uses one of your daily AI lookups.`,
+      { title: "Remember this kanji?", confirmLabel: "Generate" },
+    );
+    if (!confirmed) {
+      setMnemonicCard(null);
+      return;
+    }
+
+    setMnemonicLoading(true);
+    setMnemonicError(null);
+    try {
+      const res = await authedFetch("/api/mnemonic", {
+        method: "POST",
+        body: JSON.stringify({ japanese: card.japanese, reading: card.reading, english: card.english }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMnemonicError(data.error || "Couldn't generate a mnemonic right now.");
+        return;
+      }
+      const mnemonic: KanjiMnemonic = { entries: data.entries, origin: data.origin };
+      await supabase.from("master_cards").update({ mnemonic }).eq("id", card.id);
+      setCards((prev) => prev.map((c) => (c.id === card.id ? { ...c, mnemonic } : c)));
+      setMnemonicCard((prev) => (prev && prev.id === card.id ? { ...prev, mnemonic } : prev));
+    } catch {
+      setMnemonicError("Couldn't generate a mnemonic right now.");
+    } finally {
+      setMnemonicLoading(false);
     }
   };
 
-  // 1. Aggregating Global Totals
-  const totalCards = cards.length;
+  // Combined jp_to_en + en_to_jp pass rate — same definition StudyView's
+  // cardOverallPercent uses for Weak Words.
+  const cardOverallPercent = (c: FlashcardData): number => {
+    const jp = c.scores?.jp_to_en;
+    const en = c.scores?.en_to_jp;
+    const pass = (jp?.pass || 0) + (en?.pass || 0);
+    const total = (jp?.total || 0) + (en?.total || 0);
+    return total > 0 ? Math.round((pass / total) * 100) : 0;
+  };
 
-  // 1. Global Totals (Tries, Pass, Fail)
-  const globalStats = useMemo(() => calculateGlobalStats(cards), [cards]);
-  // 1. Global Totals (Tries, Pass, Fail)
-  // Separate Global Totals for both directions
-  // const globalStats = useMemo(() => {
-  //   return cards.reduce(
-  //     (acc, card) => {
-  //       const s = card.scores;
-  //       if (s) {
-  //         const jp = s.jp_to_en || { total: 0, pass: 0, fail: 0 };
-  //         const en = s.en_to_jp || { total: 0, pass: 0, fail: 0 };
-
-  //         // Accumulate Japanese -> English
-  //         acc.jp.tries += jp.total || 0;
-  //         acc.jp.pass += jp.pass || 0;
-  //         acc.jp.fail += jp.fail || 0;
-
-  //         // Accumulate English -> Japanese
-  //         acc.en.tries += en.total || 0;
-  //         acc.en.pass += en.pass || 0;
-  //         acc.en.fail += en.fail || 0;
-  //       }
-  //       return acc;
-  //     },
-  //     {
-  //       jp: { tries: 0, pass: 0, fail: 0 },
-  //       en: { tries: 0, pass: 0, fail: 0 },
-  //     },
-  //   );
-  // }, [cards]);
-
-  // 2. Mastered (Avg Accuracy > 80% and has been attempted)
-  // 1. Get the lists of objects
-  const masteredList = useMemo(() => {
-    return cards.filter((c) => {
-      const s = c.scores;
-      const totalAttempts =
-        (s?.jp_to_en?.total || 0) + (s?.en_to_jp?.total || 0);
-      const avgAccuracy =
-        ((s?.jp_to_en?.percent || 0) + (s?.en_to_jp?.percent || 0)) / 2;
-
-      return totalAttempts > 0 && avgAccuracy >= 80;
-    });
+  // Slow Reflex / Recently Reviewed / Weak Words / Favorites quick filters — same
+  // definitions StudyView's own Focus filter and Weak Words/Priority Words lists used
+  // before those moved here (slowReflexIds: reflex_attempts >= 3; weakWordsIds: 10+
+  // tries but <30% combined accuracy; favoritesIds: starred via the priority toggle).
+  const slowReflexIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const c of cards) {
+      if ((c.reflex_attempts ?? 0) >= 3) ids.add(c.id);
+    }
+    return ids;
   }, [cards]);
 
-  const strugglingList = useMemo(() => {
-    return cards.filter((c) => {
-      const s = c.scores;
-      const totalAttempts =
-        (s?.jp_to_en?.total || 0) + (s?.en_to_jp?.total || 0);
-      const avgAccuracy =
-        ((s?.jp_to_en?.percent || 0) + (s?.en_to_jp?.percent || 0)) / 2;
-
-      return totalAttempts > 0 && avgAccuracy < 40;
-    });
+  const recentlyReviewedIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const c of cards) {
+      const total = (c.scores?.jp_to_en?.total ?? 0) + (c.scores?.en_to_jp?.total ?? 0);
+      if (c.last_reviewed_at && total > 0) ids.add(c.id);
+    }
+    return ids;
   }, [cards]);
 
-  // 2. Derive the counts for your StatCards
-  const masteredCount = masteredList.length;
-  const strugglingCount = strugglingList.length;
+  const weakWordsIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const c of cards) {
+      const jp = c.scores?.jp_to_en;
+      const en = c.scores?.en_to_jp;
+      const total = (jp?.total ?? 0) + (en?.total ?? 0);
+      if (total >= 10 && cardOverallPercent(c) < 30) ids.add(c.id);
+    }
+    return ids;
+  }, [cards]);
+
+  const favoritesIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const c of cards) {
+      if (c.is_priority) ids.add(c.id);
+    }
+    return ids;
+  }, [cards]);
+
+  // Mastered = either direction ≥70% with 5+ passes (same rule cardScoreStatus
+  // uses for the inline tag) — replaces the old Mastered StatCard tile/drill-down.
+  const masteredIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const c of cards) {
+      if (cardScoreStatus(c) === "mastered") ids.add(c.id);
+    }
+    return ids;
+  }, [cards]);
 
   const filteredCards = useMemo(() => {
     const query = searchQuery.toLowerCase();
-    return cards
-      .filter(
-        (card) =>
-          card.japanese.toLowerCase().includes(query) ||
-          card.reading.toLowerCase().includes(query) ||
-          card.english.toLowerCase().includes(query),
-      )
-      .sort((a, b) => {
-        const dateA = new Date(a.added_to_deck_at ?? 0).getTime();
-        const dateB = new Date(b.added_to_deck_at ?? 0).getTime();
-        return dateB - dateA;
-      });
-  }, [cards, searchQuery]);
+    let list = cards.filter(
+      (card) =>
+        card.japanese.toLowerCase().includes(query) ||
+        card.reading.toLowerCase().includes(query) ||
+        card.english.toLowerCase().includes(query),
+    );
+    if (quickFilter === "slowReflex") list = list.filter((c) => slowReflexIds.has(c.id));
+    if (quickFilter === "recentlyReviewed") list = list.filter((c) => recentlyReviewedIds.has(c.id));
+    if (quickFilter === "weakWords") list = list.filter((c) => weakWordsIds.has(c.id));
+    if (quickFilter === "favorites") list = list.filter((c) => favoritesIds.has(c.id));
+    if (quickFilter === "mastered") list = list.filter((c) => masteredIds.has(c.id));
+
+    return list.sort((a, b) => {
+      if (quickFilter === "slowReflex") {
+        return (avgReflexSeconds(b) ?? 0) - (avgReflexSeconds(a) ?? 0);
+      }
+      if (quickFilter === "weakWords") {
+        return cardOverallPercent(a) - cardOverallPercent(b);
+      }
+      if (quickFilter === "mastered") {
+        return cardOverallPercent(b) - cardOverallPercent(a);
+      }
+      if (quickFilter === "favorites") {
+        return (b.prioritized_at ?? "").localeCompare(a.prioritized_at ?? "");
+      }
+      if (quickFilter === "recentlyReviewed") {
+        return (b.last_reviewed_at ?? "").localeCompare(a.last_reviewed_at ?? "");
+      }
+      const dateA = new Date(a.added_to_deck_at ?? 0).getTime();
+      const dateB = new Date(b.added_to_deck_at ?? 0).getTime();
+      return dateB - dateA;
+    });
+  }, [cards, searchQuery, quickFilter, slowReflexIds, recentlyReviewedIds, weakWordsIds, favoritesIds, masteredIds]);
 
   const visibleCards = filteredCards.slice(0, displayLimit);
 
@@ -696,6 +782,58 @@ export default function StatsPage() {
     return "bg-slate-100 text-slate-600 border-slate-200";
   };
 
+  const getJlptColor = (level: string) => {
+    switch (level) {
+      case "N5": return "bg-emerald-100 text-emerald-700 border-emerald-200";
+      case "N4": return "bg-sky-100 text-sky-700 border-sky-200";
+      case "N3": return "bg-amber-100 text-amber-700 border-amber-200";
+      case "N2": return "bg-orange-100 text-orange-700 border-orange-200";
+      case "N1": return "bg-rose-100 text-rose-700 border-rose-200";
+      default: return "bg-slate-100 text-slate-600 border-slate-200";
+    }
+  };
+
+  const USERNAME_ERRORS: Record<UsernameProblem, string> = {
+    too_short: "Too short! (Min 2)",
+    too_long: "Too long! (Max 10)",
+    no_spaces: "No spaces allowed!",
+    taken: "Already taken! Try another.",
+  };
+
+  const saveUsername = async () => {
+    if (!user || nameDraft == null) return;
+    const next = nameDraft.trim();
+    if (next === profileName) return setNameDraft(null);
+    const problem = validateUsername(nameDraft);
+    if (problem) return setNameError(USERNAME_ERRORS[problem]);
+    setNameSaving(true);
+    setNameError(null);
+    try {
+      if (await isUsernameTaken(next, user.id)) return setNameError(USERNAME_ERRORS.taken);
+      const { error } = await supabase.from("profiles").update({ full_name: next }).eq("id", user.id);
+      if (error) return setNameError(error.code === "23505" ? USERNAME_ERRORS.taken : "Couldn't save. Try again.");
+      setProfileName(next);
+      setNameDraft(null);
+    } catch {
+      setNameError("Couldn't save. Try again.");
+    } finally {
+      setNameSaving(false);
+    }
+  };
+
+  const updateAvatar = async (url: string) => {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ avatar_url: url })
+      .eq("id", user?.id);
+
+    if (!error) {
+      setAvatarUrl(url);
+    } else {
+      showAlert("Failed to update avatar");
+    }
+  };
+
   const updateBlocklist = async (newList: string[]) => {
     const { error } = await supabase
       .from("profiles")
@@ -704,7 +842,7 @@ export default function StatsPage() {
 
     if (!error) {
       setUserBlocklist(newList);
-      alert("Blocklist updated!");
+      showAlert("Blocklist updated!");
     }
   };
 
@@ -720,14 +858,28 @@ export default function StatsPage() {
       if (column === "auto_play_en") setAutoPlayEn(value);
       // Add this line:
       if (column === "sfx_enabled") setSfxEnabled(value);
+      if (column === "swipe_only") setSwipeOnly(value);
+      if (column === "stats_visible_to_friends") setStatsVisible(value);
+      if (column === "daily_quests_enabled") setDailyQuestsEnabled(value);
     } else {
       console.error("Error updating setting:", error.message);
     }
   };
 
-  const importPack = async (pack: any) => {
+  // Words in a pack that aren't in the deck yet — for packs that gained words after you
+  // imported them. A kana word counts as present when its kanji card is in the deck.
+  const deckForms = useMemo(() => {
+    const forms = new Set<string>();
+    for (const c of cards) { forms.add(c.japanese); if (c.japanese !== c.reading) forms.add(c.reading); }
+    return forms;
+  }, [cards]);
+  type PackWord = Record<string, unknown> & { japanese: string };
+  const packWordsMissing = (pack: { card_data?: PackWord[] }): PackWord[] =>
+    cards.length === 0 ? [] : (pack.card_data ?? []).filter((w) => !deckForms.has(w.japanese));
+
+  const importPack = async (pack: any, opts?: { silent?: boolean }) => {
     if (!defaultDeckId) {
-      alert(
+      showAlert(
         "Deck ID is missing. Still loading your profile... please try again in 1 second.",
       );
       fetchDecks(); // Manually trigger a refresh
@@ -736,46 +888,95 @@ export default function StatsPage() {
 
     if (!user || !defaultDeckId) return;
 
-    // 1. Safety check: prevent double-adding
-    if (ownedPacks?.includes(pack.id)) return;
+    // 1. An owned pack is only re-imported for words added to it since (packWordsMissing)
+    const isUpdate = !!ownedPacks?.includes(pack.id);
+    const nWords: PackWord[] = isUpdate ? packWordsMissing(pack) : pack.card_data;
+    if (nWords.length === 0) return;
 
     setLoading(true);
     try {
-      const nWords = pack.card_data as any[];
 
-      // 2. Upsert words (Standard logic)
-      const { data: uploadedCards, error: mErr } = await supabase
-        .from("master_cards")
-        .upsert(
-          nWords.map((w) => ({ ...w, creator_id: user.id })),
-          { onConflict: "japanese" },
-        )
-        .select("id");
+      // 2. Reuse existing master_cards rows untouched (never overwrite a
+      // shared card's data just because a pack happens to include the same
+      // word) — only insert genuinely new words, normalized on the way in.
+      const CARD_CHUNK = 150;
+      const existingByJapanese = new Map<string, { id: string; japanese: string; english: string }>();
+      for (let i = 0; i < nWords.length; i += CARD_CHUNK) {
+        const chunk = nWords.slice(i, i + CARD_CHUNK).map((w) => w.japanese);
+        const { data: existing } = await supabase
+          .from("master_cards")
+          .select("id, japanese, english")
+          .in("japanese", chunk);
+        (existing ?? []).forEach((row) => existingByJapanese.set(row.japanese, row));
+      }
 
-      if (mErr || !uploadedCards) throw mErr;
+      const newWords = nWords.filter((w) => !existingByJapanese.has(w.japanese));
+      let insertedCards: { id: string; japanese: string; english: string }[] = [];
+      if (newWords.length > 0) {
+        const { data: inserted, error: mErr } = await supabase
+          .from("master_cards")
+          .insert(
+            newWords.map((w) => ({
+              ...w,
+              english: typeof w.english === "string" ? normalizeEnglish(w.english) : w.english,
+              reading: typeof w.reading === "string" ? stripParens(w.reading) : w.reading,
+              partOfSpeech: typeof w.partOfSpeech === "string" ? normalizePartOfSpeech(w.partOfSpeech) : w.partOfSpeech,
+              creator_id: user.id,
+            })),
+          )
+          .select("id, japanese, english");
+        if (mErr || !inserted) throw mErr;
+        insertedCards = inserted;
+      }
+
+      // Leave out the pack's duplicates of cards already in the deck (みず when 水 is
+      // there, 私は when 私 is) — lib/duplicates
+      const packCards = [...existingByJapanese.values(), ...insertedCards];
+      const { ids: linkIds } = await skipDeckDuplicates(defaultDeckId, packCards.map((c) => c.id));
+      const linkSet = new Set(linkIds);
+      const uploadedCards = packCards.filter((c) => linkSet.has(c.id));
       const cardIds = uploadedCards.map((c) => c.id);
 
-      // 3. Link and Score Initialization
+      // 3. Find which of these cards you're already studying (e.g. an
+      // overlapping word from another pack, or one you added manually) —
+      // a starter pack import must never touch an existing score row.
+      // Chunked to stay well under URL length limits for large packs.
+      const CHUNK = 150;
+      const existingScoreIds = new Set<string>();
+      for (let i = 0; i < cardIds.length; i += CHUNK) {
+        const chunk = cardIds.slice(i, i + CHUNK);
+        const { data: existing } = await supabase
+          .from("user_scores")
+          .select("card_id")
+          .eq("user_id", user.id)
+          .in("card_id", chunk);
+        (existing ?? []).forEach((row) => existingScoreIds.add(row.card_id));
+      }
+      const newCardIds = cardIds.filter((id) => !existingScoreIds.has(id));
+
+      // 4. Link to deck (safe to upsert — no mutable progress here) and
+      // initialize scores ONLY for genuinely new cards.
       await Promise.all([
         supabase.from("deck_cards").upsert(
           cardIds.map((id) => ({ deck_id: defaultDeckId, card_id: id })),
           { onConflict: "deck_id,card_id" },
         ),
-        supabase.from("user_scores").upsert(
-          cardIds.map((id) => ({
-            user_id: user.id,
-            card_id: id,
-            scores_json: {
-              jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
-              en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
-            },
-          })),
-          { onConflict: "user_id,card_id" },
-        ),
+        newCardIds.length > 0
+          ? supabase.from("user_scores").insert(
+              newCardIds.map((id) => ({
+                user_id: user.id,
+                card_id: id,
+                scores_json: {
+                  jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
+                  en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
+                },
+              })),
+            )
+          : Promise.resolve(),
       ]);
 
       // 4. Update Profile with the ID ONLY
-      const updatedPacks = [...(ownedPacks || []), pack.id];
+      const updatedPacks = isUpdate ? ownedPacks : [...(ownedPacks || []), pack.id];
 
       const { error: pErr } = await supabase
         .from("profiles")
@@ -787,13 +988,34 @@ export default function StatsPage() {
       // 5. Update local state
       setOwnedPacks(updatedPacks);
       fetchCards();
+      if (!opts?.silent) {
+        setTriage({ packName: pack.name, cards: uploadedCards.map((c) => ({ id: c.id, japanese: c.japanese, english: c.english })) });
+      }
     } catch (error: any) {
       console.error(error);
-      alert("Error: " + error.message);
+      showAlert("Error: " + error.message);
     } finally {
       setLoading(false);
     }
   };
+
+  // A starter pack you already own can still gain words later (content fixes, pack
+  // growth). Sync those in automatically instead of making you notice and click an
+  // "Add new words" button — a brand-new import already gets the pack's full current
+  // word list, so this only ever applies to packs you'd already added.
+  const autoSyncedPacksRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!ownedPacks || cards.length === 0 || starterPacks.length === 0) return;
+    for (const pack of starterPacks) {
+      if (!ownedPacks.includes(pack.id)) continue;
+      if (autoSyncedPacksRef.current.has(pack.id)) continue;
+      if (packWordsMissing(pack).length === 0) continue;
+      autoSyncedPacksRef.current.add(pack.id);
+      importPack(pack, { silent: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownedPacks, cards, starterPacks]);
+
   const submitFeedback = async () => {
     setSubmittingFeedback(true);
 
@@ -822,7 +1044,7 @@ export default function StatsPage() {
   if (initLoading) return <LoadingScreen />;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 pb-20 md:pb-0">
       {/* Single Parent Wrapper */}
       {/* 1. STICKY HEADER: Edge-to-Edge */}
       <header className="sticky top-0 z-50 w-full bg-slate-50/80 backdrop-blur-md border-b border-slate-200 px-4 py-4 md:px-8">
@@ -841,107 +1063,173 @@ export default function StatsPage() {
                 {profileName || user?.user_metadata?.full_name || ""}
               </h1>
 
-              <div className="flex items-center mt-1.5">
+              <div className="flex items-center gap-1.5 mt-1.5">
                 <span className="px-2.5 py-0.5 bg-slate-800 text-white rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-sm">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                   {t.status_online}
                 </span>
+                {isPremium && (
+                  <span className="px-2.5 py-0.5 bg-gradient-to-r from-amber-400 to-yellow-500 text-white rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm">
+                    <Sparkles size={10} /> Premium
+                  </span>
+                )}
               </div>
             </div>
           </div>
 
-          {/* RIGHT: Back to Study (Settings-Style) */}
-          <div className="flex-shrink-0">
-            <Link
-              href="/"
+          {/* RIGHT: Settings */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => setShowSettings(true)}
               className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 font-black text-slate-600 transition-all active:scale-95 h-10 uppercase tracking-widest text-[10px]"
             >
-              <span>←</span> {t.back_to_study}
-            </Link>
+              <SettingsIcon size={14} /> {t.settings}
+            </button>
           </div>
         </div>
       </header>
-      <main className="min-h-screen bg-slate-50 p-8">
+      <main className="min-h-screen bg-slate-50 px-8 pb-8 pt-12">
         <div className="max-w-5xl mx-auto">
-          {/* Management Toolbar */}
-          <div className="flex flex-col md:flex-row gap-4 mb-8">
-            <div className="flex-1 bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex gap-2">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={t.add_new_word}
-                className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold"
-              />
-              <button
-                onClick={() => {
-                  if (!input.trim()) return;
-                  const lines = input.split("\n").filter((l) => l.trim());
-                  processWords(lines);
-                }}
-                disabled={loading}
-                className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-700 transition-all active:scale-95"
-              >
-                {loading ? "..." : t.ai_add}
-              </button>
-            </div>
 
-            <button
-              onClick={() => setShowBatch(!showBatch)}
-              className="px-6 py-2 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 transition-colors"
-            >
-              {showBatch ? t.close : t.batch_upload}
-            </button>
-          </div>
-
-          {/* Batch Area */}
-          {showBatch && (
-            <div className="mb-8 p-6 bg-indigo-50 rounded-3xl border-2 border-dashed border-indigo-200">
-              <textarea
-                value={batchInput}
-                onChange={(e) => setBatchInput(e.target.value)}
-                className="w-full h-48 p-4 rounded-xl border-none outline-none mb-3 text-sm font-mono shadow-inner"
-                placeholder={
-                  lang === "jp"
-                    ? `入力形式の選択:
-1. リスト形式: 単語（1行につき1単語/漢字）
-2. 歌詞・長文: 歌詞や文章を貼り付けると、AIが新しい単語を抽出します！`
-                    : `FORMAT OPTIONS:
-1. List: words (1 kanji/english word per line)
-2. Lyrics: Paste a whole song or text. I'll pick out the new words for you!`
-                }
-              />
-              <button
-                onClick={() => processWords([batchInput])}
-                disabled={loading}
-                className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-transform"
-              >
-                {loading ? t.ai_processing : `${t.batch_upload} (BETA)`}
-              </button>
-            </div>
-          )}
-
-          {/* Settings Toggle */}
-          <div className="flex justify-end mb-4">
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 font-bold text-slate-600 transition-all active:scale-95"
-            >
-              <span>{showSettings ? "✕" : "⚙️"}</span>
-              {/* Use t.close_settings or t.settings */}
-              <span className="text-sm">
-                {showSettings ? t.close_settings : t.settings}
-              </span>
-            </button>
-          </div>
-
-          {/* Settings Panel */}
+          {/* Settings — full-screen overlay, same pattern as the quiz components */}
           {showSettings && (
-            <div className="mb-8 p-6 bg-white rounded-3xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-top-4">
+            <div className="fixed inset-0 z-[300] bg-slate-50 flex flex-col">
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100 bg-white shrink-0">
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="flex items-center gap-0.5 text-slate-400 hover:text-slate-700 active:scale-90 transition-all"
+                >
+                  <ChevronLeft size={14} />
+                  <span className="text-[9px] font-black uppercase tracking-widest">{t.back}</span>
+                </button>
+                <span className="font-black text-[11px] uppercase tracking-widest text-slate-700">{t.settings}</span>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 max-w-3xl w-full mx-auto">
+              {/* ===== GROUP: ACCOUNT ===== */}
+              <div className="flex items-center gap-2.5 mb-6">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                <h2 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.3em]">Account</h2>
+                <div className="flex-1 h-px bg-slate-100" />
+              </div>
+
+              {/* USERNAME */}
+              <div className="mb-8">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <PenTool size={15} className="text-slate-400" /> Username
+                </h3>
+                {nameDraft == null ? (
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <p className="text-sm font-black text-slate-800 uppercase italic tracking-tight">{profileName || "—"}</p>
+                    <button
+                      onClick={() => { setNameDraft(profileName ?? ""); setNameError(null); }}
+                      className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-indigo-600 hover:text-indigo-600 transition-all active:scale-95"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={nameDraft}
+                        onChange={(e) => { setNameDraft(e.target.value); setNameError(null); }}
+                        onKeyDown={(e) => { if (e.key === "Enter") saveUsername(); if (e.key === "Escape") setNameDraft(null); }}
+                        maxLength={10}
+                        autoFocus
+                        className="flex-1 min-w-0 bg-white border-2 border-slate-200 rounded-xl px-3 py-2 text-sm font-black uppercase tracking-widest focus:border-black outline-none"
+                      />
+                      <button
+                        onClick={saveUsername}
+                        disabled={nameSaving}
+                        className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 disabled:opacity-60"
+                      >
+                        {nameSaving ? "…" : "Save"}
+                      </button>
+                      <button
+                        onClick={() => setNameDraft(null)}
+                        className="px-3 py-2.5 text-slate-500 text-[10px] font-black uppercase tracking-widest"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    {nameError ? (
+                      <p className="text-xs font-bold text-red-500 mt-2">{nameError}</p>
+                    ) : (
+                      <p className="text-[10px] text-slate-500 font-medium mt-2">2–10 characters, no spaces. Friends find you by this name.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* AVATAR PICKER */}
+              <div className="mb-8">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <ImageIcon size={15} className="text-slate-400" /> Avatar
+                </h3>
+                <div className="grid grid-cols-5 gap-3">
+                  {AVATAR_PRESETS.map((url) => (
+                    <button
+                      key={url}
+                      onClick={() => updateAvatar(url)}
+                      className={`relative aspect-square rounded-full overflow-hidden border-2 bg-slate-50 transition-all active:scale-95 ${
+                        avatarUrl === url
+                          ? "border-indigo-600 ring-2 ring-indigo-200"
+                          : "border-slate-100 hover:border-slate-300"
+                      }`}
+                    >
+                      <img src={url} alt="Avatar option" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="h-px bg-slate-100 w-full mb-8" />
+
+              {/* INVITE FRIENDS — referral code + one-tap share */}
+              <div className="mb-8">
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <Gift size={15} className="text-slate-400" /> Invite Friends
+                </h3>
+                <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-[10px] text-slate-500 font-medium leading-tight mb-3">
+                    Share your link — new friends who sign up through it are added to your circle automatically.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 px-4 py-3 bg-white rounded-xl border border-slate-200 font-black text-sm text-slate-700 tracking-widest truncate">
+                      {referralCode ?? "…"}
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!referralCode) return;
+                        try {
+                          await navigator.clipboard.writeText(referralCode);
+                          showAlert("Code copied!");
+                        } catch {
+                          showAlert("Failed to copy code.");
+                        }
+                      }}
+                      disabled={!referralCode}
+                      className="px-5 py-3 bg-slate-800 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-95 disabled:opacity-40 shrink-0"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="h-px bg-slate-100 w-full mb-8" />
+
+              {/* ===== GROUP: PREFERENCES ===== */}
+              <div className="flex items-center gap-2.5 mb-6 mt-16">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                <h2 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.3em]">Preferences</h2>
+                <div className="flex-1 h-px bg-slate-100" />
+              </div>
+
               <div className="mb-8">
                 {/* Header Section */}
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span>🔊</span> {t.audio_prefs}
+                  <Volume2 size={15} className="text-slate-400" /> {t.audio_prefs}
                 </h3>
 
                 {/* Settings Grid */}
@@ -952,7 +1240,7 @@ export default function StatsPage() {
                       <p className="text-sm font-bold text-slate-700">
                         {t.auto_play_jp}
                       </p>
-                      <p className="text-[10px] text-slate-400 font-medium leading-tight">
+                      <p className="text-[10px] text-slate-500 font-medium leading-tight">
                         {t.audio_desc_jp}
                       </p>
                     </div>
@@ -974,7 +1262,7 @@ export default function StatsPage() {
                       <p className="text-sm font-bold text-slate-700">
                         {t.auto_play_en}
                       </p>
-                      <p className="text-[10px] text-slate-400 font-medium leading-tight">
+                      <p className="text-[10px] text-slate-500 font-medium leading-tight">
                         {t.audio_desc_en}
                       </p>
                     </div>
@@ -996,7 +1284,7 @@ export default function StatsPage() {
                       <p className="text-sm font-bold text-slate-700">
                         {t.sfx_title}
                       </p>
-                      <p className="text-[10px] text-slate-400 font-medium leading-tight">
+                      <p className="text-[10px] text-slate-500 font-medium leading-tight">
                         {t.sfx_desc}
                       </p>
                     </div>
@@ -1011,51 +1299,98 @@ export default function StatsPage() {
                       />
                     </button>
                   </div>
-                </div>
-              </div>
 
-              <div className="h-px bg-slate-100 w-full mb-8" />
-
-              {/* Language Preference - NEW SECTION */}
-              {/* Language Preference - RESPONSIVE FIX */}
-              <div className="mb-8">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                  <span>🌐</span> {t.interface_language}
-                </h3>
-
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 gap-4">
-                  <div className="max-w-[200px]">
-                    <p className="text-sm font-bold text-slate-700 leading-tight">
-                      {t.app_language}
-                    </p>
-                    <p className="text-[9px] text-slate-400 font-medium mt-0.5 leading-relaxed">
-                      {t.app_language_desc}
-                    </p>
-                  </div>
-
-                  {/* Buttons: Forced to fit on one line or stacked based on width */}
-                  <div className="flex bg-white rounded-xl p-1 border border-slate-200 shadow-sm w-full sm:w-auto">
+                  {/* Swipe Only Toggle */}
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
+                    <div>
+                      <p className="text-sm font-bold text-slate-700">
+                        {t.swipe_only_title}
+                      </p>
+                      <p className="text-[10px] text-slate-500 font-medium leading-tight">
+                        {t.swipe_only_desc}
+                      </p>
+                    </div>
                     <button
-                      onClick={() => setLang("en")}
-                      className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[10px] font-black transition-all ${
-                        lang === "en"
-                          ? "bg-indigo-600 text-white shadow-md"
-                          : "text-slate-400 hover:text-slate-600"
-                      }`}
+                      onClick={() =>
+                        updateAudioSetting("swipe_only", !swipeOnly)
+                      }
+                      className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${swipeOnly ? "bg-indigo-600" : "bg-slate-300"}`}
                     >
-                      ENGLISH
-                    </button>
-                    <button
-                      onClick={() => setLang("jp")}
-                      className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-[10px] font-black transition-all ${
-                        lang === "jp"
-                          ? "bg-indigo-600 text-white shadow-md"
-                          : "text-slate-400 hover:text-slate-600"
-                      }`}
-                    >
-                      日本語
+                      <div
+                        className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${swipeOnly ? "left-7" : "left-1"}`}
+                      />
                     </button>
                   </div>
+
+                  {/* Stats Visible to Friends Toggle */}
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
+                    <div>
+                      <p className="text-sm font-bold text-slate-700">
+                        Show my stats to friends
+                      </p>
+                      <p className="text-[10px] text-slate-500 font-medium leading-tight">
+                        Friends can always see your name, streak, overall level, and daily card progress. Turn this off to hide your detailed scores, today&apos;s quizzes, and goal/quiz notifications from them.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        updateAudioSetting("stats_visible_to_friends", !statsVisible)
+                      }
+                      className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${statsVisible ? "bg-indigo-600" : "bg-slate-300"}`}
+                    >
+                      <div
+                        className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${statsVisible ? "left-7" : "left-1"}`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Daily Quests Toggle */}
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
+                    <div>
+                      <p className="text-sm font-bold text-slate-700">
+                        Daily Quests
+                      </p>
+                      <p className="text-[10px] text-slate-500 font-medium leading-tight">
+                        Show 3 daily quests on your Home screen. Turn this off if you&apos;d rather not see them.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        updateAudioSetting("daily_quests_enabled", !dailyQuestsEnabled)
+                      }
+                      className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${dailyQuestsEnabled ? "bg-indigo-600" : "bg-slate-300"}`}
+                    >
+                      <div
+                        className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${dailyQuestsEnabled ? "left-7" : "left-1"}`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Push Notifications Toggle */}
+                  {pushState !== "unsupported" && (
+                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-slate-200">
+                      <div className="flex items-start gap-2.5">
+                        <Bell size={15} className="text-slate-400 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-bold text-slate-700">
+                            Notifications
+                          </p>
+                          <p className="text-[10px] text-slate-500 font-medium leading-tight">
+                            Get notified on this device about friend requests and other updates, even when the app is closed.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleTogglePush}
+                        disabled={pushState === "loading"}
+                        className={`w-12 h-6 rounded-full transition-all relative shrink-0 disabled:opacity-50 ${pushState === "subscribed" ? "bg-indigo-600" : "bg-slate-300"}`}
+                      >
+                        <div
+                          className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${pushState === "subscribed" ? "left-7" : "left-1"}`}
+                        />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1063,7 +1398,7 @@ export default function StatsPage() {
 
               <div>
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-2 flex items-center gap-2">
-                  <span>🚫</span> {t.word_filters}
+                  <Ban size={15} className="text-slate-400" /> {t.word_filters}
                 </h3>
                 <div className="flex flex-wrap gap-2 mb-6 p-4 bg-slate-50 rounded-2xl min-h-[60px] border border-slate-100">
                   {userBlocklist.map((word) => (
@@ -1102,12 +1437,17 @@ export default function StatsPage() {
                 </div>
               </div>
 
-              <div className="h-px bg-slate-100 w-full mb-8" />
+              {/* ===== GROUP: FEEDBACK ===== */}
+              <div className="flex items-center gap-2.5 mb-6 mt-16">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                <h2 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.3em]">Feedback</h2>
+                <div className="flex-1 h-px bg-slate-100" />
+              </div>
 
               {/* BUG & FEEDBACK SECTION - NEW */}
               <div className="mb-4">
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span>💬</span> {t.feedback_title}
+                  <MessageSquare size={15} className="text-slate-400" /> {t.feedback_title}
                 </h3>
 
                 {sent ? (
@@ -1197,14 +1537,36 @@ export default function StatsPage() {
                 )}
               </div>
 
-              {/* ... after Feedback Section and before Danger Zone ... */}
+              {/* ===== GROUP: ADMIN (admin-only) ===== */}
+              {isAdmin && (
+                <>
+                  <div className="flex items-center gap-2.5 mb-6 mt-16">
+                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                    <h2 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.3em]">Admin</h2>
+                    <div className="flex-1 h-px bg-slate-100" />
+                  </div>
+                  <div className="mb-4 flex flex-col sm:flex-row gap-3">
+                    <Link
+                      href="/admin"
+                      className="flex-1 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <Flag size={14} /> {t.admin_title}
+                    </Link>
+                    <Link
+                      href="/admin/users"
+                      className="flex-1 bg-indigo-600 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <BarChart3 size={14} /> {t.admin_user_stats}
+                    </Link>
+                  </div>
+                </>
+              )}
 
-              <div className="h-px bg-slate-100 w-full mb-8" />
-
-              {/* ACCOUNT SECURITY SECTION */}
-              <div className="mb-8">
+              {/* ACCOUNT SECURITY SECTION — moved here, right before Sign Out, from
+                  its old spot right after the referral section. */}
+              <div className="mt-16 mb-8">
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span>🔒</span> {t.account_security || "Account Security"}
+                  <Lock size={15} className="text-slate-400" /> {t.account_security || "Account Security"}
                 </h3>
 
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 gap-4">
@@ -1212,7 +1574,7 @@ export default function StatsPage() {
                     <p className="text-sm font-bold text-slate-700 leading-tight">
                       {t.update_password || "Update Password"}
                     </p>
-                    <p className="text-[9px] text-slate-400 font-medium mt-0.5 leading-relaxed">
+                    <p className="text-[9px] text-slate-500 font-medium mt-0.5 leading-relaxed">
                       {user?.app_metadata?.provider === "email"
                         ? t.update_password_desc ||
                           "Change your login password to keep your account secure."
@@ -1226,22 +1588,37 @@ export default function StatsPage() {
                       onClick={() => router.push("/update-password")}
                       className="w-full sm:w-auto px-6 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-indigo-600 hover:text-indigo-600 transition-all active:scale-95 shadow-sm flex items-center justify-center gap-2"
                     >
-                      <span>🔄</span> {t.change_btn || "Change"}
+                      <RefreshCw size={13} /> {t.change_btn || "Change"}
                     </button>
                   ) : (
-                    <div className="px-4 py-2 bg-slate-100 rounded-lg text-[9px] font-black text-slate-400 uppercase tracking-widest border border-slate-200">
+                    <div className="px-4 py-2 bg-slate-100 rounded-lg text-[9px] font-black text-slate-500 uppercase tracking-widest border border-slate-200">
                       Social Auth
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="mt-12 pt-8 border-t border-slate-100">
+              {/* SIGN OUT / DELETE ACCOUNT — moved to the very end of Settings,
+                  after every other section, so they're not the first destructive-
+                  looking actions someone runs into. */}
+              <div className="h-px bg-slate-100 w-full mb-8" />
+
+              {/* SIGN OUT — separated from the danger zone */}
+              <div className="mb-8">
+                <button
+                  onClick={handleLogout}
+                  className="w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-slate-800 text-white hover:bg-slate-700 transition-all active:scale-95 shadow-sm"
+                >
+                  {t.signout}
+                </button>
+              </div>
+
+              {/* DANGER ZONE — intentionally far from sign out */}
+              <div className="mt-16 pt-8 border-t-2 border-red-100">
                 <h3 className="text-[10px] font-black text-red-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                  <span>⚠️</span> {t.danger_zone}
+                  <AlertTriangle size={12} /> {t.danger_zone}
                 </h3>
 
-                {/* DELETE ACCOUNT SECTION */}
                 <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div className="max-w-[250px]">
                     <p className="text-sm font-bold text-red-700 leading-tight">
@@ -1253,55 +1630,53 @@ export default function StatsPage() {
                   </div>
 
                   <button
-                    onClick={() => {
-                      if (confirm(t.delete_confirm)) {
-                        handleDeleteAccount();
-                      }
-                    }}
+                    onClick={handleDeleteAccount}
                     className="w-full sm:w-auto px-6 py-2.5 bg-white border border-red-200 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white hover:border-red-600 transition-all active:scale-95 shadow-sm"
                   >
                     {t.delete_btn}
                   </button>
                 </div>
               </div>
+
+              </div>
             </div>
           )}
 
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+          <div className="flex justify-between items-start gap-3 mb-8">
             {/* Left Side: Deck Title & Edit Logic */}
-            <div className="flex flex-col">
+            <div className="flex flex-col min-w-0 flex-1">
               {isEditingTitle ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                   <input
                     type="text"
                     value={tempTitle}
                     onChange={(e) => setTempTitle(e.target.value)}
-                    className="text-2xl md:text-3xl font-extrabold text-slate-800 bg-transparent border-b-2 border-indigo-500 outline-none px-1 py-0 min-w-[200px]"
+                    className="text-xl md:text-3xl font-extrabold text-slate-800 bg-transparent border-b-2 border-indigo-500 outline-none px-1 py-0 min-w-0 flex-1"
                     autoFocus
                     onKeyDown={(e) => e.key === "Enter" && updateDeckTitle()}
                     onBlur={() => !tempTitle.trim() && setIsEditingTitle(false)}
                   />
                   <button
                     onClick={updateDeckTitle}
-                    className="bg-emerald-500 text-white px-3 py-1 rounded-lg text-xs font-bold shadow-sm hover:bg-emerald-600 transition-colors"
+                    className="shrink-0 bg-emerald-500 text-white px-3 py-1 rounded-lg text-xs font-bold shadow-sm hover:bg-emerald-600 transition-colors"
                   >
                     {t.save}
                   </button>
                   <button
                     onClick={() => setIsEditingTitle(false)}
-                    className="bg-slate-200 text-slate-600 px-3 py-1 rounded-lg text-xs font-bold hover:bg-slate-300 transition-colors"
+                    className="shrink-0 bg-slate-200 text-slate-600 px-3 py-1 rounded-lg text-xs font-bold hover:bg-slate-300 transition-colors"
                   >
-                    ✕
+                    <X size={13} />
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center gap-3">
-                  <h1 className="text-2xl md:text-3xl font-black text-slate-800 leading-tight tracking-tight">
+                <div className="flex items-center gap-3 min-w-0">
+                  <h1 className="text-2xl md:text-3xl font-black text-slate-800 leading-tight tracking-tight truncate min-w-0">
                     {deckTitle}
                   </h1>
                   <button
                     onClick={() => setIsEditingTitle(true)}
-                    className="p-1.5 bg-slate-200/50 text-slate-400 rounded-lg hover:bg-indigo-100 hover:text-indigo-600 transition-all active:scale-90"
+                    className="shrink-0 p-1.5 bg-slate-200/50 text-slate-400 rounded-lg hover:bg-indigo-100 hover:text-indigo-600 transition-all active:scale-90"
                     title="Rename Deck"
                   >
                     <svg
@@ -1321,517 +1696,55 @@ export default function StatsPage() {
                   </button>
                 </div>
               )}
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">
+              <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">
                 {t.active_collection}
               </p>
             </div>
 
-            {/* Right Side: Navigation Buttons */}
-            <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto md:ml-auto">
-              {/* ADMIN ROW: Stacked on mobile, side-by-side on desktop */}
-              {isAdmin && (
-                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                  {/* Admin Reports */}
-                  <Link
-                    href="/admin"
-                    className="w-full md:w-auto bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <span className="text-sm">🚩</span> {t.admin_title}
-                  </Link>
-
-                  {/* Admin Users Performance */}
-                  <Link
-                    href="/admin/users"
-                    className="w-full md:w-auto bg-indigo-600 text-white px-5 py-3 rounded-2xl shadow-lg font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <span className="text-sm">📊</span> {t.admin_user_stats}
-                  </Link>
-                </div>
+            {/* Right Side: Grammar / Struggling Today / Mini Games as compact icon
+                buttons instead of full-width cards below — same destinations
+                (Grammar's own page; Struggling's existing modal via
+                setShowDailyStruggles; Mini Games), just collapsed into this row so
+                the quick filters + search + card list start right after it. */}
+            <div className="shrink-0 flex items-center gap-2">
+              {grammarStats && grammarStats.total > 0 && (
+                <Link
+                  href="/stats/grammar"
+                  title={`Grammar — ${grammarStats.mastered}/${grammarStats.total} learned`}
+                  className="flex items-center gap-1.5 px-3 py-2.5 bg-violet-50 rounded-2xl shadow-sm text-violet-700 border border-violet-100 hover:bg-violet-100 active:scale-95 transition-all"
+                >
+                  <PenTool size={16} />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Grammar</span>
+                </Link>
               )}
-
-              {/* UTILITY ROW: Study & Logout - Shared row on mobile */}
-              <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-                {/* NEW: Study Kana Button */}
-                <Link
-                  href="/study/kana" // Ensure this matches your actual route
-                  className="flex-1 md:flex-none md:px-5 bg-emerald-50 py-3 rounded-2xl shadow-sm font-bold text-emerald-700 border border-emerald-100 hover:bg-emerald-100 transition-all text-sm whitespace-nowrap flex items-center justify-center gap-2"
-                >
-                  <span className="text-lg">あ</span> {t.study_kana}
-                </Link>
-
-                {/* Mini Games Button */}
-                <Link
-                  href="/minigames/focus"
-                  className="flex-1 md:flex-none md:px-5 bg-indigo-50 py-3 rounded-2xl shadow-sm font-bold text-indigo-700 border border-indigo-100 hover:bg-indigo-100 transition-all text-sm whitespace-nowrap flex items-center justify-center gap-2"
-                >
-                  <span className="text-lg">🎮</span> {t.mini_games}
-                </Link>
-
-                {/* Signout (Now sitting next to Games) */}
+              {(dailyStruggles.length > 0 || dailyExplainedLines.length > 0) && (
                 <button
-                  onClick={handleLogout}
-                  className="flex-1 md:flex-none md:px-5 bg-rose-50 py-3 rounded-2xl shadow-sm font-bold text-rose-600 border border-rose-100 hover:bg-rose-100 transition-all text-sm whitespace-nowrap flex items-center justify-center"
+                  onClick={() => setShowDailyStruggles(true)}
+                  title="Struggling Today"
+                  className="relative p-2.5 bg-rose-50 rounded-2xl shadow-sm text-rose-500 border border-rose-100 hover:bg-rose-100 active:scale-95 transition-all"
                 >
-                  {t.signout}
+                  <TrendingDown size={18} />
+                  <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[9px] font-black rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center border-2 border-white">
+                    {dailyStruggles.length + dailyExplainedLines.length}
+                  </span>
                 </button>
-              </div>
+              )}
+              <Link
+                href="/minigames"
+                title={t.mini_games}
+                className="p-2.5 bg-indigo-50 rounded-2xl shadow-sm text-indigo-700 border border-indigo-100 hover:bg-indigo-100 active:scale-95 transition-all"
+              >
+                <Gamepad2 size={18} />
+              </Link>
             </div>
           </div>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6 mb-8">
-            <StatCard
-              label={t.vocabulary}
-              value={totalCards}
-              color="bg-indigo-500"
-            />
-            <StatCard
-              label={t.mastered}
-              value={masteredCount}
-              color="bg-emerald-500"
-              onClick={() => setViewMode("mastered")} // Add onClick to your StatCard component
-            />
-            <StatCard
-              label={t.struggling}
-              value={strugglingCount}
-              color="bg-rose-500"
-              onClick={() => setViewMode("struggling")}
-            />
-
-            <StatCard
-              label={t.daily_progress}
-              value={reviewsToday} // The count for today
-              color="bg-amber-400"
-              onClick={() => {
-                fetchHistory(); // Fetch fresh data
-                setShowHistory(true); // Open overlay
-              }}
-            />
-
-            {/* --- THE STREAK CARD --- */}
-            <div className="col-span-2 md:col-span-1 bg-gradient-to-br from-orange-500 to-red-600 p-5 rounded-[2rem] shadow-lg flex items-center text-white overflow-hidden">
-              {/* The Container: justify-around spreads them out on mobile, gap-6 pulls them together on desktop */}
-              <div className="flex flex-1 items-center justify-around sm:justify-start sm:gap-8">
-                {/* DAILY LOGIN STREAK */}
-                <div className="flex flex-col items-center sm:items-start">
-                  <p className="text-white/70 text-[9px] sm:text-[10px] font-black uppercase tracking-widest mb-1 whitespace-nowrap">
-                    {t.daily_streak}
-                  </p>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-2xl sm:text-xl font-black leading-none">
-                      {streak}
-                    </span>
-                    <span className="text-[10px] uppercase opacity-80 font-bold">
-                      {t.days}
-                    </span>
-                  </div>
-                </div>
-
-                {/* --- THE DIVIDER: Visible on BOTH Mobile and Desktop --- */}
-                {/* On mobile, it's taller (h-10) to fill the row height. On desktop, it's shorter (h-8). */}
-                <div className="w-px h-10 sm:h-8 bg-white/30 rounded-full shadow-[0_0_8px_rgba(255,255,255,0.2)]" />
-
-                {/* BEST SESSION STREAK */}
-                <div className="flex flex-col items-center sm:items-start">
-                  <p className="text-white/70 text-[9px] sm:text-[10px] font-black uppercase tracking-widest mb-1 whitespace-nowrap">
-                    {t.best_streak}
-                  </p>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-2xl sm:text-xl font-black italic leading-none">
-                      {maxStreak}
-                    </span>
-                    <span className="text-[10px] not-italic uppercase opacity-80 font-bold">
-                      {t.passes}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Section: Icon */}
-              <motion.div
-                className="ml-2 sm:ml-4 flex-shrink-0 cursor-pointer select-none"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.8, rotate: -10 }}
-              >
-                <span className="inline-block text-4xl sm:text-3xl animate-fire">
-                  🔥
-                </span>
-              </motion.div>
-            </div>
-
-            {/* Directional Comparison Dashboard */}
-            <div className="col-span-2 md:col-span-3 bg-slate-800 rounded-[2.5rem] p-6 text-white shadow-xl border border-slate-700 relative overflow-hidden">
-              {/* Subtle Background Decoration */}
-              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full -mr-16 -mt-16 blur-3xl" />
-
-              <div className="flex flex-col md:flex-row gap-8 items-center">
-                {/* Left Side: JP → EN */}
-                <div className="flex-1 w-full">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 text-[10px] font-black rounded-md border border-indigo-500/30 uppercase tracking-widest">
-                      {t.recognition}
-                    </span>
-                    <p className="text-xs font-bold text-slate-400">🇯🇵 → 🇺🇸</p>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-500 uppercase">
-                        {t.tries}
-                      </p>
-                      <p className="text-xl font-black">
-                        {globalStats.jp.tries}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-indigo-400 uppercase">
-                        {t.accuracy}
-                      </p>
-                      <p className="text-xl font-black">
-                        {globalStats.jp.tries > 0
-                          ? Math.round(
-                              (globalStats.jp.pass / globalStats.jp.tries) *
-                                100,
-                            )
-                          : 0}
-                        %
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-emerald-500 uppercase">
-                        {t.pass}
-                      </p>
-                      <p className="text-xl font-black text-emerald-400">
-                        {globalStats.jp.pass}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Center Divider (Desktop Only) */}
-                <div className="hidden md:block w-px h-16 bg-slate-700/50" />
-
-                {/* Right Side: EN → JP */}
-                <div className="flex-1 w-full">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 text-[10px] font-black rounded-md border border-orange-500/30 uppercase tracking-widest">
-                      {t.recall}
-                    </span>
-                    <p className="text-xs font-bold text-slate-400">🇺🇸 → 🇯🇵</p>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-500 uppercase">
-                        {t.tries}
-                      </p>
-                      <p className="text-xl font-black">
-                        {globalStats.en.tries}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-orange-400 uppercase">
-                        {t.accuracy}
-                      </p>
-                      <p className="text-xl font-black">
-                        {globalStats.en.tries > 0
-                          ? Math.round(
-                              (globalStats.en.pass / globalStats.en.tries) *
-                                100,
-                            )
-                          : 0}
-                        %
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-emerald-500 uppercase">
-                        {t.pass}
-                      </p>
-                      <p className="text-xl font-black text-emerald-400">
-                        {globalStats.en.pass}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {viewMode !== "none" && (
-            /* 1. Backdrop Overlay */
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
-              onClick={() => setViewMode("none")} // Click backdrop to close
-            >
-              {/* 2. Blurred background */}
-              <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-300" />
-
-              {/* 3. Modal Content Card */}
-              <div
-                className="relative w-full max-w-4xl bg-white rounded-[2.5rem] shadow-2xl border border-white/20 flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-200"
-                onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside the card
-              >
-                {/* Header - Fixed at top */}
-                <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-                  <div>
-                    <h3 className="text-2xl font-black text-slate-800 uppercase italic tracking-tight flex items-center gap-3">
-                      {viewMode === "mastered"
-                        ? `🏆 ${t.mastered}`
-                        : `🎯 ${t.struggling}`}
-                      <span
-                        className={`text-[10px] not-italic px-3 py-1 rounded-full font-black tracking-widest ${viewMode === "mastered" ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600"}`}
-                      >
-                        {viewMode === "mastered"
-                          ? masteredList.length
-                          : strugglingList.length}{" "}
-                        {t.words}
-                      </span>
-                    </h3>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                      {t.dismiss_hint}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setViewMode("none")}
-                    className="h-12 w-12 flex items-center justify-center rounded-2xl bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-800 transition-all active:scale-90"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth={3}
-                      stroke="currentColor"
-                      className="w-5 h-5"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* Body - Scrollable Area */}
-                <div className="p-8 overflow-y-auto custom-scrollbar bg-slate-50/30">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
-                    {(viewMode === "mastered"
-                      ? masteredList
-                      : strugglingList
-                    ).map((word) => (
-                      <div
-                        key={word.id}
-                        className="p-5 rounded-3xl border border-white bg-white shadow-sm flex justify-between items-center hover:shadow-md hover:scale-[1.01] transition-all group"
-                      >
-                        <div>
-                          <p className="text-xl font-black text-slate-800 group-hover:text-indigo-600 transition-colors">
-                            {word.japanese}
-                          </p>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                            {word.reading} • {word.english}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p
-                            className={`text-sm font-black ${viewMode === "mastered" ? "text-emerald-500" : "text-rose-500"}`}
-                          >
-                            {Math.round(
-                              ((word.scores?.jp_to_en?.percent || 0) +
-                                (word.scores?.en_to_jp?.percent || 0)) /
-                                2,
-                            )}
-                            %
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Footer - Optional: Quick Action */}
-                <div className="p-6 border-t border-slate-50 text-center bg-white">
-                  <button
-                    onClick={() => setViewMode("none")}
-                    className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-slate-600"
-                  >
-                    {t.return_to_dashboard}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* --- Daily Activity Overlay --- */}
-          {showHistory && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-              {/* Backdrop */}
-              <div
-                className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-300"
-                onClick={() => setShowHistory(false)}
-              />
-
-              <div className="relative w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
-                {/* Header */}
-                <div className="p-8 border-b border-slate-50 flex justify-between items-end bg-gradient-to-b from-slate-50/50 to-transparent">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
-                      <h3 className="text-2xl font-black text-slate-800 uppercase italic tracking-tight">
-                        {t.activity_log}
-                      </h3>
-                    </div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-4">
-                      {t.progress_tracking} • {t.last_14_days}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setShowHistory(false)}
-                    className="h-12 w-12 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-800 hover:shadow-sm transition-all active:scale-90"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                <div className="p-8 md:p-10 overflow-y-auto custom-scrollbar">
-                  {/* The Visual Chart Area */}
-                  <div className="relative bg-slate-50/50 rounded-[2.5rem] p-6 border border-slate-100 mb-8">
-                    {/* Subtle Grid Lines Background */}
-                    <div className="absolute inset-0 grid grid-rows-4 px-6 py-6 opacity-[0.03] pointer-events-none">
-                      {[...Array(4)].map((_, i) => (
-                        <div key={i} className="border-t border-black w-full" />
-                      ))}
-                    </div>
-
-                    <div className="relative flex items-end justify-between gap-1.5 md:gap-3 h-56">
-                      {dailyHistory.map((day, i) => {
-                        const maxCount = Math.max(
-                          ...dailyHistory.map((d) => d.count),
-                          1,
-                        );
-                        const heightPercentage = Math.max(
-                          (day.count / maxCount) * 100,
-                          4,
-                        ); // Min 4% height so 0s are visible
-                        const isToday = i === 0;
-
-                        return (
-                          <div
-                            key={day.study_date}
-                            className="flex-1 flex flex-col items-center group h-full justify-end"
-                          >
-                            {/* The Bar */}
-                            <div className="relative w-full flex flex-col justify-end h-full">
-                              {/* Tooltip */}
-                              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-black px-2.5 py-1.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100 pointer-events-none z-10 shadow-xl">
-                                {day.count}{" "}
-                                <span className="text-slate-400 font-bold ml-0.5">
-                                  pts
-                                </span>
-                              </div>
-
-                              <div
-                                style={{ height: `${heightPercentage}%` }}
-                                className={`w-full rounded-t-2xl transition-all duration-700 ease-out cursor-default
-                        ${
-                          isToday
-                            ? "bg-gradient-to-t from-indigo-600 to-indigo-400 shadow-lg shadow-indigo-100"
-                            : "bg-slate-200 group-hover:bg-slate-300 group-hover:shadow-md"
-                        }`}
-                              />
-                            </div>
-                            {/* Label */}
-                            <div className="mt-4 flex flex-col items-center">
-                              <span
-                                className={`text-[8px] font-black uppercase tracking-tighter ${isToday ? "text-indigo-600" : "text-slate-400"}`}
-                              >
-                                {new Date(day.study_date).toLocaleDateString(
-                                  "en-SG",
-                                  { weekday: "short" },
-                                )}
-                              </span>
-                              <span className="text-[7px] font-bold text-slate-300 mt-0.5">
-                                {new Date(day.study_date).getDate()}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Stats Summary Cards */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-indigo-100 transition-colors">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-500">
-                          <svg
-                            className="w-3 h-3"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-                          </svg>
-                        </div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                          {t.total}
-                        </p>
-                      </div>
-                      <p className="text-3xl font-black text-slate-800 tracking-tight">
-                        {dailyHistory.reduce(
-                          (acc, curr) => acc + curr.count,
-                          0,
-                        )}
-                        <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">
-                          {t.reviews}
-                        </span>
-                      </p>
-                    </div>
-
-                    <div className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 hover:border-emerald-100 transition-colors">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-500">
-                          <svg
-                            className="w-3 h-3"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        </div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                          {t.average}
-                        </p>
-                      </div>
-                      <p className="text-3xl font-black text-slate-800 tracking-tight">
-                        {Math.round(
-                          dailyHistory.reduce(
-                            (acc, curr) => acc + curr.count,
-                            0,
-                          ) / (dailyHistory.length || 1),
-                        )}
-                        <span className="text-[10px] font-bold text-slate-300 uppercase ml-2 tracking-widest">
-                          {t.daily}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-6 bg-slate-50/50 text-center mt-auto border-t border-slate-50">
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] opacity-60">
-                    {t.motto_focus} • {t.motto_consistency} • {t.motto_mastery}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Starter Packs Section */}
+          {/* Starter Packs Section — hidden once every pack has been added, so it's not
+              permanent real estate for users with nothing left to add. */}
+          {starterPacks.some((pack) => !ownedPacks?.includes(pack.id) || packWordsMissing(pack).length > 0) && (
           <div className="mb-10">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">
+              <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
                 {t.starter_collections}
               </h3>
               <span className="text-[10px] font-bold text-slate-300 uppercase tracking-tighter">
@@ -1887,9 +1800,18 @@ export default function StatsPage() {
                       </p>
                     </div>
 
-                    {/* Bottom Section: Action */}
+                    {/* Bottom Section: Action — words added to a pack after you already own
+                        it sync in automatically (see the auto-sync effect below), so an
+                        owned pack never needs a manual "add new words" step here. */}
                     <button
-                      onClick={() => importPack(pack)}
+                      onClick={async () => {
+                        const count = pack.card_data?.length || 0;
+                        const ok = await showConfirm(
+                          `Add "${pack.name}" (${count} words) to your deck? This can't be undone.`,
+                          { title: "Add to Deck", confirmLabel: "Add" }
+                        );
+                        if (ok) importPack(pack);
+                      }}
                       disabled={loading || isOwned}
                       className={`w-full py-3 rounded-xl text-xs font-bold transition-all ${
                         isOwned
@@ -1902,21 +1824,14 @@ export default function StatsPage() {
                   </div>
                 );
               })}
-
-              {/* Empty State */}
-              {starterPacks.length === 0 && (
-                <div className="flex-none w-full p-8 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center">
-                  <p className="text-sm text-slate-400 font-bold italic">
-                    {t.looking_collections}
-                  </p>
-                </div>
-              )}
             </div>
           </div>
+          )}
+
 
           {/* --- Starter Pack Preview Overlay --- */}
           {previewPack && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+            <div className="fixed inset-0 z-[220] flex items-center justify-center p-4 sm:p-6">
               {/* Backdrop */}
               <div
                 className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-300"
@@ -1935,16 +1850,16 @@ export default function StatsPage() {
                         {previewPack.name}
                       </h3>
                     </div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
                       {previewPack.card_data?.length} {t.cards} •{" "}
-                      {t.starter_collection}
+                      {t.starter_collections}
                     </p>
                   </div>
                   <button
                     onClick={() => setPreviewPack(null)}
                     className="h-12 w-12 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-800 hover:shadow-sm transition-all active:scale-90"
                   >
-                    ✕
+                    <X size={18} />
                   </button>
                 </div>
 
@@ -1952,11 +1867,11 @@ export default function StatsPage() {
                 <div className="p-6 md:p-8 overflow-y-auto custom-scrollbar bg-slate-50/30">
                   {/* Description Card */}
                   <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 mb-6 shadow-sm">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
-                      {t.description}
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">
+                      Description
                     </p>
                     <p className="text-slate-600 text-sm leading-relaxed font-medium">
-                      {previewPack.description || t.default_pack_desc}
+                      {previewPack.description || "A curated starter collection."}
                     </p>
                   </div>
 
@@ -1989,32 +1904,258 @@ export default function StatsPage() {
                 {/* Subtle Bottom Branding */}
                 <div className="pb-6 bg-white text-center">
                   <p className="text-[8px] font-black text-slate-300 uppercase tracking-[0.5em] opacity-60">
-                    {t.mastery_awaits}
+                    {"Mastery Awaits"}
                   </p>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Search */}
-          <div className="relative mb-6">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
-              🔍
-            </div>
-            <input
-              type="text"
-              placeholder={t.search_placeholder}
-              className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setDisplayLimit(20);
-              }}
+          {triage && user && (
+            <KnownWordsTriage
+              userId={user.id}
+              packName={triage.packName}
+              cards={triage.cards}
+              onDone={() => setTriage(null)}
             />
+          )}
+
+          {showDailyStruggles && (
+            <div
+              className="fixed inset-0 z-[220] flex items-center justify-center p-4 sm:p-6"
+              onClick={() => setShowDailyStruggles(false)}
+            >
+              <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" />
+              <div
+                className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl border border-white/20 flex flex-col max-h-[80vh] overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-6 border-b border-slate-50 flex justify-between items-center shrink-0">
+                  <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                    <TrendingDown size={18} className="text-rose-500" /> Struggling Today
+                  </h3>
+                  <button onClick={() => setShowDailyStruggles(false)} className="text-slate-300 hover:text-slate-500 shrink-0">
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4">
+                  {dailyStruggles.length > 0 && (
+                    <div className="mb-5">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                        Words you&apos;ve missed {DAILY_STRUGGLE_THRESHOLD}+ times
+                      </p>
+                      <div className="space-y-2">
+                        {dailyStruggles.map((w) => {
+                          const liveCard = cards.find((c) => c.id === w.card_id);
+                          return (
+                            <div key={w.card_id} className="flex items-center justify-between gap-3 bg-slate-50 rounded-2xl px-4 py-3">
+                              <div className="min-w-0">
+                                <p className="font-black text-slate-800 truncate">
+                                  {w.japanese} <span className="text-slate-400 font-medium">{w.reading !== w.japanese ? w.reading : ""}</span>
+                                </p>
+                                <p className="text-xs text-slate-500 truncate">{w.english}</p>
+                                {(w.partOfSpeech || w.jlpt_level || w.reflex_fail_count > 0) && (
+                                  <div className="flex items-center gap-1 mt-1">
+                                    {w.partOfSpeech && (
+                                      <span className={`text-[9px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(w.partOfSpeech)}`}>
+                                        {w.partOfSpeech}
+                                      </span>
+                                    )}
+                                    {w.jlpt_level && (
+                                      <span className={`text-[9px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getJlptColor(w.jlpt_level)}`}>
+                                        {w.jlpt_level}
+                                      </span>
+                                    )}
+                                    {w.reflex_fail_count > 0 && (
+                                      // Informational only — doesn't change fail_count or the
+                                      // 3+ threshold, just flags that some of today's fails were
+                                      // Reflex Mode timeouts rather than deliberate misses.
+                                      <span
+                                        className="text-[9px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter bg-amber-50 text-amber-600 border-amber-100 flex items-center gap-0.5"
+                                        title={`${w.reflex_fail_count} of today's fails were Reflex Mode timeouts`}
+                                      >
+                                        <Zap size={9} fill="currentColor" />
+                                        Reflex ×{w.reflex_fail_count}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="shrink-0 flex items-center gap-2">
+                                <span className="text-[10px] font-black text-rose-500 bg-rose-50 border border-rose-100 rounded-full px-2 py-1">
+                                  ×{w.fail_count}
+                                </span>
+                                {liveCard && (
+                                  // Star it into Priority so it gets pulled into Study's weighted
+                                  // rotation more often — the way to actually drill a struggling
+                                  // word (including a slow Reflex Mode one) back up.
+                                  <button
+                                    onClick={() => toggleCardPriority(liveCard)}
+                                    className="w-7 h-7 flex items-center justify-center active:scale-90 transition-all"
+                                    title={liveCard.is_priority ? "Remove from Priority" : "Add to Priority"}
+                                  >
+                                    <Star
+                                      size={15}
+                                      className={liveCard.is_priority ? "text-amber-500" : "text-slate-300"}
+                                      fill={liveCard.is_priority ? "currentColor" : "none"}
+                                    />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {dailyExplainedLines.length > 0 && (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">
+                          Reader/Watch lines you tapped Explain on
+                        </p>
+                        <button
+                          onClick={copyDailyExplainedLinesForGemini}
+                          className="text-[9px] font-black uppercase tracking-widest text-indigo-500 hover:text-indigo-700 active:scale-95 transition-all shrink-0"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        {dailyExplainedLines.map((l, i) => (
+                          <div key={i} className="bg-slate-50 rounded-2xl px-4 py-3">
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500">
+                                {l.source}{l.source_title ? ` · ${l.source_title}` : ""}
+                              </span>
+                              {l.explain_count > 1 && (
+                                <span className="shrink-0 text-[10px] font-black text-indigo-500 bg-indigo-50 border border-indigo-100 rounded-full px-2 py-0.5">
+                                  ×{l.explain_count}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm font-bold text-slate-800 leading-snug">{l.line_text}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Duplicate cards (kana copies of kanji cards, word + particle) — see lib/duplicates */}
+          {duplicates.length > 0 && (
+            <button
+              onClick={() => setShowDuplicates(true)}
+              className="w-full mb-3 flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 border border-amber-100 rounded-2xl text-left active:scale-[0.99] transition-transform"
+            >
+              <span className="text-sm font-bold text-amber-800">{duplicates.length} {t.duplicates_found}</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-amber-700">{t.duplicates_review} →</span>
+            </button>
+          )}
+          {showDuplicates && user && defaultDeckId && (
+            <DuplicatesSheet
+              duplicates={duplicates}
+              userId={user.id}
+              deckId={defaultDeckId}
+              t={t}
+              onClose={() => setShowDuplicates(false)}
+              onMerged={() => fetchCards()}
+            />
+          )}
+
+          {/* Search + quick filters — same signals StudyView's own Focus filter and
+              its Weak Words/Priority Words lists used before those moved here,
+              applied to the card list in place. The filter chips used to be their own
+              row above the search bar; collapsed into a dropdown off this button
+              instead (and it takes the manual-refresh button's old slot — the page
+              already revalidates itself in the background on load) so there's one
+              less fixed-height block between the header and the card list. Dropdown
+              is absolutely positioned so opening/closing it never shifts the list. */}
+          <div className="relative mb-4">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <Search size={14} />
+                </div>
+                <input
+                  type="text"
+                  placeholder={t.search_placeholder}
+                  className="w-full pl-10 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setDisplayLimit(20);
+                  }}
+                />
+              </div>
+              <button
+                onClick={() => setShowFilterMenu((v) => !v)}
+                title="Filter"
+                className={`shrink-0 relative w-9 h-9 flex items-center justify-center border rounded-xl shadow-sm active:scale-90 transition-all ${
+                  showFilterMenu || quickFilter !== "none"
+                    ? "bg-indigo-600 border-indigo-600 text-white"
+                    : "bg-white border-slate-200 text-slate-400 hover:text-indigo-600"
+                }`}
+              >
+                <SlidersHorizontal size={14} />
+                {quickFilter !== "none" && !showFilterMenu && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white" />
+                )}
+              </button>
+            </div>
+
+            {showFilterMenu && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setShowFilterMenu(false)} />
+                <div className="absolute right-0 top-full mt-2 z-30 flex flex-col gap-1.5 p-3 w-48 bg-white rounded-2xl border border-slate-100 shadow-xl">
+                  {([
+                    ["mastered", "🏆 Mastered"],
+                    ["favorites", "⭐ Favorites"],
+                    ["slowReflex", "🐌 Slow"],
+                    ["recentlyReviewed", "🕐 Recent"],
+                    ["weakWords", "😓 Weak"],
+                  ] as const).map(([key, label]) => {
+                    const isActive = quickFilter === key;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => {
+                          setQuickFilter(isActive ? "none" : key);
+                          setDisplayLimit(20);
+                          setShowFilterMenu(false);
+                        }}
+                        className={`w-full px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 text-left whitespace-nowrap ${
+                          isActive ? "bg-indigo-600 text-white border-indigo-600" : "bg-slate-50 text-slate-500 border-slate-200"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
 
+          {/* Card list skeleton while full content loads */}
+          {cardsLoading && cards.length === 0 && (
+            <div className="space-y-2.5 mb-6">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="bg-white rounded-2xl border border-slate-100 p-4 animate-pulse">
+                  <div className="h-5 bg-slate-100 rounded-full w-1/3 mb-3" />
+                  <div className="h-3 bg-slate-100 rounded-full w-1/2" />
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* List Views (Mobile & Desktop) */}
-          <div className="md:hidden space-y-4">
+          <div className="md:hidden space-y-2.5">
             {visibleCards.map((card) => {
               const isNew =
                 new Date().getTime() -
@@ -2024,27 +2165,31 @@ export default function StatsPage() {
               return (
                 <div
                   key={card.id}
-                  className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden"
+                  className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden"
                 >
                   {/* ACTION BUTTONS (Top Right) */}
-                  {/* ACTION BUTTONS (Perfectly Aligned) */}
-                  <div className="absolute top-4 right-4 flex items-center gap-1">
-                    {/* REPORT BUTTON */}
+                  <div className="absolute top-2.5 right-2.5 flex items-center gap-0.5">
+                    {/* PRIORITY STAR */}
                     <button
-                      onClick={() => handleReport(card.id, card.english)}
-                      className="w-8 h-8 flex items-center justify-center text-amber-500 active:scale-90 transition-all"
+                      onClick={() => toggleCardPriority(card)}
+                      className="w-7 h-7 flex items-center justify-center active:scale-90 transition-all"
+                      title={card.is_priority ? "Remove from Priority" : "Add to Priority"}
                     >
-                      <span className="text-base leading-none">🚩</span>
+                      <Star
+                        size={14}
+                        className={card.is_priority ? "text-amber-500" : "text-slate-300"}
+                        fill={card.is_priority ? "currentColor" : "none"}
+                      />
                     </button>
 
                     {/* DELETE BUTTON */}
                     <button
                       onClick={() => deleteCard(card.id)}
-                      className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-rose-500 active:scale-90 transition-all"
+                      className="w-7 h-7 flex items-center justify-center text-slate-300 hover:text-rose-500 active:scale-90 transition-all"
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4"
+                        className="h-3.5 w-3.5"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -2058,10 +2203,13 @@ export default function StatsPage() {
                       </svg>
                     </button>
                   </div>
-                  <div className="mb-4">
+                  <div
+                    className="cursor-pointer active:opacity-70 transition-opacity"
+                    onClick={() => setScoreDetailCard(card)}
+                  >
                     {/* Flex container to keep Japanese and Badge together */}
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <div className="text-2xl font-black text-slate-800 leading-none">
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      <div className="text-lg font-black text-slate-800 leading-none">
                         {card.japanese}
                       </div>
 
@@ -2075,58 +2223,67 @@ export default function StatsPage() {
 
                     {card.partOfSpeech && (
                       <span
-                        className={`text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(card.partOfSpeech)}`}
+                        className={`text-[9px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(card.partOfSpeech)}`}
                       >
                         {card.partOfSpeech}
                       </span>
                     )}
-                    <div className="text-sm font-bold text-indigo-500">
+                    {card.jlpt_level && (
+                      <span
+                        className={`ml-1.5 text-[9px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getJlptColor(card.jlpt_level)}`}
+                      >
+                        {card.jlpt_level}
+                      </span>
+                    )}
+                    {(() => {
+                      const status = cardScoreStatus(card);
+                      if (!status) return null;
+                      return (
+                        <span
+                          className={`ml-1.5 text-[9px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter ${
+                            status === "mastered"
+                              ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                              : "bg-rose-50 text-rose-600 border-rose-200"
+                          }`}
+                        >
+                          {status === "mastered" ? t.mastered : t.struggling}
+                        </span>
+                      );
+                    })()}
+                    {quickFilter === "slowReflex" && avgReflexSeconds(card) != null && (
+                      <span className="ml-1.5 text-[9px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter bg-amber-50 text-amber-600 border-amber-200">
+                        🐌 {avgReflexSeconds(card)!.toFixed(1)}s avg ×{card.reflex_attempts}
+                      </span>
+                    )}
+                    {quickFilter === "weakWords" && (
+                      <span className="ml-1.5 text-[9px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter bg-rose-50 text-rose-600 border-rose-200">
+                        😓 {cardOverallPercent(card)}%
+                      </span>
+                    )}
+                    {(quickFilter === "slowReflex" || quickFilter === "weakWords") && KANJI_RE.test(card.japanese) && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleMnemonic(card); }}
+                        className="ml-1.5 p-1 rounded-full hover:bg-amber-100 active:scale-90 transition-all align-middle"
+                        title="Remember this kanji"
+                      >
+                        <Lightbulb size={14} className={card.mnemonic ? "text-amber-500" : "text-slate-300"} />
+                      </button>
+                    )}
+                    <div className="text-xs font-bold text-indigo-500 mt-0.5">
                       {card.reading}
                     </div>
-                    <div className="text-slate-600 mt-1">{card.english}</div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50">
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">
-                        🇯🇵 → 🇺🇸
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold">
-                          {card.scores?.jp_to_en?.percent || 0}%
-                        </span>
-                        <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-emerald-400"
-                            style={{
-                              width: `${card.scores?.jp_to_en?.percent || 0}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">
-                        🇺🇸 → 🇯🇵
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold">
-                          {card.scores?.en_to_jp?.percent || 0}%
-                        </span>
-                        <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-orange-400"
-                            style={{
-                              width: `${card.scores?.en_to_jp?.percent || 0}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
+                    <div className="text-sm text-slate-600 mt-0.5">{card.english}</div>
                   </div>
                 </div>
               );
             })}
           </div>
+
+          {/* JP→EN / EN→JP detail — tap a card above to see it, instead of every card
+              carrying two bars inline all the time. */}
+          {scoreDetailCard && (
+            <CardDetailModal card={scoreDetailCard} onClose={() => setScoreDetailCard(null)} />
+          )}
 
           <div className="hidden md:block bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
             <table className="w-full text-left border-collapse">
@@ -2173,6 +2330,32 @@ export default function StatsPage() {
                             {card.partOfSpeech}
                           </span>
                         )}
+                        {card.jlpt_level && (
+                          <span
+                            className={`ml-1.5 text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getJlptColor(card.jlpt_level)}`}
+                          >
+                            {card.jlpt_level}
+                          </span>
+                        )}
+                        {quickFilter === "slowReflex" && avgReflexSeconds(card) != null && (
+                          <span className="ml-1.5 text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter bg-amber-50 text-amber-600 border-amber-200">
+                            🐌 {avgReflexSeconds(card)!.toFixed(1)}s avg ×{card.reflex_attempts}
+                          </span>
+                        )}
+                        {quickFilter === "weakWords" && (
+                          <span className="ml-1.5 text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter bg-rose-50 text-rose-600 border-rose-200">
+                            😓 {cardOverallPercent(card)}%
+                          </span>
+                        )}
+                        {(quickFilter === "slowReflex" || quickFilter === "weakWords") && KANJI_RE.test(card.japanese) && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleMnemonic(card); }}
+                            className="ml-1.5 p-1 rounded-full hover:bg-amber-100 active:scale-90 transition-all align-middle"
+                            title="Remember this kanji"
+                          >
+                            <Lightbulb size={14} className={card.mnemonic ? "text-amber-500" : "text-slate-300"} />
+                          </button>
+                        )}
                         <div className="text-xs text-indigo-500 font-medium">
                           {card.reading}
                         </div>
@@ -2208,13 +2391,26 @@ export default function StatsPage() {
                       </td>
                       <td className="px-4 py-4 text-right">
                         <div className="flex justify-end gap-2">
+                          {/* PRIORITY STAR */}
+                          <button
+                            onClick={() => toggleCardPriority(card)}
+                            className="p-2 hover:bg-amber-50 rounded-lg transition-colors"
+                            title={card.is_priority ? "Remove from Priority" : "Add to Priority"}
+                          >
+                            <Star
+                              size={18}
+                              className={card.is_priority ? "text-amber-500" : "text-slate-300"}
+                              fill={card.is_priority ? "currentColor" : "none"}
+                            />
+                          </button>
+
                           {/* REPORT BUTTON */}
                           <button
                             onClick={() => handleReport(card.id, card.english)}
                             className="p-2 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors group relative"
                             title={t.report_issue}
                           >
-                            <span className="text-lg">🚩</span>
+                            <Flag size={16} />
                           </button>
 
                           {/* DELETE BUTTON (Existing) */}
@@ -2248,7 +2444,7 @@ export default function StatsPage() {
           {filteredCards.length > displayLimit && (
             <div className="mt-8 mb-12 flex justify-center">
               <button
-                onClick={() => setDisplayLimit((prev) => prev + 50)}
+                onClick={() => setDisplayLimit((prev) => prev + 200)}
                 className="bg-white border border-slate-200 px-8 py-3 rounded-2xl font-bold text-slate-600 hover:bg-slate-50"
               >
                 {t.load_more} ({filteredCards.length - displayLimit}{" "}
@@ -2258,159 +2454,95 @@ export default function StatsPage() {
           )}
         </div>
 
-        {showSummaryOverlay && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 flex flex-col max-h-[80vh] overflow-hidden">
-              {/* Header */}
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                <div>
-                  <h2 className="text-xl font-black text-slate-800 uppercase italic tracking-tighter">
-                    {t.words_added}
-                  </h2>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                    {addedWordsSummary.length} {t.new_entries}
-                  </p>
+        {/* ── Add Cards FAB ── */}
+        <motion.button
+          onClick={() => setShowAddSheet(true)}
+          whileTap={{ scale: 0.88 }}
+          className="fixed bottom-24 right-5 z-[205] w-14 h-14 bg-indigo-600 text-white rounded-full shadow-xl shadow-indigo-300/50 flex items-center justify-center"
+        >
+          <Plus size={26} strokeWidth={2.5} />
+          {pendingWordCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center">
+              {pendingWordCount}
+            </span>
+          )}
+        </motion.button>
+        {user?.id && defaultDeckId && (
+          <AddWordsSheet
+            userId={user.id}
+            deckId={defaultDeckId}
+            isAdmin={isAdmin}
+            blocklist={userBlocklist}
+            open={showAddSheet}
+            onClose={() => setShowAddSheet(false)}
+            onAdded={fetchCards}
+            onQueueCountChange={setPendingWordCount}
+          />
+        )}
 
-                  {/* NEW: Conditional Limit Badge */}
-                  {addedWordsSummary.length >= 50 && (
-                    <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-black border border-amber-200 animate-pulse">
-                      {t.limit_notice}
-                    </span>
+        {/* Mnemonic sheet — triggered from the Slow Reflex/Weak Words quick-filter
+            rows' "Remember this kanji" button. Same content/style as StudyView's own
+            (now-removed) version. */}
+        {mnemonicCard && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[300] bg-black/40"
+              onClick={() => setMnemonicCard(null)}
+            />
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[301] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm max-h-[80vh] overflow-y-auto"
+              style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+            >
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <Lightbulb size={16} className="text-amber-500" />
+                  <p className="text-slate-800 font-black text-sm uppercase tracking-tight">
+                    Remember {mnemonicCard.japanese}
+                  </p>
+                </div>
+                <button onClick={() => setMnemonicCard(null)} className="text-slate-300 hover:text-slate-500 shrink-0">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {mnemonicLoading && (
+                <div className="flex items-center gap-2 text-sm text-slate-400 py-6 justify-center">
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>Thinking of a way to remember it…</span>
+                </div>
+              )}
+
+              {!mnemonicLoading && mnemonicError && (
+                <p className="text-center text-rose-500 text-xs font-bold py-6">{mnemonicError}</p>
+              )}
+
+              {!mnemonicLoading && !mnemonicError && mnemonicCard.mnemonic && (
+                <div className="space-y-4">
+                  {mnemonicCard.mnemonic.entries.map((entry, i) => (
+                    <div key={i} className="bg-slate-50 rounded-2xl p-4">
+                      <p className="text-3xl font-black text-slate-800 mb-1">{entry.character}</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-1.5">
+                        {entry.radicals}
+                      </p>
+                      <p className="text-sm text-slate-600 leading-snug">{entry.story}</p>
+                    </div>
+                  ))}
+                  {mnemonicCard.mnemonic.origin && (
+                    <p className="text-xs text-slate-400 italic leading-snug pt-1">{mnemonicCard.mnemonic.origin}</p>
                   )}
                 </div>
-                <button
-                  onClick={() => setShowSummaryOverlay(false)}
-                  className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-slate-200 transition-colors text-slate-400"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* List content */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/30">
-                {addedWordsSummary.map((word, i) => (
-                  <div
-                    key={i}
-                    className="group bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-start gap-4 hover:border-indigo-100 transition-all"
-                  >
-                    {/* 1. LEFT: THE COLORFUL KANJI AVATAR (Restored Colors) */}
-                    <div className="flex-shrink-0 w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100 shadow-sm">
-                      <span className="text-indigo-600 font-black text-xl">
-                        {word.japanese[0]}
-                      </span>
-                    </div>
-
-                    {/* 2. CENTER: Content Info */}
-                    <div className="flex-1 flex flex-col text-left">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-lg font-black text-slate-800">
-                          {word.japanese}
-                        </span>
-                        <span className="text-xs font-bold text-rose-500 uppercase tracking-tighter">
-                          {word.reading}
-                        </span>
-                      </div>
-
-                      <p className="text-sm text-slate-600 font-medium mt-0.5 leading-tight pr-10">
-                        {word.english}
-                      </p>
-
-                      {/* Meta Tags */}
-                      <div className="mt-2 flex gap-2">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
-                          {word.partOfSpeech}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* 3. TOP RIGHT: THE DELETE BUTTON (Trash Can Style) */}
-                    <div className="flex-shrink-0 -mt-1 -mr-1">
-                      <button
-                        onClick={() => deleteCard(word.id, true)}
-                        className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all active:scale-90"
-                        title={t.delete}
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Footer */}
-              <div className="p-4 border-t border-slate-100">
-                <button
-                  onClick={() => setShowSummaryOverlay(false)}
-                  className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-slate-700 transition-all active:scale-[0.98] shadow-lg"
-                >
-                  {t.got_it}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {loading && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex flex-col items-center justify-center text-white">
-            <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-lg font-bold animate-pulse">{t.ai_building}</p>
-          </div>
+              )}
+            </motion.div>
+          </>
         )}
       </main>
-    </div>
-  );
-}
-function StatCard({
-  label,
-  value,
-  color,
-  onClick, // 1. Add the prop here
-}: {
-  label: string;
-  value: number;
-  color: string;
-  onClick?: () => void; // 2. Define the type (optional)
-}) {
-  return (
-    <div
-      onClick={onClick}
-      className={`bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex justify-between items-center transition-all ${
-        onClick
-          ? "cursor-pointer hover:border-slate-300 hover:scale-[1.02] active:scale-95"
-          : ""
-      }`}
-    >
-      <div>
-        <p className="text-slate-400 text-[10px] font-black uppercase tracking-tighter">
-          {label}
-        </p>
-        <p className="text-4xl font-black text-slate-800">{value || 0}</p>
-      </div>
-
-      {/* Visual Icon Box */}
-      <div
-        className={`w-12 h-12 rounded-2xl ${color} opacity-20 flex items-center justify-center`}
-      >
-        {/* Optional: Add a small chevron if it's clickable */}
-        {onClick && (
-          <span
-            className={`text-xl font-black ${color.replace("bg-", "text-")} opacity-100`}
-          >
-            →
-          </span>
-        )}
-      </div>
     </div>
   );
 }

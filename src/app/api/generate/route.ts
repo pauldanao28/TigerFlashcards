@@ -1,46 +1,30 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
+import { getAuthedUser } from "@/lib/apiAuth";
+import { checkAndRecordUsage } from "@/lib/rateLimit";
+import { generateCards } from "@/lib/generateCards";
 
 export async function POST(req: Request) {
+  const user = await getAuthedUser(req);
+  if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+
   const { words } = await req.json();
-
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-  const prompt = `Task: Analyze or translate this list of terms: [${words.join(", ")}].
-1. If the input is Japanese (Kanji/Kana): Provide the reading, English translation, and example.
-2. If the input is English: Provide the most common Kanji, reading, and example.
-3. Identify the Part of Speech (e.g., noun, verb, adjective, adverb).
-
-Output ONLY raw JSON as an ARRAY of objects:
-[
-  {
-    "japanese": "...",
-    "reading": "...",
-    "english": "...",
-    "partOfSpeech": "...", 
-    "alternatives": [],
-    "contextNote": "...",
-    "exampleSentence": { "jp": "...", "en": "..." }
+  if (!Array.isArray(words) || words.length === 0) {
+    return NextResponse.json({ error: "words must be a non-empty array" }, { status: 400 });
   }
-]`;
 
-  const result = await model.generateContent(prompt);
-  const response = await result.response;
-  const text = response.text();
-  
-  //const cleanJson = text.replace(/```json|```/g, "").trim();
+  const usage = await checkAndRecordUsage(user.id, "generate", words.length);
+  if (!usage.allowed) {
+    return NextResponse.json(
+      { error: "Daily limit reached — come back tomorrow!" },
+      { status: 429 }
+    );
+  }
 
-  // To this (safer):
-  const jsonMatch = text.match(/\[[\s\S]*\]/); 
-  const cleanJson = jsonMatch ? jsonMatch[0] : text;
-
-try {
-  const parsedData = JSON.parse(cleanJson);
-  return NextResponse.json(parsedData);
-} catch (e) {
-  console.error("Gemini returned invalid JSON:", text);
-  return NextResponse.json({ error: "Invalid AI response" }, { status: 500 });
-}
+  try {
+    const cards = await generateCards(words);
+    return NextResponse.json(cards);
+  } catch (e) {
+    console.error("Generate API error:", e);
+    return NextResponse.json({ error: "AI unavailable" }, { status: 500 });
+  }
 }

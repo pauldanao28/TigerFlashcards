@@ -1,55 +1,105 @@
 // src/lib/social.ts
 import { supabase } from './supabase';
-export const addFriendByUsername = async (targetUsername: string) => {
-  // 1. Get Current User
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Not logged in" };
+import { notifyFriendRequest, notifyFriendAccepted, notifyFriendJoined } from './push';
 
-  const cleanUsername = targetUsername.trim();
-  if (!cleanUsername) return { error: "Please enter a name" };
+export type FriendCandidate = { id: string; full_name: string };
 
-  // 2. Find the target user (Case-insensitive, exact match, force 1 result)
-  const { data: profiles, error: profileError } = await supabase
-    .from('profiles')
-    .select('id, full_name')
-    .ilike('full_name', cleanUsername)
-    .limit(1);
+// Referral codes are always 8 chars from generate_referral_code()'s charset
+// (uppercase letters minus I/L/O, digits minus 0/1) — distinct enough from
+// a display name that we can auto-detect which kind of lookup to do. (The
+// letter ranges exclude L too, not just I/O — A-H,J-K,M-N,P-Z — since any
+// 8-char alphanumeric string, L included, is still a plausible username and
+// addFriend falls back to a name search below if this guess turns out wrong.)
+const REFERRAL_CODE_PATTERN = /^[A-HJKM-NP-Z2-9]{8}$/i;
 
-  // Check if query failed or no user was found
-  if (profileError || !profiles || profiles.length === 0) {
-    return { error: "User not found" };
-  }
+type FriendActionResult =
+  | { success: true; name: string; autoAccepted?: boolean; error?: undefined; needsDisambiguation?: undefined }
+  | { error: string; success?: undefined; needsDisambiguation?: undefined }
+  | { needsDisambiguation: true; matches: FriendCandidate[]; success?: undefined; error?: undefined };
 
-  // Safely extract the single object from the array
-  const targetProfile = profiles[0];
-
-  // 3. Validation: Don't add yourself
-  if (targetProfile.id === user.id) {
+// Goes through send_friend_request (see its migration) rather than a raw insert —
+// friendships' unique constraint is only on (user_id, friend_id), not symmetric, so a
+// raw insert can't detect "they already sent me a request" and would create a second,
+// crossed-direction row instead of just accepting theirs. The RPC decides atomically.
+const sendFriendRequest = async (
+  currentUserId: string,
+  target: FriendCandidate,
+): Promise<FriendActionResult> => {
+  if (target.id === currentUserId) {
     return { error: "You can't add yourself" };
   }
 
-  // 4. Insert the Friendship (Single Row Approach)
-  const { error: insertError } = await supabase
-    .from('friendships')
-    .insert([
-      { 
-        user_id: user.id,            // You (The Sender)
-        friend_id: targetProfile.id,   // Them (The Receiver)
-        status: 'pending' 
-      }
-    ]);
+  const { data, error } = await supabase.rpc('send_friend_request', { p_target_id: target.id });
+  if (error) return { error: error.message };
 
-  // 5. Handle Errors (like duplicate requests)
-  if (insertError) {
-    // Check for unique constraint violation (already friends or pending)
-    if (insertError.code === '23505') {
-      return { error: "Request already exists or you are already friends" };
+  switch (data as string) {
+    case 'sent':
+      // Fire-and-forget — a push failure (not configured, permission never
+      // granted, etc.) shouldn't block or fail the request-sent flow itself.
+      notifyFriendRequest(target.id);
+      return { success: true, name: target.full_name };
+    case 'accepted':
+      // They'd already sent us a request — this call accepted it instead of
+      // creating a duplicate, so the outcome is "friends now", not "request sent".
+      // Notify them the same way an explicit Accept-button tap would.
+      notifyFriendAccepted(target.id);
+      return { success: true, name: target.full_name, autoAccepted: true };
+    case 'already_pending':
+      return { error: "Request already exists" };
+    case 'already_friends':
+      return { error: "You're already friends" };
+    case 'self':
+      return { error: "You can't add yourself" };
+    default:
+      return { error: "Something went wrong" };
+  }
+};
+
+// Single entry point for the "add friend" box — accepts either a display
+// name or a referral code. Returns `needsDisambiguation` with the candidate
+// list when a name matches more than one profile, instead of silently
+// picking one (find_user_by_name no longer collapses to a single row).
+export const addFriend = async (input: string): Promise<FriendActionResult> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not logged in" };
+
+  const cleaned = input.trim();
+  if (!cleaned) return { error: "Please enter a name or code" };
+
+  if (REFERRAL_CODE_PATTERN.test(cleaned)) {
+    const { data: matches } = await supabase
+      .rpc('find_user_by_referral_code', { p_code: cleaned });
+
+    if (matches && matches.length > 0) {
+      return sendFriendRequest(user.id, matches[0]);
     }
-    return { error: insertError.message };
+    // Fall through to the name search below instead of stopping at "Code not
+    // found" — this pattern is just a heuristic guess at "this looks like a
+    // code", and an 8-char input that happens to match it but isn't a real
+    // code (most plausibly, someone's actual 8-char username) should still be
+    // searchable by name rather than being permanently unfindable this way.
   }
 
-  console.log("Success! Found and added:", targetProfile.full_name);
-  return { success: true, name: targetProfile.full_name };
+  // profiles is no longer publicly readable, so a stranger's row can only
+  // be found via this narrow RPC, and only id/full_name are ever returned
+  // (no scores/streak).
+  const { data: matches, error } = await supabase
+    .rpc('find_user_by_name', { p_name: cleaned });
+
+  if (error || !matches || matches.length === 0) {
+    return { error: "User not found" };
+  }
+  if (matches.length > 1) {
+    return { needsDisambiguation: true as const, matches: matches as FriendCandidate[] };
+  }
+  return sendFriendRequest(user.id, matches[0]);
+};
+
+// Used once a disambiguation list is shown and the user taps the right one.
+export const addFriendById = async (target: FriendCandidate): Promise<FriendActionResult> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not logged in" };
+  return sendFriendRequest(user.id, target);
 };
 
 export const cancelFriendRequest = async (friendId: string) => {
@@ -76,6 +126,7 @@ export const handleAcceptRequest = async (senderId: string) => {
     .match({ user_id: senderId, friend_id: user.id });
 
   if (error) console.error("Accept Error:", error.message);
+  else notifyFriendAccepted(senderId);
   return { error };
 };
 
@@ -93,50 +144,44 @@ export const handleIgnoreRequest = async (senderId: string) => {
   return { error };
 };
 
-export const processReferral = async (newUserId: string, referrerName: string) => {
+// Goes through process_referral (see its migration) rather than raw client inserts —
+// the mutual-friendship insert needs a row with the REFERRER as user_id, and a plain
+// insert authenticated as the newly-referred user can't satisfy an auth.uid() =
+// user_id RLS check for that row. Doing the whole thing atomically server-side also
+// means the two call sites (Auth.tsx right after signUp, StudyView's fallback for when
+// email confirmation delays that first attempt) can't race into a double-insert.
+export const processReferral = async (referralCode: string) => {
   try {
-    // 1. Find the Referrer
-    const { data: referrer, error: findError } = await supabase
-      .from("profiles")
-      .select("id, full_name")
-      .ilike("full_name", referrerName)
-      .maybeSingle();
-
-    if (findError || !referrer) {
-      console.error("Referrer not found");
-      return { success: false, error: "Referrer not found" };
+    const { data, error } = await supabase.rpc("process_referral", { p_code: referralCode });
+    if (error) {
+      console.error("Referral process failed:", error.message);
+      return { success: false, error: error.message };
     }
 
-    // --- NEW CHECK: Stop self-referral ---
-    if (referrer.id === newUserId) {
-      console.log("Self-referral blocked. You cannot invite yourself!");
-      localStorage.removeItem("tg_referrer"); // Clean up so the error stops popping up
-      return { success: false, error: "Self-referral" };
+    switch (data as string) {
+      case "linked":
+        localStorage.removeItem("tg_referrer");
+        notifyFriendJoined();
+        return { success: true };
+      case "self":
+        console.log("Self-referral blocked. You cannot invite yourself!");
+        localStorage.removeItem("tg_referrer"); // Clean up so the error stops popping up
+        return { success: false, error: "Self-referral" };
+      case "already_referred":
+        localStorage.removeItem("tg_referrer");
+        return { success: false, error: "Already referred" };
+      case "invalid_code":
+        console.error("Referrer not found");
+        // Unlike the other failure cases, an invalid code can never succeed no
+        // matter how many times it's retried — leaving it in localStorage meant
+        // StudyView's fallback effect (see its own comment) re-fired this RPC on
+        // every single mount of the Study tab, forever, for anyone who'd clicked
+        // a broken/mistyped referral link.
+        localStorage.removeItem("tg_referrer");
+        return { success: false, error: "Referrer not found" };
+      default:
+        return { success: false, error: "Something went wrong" };
     }
-
-    // 2. Insert into the referrals table
-    const { error: refError } = await supabase.from("referrals").insert([
-      {
-        referrer_id: referrer.id,
-        referred_id: newUserId,
-      },
-    ]);
-
-    if (refError) {
-      console.error("Referral record failed:", refError.message);
-      return { success: false, error: refError.message };
-    }
-
-    // 3. Auto-add as friends (Mutual connection)
-    await supabase.from("friendships").insert([
-      { user_id: referrer.id, friend_id: newUserId, status: "accepted" },
-      { user_id: newUserId, friend_id: referrer.id, status: "accepted" }
-    ]);
-
-    // 4. Clean up
-    localStorage.removeItem("tg_referrer");
-    return { success: true };
-
   } catch (e) {
     console.error("Referral process crashed:", e);
     return { success: false, error: "Internal crash" };

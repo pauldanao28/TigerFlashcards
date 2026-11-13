@@ -1,0 +1,99 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { NextResponse } from "next/server";
+import { getAuthedUser } from "@/lib/apiAuth";
+import { checkAndRecordUsage } from "@/lib/rateLimit";
+
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
+
+export async function POST(req: Request) {
+  const user = await getAuthedUser(req);
+  if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+
+  // Shares the "chat" daily budget — this is an automatic side effect of chatting
+  // (updating the AI's memory of the student), not a separate user-facing action.
+  const usage = await checkAndRecordUsage(user.id, "chat");
+  if (!usage.allowed) {
+    return NextResponse.json({}, { status: 200 }); // silent no-op, not a user-facing action
+  }
+
+  let currentProfile: Record<string, unknown> = {};
+  try {
+    const body = await req.json();
+    const { messages } = body;
+    currentProfile = body.currentProfile ?? {};
+
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+
+    const conversation = messages
+      .map((m: { role: string; content: string }) =>
+        `${m.role === "user" ? "Student" : "Teacher"}: ${m.content}`
+      )
+      .join("\n");
+
+    const prompt = `You are analyzing a Japanese language learning conversation to update a student profile.
+
+Current profile:
+${JSON.stringify(currentProfile ?? {}, null, 2)}
+
+Recent conversation:
+${conversation}
+
+Based on this conversation, update what you know about the student. Rules:
+- Only update a field if you have clear evidence from this conversation
+- For arrays: ADD new items to existing ones, never remove existing items, deduplicate
+- level: JLPT estimate (N5 / N4 / N3 / N2 / N1 / unknown)
+- native_language: their native language if revealed
+- motivation: why they are learning Japanese (e.g. "anime", "work", "travel to Japan", "family")
+- occupation: their job or field if mentioned (e.g. "software engineer", "student", "teacher")
+- learning_goals: specific goals they express (e.g. "pass JLPT N3", "watch anime without subtitles", "hold basic conversations")
+- hobbies: personal interests they mention beyond Japanese study
+- weak_points: general areas they struggle with (vocab, reading kanji, etc.)
+- strong_points: things they handle correctly and confidently
+- common_errors: recurring specific mistakes observed (e.g. "forgets を after direct objects", "overuses ます in casual speech") — only concrete observed errors
+- grammar_weak_points: specific grammar patterns they struggle with (e.g. "て-form conjugation", "は vs が distinction", "conditional たら/ば/と", "passive voice", "〜てしまう usage") — be precise, add only patterns with clear evidence from THIS conversation
+- preferred_topics: topics they enjoy discussing or ask about often
+- personality: brief learning-style note (e.g. "likes humor", "prefers detailed explanations", "needs encouragement") — update if new evidence, otherwise keep
+- vocabulary_introduced: Japanese words/phrases explicitly taught or explained in this conversation (romaji not needed; keep list under 50 total, drop oldest if over)
+- recently_added: words recently added to the student's flashcard deck — copy exactly from currentProfile, never modify this field
+- recent_topics: the last 5–10 topics or themes discussed (e.g. "anime", "weekend plans", "food", "JLPT prep") — keep most recent, drop oldest beyond 10
+- personal_facts: specific personal facts the student revealed (e.g. "好きな食べ物: ラーメン", "出身: フィリピン", "好きなアニメ: ワンピース", "好きなスポーツ: バスケ") — add when student reveals preferences; never remove; keep concise; deduplicate
+- notes: any other useful teaching observations (keep concise, 1–2 sentences max)
+- corrections: specific grammar mistakes the student made IN THIS CONVERSATION with the correct form — e.g. wrong particle, wrong conjugation, unnatural phrasing Sensei corrected. Each item: {"mistake": "student's incorrect form", "correct": "correct form", "reason": "the sentence or brief explanation"}. Max 5, only concrete observed errors, empty array if none.
+- grammar_score: 0–100 estimate of grammar proficiency based on this conversation (N5≈10, N4≈30, N3≈50, N2≈70, N1≈90). Only update if you have clear evidence from this conversation; otherwise return the current profile value or 0 if unknown.
+
+If nothing new is learned about a field, keep its existing value exactly as-is.
+
+Return ONLY valid JSON, no explanation, no markdown:
+{
+  "level": "...",
+  "native_language": "...",
+  "motivation": "...",
+  "occupation": "...",
+  "learning_goals": [],
+  "hobbies": [],
+  "weak_points": [],
+  "strong_points": [],
+  "common_errors": [],
+  "preferred_topics": [],
+  "personality": "...",
+  "vocabulary_introduced": [],
+  "recently_added": [],
+  "grammar_weak_points": [],
+  "recent_topics": [],
+  "personal_facts": [],
+  "notes": "...",
+  "corrections": [],
+  "grammar_score": 0
+}`;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("No JSON in response");
+
+    return NextResponse.json(JSON.parse(match[0]));
+  } catch (e) {
+    console.error("update-profile error:", e);
+    return NextResponse.json(currentProfile);
+  }
+}
