@@ -981,11 +981,18 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         // the rest of the day, leaving the streak stuck.
         if (prog >= DAILY_GOAL && !goalFired.current) {
           goalFired.current = true;
-          const newStreak = await updateStreak();
-          if (newStreak != null) notifyFriendsGoalMet();
-          setGoalStreak(newStreak ?? streak);
-          setShowRecap(true);
-          navigator.vibrate?.([100, 50, 100, 50, 200]);
+          // Not awaited — same reasoning as the score upsert below: this used to
+          // block the whole rest of handleScore (including the card advance) on
+          // the update_streak network RPC, so hitting today's goal right after the
+          // app resumes from background could freeze the swipe UI the same way.
+          // The recap modal showing a beat later than the card underneath it
+          // advances is not a correctness issue.
+          updateStreak().then((newStreak) => {
+            if (newStreak != null) notifyFriendsGoalMet();
+            setGoalStreak(newStreak ?? streak);
+            setShowRecap(true);
+            navigator.vibrate?.([100, 50, 100, 50, 200]);
+          });
         }
       }
 
