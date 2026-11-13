@@ -2264,6 +2264,23 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 </button>
               </div>
             )}
+            {/* Connectivity status — moved here under the goal chips (was a centered
+                banner mid-screen) so it reads as part of this status column instead
+                of interrupting the card area. A graded answer's own score always
+                queues locally (offlineScoreQueue.ts) instead of being lost, so this
+                is purely informational. */}
+            {!isOnline && (
+              <div className="flex items-center gap-1 pr-1 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                <WifiOff size={10} />
+                Offline{pendingSyncCount > 0 ? ` · ${pendingSyncCount}` : ""}
+              </div>
+            )}
+            {isOnline && justSyncedCount != null && (
+              <div className="flex items-center gap-1 pr-1 text-[9px] font-black text-emerald-500 uppercase tracking-widest">
+                <Check size={10} />
+                Synced
+              </div>
+            )}
             {/* Same POOL_SIZE threshold WeakWordsQuiz.tsx samples from — only shown
                 once there's a full round's worth, same as the Quick Actions badge. */}
             {weakWordsCount >= 10 && (
@@ -2378,6 +2395,18 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 >
                   🎯 {masteredToday}/{MASTERED_GOAL}
                 </button>
+              </div>
+            )}
+            {!isOnline && (
+              <div className="flex items-center gap-1 pr-1 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <WifiOff size={11} />
+                Offline{pendingSyncCount > 0 ? ` · ${pendingSyncCount}` : ""}
+              </div>
+            )}
+            {isOnline && justSyncedCount != null && (
+              <div className="flex items-center gap-1 pr-1 text-[10px] font-black text-emerald-500 uppercase tracking-widest">
+                <Check size={11} />
+                Synced
               </div>
             )}
             {weakWordsCount >= 10 && (
@@ -2545,26 +2574,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 </motion.div>
               )}
             </div>
-
-            {/* Offline-safe studying — a graded answer's own score always queues
-                locally (offlineScoreQueue.ts) instead of being lost, so this is purely
-                informational: "here's what's going on," not a blocker on anything. */}
-            {!isOnline && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-full">
-                <WifiOff size={11} className="text-slate-400" />
-                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                  Offline{pendingSyncCount > 0 ? ` · ${pendingSyncCount} saved locally` : ""}
-                </span>
-              </div>
-            )}
-            {isOnline && justSyncedCount != null && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 rounded-full">
-                <Check size={11} className="text-emerald-500" />
-                <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">
-                  Synced
-                </span>
-              </div>
-            )}
 
             {/* Accuracy info — card's avg Reflex Mode speed tacked on here too, rather
                 than on the card's own back face, which is tight on vertical space
