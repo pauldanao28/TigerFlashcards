@@ -402,15 +402,15 @@ export default function Flashcard({
               </div>
             )}
 
-            <div className="flex-1 flex flex-col items-center justify-center w-full overflow-hidden">
+            <div className="flex-1 min-h-0 flex flex-col items-center justify-center w-full overflow-hidden">
               {(language === "jp" || language === "en") && card?.reading && (
-                <p className="text-indigo-200 text-lg mb-2 font-medium tracking-wide animate-fade-in truncate w-full">
+                <p className="text-indigo-200 text-lg mb-2 font-medium tracking-wide animate-fade-in truncate shrink-0 w-full">
                   {card?.reading}
                 </p>
               )}
 
               <h2
-                className={`font-bold leading-tight break-words w-full 
+                className={`font-bold leading-tight break-words w-full min-h-0 overflow-y-auto 
     ${isReady ? "transition-all duration-300" : "transition-none"} 
     ${getFontSize(backText, isBackJapanese)}`}
               >
@@ -419,7 +419,7 @@ export default function Flashcard({
             </div>
 
             {/* Footer Area */}
-            <div className="mt-auto pt-4 border-t border-indigo-400/50 w-full">
+            <div className="mt-auto pt-4 shrink-0 border-t border-indigo-400/50 w-full">
               {card?.exampleSentence && (
                 <p className="text-xs italic text-indigo-100 opacity-90 mb-4 line-clamp-2 overflow-hidden break-words px-2">
                   "{card?.exampleSentence.jp}"
