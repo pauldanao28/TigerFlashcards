@@ -395,10 +395,11 @@ export default function Flashcard({
   const backTextLen = backText.length;
   const teFormLen = showsTeForm ? (card?.te_form?.length ?? 0) : 0;
   const isHeadingBig = backTextLen <= 10;
+  const isLongMeaning = !isBackJapanese && backTextLen > 45;
   const isTeFormBig = teFormLen <= 4;
   const backHeadingClass = isBackJapanese
     ? BACK_JP_PINNED_SIZE
-    : isHeadingBig ? HEADING_BIG : HEADING_SMALL;
+    : isLongMeaning ? "text-base sm:text-lg" : isHeadingBig ? HEADING_BIG : HEADING_SMALL;
 
   return (
     <>
