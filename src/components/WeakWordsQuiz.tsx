@@ -585,8 +585,8 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
                   <p className="text-xs text-slate-600">{currentCard.sentence_en}</p>
                   <div className="rounded-xl bg-white/70 border border-amber-200 p-3 space-y-1 text-xs text-slate-700">
                     <p className="font-black text-amber-900">Mistake comparison</p>
-                    <p>Your choice: {currentCard.choices[selected]}</p>
-                    <p>Correct meaning: {currentCard.choices[currentCard.answer]}</p>
+                    <p>Your choice: {selected}</p>
+                    <p>Correct meaning: {currentCard.answer}</p>
                     <p>Compare these meanings and the Japanese example. A wrong choice alone does not prove whether the problem was kanji, reading, or vocabulary recall.</p>
                   </div>
                   {knownConnections(currentCard.japanese).length > 0 && (
