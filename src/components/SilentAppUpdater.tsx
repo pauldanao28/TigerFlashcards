@@ -1,14 +1,37 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
-// Detect deploys independently of changes to the service worker.
-// Refresh only when the user leaves the app, not during a study session.
+const UPDATED_KEY = "flashkado-updated-from";
+
+// Detect deployments without interrupting an active study session.
+// A small toast appears only after the new version has actually loaded.
 export default function SilentAppUpdater({ initialVersion }: { initialVersion: string }) {
+  const [showUpdated, setShowUpdated] = useState(false);
+
+  useEffect(() => {
+    if (!initialVersion || initialVersion === "development") return;
+
+    const previous = sessionStorage.getItem(UPDATED_KEY);
+    if (previous && previous !== initialVersion) {
+      sessionStorage.removeItem(UPDATED_KEY);
+      setShowUpdated(true);
+    } else if (previous === initialVersion) {
+      sessionStorage.removeItem(UPDATED_KEY);
+    }
+  }, [initialVersion]);
+
+  useEffect(() => {
+    if (!showUpdated) return;
+    const timeout = window.setTimeout(() => setShowUpdated(false), 3500);
+    return () => window.clearTimeout(timeout);
+  }, [showUpdated]);
+
   useEffect(() => {
     if (!initialVersion || initialVersion === "development") return;
     let pending = false;
     let checking = false;
     let disposed = false;
+
     async function check() {
       if (checking || !navigator.onLine) return;
       checking = true;
@@ -20,13 +43,18 @@ export default function SilentAppUpdater({ initialVersion }: { initialVersion: s
       } catch { /* Retry on the next focus or check. */ }
       finally { checking = false; }
     }
+
     function onVisibility() {
       if (document.visibilityState === "hidden") {
-        if (pending) window.location.reload();
+        if (pending) {
+          sessionStorage.setItem(UPDATED_KEY, initialVersion);
+          window.location.reload();
+        }
       } else {
         void check();
       }
     }
+
     void check();
     const interval = window.setInterval(check, 5 * 60 * 1000);
     document.addEventListener("visibilitychange", onVisibility);
@@ -38,5 +66,15 @@ export default function SilentAppUpdater({ initialVersion }: { initialVersion: s
       window.removeEventListener("online", check);
     };
   }, [initialVersion]);
-  return null;
+
+  return showUpdated ? (
+    <div
+      role="status"
+      aria-live="polite"
+      className="pointer-events-none fixed left-1/2 top-[max(1rem,env(safe-area-inset-top))] z-[500] w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-full border border-emerald-200 bg-white px-4 py-2.5 text-center text-xs font-semibold text-slate-700 shadow-lg"
+    >
+      <span className="mr-1.5 text-emerald-600" aria-hidden="true">✓</span>
+      FlashKado is up to date!
+    </div>
+  ) : null;
 }
