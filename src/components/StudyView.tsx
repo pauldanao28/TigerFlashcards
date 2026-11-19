@@ -1186,6 +1186,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       inStatusFilter,
       showHints,
       reflexMode,
+      refreshReturnRetention,
     ],
   );
   // Add the dependencies used inside the function
