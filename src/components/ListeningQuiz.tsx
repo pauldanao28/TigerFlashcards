@@ -96,6 +96,8 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
   const [questions, setQuestions] = useState<ListeningQuestion[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [revealed, setRevealed] = useState(false);
+  const [listeningGuess, setListeningGuess] = useState("");
+  const [listeningRecallMode, setListeningRecallMode] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [results, setResults] = useState<{ q: ListeningQuestion; gotIt: boolean }[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -406,6 +408,7 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
       if (missed.length > 0) supabase.from("listening_corrections").insert(missed);
     } else {
       setCurrentIdx(i => i + 1);
+      setListeningGuess("");
       setRevealed(false);
       setIsPlaying(false);
     }
@@ -552,6 +555,13 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
                     {isPlaying ? <Loader2 size={32} className="text-white animate-spin" /> : <Ear size={32} className="text-white" />}
                   </button>
                   <p className="text-slate-400 font-medium text-xs text-center">Listen as many times as you need, then reveal to check yourself.</p>
+                  <button type="button" onClick={() => { setListeningRecallMode(v => !v); setListeningGuess(""); }}
+                    aria-pressed={listeningRecallMode} className="text-xs font-bold text-indigo-600 underline">
+                    {listeningRecallMode ? "Recall writing: ON" : "Try recall writing (optional)"}
+                  </button>
+                  {listeningRecallMode && <textarea aria-label="What did you hear?" rows={2} value={listeningGuess}
+                    onChange={e => setListeningGuess(e.target.value)} placeholder="Type what you heard in Japanese…"
+                    className="w-full rounded-xl border border-slate-200 p-3 text-base text-slate-800" />}
                 </div>
               ) : (
                 /* Revealed — tappable sentence + chunk meaning */
@@ -565,6 +575,10 @@ export default function ListeningQuiz({ userId, isAdmin = false, onClose }: List
                   <p className="text-xl leading-relaxed text-slate-800 font-medium">
                     <ListeningSentence sentence={currentQ.sentence_jp} onWordTap={handleWordClick} />
                   </p>
+                  {listeningRecallMode && listeningGuess.trim() && <div className="mt-3 rounded-xl bg-indigo-50 p-3 text-xs text-slate-700">
+                    <p className="font-bold">Your transcription</p><p>{listeningGuess}</p>
+                    <p className="mt-1 text-slate-500">Compare with the Japanese above. Different spelling or punctuation may still represent the same words.</p>
+                  </div>}
                   <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-4">Chunk meaning</p>
                   <p className="text-indigo-600 font-bold text-base">
                     {currentQ.word}
