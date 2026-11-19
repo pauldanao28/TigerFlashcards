@@ -68,6 +68,35 @@ export default function Flashcard({
   const [isReady, setIsReady] = useState(false);
   const [showMnemonic, setShowMnemonic] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [teExample, setTeExample] = useState<{ jp: string; en: string } | null>(null);
+  const [teExampleLoading, setTeExampleLoading] = useState(false);
+  const [teExampleError, setTeExampleError] = useState(false);
+  useEffect(() => {
+    setTeExample(null);
+    setTeExampleError(false);
+  }, [card.id, card.te_form]);
+
+  useEffect(() => {
+    if (!showDetails || !card.te_form) return;
+    let cancelled = false;
+    setTeExampleLoading(true);
+    setTeExampleError(false);
+    authedFetch("/api/te-form-example", {
+      method: "POST",
+      body: JSON.stringify({ cardId: card.id }),
+    }).then(async (response) => {
+      if (!response.ok) throw new Error("Example unavailable");
+      return response.json() as Promise<{ jp: string; en: string }>;
+    }).then((example) => {
+      if (!cancelled) setTeExample({ jp: example.jp, en: example.en });
+    }).catch(() => {
+      if (!cancelled) setTeExampleError(true);
+    }).finally(() => {
+      if (!cancelled) setTeExampleLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [showDetails, card.id, card.te_form]);
+
   const [mnemonicLoading, setMnemonicLoading] = useState(false);
   const [mnemonicError, setMnemonicError] = useState<string | null>(null);
 
@@ -688,7 +717,16 @@ export default function Flashcard({
             <div className="rounded-2xl bg-indigo-50 p-4">
               <h3 className="font-bold text-indigo-800 mb-2">Te-form</h3>
               <p className="text-xl font-bold">{card.te_form}</p>
-              <p className="text-xs text-indigo-600 mt-2">A separate te-form example is not yet stored for this card.</p>
+              {teExampleLoading && <p className="text-xs text-indigo-600 mt-2">Loading te-form example…</p>}
+              {teExample && !teExampleLoading && (
+                <div className="mt-3 space-y-1">
+                  <p className="text-sm font-semibold text-indigo-900">{teExample.jp}</p>
+                  <p className="text-xs text-indigo-700">{teExample.en}</p>
+                </div>
+              )}
+              {teExampleError && !teExampleLoading && (
+                <p className="text-xs text-indigo-600 mt-2">Example unavailable right now. Reopen to retry.</p>
+              )}
             </div>
           )}
           {card.suru_meaning && <p className="text-sm"><strong>{suruLabel(card.japanese)}:</strong> {card.suru_meaning}</p>}
