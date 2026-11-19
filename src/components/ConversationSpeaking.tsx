@@ -7,7 +7,7 @@ type Turn = { staff_jp: string; task_en: string; reference_jp: string; tip_en: s
 type Feedback = { acceptable: boolean; feedback: string; suggestion: string };
 type SpeechResultEvent = { results: ArrayLike<ArrayLike<{ transcript: string }>> };
 type Recognizer = { lang: string; continuous: boolean; interimResults: boolean; onresult: ((event: SpeechResultEvent) => void) | null; onerror: (() => void) | null; onend: (() => void) | null; start: () => void; stop: () => void };
-type SpeechWindow = Window & { SpeechRecognition?: new () => Recognizer; webkitSpeechRecognition?: new () => Recognizer };
+type SpeechWindow = { SpeechRecognition?: new () => Recognizer; webkitSpeechRecognition?: new () => Recognizer };
 
 const scenarios = [
   { value: "restaurant", label: "🍜 Restaurant" }, { value: "shopping", label: "🛍️ Shopping" },
@@ -48,7 +48,7 @@ export default function ConversationSpeaking({ onClose }: { onClose: () => void 
 
   const speak = () => {
     if (listening) { recognizer.current?.stop(); return; }
-    const w = window as SpeechWindow;
+    const w = window as unknown as SpeechWindow;
     const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!Ctor) { setError("Speech recognition is not available in this browser. Please type instead."); return; }
     try {
