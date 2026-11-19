@@ -2345,12 +2345,22 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               </Link>
             )}
           </div>
-          <div className="w-full flex justify-end pointer-events-auto">
+          <div className="w-full flex items-center justify-between gap-2 pointer-events-auto">
+            <button
+              type="button"
+              onClick={() => toggleStatusFilter("strugglingToday")}
+              aria-pressed={statusFilters.includes("strugglingToday")}
+              className={`shrink-0 whitespace-nowrap rounded-lg px-2 py-1.5 text-[9px] font-black border shadow-sm transition-all active:scale-95 ${statusFilters.includes("strugglingToday")
+                ? "bg-amber-500 text-white border-amber-500"
+                : "bg-white/90 text-amber-700 border-amber-200"}`}
+            >
+              Weak · {strugglingTodayIds.size}
+            </button>
             {/* Goal chips — plain text, no box, right-aligned at the same row level as
                 the TIGER card's N-level bar underneath it (moved out of that card so it
                 doesn't have to grow a 3rd row to fit them). */}
             {!dataLoading && cards.length > 0 && (
-              <div className="flex items-center gap-2.5 pr-1">
+              <div className="flex items-center gap-2 pr-0 shrink-0">
                 <button onClick={showReviewsHint} className="flex items-center gap-0.5 text-[9px] font-black text-slate-400 tabular-nums active:scale-95 transition-transform">
                   🔁 {reviewsToday}/{REVIEW_TARGET}
                 </button>
@@ -2366,22 +2376,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               </div>
             )}
           </div>
-          {/* Compact, full-width mobile study toolbar. Keep controls out of the narrow icon column. */}
-          <div className="w-full flex items-center gap-1.5 pointer-events-auto min-w-0">
-            {/* Direct struggling-word shortcut, immediately below the Reflex Mode row. */}
-            <button
-              type="button"
-              onClick={() => toggleStatusFilter("strugglingToday")}
-              aria-pressed={statusFilters.includes("strugglingToday")}
-              className={`flex-1 min-w-0 whitespace-nowrap rounded-xl px-2 py-2 text-[10px] font-black border shadow-sm transition-all active:scale-95 ${statusFilters.includes("strugglingToday")
-                ? "bg-amber-500 text-white border-amber-500"
-                : "bg-white/90 text-amber-700 border-amber-200"}`}
-            >
-              Weak Words · {strugglingTodayIds.size}
-            </button>
 
-
-          </div>
 
         </div>
 
