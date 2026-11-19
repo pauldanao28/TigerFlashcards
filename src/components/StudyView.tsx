@@ -33,7 +33,7 @@ import { FlashcardData } from "@/lib/types";
 import { upsertScoreOrQueue, flushScoreQueue, readScoreQueue } from "@/lib/offlineScoreQueue";
 import { useIsMiniViewport } from "@/lib/useMiniViewport";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, History, Star, X, Menu, Zap, ExternalLink, Filter, Volume2, WifiOff, Check } from "lucide-react";
+import { Plus, History, Star, X, Menu, Zap, ExternalLink, Filter, Volume2, WifiOff, Check, Brain, ChartNoAxesColumn } from "lucide-react";
 const DAILY_GOAL = 10;
 const MASTERY_MIN_TRIES = 5;
 const PRIORITY_CAP = 30;
@@ -2284,15 +2284,17 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     transition={{ duration: 0.15 }}
                     className="absolute top-full right-0 mt-2 flex flex-col items-end gap-2 z-[60]"
                   >
-                    <button type="button" onClick={() => { setShowJlptBreakdown(true); setShowQuickMenu(false); }} className="w-full min-w-[210px] flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left text-[11px] font-black text-slate-700 shadow-sm">
-                      <span>⚙️</span><span>Study Filters{statusFilters.length > 0 ? ` · ${statusFilters.length} active` : ""}</span>
+                    <button type="button" onClick={() => { setShowJlptBreakdown(true); setShowQuickMenu(false); }} title="Study Filters" aria-label="Study Filters" className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all">
+                      <Filter size={19} className="text-slate-500" />
+                      {statusFilters.length > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 border-2 border-white" />}
                     </button>
-                    <Link href="/quizzes?open=weak_words" onClick={() => setShowQuickMenu(false)} className="w-full min-w-[210px] flex items-center gap-2 rounded-xl border border-rose-100 bg-white px-3 py-2.5 text-[11px] font-black text-rose-600 shadow-sm">
-                      <span>🧠</span><span>Struggling Words Quiz{weakWordsCount > 0 ? ` · ${weakWordsCount}` : ""}</span>
+                    <Link href="/quizzes?open=weak_words" onClick={() => setShowQuickMenu(false)} title="Struggling Words Quiz" aria-label="Struggling Words Quiz" className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all">
+                      <Brain size={19} className="text-rose-500" />
+                      {weakWordsCount > 0 && <span className="absolute -top-1 -right-1 rounded-full min-w-4 h-4 px-0.5 bg-rose-500 text-white text-[9px] font-black flex items-center justify-center">{weakWordsCount}</span>}
                     </Link>
-            <details className="relative rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-600 shadow-sm">
-              <summary className="cursor-pointer font-black text-indigo-600">Learning Insights</summary>
-              <div className="mt-2 w-[min(75vw,280px)] space-y-1 text-left leading-relaxed">
+                    <details className="relative w-11 h-11 rounded-2xl border border-white bg-white shadow-sm text-slate-500">
+                      <summary title="Learning Insights" aria-label="Learning Insights" className="list-none [&::-webkit-details-marker]:hidden cursor-pointer w-full h-full flex items-center justify-center"><ChartNoAxesColumn size={19} className="text-indigo-500" /></summary>
+                      <div className="absolute right-12 top-0 z-[90] w-[min(75vw,280px)] rounded-xl border border-slate-200 bg-white p-3 shadow-xl text-[11px] space-y-1 text-left leading-relaxed">
                 <p>Recognition accuracy: {retentionSnapshot.recognition == null ? "No reviews" : `${retentionSnapshot.recognition}%`}</p>
                 <p>Recall accuracy: {retentionSnapshot.recall == null ? "No reviews" : `${retentionSnapshot.recall}%`}</p>
                 <p>Weak cards (&lt;50% after 3+ attempts): {retentionSnapshot.weak}</p>
@@ -2301,8 +2303,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 <p>7+ day return recall: {returnRetention.sevenTotal ? `${Math.round(returnRetention.sevenPass / returnRetention.sevenTotal * 100)}% (${returnRetention.sevenTotal} reviews)` : "Not measured yet"}</p>
                 <p>30+ day return recall: {returnRetention.thirtyTotal ? `${Math.round(returnRetention.thirtyPass / returnRetention.thirtyTotal * 100)}% (${returnRetention.thirtyTotal} reviews)` : "Not measured yet"}</p>
                 <p className="text-slate-400">Return rates sync through Supabase after the SQL migration. First recorded review establishes the baseline.</p>
-              </div>
-            </details>
+                      </div>
+                    </details>
                     <button
                       onClick={() => { setIsSocialOpen(true); setShowQuickMenu(false); }}
                       className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
