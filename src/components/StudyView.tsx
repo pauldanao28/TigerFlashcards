@@ -2302,7 +2302,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 <p>Last reviewed 7+ days ago: {retentionSnapshot.olderThanWeek}</p>
                 <p>7+ day return recall: {returnRetention.sevenTotal ? `${Math.round(returnRetention.sevenPass / returnRetention.sevenTotal * 100)}% (${returnRetention.sevenTotal} reviews)` : "Not measured yet"}</p>
                 <p>30+ day return recall: {returnRetention.thirtyTotal ? `${Math.round(returnRetention.thirtyPass / returnRetention.thirtyTotal * 100)}% (${returnRetention.thirtyTotal} reviews)` : "Not measured yet"}</p>
-                <p className="text-slate-400">Return rates sync through Supabase after the SQL migration. First recorded review establishes the baseline.</p>
+                <p className="text-slate-400">Return recall measures reviews of the same word at least 7 or 30 days apart. Earlier study history does not count toward these new measurements.</p>
                       </div>
                     </details>
                     <button
