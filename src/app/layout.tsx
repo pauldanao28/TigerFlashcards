@@ -7,6 +7,7 @@ import { FriendsProvider } from "@/context/FriendsContext";
 import BottomNav from "@/components/BottomNav";
 import AccountSetupGuard from "@/components/AccountSetupGuard";
 import InstallPwaBanner from "@/components/InstallPwaBanner";
+import SilentAppUpdater from "@/components/SilentAppUpdater";
 import Sidebar from "@/components/Sidebar";
 import SidebarOffsetWrapper from "@/components/SidebarOffsetWrapper";
 
@@ -133,6 +134,7 @@ export default function RootLayout({
         )}
       </head>
       <body className="antialiased bg-slate-50 text-slate-900">
+        <SilentAppUpdater initialVersion={process.env.VERCEL_GIT_COMMIT_SHA || "development"} />
         <AuthProvider>
           <AlertProvider>
             <UploadGuardProvider>
