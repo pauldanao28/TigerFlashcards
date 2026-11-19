@@ -895,7 +895,16 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       // same pattern as mastery counts.
       if (!isPass) {
         supabase.rpc("record_daily_struggle", { target_user_id: user.id, target_card_id: currentCard.id })
-          .then(({ error }) => { if (error) console.error("Error recording daily struggle:", error); });
+          .then(async ({ error }) => {
+            if (error) { console.error("Error recording daily struggle:", error); return; }
+            // Refresh the Focus filter as soon as a miss is saved, rather than
+            // requiring the learner to leave Study or switch browser tabs.
+            const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+            const { data, error: refreshError } = await supabase.from("daily_struggles")
+              .select("card_id").eq("user_id", user.id).eq("struggle_date", sgToday).gte("fail_count", 3);
+            if (refreshError) { console.error("Error refreshing struggling words:", refreshError); return; }
+            setStrugglingTodayIds(new Set((data ?? []).map((row) => row.card_id)));
+          });
         // Separate call, not a param on record_daily_struggle — keeps that function's
         // signature untouched. Purely informational tag; doesn't affect fail_count.
         if (reflexMode) {
