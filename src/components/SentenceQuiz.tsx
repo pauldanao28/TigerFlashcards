@@ -93,6 +93,8 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
   const [quizCards, setQuizCards] = useState<QuizCard[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [revealed, setRevealed] = useState(false);
+  const [productionMode, setProductionMode] = useState(false);
+  const [writtenAnswer, setWrittenAnswer] = useState("");
   const [results, setResults] = useState<{ card: QuizCard; passed: boolean; newPercent: number }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
@@ -583,11 +585,26 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
               transition={{ duration: 0.18 }}
               className="flex-1 flex flex-col gap-3 min-h-0"
             >
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="font-bold text-slate-500">Sentence production (optional)</span>
+                <button type="button" onClick={() => { setProductionMode(v => !v); setWrittenAnswer(""); }}
+                  className={`px-3 py-1.5 rounded-xl font-bold border ${productionMode ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-200"}`}
+                  aria-pressed={productionMode}>{productionMode ? "ON" : "OFF"}</button>
+              </div>
+              {productionMode && (
+                <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4 space-y-2">
+                  <p className="text-[10px] font-black uppercase text-indigo-600">Write the Japanese sentence</p>
+                  <p className="text-sm font-medium text-slate-700">{currentCard.sentence_en}</p>
+                  <textarea aria-label="Your Japanese sentence" value={writtenAnswer} onChange={e => setWrittenAnswer(e.target.value)}
+                    placeholder="日本語で書いてください…" rows={2} className="w-full rounded-xl border border-indigo-200 bg-white p-3 text-base text-slate-800" />
+                  {revealed && <p className="text-xs text-slate-600">Compare your sentence with the example below. Other natural translations may also be correct; this is self-check, not AI grading.</p>}
+                </div>
+              )}
               {/* Sentence card */}
               <div className="bg-white rounded-3xl border border-slate-100 shadow-sm px-6 py-5">
                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3">Read the sentence</p>
-                <p className="text-xl leading-relaxed text-slate-800 font-medium">
-                  <HighlightedSentence sentence={currentCard.sentence_jp} word={currentCard.japanese} reading={currentCard.reading} onWordTap={handleWordClick} />
+                <p className={productionMode && !revealed ? "text-sm italic text-slate-400" : "text-xl leading-relaxed text-slate-800 font-medium"}>
+                  {productionMode && !revealed ? "Sentence hidden until reveal" : <HighlightedSentence sentence={currentCard.sentence_jp} word={currentCard.japanese} reading={currentCard.reading} onWordTap={handleWordClick} />}
                 </p>
               </div>
 
