@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 import { getAuthedUser } from "@/lib/apiAuth";
@@ -60,6 +61,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No kanji in this word" }, { status: 400 });
   }
 
+  // Cache is shared across users and words. Missing service-role configuration
+  // falls back to the original generator; no client can write shared entries.
+  const admin = process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY)
+    : null;
+  const cached = new Map<string, { character: string; radicals: string; story: string }>();
+  if (admin) {
+    const { data, error } = await admin.from("kanji_explanations")
+      .select("character,radicals,story").in("character", kanji);
+    if (!error) for (const entry of data ?? []) cached.set(entry.character, entry);
+  }
+  const missing = kanji.filter((character) => !cached.has(character));
+  if (missing.length === 0) {
+    return NextResponse.json({ entries: kanji.map((character) => cached.get(character)), cached: true });
+  }
+
   const usage = await checkAndRecordUsage(user.id, "mnemonic", 1);
   if (!usage.allowed) {
     return NextResponse.json(
@@ -68,7 +85,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const text = prompt(japanese, reading ?? "", english ?? "", kanji);
+  const text = prompt(japanese, reading ?? "", english ?? "", missing);
 
   let raw: string;
   try {
@@ -90,7 +107,22 @@ export async function POST(req: Request) {
     if (!Array.isArray(parsed.entries) || parsed.entries.length === 0) {
       return NextResponse.json({ error: "Invalid AI response" }, { status: 500 });
     }
-    return NextResponse.json({ entries: parsed.entries, origin: parsed.origin || undefined });
+    const generated = parsed.entries.filter(
+      (entry) => missing.includes(entry.character) &&
+        typeof entry.radicals === "string" && typeof entry.story === "string"
+    );
+    if (missing.some((character) => !generated.some((entry) => entry.character === character))) {
+      return NextResponse.json({ error: "Incomplete AI response" }, { status: 502 });
+    }
+    if (admin) {
+      const { error } = await admin.from("kanji_explanations").upsert(generated, { onConflict: "character", ignoreDuplicates: true });
+      if (error) console.error("Shared kanji cache write failed:", error.message);
+    }
+    const generatedMap = new Map(generated.map((entry) => [entry.character, entry]));
+    return NextResponse.json({
+      entries: kanji.map((character) => cached.get(character) ?? generatedMap.get(character)),
+      origin: parsed.origin || undefined,
+    });
   } catch {
     console.error("Gemini returned invalid JSON for mnemonic:", raw);
     return NextResponse.json({ error: "Invalid AI response" }, { status: 500 });
