@@ -14,6 +14,10 @@ import WordLookupSheet from "@/components/WordLookupSheet";
 import { useWordLookup } from "@/hooks/useWordLookup";
 import { skipDeckDuplicates } from "@/lib/duplicates";
 
+type SpeechResultEvent = { results: ArrayLike<ArrayLike<{ transcript: string }>> };
+type SpeechRecognizer = { lang: string; interimResults: boolean; continuous: boolean; onresult: ((event: SpeechResultEvent) => void) | null; onerror: (() => void) | null; onend: (() => void) | null; start: () => void; stop: () => void };
+type SpeechWindow = Window & { SpeechRecognition?: new () => SpeechRecognizer; webkitSpeechRecognition?: new () => SpeechRecognizer };
+
 interface QuizCard {
   id: string;
   japanese: string;
@@ -94,6 +98,10 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
   const [currentIdx, setCurrentIdx] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [productionMode, setProductionMode] = useState(false);
+  const [translationDirection, setTranslationDirection] = useState<"en-ja" | "ja-en">("en-ja");
+  const [listening, setListening] = useState(false);
+  const [speechError, setSpeechError] = useState<string | null>(null);
+  const recognizerRef = useRef<SpeechRecognizer | null>(null);
   const [writtenAnswer, setWrittenAnswer] = useState("");
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [sentenceFeedback, setSentenceFeedback] = useState<{ acceptable: boolean; feedback: string; suggestion: string } | null>(null);
@@ -458,6 +466,26 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
     }
   };
 
+  const startSpeaking = () => {
+    if (listening) { recognizerRef.current?.stop(); return; }
+    const browser = window as SpeechWindow;
+    const Ctor = browser.SpeechRecognition || browser.webkitSpeechRecognition;
+    if (!Ctor) { setSpeechError("Speech recognition is unavailable in this browser. You can type your answer instead."); return; }
+    try {
+      const recognizer = new Ctor();
+      recognizerRef.current = recognizer;
+      recognizer.lang = translationDirection === "en-ja" ? "ja-JP" : "en-US";
+      recognizer.continuous = false;
+      recognizer.interimResults = false;
+      recognizer.onresult = (event) => { setWrittenAnswer(event.results[0]?.[0]?.transcript || ""); setSpeechError(null); };
+      recognizer.onerror = () => { setSpeechError("Could not recognize your speech. Check microphone permissions or type your answer."); setListening(false); };
+      recognizer.onend = () => { setListening(false); recognizerRef.current = null; };
+      recognizer.start();
+      setListening(true);
+      setSpeechError(null);
+    } catch { setListening(false); setSpeechError("Microphone unavailable. You can type your answer."); }
+  };
+
   const requestSentenceFeedback = async () => {
     const card = quizCards[currentIdx];
     if (!card || !writtenAnswer.trim() || feedbackLoading) return;
@@ -610,17 +638,27 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
             >
               <div className="flex items-center justify-between gap-3 text-xs">
                 <span className="font-bold text-slate-500">Sentence production (optional)</span>
-                <button type="button" onClick={() => { setProductionMode(v => !v); setWrittenAnswer(""); }}
+                <button type="button" onClick={() => { setProductionMode(v => !v); recognizerRef.current?.stop(); setWrittenAnswer(""); }}
                   className={`px-3 py-1.5 rounded-xl font-bold border ${productionMode ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-200"}`}
                   aria-pressed={productionMode}>{productionMode ? "ON" : "OFF"}</button>
               </div>
               {productionMode && (
                 <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4 space-y-2">
-                  <p className="text-[10px] font-black uppercase text-indigo-600">Write the Japanese sentence</p>
-                  <p className="text-sm font-medium text-slate-700">{currentCard.sentence_en}</p>
-                  <textarea aria-label="Your Japanese sentence" value={writtenAnswer} onChange={e => setWrittenAnswer(e.target.value)}
-                    placeholder="日本語で書いてください…" rows={2} className="w-full rounded-xl border border-indigo-200 bg-white p-3 text-base text-slate-800" />
-                  {revealed && <div className="space-y-2">
+                  <div className="flex gap-2 text-xs">
+                    <button type="button" aria-pressed={translationDirection === "en-ja"} onClick={() => { recognizerRef.current?.stop(); setTranslationDirection("en-ja"); setWrittenAnswer(""); setSentenceFeedback(null); }} className={`rounded-lg px-3 py-2 font-bold ${translationDirection === "en-ja" ? "bg-indigo-600 text-white" : "bg-white text-slate-600"}`}>English → Japanese</button>
+                    <button type="button" aria-pressed={translationDirection === "ja-en"} onClick={() => { recognizerRef.current?.stop(); setTranslationDirection("ja-en"); setWrittenAnswer(""); setSentenceFeedback(null); }} className={`rounded-lg px-3 py-2 font-bold ${translationDirection === "ja-en" ? "bg-indigo-600 text-white" : "bg-white text-slate-600"}`}>Japanese → English</button>
+                  </div>
+                  <p className="text-[10px] font-black uppercase text-indigo-600">Translate one sentence — speak or type</p>
+                  <p className="text-sm font-medium text-slate-700">{translationDirection === "en-ja" ? currentCard.sentence_en : currentCard.sentence_jp}</p>
+                  <div className="flex items-start gap-2">
+                    <textarea aria-label="Your translation" value={writtenAnswer} onChange={e => setWrittenAnswer(e.target.value)}
+                      placeholder={translationDirection === "en-ja" ? "日本語で話す・書く…" : "Speak or type the English meaning…"} rows={2} className="min-w-0 flex-1 rounded-xl border border-indigo-200 bg-white p-3 text-base text-slate-800" />
+                    <button type="button" onClick={startSpeaking} aria-label={listening ? "Stop listening" : "Speak your translation"} className={`shrink-0 rounded-xl px-3 py-3 text-sm font-bold ${listening ? "bg-rose-500 text-white" : "bg-indigo-600 text-white"}`}>{listening ? "■ Stop" : "🎙 Speak"}</button>
+                  </div>
+                  {speechError && <p role="alert" className="text-xs text-rose-600">{speechError}</p>}
+                  <p className="text-[10px] text-slate-500">Speech-to-text checks your words, not pronunciation. Microphone access depends on your browser.</p>
+                  {revealed && translationDirection === "ja-en" && <p className="rounded-lg bg-white p-3 text-xs text-slate-700">Reference English: {currentCard.sentence_en} — compare your answer yourself.</p>}
+                  {revealed && translationDirection === "en-ja" && <div className="space-y-2">
                     <button type="button" disabled={!writtenAnswer.trim() || feedbackLoading} onClick={requestSentenceFeedback}
                       className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-black text-white disabled:opacity-40">
                       {feedbackLoading ? "Checking Japanese…" : "Check with AI"}
