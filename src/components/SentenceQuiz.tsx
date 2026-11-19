@@ -95,6 +95,9 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
   const [revealed, setRevealed] = useState(false);
   const [productionMode, setProductionMode] = useState(false);
   const [writtenAnswer, setWrittenAnswer] = useState("");
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [sentenceFeedback, setSentenceFeedback] = useState<{ acceptable: boolean; feedback: string; suggestion: string } | null>(null);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [results, setResults] = useState<{ card: QuizCard; passed: boolean; newPercent: number }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
@@ -448,8 +451,28 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
     } else {
       setCurrentIdx(i => i + 1);
       setRevealed(false);
+      setWrittenAnswer("");
+      setSentenceFeedback(null);
+      setFeedbackError(null);
       scoringRef.current = false;
     }
+  };
+
+  const requestSentenceFeedback = async () => {
+    const card = quizCards[currentIdx];
+    if (!card || !writtenAnswer.trim() || feedbackLoading) return;
+    setFeedbackLoading(true);
+    setFeedbackError(null);
+    setSentenceFeedback(null);
+    try {
+      const response = await authedFetch("/api/quiz/sentence-feedback", {
+        method: "POST", body: JSON.stringify({ english: card.sentence_en, reference: card.sentence_jp, answer: writtenAnswer.trim() }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Feedback unavailable");
+      setSentenceFeedback(body);
+    } catch (error) { setFeedbackError(error instanceof Error ? error.message : "Feedback unavailable"); }
+    finally { setFeedbackLoading(false); }
   };
 
   const passedCount = results.filter(r => r.passed).length;
@@ -597,7 +620,19 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
                   <p className="text-sm font-medium text-slate-700">{currentCard.sentence_en}</p>
                   <textarea aria-label="Your Japanese sentence" value={writtenAnswer} onChange={e => setWrittenAnswer(e.target.value)}
                     placeholder="日本語で書いてください…" rows={2} className="w-full rounded-xl border border-indigo-200 bg-white p-3 text-base text-slate-800" />
-                  {revealed && <p className="text-xs text-slate-600">Compare your sentence with the example below. Other natural translations may also be correct; this is self-check, not AI grading.</p>}
+                  {revealed && <div className="space-y-2">
+                    <button type="button" disabled={!writtenAnswer.trim() || feedbackLoading} onClick={requestSentenceFeedback}
+                      className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-black text-white disabled:opacity-40">
+                      {feedbackLoading ? "Checking Japanese…" : "Check with AI"}
+                    </button>
+                    {sentenceFeedback && <div className="rounded-xl bg-white p-3 text-xs text-slate-700 space-y-1" role="status">
+                      <p className="font-black">{sentenceFeedback.acceptable ? "Looks acceptable" : "Needs improvement"}</p>
+                      <p>{sentenceFeedback.feedback}</p>
+                      <p className="font-medium">Suggestion: {sentenceFeedback.suggestion}</p>
+                      <p className="text-slate-400">AI feedback can be imperfect. This does not change your quiz score.</p>
+                    </div>}
+                    {feedbackError && <p role="alert" className="text-xs text-rose-600">{feedbackError}</p>}
+                  </div>}
                 </div>
               )}
               {/* Sentence card */}
