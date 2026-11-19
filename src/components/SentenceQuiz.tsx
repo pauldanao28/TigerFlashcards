@@ -16,7 +16,7 @@ import { skipDeckDuplicates } from "@/lib/duplicates";
 
 type SpeechResultEvent = { results: ArrayLike<ArrayLike<{ transcript: string }>> };
 type SpeechRecognizer = { lang: string; interimResults: boolean; continuous: boolean; onresult: ((event: SpeechResultEvent) => void) | null; onerror: (() => void) | null; onend: (() => void) | null; start: () => void; stop: () => void };
-type SpeechWindow = Window & { SpeechRecognition?: new () => SpeechRecognizer; webkitSpeechRecognition?: new () => SpeechRecognizer };
+type SpeechWindow = { SpeechRecognition?: new () => SpeechRecognizer; webkitSpeechRecognition?: new () => SpeechRecognizer };
 
 interface QuizCard {
   id: string;
@@ -470,7 +470,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
 
   const startSpeaking = () => {
     if (listening) { recognizerRef.current?.stop(); return; }
-    const browser = window as SpeechWindow;
+    const browser = window as unknown as SpeechWindow;
     const Ctor = browser.SpeechRecognition || browser.webkitSpeechRecognition;
     if (!Ctor) { setSpeechError("Speech recognition is unavailable in this browser. You can type your answer instead."); return; }
     try {
