@@ -321,14 +321,15 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const [weakWordsCount, setWeakWordsCount] = useState(0);
   const [reviewsToday, setReviewsToday] = useState(0);
   const [returnRetention, setReturnRetention] = useState({ sevenPass: 0, sevenTotal: 0, thirtyPass: 0, thirtyTotal: 0 });
-  useEffect(() => {
+  const refreshReturnRetention = useCallback(async () => {
     if (!user) return;
-    try {
-      const saved = JSON.parse(localStorage.getItem(`flashkado-return-retention-${user.id}`) || "{}");
-      setReturnRetention({ sevenPass: Number(saved.sevenPass) || 0, sevenTotal: Number(saved.sevenTotal) || 0,
-        thirtyPass: Number(saved.thirtyPass) || 0, thirtyTotal: Number(saved.thirtyTotal) || 0 });
-    } catch { setReturnRetention({ sevenPass: 0, sevenTotal: 0, thirtyPass: 0, thirtyTotal: 0 }); }
+    const { data, error } = await supabase.rpc("get_study_retention");
+    if (error) { console.warn("Retention requires the Supabase review-history migration:", error.message); return; }
+    const row = data?.[0];
+    if (row) setReturnRetention({ sevenPass: Number(row.seven_pass) || 0, sevenTotal: Number(row.seven_total) || 0,
+      thirtyPass: Number(row.thirty_pass) || 0, thirtyTotal: Number(row.thirty_total) || 0 });
   }, [user]);
+  useEffect(() => { void refreshReturnRetention(); }, [refreshReturnRetention]);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
@@ -1004,21 +1005,16 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       setSessionStreak(newSessionStreak);
       incrementStudyCount();
       setReviewsToday((prev) => prev + 1);
-      // A return review counts only if the previous review was at least 7/30
-      // days ago. Store aggregate outcomes locally; no historical claims are made.
-      try {
-        const last = currentCard.last_reviewed_at ? Date.parse(currentCard.last_reviewed_at) : NaN;
-        const gap = Number.isFinite(last) ? now - last : 0;
-        if (gap >= 7 * 86400000) {
-          setReturnRetention(prev => {
-            const next = { sevenPass: prev.sevenPass + Number(isPass), sevenTotal: prev.sevenTotal + 1,
-              thirtyPass: prev.thirtyPass + Number(gap >= 30 * 86400000 && isPass),
-              thirtyTotal: prev.thirtyTotal + Number(gap >= 30 * 86400000) };
-            try { localStorage.setItem(`flashkado-return-retention-${user.id}`, JSON.stringify(next)); } catch {}
-            return next;
-          });
-        }
-      } catch { /* storage is optional */ }
+      // Server-side review history is the source of truth for return retention.
+      // First recorded review establishes the baseline; later reviews measure gaps.
+      supabase.rpc("record_study_review", {
+        p_card_id: currentCard.id,
+        p_direction: language === "jp" ? "jp_to_en" : "en_to_jp",
+        p_passed: isPass,
+      }).then(({ error }) => {
+        if (error) console.warn("Review history could not be saved:", error.message);
+        else void refreshReturnRetention();
+      });
 
       // Session stats
       setSessionCards((prev) => prev + 1);
@@ -2368,7 +2364,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 <p>Last reviewed 7+ days ago: {retentionSnapshot.olderThanWeek}</p>
                 <p>7+ day return recall: {returnRetention.sevenTotal ? `${Math.round(returnRetention.sevenPass / returnRetention.sevenTotal * 100)}% (${returnRetention.sevenTotal} reviews)` : "Not measured yet"}</p>
                 <p>30+ day return recall: {returnRetention.thirtyTotal ? `${Math.round(returnRetention.thirtyPass / returnRetention.thirtyTotal * 100)}% (${returnRetention.thirtyTotal} reviews)` : "Not measured yet"}</p>
-                <p className="text-slate-400">Return rates start collecting now, on this device only. They measure passes after a 7/30-day gap, not exact long-term memory.</p>
+                <p className="text-slate-400">Return rates sync through Supabase after the SQL migration. First recorded review establishes the baseline.</p>
               </div>
             </details>
             {/* Goal chips — plain text, no box, right-aligned at the same row level as
