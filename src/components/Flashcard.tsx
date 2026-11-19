@@ -664,6 +664,11 @@ export default function Flashcard({
             <button onClick={() => setShowDetails(false)} aria-label="Close details" className="p-2 rounded-full bg-slate-100"><X size={20}/></button>
           </div>
           <p className="text-lg font-semibold break-words">{card.english}</p>
+          <div className="flex justify-center">
+            <span className="inline-flex items-center rounded-full bg-indigo-50 border border-indigo-100 px-3 py-1 text-[11px] font-bold text-indigo-700">
+              {passCount + failCount > 0 ? Math.round((passCount / (passCount + failCount)) * 100) : 0}% accuracy
+            </span>
+          </div>
           <div className="grid grid-cols-3 gap-2 text-center">
             {([["Tries", passCount + failCount], ["Pass", passCount], ["Fail", failCount]] as const).map(([label, count]) => (
               <div key={label} className="rounded-xl bg-slate-100 p-3">
@@ -671,7 +676,6 @@ export default function Flashcard({
               </div>
             ))}
           </div>
-          <p className="text-center text-sm font-bold text-indigo-600">Accuracy: {passCount + failCount > 0 ? Math.round((passCount / (passCount + failCount)) * 100) : 0}%</p>
           <p className="text-xs text-slate-500">Statistics for {language === "en" ? "English → Japanese" : "Japanese → English"} study direction.</p>
           {(card.partOfSpeech || card.jlpt_level || card.verb_type || card.transitivity || card.adjective_type) && (
             <div className="flex flex-wrap gap-2 text-xs font-semibold">
