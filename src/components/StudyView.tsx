@@ -224,31 +224,7 @@ function getNextPriorityCard(
     : allCards[0];
 }
 
-// Optional heuristic review, not scheduled spaced repetition. Uses existing scores
-// and last-reviewed timestamps; no database migration or background jobs.
-function getSmartReviewCard(cards: FlashcardData[], lang: "jp" | "en", lastId?: string): FlashcardData | null {
-  const pool = cards.filter((card) => card.id !== lastId);
-  if (!pool.length) return cards[0] ?? null;
-  const mode = lang === "jp" ? "jp_to_en" : "en_to_jp";
-  const now = Date.now();
-  const weights = pool.map((card) => {
-    const score = card.scores?.[mode];
-    const attempts = score?.total ?? 0;
-    const accuracy = score?.percent ?? 0;
-    const failures = score?.fail ?? 0;
-    const reviewed = card.last_reviewed_at ? Date.parse(card.last_reviewed_at) : NaN;
-    const days = Number.isFinite(reviewed) ? Math.max(0, (now - reviewed) / 86400000) : 14;
-    // Never-reviewed cards still appear, but don't dominate a struggling queue.
-    return Math.max(1, (attempts === 0 ? 3 : 1 + (100 - accuracy) / 20 + Math.min(failures, 8) * 0.45)
-      + Math.min(days, 30) * 0.18 + (card.is_priority ? 2 : 0));
-  });
-  let roll = Math.random() * weights.reduce((sum, weight) => sum + weight, 0);
-  for (let i = 0; i < pool.length; i++) {
-    roll -= weights[i];
-    if (roll <= 0) return pool[i];
-  }
-  return pool[pool.length - 1];
-}
+
 
 // Combined pass-rate across both study directions, for a single at-a-glance score.
 function cardOverallPercent(c: FlashcardData): number {
@@ -436,16 +412,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [swipeOnly, setSwipeOnly] = useState(false);
   const [reflexMode, setReflexMode] = useState(false);
-  const [smartReview, setSmartReview] = useState(false);
-  useEffect(() => {
-    if (!user) return;
-    try { setSmartReview(localStorage.getItem(`flashkado-smart-review-${user.id}`) === "true"); } catch {}
-  }, [user]);
-  const toggleSmartReview = () => {
-    const next = !smartReview;
-    setSmartReview(next);
-    if (user) try { localStorage.setItem(`flashkado-smart-review-${user.id}`, String(next)); } catch {}
-  };
   const [showMiniFilters, setShowMiniFilters] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [showHints, setShowHints] = useState(false);
@@ -1151,7 +1117,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         (posFilters.length === 0 || posFilters.includes(c.partOfSpeech ?? "noun")) &&
         inStatusFilter(c)
       );
-      setCurrentCard((smartReview ? getSmartReviewCard : getNextPriorityCard)(pool.length > 0 ? pool : updatedCards, language, currentCard.id));
+      setCurrentCard(getNextPriorityCard(pool.length > 0 ? pool : updatedCards, language, currentCard.id));
       setIsFlipped(false);
 
       // Database Sync (Upsert Score) — deliberately NOT awaited, and fired after
@@ -1297,7 +1263,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       (posFilters.length === 0 || posFilters.includes(c.partOfSpeech ?? "noun")) &&
       inStatusFilter(c)
     );
-    setCurrentCard((smartReview ? getSmartReviewCard : getNextPriorityCard)(pool.length > 0 ? pool : updatedCards, language, currentCard.id));
+    setCurrentCard(getNextPriorityCard(pool.length > 0 ? pool : updatedCards, language, currentCard.id));
     setIsFlipped(false);
 
     // Database Sync (Upsert Score) — not awaited, fired after the card has
@@ -1719,10 +1685,10 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       return;
     }
     if (filteredCards.length === 0) return;
-    setCurrentCard((smartReview ? getSmartReviewCard : getNextPriorityCard)(filteredCards, language));
+    setCurrentCard(getNextPriorityCard(filteredCards, language));
     setIsFlipped(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jlptFilterKey, posFilterKey, statusFilterKey, smartReview]);
+  }, [jlptFilterKey, posFilterKey, statusFilterKey]);
 
   // Show full-screen loading until the first deck fetch completes
   if (!hasLoadedOnce) {
@@ -2413,12 +2379,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
             >
               Weak Words · {strugglingTodayIds.size}
             </button>
-            <button type="button" onClick={toggleSmartReview} aria-pressed={smartReview}
-              title="Smart Review prioritizes weak and overdue words; switch off for the original study order"
-              className={`flex-1 min-w-0 whitespace-nowrap rounded-xl px-2 py-2 text-[10px] font-black border shadow-sm transition-all active:scale-95 ${smartReview ? "bg-indigo-600 text-white border-indigo-600" : "bg-white/90 text-slate-500 border-slate-200"}`}
-            >
-              Smart Review · {smartReview ? "ON" : "OFF"}
-            </button>
+
 
           </div>
 
