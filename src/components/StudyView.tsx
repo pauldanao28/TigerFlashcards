@@ -2299,6 +2299,19 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     transition={{ duration: 0.15 }}
                     className="absolute top-full right-0 mt-2 flex flex-col items-end gap-2 z-[60]"
                   >
+            <details className="relative rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-600 shadow-sm">
+              <summary className="cursor-pointer font-black text-indigo-600">Learning Insights</summary>
+              <div className="mt-2 w-[min(75vw,280px)] space-y-1 text-left leading-relaxed">
+                <p>Recognition accuracy: {retentionSnapshot.recognition == null ? "No reviews" : `${retentionSnapshot.recognition}%`}</p>
+                <p>Recall accuracy: {retentionSnapshot.recall == null ? "No reviews" : `${retentionSnapshot.recall}%`}</p>
+                <p>Weak cards (&lt;50% after 3+ attempts): {retentionSnapshot.weak}</p>
+                <p>Reviewed cards: {retentionSnapshot.reviewed}</p>
+                <p>Last reviewed 7+ days ago: {retentionSnapshot.olderThanWeek}</p>
+                <p>7+ day return recall: {returnRetention.sevenTotal ? `${Math.round(returnRetention.sevenPass / returnRetention.sevenTotal * 100)}% (${returnRetention.sevenTotal} reviews)` : "Not measured yet"}</p>
+                <p>30+ day return recall: {returnRetention.thirtyTotal ? `${Math.round(returnRetention.thirtyPass / returnRetention.thirtyTotal * 100)}% (${returnRetention.thirtyTotal} reviews)` : "Not measured yet"}</p>
+                <p className="text-slate-400">Return rates sync through Supabase after the SQL migration. First recorded review establishes the baseline.</p>
+              </div>
+            </details>
                     <button
                       onClick={() => { setIsSocialOpen(true); setShowQuickMenu(false); }}
                       className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
@@ -2366,39 +2379,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               </Link>
             )}
           </div>
-          {/* Compact, full-width mobile study toolbar. Keep controls out of the narrow icon column. */}
-          <div className="w-full flex items-center gap-1.5 pointer-events-auto min-w-0">
-            {/* Direct struggling-word shortcut, immediately below the Reflex Mode row. */}
-            <button
-              type="button"
-              onClick={() => toggleStatusFilter("strugglingToday")}
-              aria-pressed={statusFilters.includes("strugglingToday")}
-              className={`flex-1 min-w-0 whitespace-nowrap rounded-xl px-2 py-2 text-[10px] font-black border shadow-sm transition-all active:scale-95 ${statusFilters.includes("strugglingToday")
-                ? "bg-amber-500 text-white border-amber-500"
-                : "bg-white/90 text-amber-700 border-amber-200"}`}
-            >
-              Weak · {strugglingTodayIds.size}
-            </button>
-            <button type="button" onClick={toggleSmartReview} aria-pressed={smartReview}
-              title="Smart Review prioritizes weak and overdue words; switch off for the original study order"
-              className={`rounded-xl px-3 py-1.5 text-[10px] font-black border shadow-sm transition-all active:scale-95 ${smartReview ? "bg-indigo-600 text-white border-indigo-600" : "bg-white/90 text-slate-500 border-slate-200"}`}
-            >
-              Smart · {smartReview ? "ON" : "OFF"}
-            </button>
-            <details className="relative min-w-0 flex-1 text-center rounded-xl border border-slate-200 bg-white/90 px-2 py-2 text-[10px] text-slate-600 shadow-sm">
-              <summary className="cursor-pointer font-black text-indigo-600">Insights</summary>
-              <div className="absolute top-full right-0 z-[90] mt-2 w-[min(85vw,310px)] rounded-xl border border-slate-200 bg-white p-3 shadow-xl space-y-1 text-left leading-relaxed">
-                <p>Recognition accuracy: {retentionSnapshot.recognition == null ? "No reviews" : `${retentionSnapshot.recognition}%`}</p>
-                <p>Recall accuracy: {retentionSnapshot.recall == null ? "No reviews" : `${retentionSnapshot.recall}%`}</p>
-                <p>Weak cards (&lt;50% after 3+ attempts): {retentionSnapshot.weak}</p>
-                <p>Reviewed cards: {retentionSnapshot.reviewed}</p>
-                <p>Last reviewed 7+ days ago: {retentionSnapshot.olderThanWeek}</p>
-                <p>7+ day return recall: {returnRetention.sevenTotal ? `${Math.round(returnRetention.sevenPass / returnRetention.sevenTotal * 100)}% (${returnRetention.sevenTotal} reviews)` : "Not measured yet"}</p>
-                <p>30+ day return recall: {returnRetention.thirtyTotal ? `${Math.round(returnRetention.thirtyPass / returnRetention.thirtyTotal * 100)}% (${returnRetention.thirtyTotal} reviews)` : "Not measured yet"}</p>
-                <p className="text-slate-400">Return rates sync through Supabase after the SQL migration. First recorded review establishes the baseline.</p>
-              </div>
-            </details>
-          </div>
           <div className="w-full flex justify-end pointer-events-auto">
             {/* Goal chips — plain text, no box, right-aligned at the same row level as
                 the TIGER card's N-level bar underneath it (moved out of that card so it
@@ -2420,6 +2400,28 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               </div>
             )}
           </div>
+          {/* Compact, full-width mobile study toolbar. Keep controls out of the narrow icon column. */}
+          <div className="w-full flex items-center gap-1.5 pointer-events-auto min-w-0">
+            {/* Direct struggling-word shortcut, immediately below the Reflex Mode row. */}
+            <button
+              type="button"
+              onClick={() => toggleStatusFilter("strugglingToday")}
+              aria-pressed={statusFilters.includes("strugglingToday")}
+              className={`flex-1 min-w-0 whitespace-nowrap rounded-xl px-2 py-2 text-[10px] font-black border shadow-sm transition-all active:scale-95 ${statusFilters.includes("strugglingToday")
+                ? "bg-amber-500 text-white border-amber-500"
+                : "bg-white/90 text-amber-700 border-amber-200"}`}
+            >
+              Weak Words · {strugglingTodayIds.size}
+            </button>
+            <button type="button" onClick={toggleSmartReview} aria-pressed={smartReview}
+              title="Smart Review prioritizes weak and overdue words; switch off for the original study order"
+              className={`flex-1 min-w-0 whitespace-nowrap rounded-xl px-2 py-2 text-[10px] font-black border shadow-sm transition-all active:scale-95 ${smartReview ? "bg-indigo-600 text-white border-indigo-600" : "bg-white/90 text-slate-500 border-slate-200"}`}
+            >
+              Smart Review · {smartReview ? "ON" : "OFF"}
+            </button>
+
+          </div>
+
         </div>
 
         {/* --- 2. DESKTOP NAVIGATION --- */}
