@@ -2145,7 +2145,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         </AnimatePresence>
 
         {/* --- 1. MOBILE NAVIGATION --- */}
-        <div className="md:hidden sticky top-0 w-full z-50 px-3 py-2 flex flex-wrap gap-y-2 justify-between items-start bg-slate-50/80 backdrop-blur-md">
+        <div className="md:hidden sticky top-0 relative w-full z-50 px-3 py-2 flex flex-wrap gap-y-2 justify-between items-start bg-slate-50/80 backdrop-blur-md">
           <div className="flex flex-col gap-1 pointer-events-auto min-w-0 flex-1">
             <div className="flex items-center gap-3 min-w-0">
             <Link href="/" className="active:scale-95 transition-transform shrink-0">
@@ -2215,6 +2215,24 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               )}
             </div>
             </div>
+          </div>
+          {/* Progress sits level with the N-level indicator, below the mode icons. */}
+          <div className="absolute right-3 top-[64px] z-10 pointer-events-auto">
+            {!dataLoading && cards.length > 0 && (
+              <div className="flex items-center gap-1.5 pr-0 shrink-0">
+                <button onClick={showReviewsHint} className="flex items-center gap-0.5 text-[9px] font-black text-slate-400 tabular-nums active:scale-95 transition-transform">
+                  🔁 {reviewsToday}/{REVIEW_TARGET}
+                </button>
+                <button onClick={showStillLearningHint} className="flex items-center gap-0.5 text-[9px] font-black text-slate-400 tabular-nums active:scale-95 transition-transform">
+                  📋 {stillLearningCount}
+                </button>
+                <button
+                  onClick={showMasteredHint}
+                  className={`flex items-center gap-0.5 text-[9px] font-black tabular-nums active:scale-95 transition-transform ${masteredToday >= MASTERED_GOAL ? "text-emerald-500" : "text-slate-400"}`}
+                >
+                  🎯 {masteredToday}/{MASTERED_GOAL}
+                </button>
+    
           </div>
           {/* Top-right controls — Study Circle + Mode toggle */}
           <div className="flex flex-col items-end gap-1 pointer-events-auto shrink-0">
@@ -2345,7 +2363,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               </Link>
             )}
           </div>
-          <div className="w-full flex items-center justify-between gap-2 pointer-events-auto">
+          {/* Keep the weak-word filter below the header, without stretching it across the screen. */}
+          <div className="w-full flex items-center pointer-events-auto">
             <button
               type="button"
               onClick={() => toggleStatusFilter("strugglingToday")}
@@ -2356,24 +2375,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
             >
               Weak · {strugglingTodayIds.size}
             </button>
-            {/* Goal chips — plain text, no box, right-aligned at the same row level as
-                the TIGER card's N-level bar underneath it (moved out of that card so it
-                doesn't have to grow a 3rd row to fit them). */}
-            {!dataLoading && cards.length > 0 && (
-              <div className="flex items-center gap-2 pr-0 shrink-0">
-                <button onClick={showReviewsHint} className="flex items-center gap-0.5 text-[9px] font-black text-slate-400 tabular-nums active:scale-95 transition-transform">
-                  🔁 {reviewsToday}/{REVIEW_TARGET}
-                </button>
-                <button onClick={showStillLearningHint} className="flex items-center gap-0.5 text-[9px] font-black text-slate-400 tabular-nums active:scale-95 transition-transform">
-                  📋 {stillLearningCount}
-                </button>
-                <button
-                  onClick={showMasteredHint}
-                  className={`flex items-center gap-0.5 text-[9px] font-black tabular-nums active:scale-95 transition-transform ${masteredToday >= MASTERED_GOAL ? "text-emerald-500" : "text-slate-400"}`}
-                >
-                  🎯 {masteredToday}/{MASTERED_GOAL}
-                </button>
-              </div>
+          </div>
             )}
           </div>
 
