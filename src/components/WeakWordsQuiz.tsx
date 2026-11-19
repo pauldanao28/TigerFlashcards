@@ -28,6 +28,7 @@ interface DeckRow {
   reflex_attempts: number;
   todayFails: number;
 }
+interface KnownConnection { japanese: string; reading: string; english: string; shared: string }
 interface QuizCard extends DeckRow {
   sentence_jp: string;
   sentence_en: string;
@@ -106,6 +107,18 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
   const [error, setError] = useState<string | null>(null);
   const [backConfirm, setBackConfirm] = useState(false);
   const [usage, setUsage] = useState<AiUsageInfo | null>(null);
+  const [knownWords, setKnownWords] = useState<{ japanese: string; reading: string; english: string }[]>([]);
+  const [showTips, setShowTips] = useState(false);
+  const [usedTip, setUsedTip] = useState(false);
+  const knownConnections = (word: string): KnownConnection[] => {
+    const characters = [...new Set([...word].filter((ch) => kanjiRe.test(ch)))];
+    const matches: KnownConnection[] = [];
+    for (const ch of characters) {
+      const match = knownWords.find((known) => known.japanese !== word && known.japanese.includes(ch));
+      if (match) matches.push({ ...match, shared: ch });
+    }
+    return matches.slice(0, 3);
+  };
 
   const { lookup, openLookup, setEditWord, closeLookup } = useWordLookup(userId);
   const [queuedWords, setQueuedWords] = useState<Set<string>>(new Set());
@@ -191,6 +204,8 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
     setCurrentIdx(0);
     setResults([]);
     setSelected(null);
+    setShowTips(false);
+    setUsedTip(false);
     setError(null);
     setQueuedWords(new Set());
 
@@ -208,6 +223,28 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
         .is("cleared_at", null);
       if (strugglesErr) throw new Error("Could not load your cards");
 
+      // Connections are drawn only from cards with >=70% combined accuracy,
+      // the same mastery threshold used by vocabMastery in scoring.ts.
+      // Fetch the learner's scores in pages to avoid the default 1,000-row limit.
+      const mastered: { japanese: string; reading: string; english: string }[] = [];
+      for (let offset = 0; ; offset += 500) {
+        const { data: scoreRows, error: knownErr } = await supabase
+          .from("user_scores")
+          .select("scores_json, master_cards!card_id(japanese, reading, english)")
+          .eq("user_id", userId).range(offset, offset + 499);
+        if (knownErr) { console.error("Could not load mastered connections:", knownErr); break; }
+        for (const row of scoreRows ?? []) {
+          const stats = row.scores_json as DeckRow["scores"] | null;
+          const jp = stats?.jp_to_en;
+          const en = stats?.en_to_jp;
+          const total = (jp?.total ?? 0) + (en?.total ?? 0);
+          const accuracy = total ? ((jp?.pass ?? 0) + (en?.pass ?? 0)) / total * 100 : 0;
+          const word = (row as unknown as { master_cards?: { japanese: string; reading: string; english: string } }).master_cards;
+          if (word && accuracy >= 70) mastered.push(word);
+        }
+        if ((scoreRows ?? []).length < 500) break;
+      }
+      setKnownWords(mastered);
       const poolCardIds = (struggles ?? []).map((s) => s.card_id);
       const failCounts = new Map((struggles ?? []).map((s) => [s.card_id, s.fail_count]));
       if (poolCardIds.length === 0) {
@@ -288,6 +325,8 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
 
     const card = quizCards[currentIdx];
     const passed = choice === card.answer;
+    // Assisted answers still count as quiz attempts, but never silently clear
+    // a struggling word or imply that it was recalled without help.
     const old = card.scores?.jp_to_en || { pass: 0, fail: 0, total: 0, percent: 0 };
     const newPass = passed ? old.pass + 1 : old.pass;
     const newFail = !passed ? old.fail + 1 : old.fail;
@@ -321,6 +360,8 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
     }
     setCurrentIdx((i) => i + 1);
     setSelected(null);
+    setShowTips(false);
+    setUsedTip(false);
     scoringRef.current = false;
   };
 
@@ -463,6 +504,39 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
                 </p>
               </div>
 
+              <div className="rounded-2xl border border-indigo-100 bg-white p-3">
+                <button type="button" onClick={() => { setShowTips((v) => !v); if (!showTips && selected === null) setUsedTip(true); }}
+                  className="w-full flex items-center justify-between text-xs font-black text-indigo-700">
+                  <span className="flex items-center gap-2"><Lightbulb size={14} /> {showTips ? "Hide Memory Tips" : "Need help? Memory Tips"}</span>
+                  <span>{showTips ? "−" : "+"}</span>
+                </button>
+                {showTips && (
+                  <div className="mt-3 pt-3 border-t border-indigo-100 space-y-2 text-sm text-slate-700">
+                    <p className="font-bold text-slate-900">{currentCard.japanese}（{currentCard.reading}）— {currentCard.english}</p>
+                    {knownConnections(currentCard.japanese).length > 0 && (
+                      <div className="rounded-xl bg-emerald-50 p-3 space-y-1">
+                        <p className="text-xs font-black text-emerald-800">From your mastered words</p>
+                        {knownConnections(currentCard.japanese).map((known) => (
+                          <p key={known.shared} className="text-xs"><strong>{known.shared}</strong> in {known.japanese}（{known.reading}）— {known.english}</p>
+                        ))}
+                      </div>
+                    )}
+                    {knownConnections(currentCard.japanese).length > 0 && (
+                    <div className="border-t border-amber-200 pt-2 space-y-1">
+                      <p className="text-xs font-black text-amber-900">Connect to mastered words</p>
+                      {knownConnections(currentCard.japanese).map((known) => (
+                        <p key={known.shared} className="text-xs text-amber-900"><strong>{known.shared}</strong> → {known.japanese}（{known.reading}）— {known.english}</p>
+                      ))}
+                    </div>
+                  )}
+                  {currentCard.mnemonic?.entries?.map((entry) => (
+                      <p key={entry.character} className="text-xs"><strong>{entry.character}</strong>: {entry.story}</p>
+                    ))}
+                    <p className="text-xs text-slate-500">Tips reveal the answer. Try recalling it before choosing; assisted answers are not independent recall.</p>
+                  </div>
+                )}
+              </div>
+
               <div className="flex flex-col gap-2">
                 {currentCard.choices.map((choice) => {
                   const answered = selected !== null;
@@ -496,6 +570,7 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
                       ({currentCard.japanese})
                     </span>
                   </p>
+                  {usedTip && <p className="text-xs font-semibold mb-1">Assisted with Memory Tips</p>}
                   <p className="text-xs leading-relaxed">{currentCard.explanation}</p>
                   <p className="text-xs italic opacity-70 mt-1.5">{currentCard.sentence_en}</p>
                 </div>
