@@ -1276,7 +1276,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       scores_json: newScores,
       updated_at: new Date().toISOString(),
     }).then(({ pendingCount }) => setPendingSyncCount(pendingCount));
-  }, [currentCard, user, cards, language, jlptFilters, posFilters, inStatusFilter, showHints, setCardMasteryToast, smartReview]);
+  }, [currentCard, user, cards, language, jlptFilters, posFilters, inStatusFilter, showHints, setCardMasteryToast]);
 
   // Rolling cap: starring a 31st word bumps whichever one has been starred longest,
   // rather than blocking the action or requiring the user to manage the count by hand.
