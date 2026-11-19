@@ -320,6 +320,15 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   // WeakWordsQuiz.tsx), rather than leaving it passive/badge-only.
   const [weakWordsCount, setWeakWordsCount] = useState(0);
   const [reviewsToday, setReviewsToday] = useState(0);
+  const [returnRetention, setReturnRetention] = useState({ sevenPass: 0, sevenTotal: 0, thirtyPass: 0, thirtyTotal: 0 });
+  useEffect(() => {
+    if (!user) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(`flashkado-return-retention-${user.id}`) || "{}");
+      setReturnRetention({ sevenPass: Number(saved.sevenPass) || 0, sevenTotal: Number(saved.sevenTotal) || 0,
+        thirtyPass: Number(saved.thirtyPass) || 0, thirtyTotal: Number(saved.thirtyTotal) || 0 });
+    } catch { setReturnRetention({ sevenPass: 0, sevenTotal: 0, thirtyPass: 0, thirtyTotal: 0 }); }
+  }, [user]);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
@@ -995,6 +1004,21 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       setSessionStreak(newSessionStreak);
       incrementStudyCount();
       setReviewsToday((prev) => prev + 1);
+      // A return review counts only if the previous review was at least 7/30
+      // days ago. Store aggregate outcomes locally; no historical claims are made.
+      try {
+        const last = currentCard.last_reviewed_at ? Date.parse(currentCard.last_reviewed_at) : NaN;
+        const gap = Number.isFinite(last) ? now - last : 0;
+        if (gap >= 7 * 86400000) {
+          setReturnRetention(prev => {
+            const next = { sevenPass: prev.sevenPass + Number(isPass), sevenTotal: prev.sevenTotal + 1,
+              thirtyPass: prev.thirtyPass + Number(gap >= 30 * 86400000 && isPass),
+              thirtyTotal: prev.thirtyTotal + Number(gap >= 30 * 86400000) };
+            try { localStorage.setItem(`flashkado-return-retention-${user.id}`, JSON.stringify(next)); } catch {}
+            return next;
+          });
+        }
+      } catch { /* storage is optional */ }
 
       // Session stats
       setSessionCards((prev) => prev + 1);
@@ -2342,7 +2366,9 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 <p>Weak cards (&lt;50% after 3+ attempts): {retentionSnapshot.weak}</p>
                 <p>Reviewed cards: {retentionSnapshot.reviewed}</p>
                 <p>Last reviewed 7+ days ago: {retentionSnapshot.olderThanWeek}</p>
-                <p className="text-slate-400">Snapshot only. 7/30-day retention requires review history.</p>
+                <p>7+ day return recall: {returnRetention.sevenTotal ? `${Math.round(returnRetention.sevenPass / returnRetention.sevenTotal * 100)}% (${returnRetention.sevenTotal} reviews)` : "Not measured yet"}</p>
+                <p>30+ day return recall: {returnRetention.thirtyTotal ? `${Math.round(returnRetention.thirtyPass / returnRetention.thirtyTotal * 100)}% (${returnRetention.thirtyTotal} reviews)` : "Not measured yet"}</p>
+                <p className="text-slate-400">Return rates start collecting now, on this device only. They measure passes after a 7/30-day gap, not exact long-term memory.</p>
               </div>
             </details>
             {/* Goal chips — plain text, no box, right-aligned at the same row level as
