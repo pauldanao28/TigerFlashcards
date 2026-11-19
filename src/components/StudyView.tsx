@@ -2283,6 +2283,12 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     transition={{ duration: 0.15 }}
                     className="absolute top-full right-0 mt-2 flex flex-col items-end gap-2 z-[60]"
                   >
+                    <button type="button" onClick={() => { setShowJlptBreakdown(true); setShowQuickMenu(false); }} className="w-full min-w-[210px] flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left text-[11px] font-black text-slate-700 shadow-sm">
+                      <span>⚙️</span><span>Study Filters{statusFilters.length > 0 ? ` · ${statusFilters.length} active` : ""}</span>
+                    </button>
+                    <Link href="/quizzes?open=weak_words" onClick={() => setShowQuickMenu(false)} className="w-full min-w-[210px] flex items-center gap-2 rounded-xl border border-rose-100 bg-white px-3 py-2.5 text-[11px] font-black text-rose-600 shadow-sm">
+                      <span>🧠</span><span>Struggling Words Quiz{weakWordsCount > 0 ? ` · ${weakWordsCount}` : ""}</span>
+                    </Link>
             <details className="relative rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-600 shadow-sm">
               <summary className="cursor-pointer font-black text-indigo-600">Learning Insights</summary>
               <div className="mt-2 w-[min(75vw,280px)] space-y-1 text-left leading-relaxed">
@@ -2363,19 +2369,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               </Link>
             )}
           </div>
-          {/* Keep the weak-word filter below the header, without stretching it across the screen. */}
-          <div className="w-full flex items-center pointer-events-auto">
-            <button
-              type="button"
-              onClick={() => toggleStatusFilter("strugglingToday")}
-              aria-pressed={statusFilters.includes("strugglingToday")}
-              className={`shrink-0 whitespace-nowrap rounded-lg px-2 py-1.5 text-[9px] font-black border shadow-sm transition-all active:scale-95 ${statusFilters.includes("strugglingToday")
-                ? "bg-amber-500 text-white border-amber-500"
-                : "bg-white/90 text-amber-700 border-amber-200"}`}
-            >
-              Weak · {strugglingTodayIds.size}
-            </button>
-          </div>
+
             )}
           </div>
 
