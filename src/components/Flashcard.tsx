@@ -313,8 +313,8 @@ export default function Flashcard({
       if (!confirmed) return;
     }
 
-    setShowMnemonic(false);
-    if (card.mnemonic || mnemonicLoading) return; // already cached or already fetching
+    setShowMnemonic(true);
+    if (card.mnemonic || mnemonicLoading) return; // show cached result or current progress
 
     setMnemonicLoading(true);
     setMnemonicError(null);
@@ -784,7 +784,7 @@ export default function Flashcard({
           {mnemonicLoading && (
             <div className="flex items-center gap-2 text-sm text-slate-400 py-6 justify-center">
               <Loader2 size={16} className="animate-spin" />
-              <span>Thinking of a way to remember it…</span>
+              <span>Generating kanji memory tip…</span>
             </div>
           )}
 
