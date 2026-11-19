@@ -1641,6 +1641,33 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       .slice(0, 20);
   }, [cards]);
 
+  // Progress snapshots derived from existing study scores. These are not
+  // longitudinal retention measurements; a true 7/30-day rate needs review events.
+  const retentionSnapshot = useMemo(() => {
+    let recognitionPass = 0, recognitionTotal = 0, recallPass = 0, recallTotal = 0;
+    let weak = 0, reviewed = 0, olderThanWeek = 0;
+    const now = Date.now();
+    for (const card of cards) {
+      const jp = card.scores?.jp_to_en;
+      const en = card.scores?.en_to_jp;
+      recognitionPass += jp?.pass ?? 0;
+      recognitionTotal += jp?.total ?? 0;
+      recallPass += en?.pass ?? 0;
+      recallTotal += en?.total ?? 0;
+      if ((jp?.total ?? 0) + (en?.total ?? 0) > 0) {
+        reviewed++;
+        const combinedTotal = (jp?.total ?? 0) + (en?.total ?? 0);
+        if (combinedTotal >= 3 && (recognitionTotal >= 0) &&
+            ((jp?.pass ?? 0) + (en?.pass ?? 0)) / combinedTotal < 0.5) weak++;
+        const stamp = card.last_reviewed_at ? Date.parse(card.last_reviewed_at) : NaN;
+        if (Number.isFinite(stamp) && now - stamp >= 7 * 86400000) olderThanWeek++;
+      }
+    }
+    return { recognition: recognitionTotal ? Math.round(100 * recognitionPass / recognitionTotal) : null,
+      recall: recallTotal ? Math.round(100 * recallPass / recallTotal) : null,
+      weak, reviewed, olderThanWeek };
+  }, [cards]);
+
   // Level-up detection: track whichever % is visible — per-N-level(s) when filtered, overall when "All"
   const trackedPercent = jlptFilters.length > 0 ? (jlptLevelMastery ?? masteryPercent) : masteryPercent;
   useEffect(() => {
@@ -2307,6 +2334,17 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
             >
               Smart Review: {smartReview ? "ON" : "OFF"}
             </button>
+            <details className="max-w-[210px] text-right rounded-xl border border-slate-200 bg-white/90 px-3 py-2 text-[10px] text-slate-600 shadow-sm">
+              <summary className="cursor-pointer font-black text-indigo-600">Learning insights</summary>
+              <div className="mt-2 space-y-1 text-left leading-relaxed">
+                <p>Recognition accuracy: {retentionSnapshot.recognition == null ? "No reviews" : `${retentionSnapshot.recognition}%`}</p>
+                <p>Recall accuracy: {retentionSnapshot.recall == null ? "No reviews" : `${retentionSnapshot.recall}%`}</p>
+                <p>Weak cards (&lt;50% after 3+ attempts): {retentionSnapshot.weak}</p>
+                <p>Reviewed cards: {retentionSnapshot.reviewed}</p>
+                <p>Last reviewed 7+ days ago: {retentionSnapshot.olderThanWeek}</p>
+                <p className="text-slate-400">Snapshot only. 7/30-day retention requires review history.</p>
+              </div>
+            </details>
             {/* Goal chips — plain text, no box, right-aligned at the same row level as
                 the TIGER card's N-level bar underneath it (moved out of that card so it
                 doesn't have to grow a 3rd row to fit them). */}
