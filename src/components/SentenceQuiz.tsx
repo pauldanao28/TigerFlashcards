@@ -101,6 +101,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
   const [translationDirection, setTranslationDirection] = useState<"en-ja" | "ja-en">("en-ja");
   const [listening, setListening] = useState(false);
   const [speechError, setSpeechError] = useState<string | null>(null);
+  const [retryAttempts, setRetryAttempts] = useState(0);
   const recognizerRef = useRef<SpeechRecognizer | null>(null);
   const [writtenAnswer, setWrittenAnswer] = useState("");
   const [feedbackLoading, setFeedbackLoading] = useState(false);
@@ -462,6 +463,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
       setWrittenAnswer("");
       setSentenceFeedback(null);
       setFeedbackError(null);
+      setRetryAttempts(0);
       scoringRef.current = false;
     }
   };
@@ -501,6 +503,15 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
       setSentenceFeedback(body);
     } catch (error) { setFeedbackError(error instanceof Error ? error.message : "Feedback unavailable"); }
     finally { setFeedbackLoading(false); }
+  };
+
+  const retryTranslation = () => {
+    recognizerRef.current?.stop();
+    setWrittenAnswer("");
+    setSentenceFeedback(null);
+    setFeedbackError(null);
+    setSpeechError(null);
+    setRetryAttempts((n) => n + 1);
   };
 
   const passedCount = results.filter(r => r.passed).length;
@@ -669,6 +680,12 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
                       <p className="font-medium">Suggestion: {sentenceFeedback.suggestion}</p>
                       <p className="text-slate-400">AI feedback can be imperfect. This does not change your quiz score.</p>
                     </div>}
+                    {sentenceFeedback && !sentenceFeedback.acceptable && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
+                      <p className="text-xs font-bold text-amber-900">Try saying the corrected sentence again before continuing.</p>
+                      <button type="button" onClick={retryTranslation} className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-xs font-black text-white">↻ Retry sentence{retryAttempts > 0 ? ` · Attempt ${retryAttempts + 1}` : ""}</button>
+                      <p className="text-[10px] text-amber-800">You can still continue if you need to. AI feedback is not a pronunciation score.</p>
+                    </div>}
+                    {sentenceFeedback?.acceptable && retryAttempts > 0 && <p className="rounded-lg bg-emerald-50 p-2 text-xs font-bold text-emerald-700">Nice improvement! You can continue to the next sentence.</p>}
                     {feedbackError && <p role="alert" className="text-xs text-rose-600">{feedbackError}</p>}
                   </div>}
                 </div>
