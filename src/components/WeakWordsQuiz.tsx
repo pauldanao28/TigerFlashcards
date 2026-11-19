@@ -17,6 +17,16 @@ const POOL_SIZE = 10;
 // count_weak_words, so this pool and that badge always agree on the same number.
 const DAILY_STRUGGLE_THRESHOLD = 3;
 
+// Completed rescue-quiz words are excluded from later rounds on the same Singapore day.
+// This is device-local and does not alter the original daily failure history.
+const completedKey = (userId: string, date: string) => `flashkado-rescue-completed-${userId}-${date}`;
+const singaporeDay = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+const readCompleted = (userId: string, date: string): Set<string> => {
+  try { return new Set(JSON.parse(localStorage.getItem(completedKey(userId, date)) || "[]") as string[]); }
+  catch { return new Set(); }
+};
+
+
 interface ScoreDir { pass: number; fail: number; total: number; percent: number }
 interface DeckRow {
   id: string;
@@ -212,10 +222,10 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
     setQueuedWords(new Set());
 
     try {
-      // Struggling today — cards failed 2+ times today (daily_struggles) and not
+      // Struggling today — cards failed 3+ times today (daily_struggles) and not
       // yet cleared (answered correctly in this quiz already today). The only pool
       // source now, so fetch just those card ids instead of paginating the whole deck.
-      const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+      const sgToday = singaporeDay();
       const { data: struggles, error: strugglesErr } = await supabase
         .from("daily_struggles")
         .select("card_id, fail_count")
@@ -247,8 +257,10 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
         if ((scoreRows ?? []).length < 500) break;
       }
       setKnownWords(mastered);
-      const poolCardIds = (struggles ?? []).map((s) => s.card_id);
-      const failCounts = new Map((struggles ?? []).map((s) => [s.card_id, s.fail_count]));
+      const completedToday = readCompleted(userId, sgToday);
+      const eligibleStruggles = (struggles ?? []).filter((s) => !completedToday.has(s.card_id));
+      const poolCardIds = eligibleStruggles.map((s) => s.card_id);
+      const failCounts = new Map(eligibleStruggles.map((s) => [s.card_id, s.fail_count]));
       if (poolCardIds.length === 0) {
         setPhase("empty");
         return;
@@ -366,6 +378,13 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
 
   const goNext = () => {
     if (currentIdx + 1 >= quizCards.length) {
+      // Only a finished round marks its answered words as completed for today.
+      try {
+        const day = singaporeDay();
+        const completed = readCompleted(userId, day);
+        for (const result of results) completed.add(result.card.id);
+        localStorage.setItem(completedKey(userId, day), JSON.stringify([...completed]));
+      } catch (error) { console.warn("Could not save today's completed rescue words:", error); }
       setPhase("done");
       return;
     }
