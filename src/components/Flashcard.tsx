@@ -547,7 +547,7 @@ export default function Flashcard({
                   much reading/heading/badge content there is above it; the Listen/
                   Lightbulb/Report row always lands in roughly the same place instead
                   of drifting with every card. */}
-              <div className="flex-1 min-h-0 flex flex-col items-center justify-start w-full overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex-1 min-h-0 flex flex-col items-center justify-center w-full overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {(language === "jp" || language === "en") && card?.reading && (
                   <p className={`text-indigo-200 ${READING_SIZE} mb-2 font-medium tracking-wide animate-fade-in w-full shrink-0 whitespace-normal break-words leading-relaxed`}>
                     {card?.reading}
