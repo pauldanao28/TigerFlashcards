@@ -26,6 +26,7 @@ interface DeckRow {
   mnemonic?: KanjiMnemonic | null;
   scores: { jp_to_en: ScoreDir; en_to_jp: ScoreDir };
   reflex_attempts: number;
+  todayFails: number;
 }
 interface QuizCard extends DeckRow {
   sentence_jp: string;
@@ -200,7 +201,7 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
       const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
       const { data: struggles, error: strugglesErr } = await supabase
         .from("daily_struggles")
-        .select("card_id")
+        .select("card_id, fail_count")
         .eq("user_id", userId)
         .eq("struggle_date", sgToday)
         .gte("fail_count", DAILY_STRUGGLE_THRESHOLD)
@@ -208,6 +209,7 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
       if (strugglesErr) throw new Error("Could not load your cards");
 
       const poolCardIds = (struggles ?? []).map((s) => s.card_id);
+      const failCounts = new Map((struggles ?? []).map((s) => [s.card_id, s.fail_count]));
       if (poolCardIds.length === 0) {
         setPhase("empty");
         return;
@@ -225,7 +227,7 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
           const card = (row as unknown as { master_cards?: DeckRow }).master_cards;
           if (!card) return null;
           const s = (row.scores_json as DeckRow["scores"]) || { jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 }, en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 } };
-          return { ...card, scores: s, reflex_attempts: (row.reflex_attempts as number) ?? 0 };
+          return { ...card, scores: s, reflex_attempts: (row.reflex_attempts as number) ?? 0, todayFails: failCounts.get(card.id) ?? 0 };
         })
         .filter((c): c is DeckRow => c !== null);
 
@@ -234,7 +236,13 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
         return;
       }
 
-      const pick = [...pool].sort(() => Math.random() - 0.5).slice(0, Math.min(POOL_SIZE, pool.length));
+      // Prioritize repeated failures today, then low recognition accuracy.
+      // Randomize only exact ties so persistent trouble words aren't buried.
+      const pick = [...pool].map((card) => ({ card, tie: Math.random() }))
+        .sort((a, b) => b.card.todayFails - a.card.todayFails ||
+          (a.card.scores?.jp_to_en?.percent ?? 0) - (b.card.scores?.jp_to_en?.percent ?? 0) ||
+          a.tie - b.tie)
+        .slice(0, Math.min(POOL_SIZE, pool.length)).map(({ card }) => card);
 
       const res = await authedFetch("/api/quiz/weak-words", {
         method: "POST",
@@ -299,15 +307,9 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
     if (!passed) {
       supabase.rpc("record_daily_struggle", { target_user_id: userId, target_card_id: card.id })
         .then(({ error }) => { if (error) console.error("Error recording daily struggle:", error); });
-    } else {
-      // Getting it right here clears it from today's pool (cleared_at, not a
-      // fail_count reset — daily_struggles stays an accurate "what did I get
-      // wrong today" diary) so it stops reappearing once mastered today. A later
-      // fresh fail (here or in regular Study) re-qualifies it automatically —
-      // record_daily_struggle resets cleared_at on every new fail.
-      supabase.rpc("clear_daily_struggle", { target_user_id: userId, target_card_id: card.id })
-        .then(({ error }) => { if (error) console.error("Error clearing daily struggle:", error); });
     }
+    // Do not clear after a single lucky correct guess. The daily failure log
+    // remains eligible for another rescue quiz until the next day.
 
     setResults((prev) => [...prev, { card, passed, newPercent }]);
   };
@@ -356,9 +358,9 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
           <div>
             <h2 className="text-xl font-black text-slate-900 mb-2">Review your weak words</h2>
             <p className="text-slate-500 font-medium text-sm leading-relaxed">
-              Pulls up to {POOL_SIZE} cards you&apos;re struggling with today — failed a
-              few times — and quizzes you on each in an AI-written sentence. A Clue
-              button can generate a kanji mnemonic if you&apos;re stuck.
+              Prioritizes words you keep failing today, quizzes them in AI-written sentences,
+              and shows Memory Rescue after a missed answer. One lucky correct answer
+              won&apos;t remove a word from today&apos;s rescue pool.
             </p>
           </div>
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">Up to {POOL_SIZE} questions · ~3–5 min</p>
@@ -496,6 +498,26 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
                   </p>
                   <p className="text-xs leading-relaxed">{currentCard.explanation}</p>
                   <p className="text-xs italic opacity-70 mt-1.5">{currentCard.sentence_en}</p>
+                </div>
+              )}
+
+              {selected !== null && selected !== currentCard.answer && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-2 text-sm">
+                  <p className="font-black text-amber-900 flex items-center gap-2"><Lightbulb size={15} /> Memory Rescue</p>
+                  <p className="font-bold text-lg text-slate-900">{currentCard.japanese} <span className="text-sm font-normal text-slate-500">（{currentCard.reading}）</span></p>
+                  <p className="font-semibold text-amber-900">{currentCard.english}</p>
+                  <p className="text-slate-700">{currentCard.sentence_jp.replaceAll("【", "").replaceAll("】", "")}</p>
+                  <p className="text-xs text-slate-600">{currentCard.sentence_en}</p>
+                  {currentCard.mnemonic?.entries?.map((entry) => (
+                    <div key={entry.character} className="border-t border-amber-200 pt-2 text-xs text-amber-900">
+                      <p className="font-bold">{entry.character} — {entry.radicals}</p>
+                      <p>{entry.story}</p>
+                    </div>
+                  ))}
+                  {kanjiRe.test(currentCard.japanese) && !currentCard.mnemonic && (
+                    <button onClick={() => handleMnemonic(currentCard)} className="text-xs font-bold text-amber-800 underline">Show kanji memory clue</button>
+                  )}
+                  <p className="text-xs font-semibold text-amber-800">Read the sentence once, hide the answer mentally, and try recalling the meaning before continuing. This word stays in your rescue pool today.</p>
                 </div>
               )}
 
