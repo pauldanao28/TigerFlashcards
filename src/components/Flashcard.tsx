@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, useMotionValue, useTransform } from "framer-motion";
-import { Star, Lightbulb, Loader2, X } from "lucide-react";
+import { Star, Lightbulb, Loader2, X, Expand } from "lucide-react";
 import { FlashcardData, KanjiMnemonic } from "@/lib/types";
 import { suruLabel } from "@/lib/verbConjugation";
 import { supabase } from "@/lib/supabase";
@@ -67,6 +67,7 @@ export default function Flashcard({
   const [hasVibrated, setHasVibrated] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [showMnemonic, setShowMnemonic] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [mnemonicLoading, setMnemonicLoading] = useState(false);
   const [mnemonicError, setMnemonicError] = useState<string | null>(null);
 
@@ -124,6 +125,7 @@ export default function Flashcard({
   useEffect(() => {
     if (!card) return; // Guard clause: do nothing if card is null
     setIsReady(false);
+    setShowDetails(false);
     const timer = setTimeout(() => setIsReady(true), 50);
     return () => clearTimeout(timer);
   }, [card?.id]); // Added optional chaining here
@@ -282,7 +284,7 @@ export default function Flashcard({
       if (!confirmed) return;
     }
 
-    setShowMnemonic(true);
+    setShowMnemonic(false);
     if (card.mnemonic || mnemonicLoading) return; // already cached or already fetching
 
     setMnemonicLoading(true);
@@ -400,6 +402,10 @@ export default function Flashcard({
   const backHeadingClass = isBackJapanese
     ? BACK_JP_PINNED_SIZE
     : isLongMeaning ? "text-base sm:text-lg" : isHeadingBig ? HEADING_BIG : HEADING_SMALL;
+
+  const cardStats = card.scores?.[language === "en" ? "en_to_jp" : "jp_to_en"];
+  const passCount = cardStats?.pass ?? 0;
+  const failCount = cardStats?.fail ?? 0;
 
   return (
     <>
@@ -621,15 +627,13 @@ export default function Flashcard({
                     🔊
                   </button>
 
-                  {card?.japanese && KANJI_RE.test(card.japanese) && (
-                    <button
-                      onClick={handleOpenMnemonic}
-                      className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all border border-white/20 active:scale-95"
-                      title="Remember this kanji"
-                    >
-                      <Lightbulb size={14} />
-                    </button>
-                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowDetails(true); }}
+                    className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all border border-white/20"
+                    title="Expand card details" aria-label="Expand card details"
+                  >
+                    <Expand size={15} />
+                  </button>
 
                   <button
                     onClick={handleReport}
@@ -644,6 +648,75 @@ export default function Flashcard({
         </motion.div>
       </motion.div>
     </div>
+
+    {showDetails && typeof document !== "undefined" && createPortal(
+      <div className="fixed inset-0 z-[290] bg-black/60 flex items-end sm:items-center justify-center sm:p-4" onClick={() => setShowDetails(false)}>
+        <section role="dialog" aria-modal="true" aria-label="Full flashcard details"
+          onClick={(e) => e.stopPropagation()}
+          className="bg-white text-slate-800 w-full sm:max-w-lg max-h-[90dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl p-5 sm:p-7 space-y-5 shadow-2xl"
+          style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}>
+          <div className="flex justify-between items-start gap-3">
+            <div>
+              <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest">Card details</p>
+              <h2 className="text-3xl font-black break-words mt-1">{card.japanese}</h2>
+              <p className="text-sm text-slate-500 break-words">{card.reading}</p>
+            </div>
+            <button onClick={() => setShowDetails(false)} aria-label="Close details" className="p-2 rounded-full bg-slate-100"><X size={20}/></button>
+          </div>
+          <p className="text-lg font-semibold break-words">{card.english}</p>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            {([["Tries", passCount + failCount], ["Pass", passCount], ["Fail", failCount]] as const).map(([label, count]) => (
+              <div key={label} className="rounded-xl bg-slate-100 p-3">
+                <p className="text-xl font-black">{count}</p><p className="text-xs text-slate-500">{label}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-slate-500">Statistics for {language === "en" ? "English → Japanese" : "Japanese → English"} study direction.</p>
+          {(card.partOfSpeech || card.jlpt_level || card.verb_type || card.transitivity || card.adjective_type) && (
+            <div className="flex flex-wrap gap-2 text-xs font-semibold">
+              {[card.jlpt_level, card.partOfSpeech, card.verb_type, card.transitivity, card.adjective_type ? card.adjective_type + "-adjective" : null].filter(Boolean).map((value, index) => (
+                <span key={index} className="rounded-full bg-indigo-50 text-indigo-700 px-3 py-1">{value}</span>
+              ))}
+            </div>
+          )}
+          {card.te_form && (
+            <div className="rounded-2xl bg-indigo-50 p-4">
+              <h3 className="font-bold text-indigo-800 mb-2">Te-form</h3>
+              <p className="text-xl font-bold">{card.te_form}</p>
+              <p className="text-xs text-indigo-600 mt-2">A separate te-form example is not yet stored for this card.</p>
+            </div>
+          )}
+          {card.suru_meaning && <p className="text-sm"><strong>{suruLabel(card.japanese)}:</strong> {card.suru_meaning}</p>}
+          {card.exampleSentence?.jp && (
+            <div className="rounded-2xl bg-slate-50 p-4 space-y-2">
+              <h3 className="font-bold">Example sentence</h3>
+              <p className="text-base leading-relaxed">{card.exampleSentence.jp}</p>
+              <p className="text-sm text-slate-500">{card.exampleSentence.en}</p>
+            </div>
+          )}
+          {KANJI_RE.test(card.japanese) && (
+            <div className="rounded-2xl bg-amber-50 p-4 space-y-3">
+              <div className="flex justify-between items-center gap-2">
+                <h3 className="font-bold text-amber-900">Remember the kanji</h3>
+                {!card.mnemonic && (
+                  <button onClick={handleOpenMnemonic} className="rounded-lg bg-amber-200 text-amber-900 px-3 py-2 text-xs font-bold flex items-center gap-1">
+                    <Lightbulb size={14}/> Generate tip
+                  </button>
+                )}
+              </div>
+              {card.mnemonic?.entries?.length ? card.mnemonic.entries.map((entry, index) => (
+                <div key={index}>
+                  <p className="text-xl font-bold">{entry.character}</p>
+                  <p className="text-xs text-amber-700">Radicals: {entry.radicals}</p>
+                  <p className="text-sm mt-1">{entry.story}</p>
+                </div>
+              )) : <p className="text-sm text-amber-800">Generate a memory tip to see kanji explanations here.</p>}
+              {card.mnemonic?.origin && <p className="text-xs italic text-amber-700">{card.mnemonic.origin}</p>}
+            </div>
+          )}
+        </section>
+      </div>, document.body
+    )}
 
     {/* Rendered via portal — the drag/flip motion.divs above apply CSS transforms,
         which would otherwise hijack position:fixed on any descendant and anchor
