@@ -103,6 +103,7 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
   const [quizCards, setQuizCards] = useState<QuizCard[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
+  const [confusionCount, setConfusionCount] = useState(0);
   const [results, setResults] = useState<{ card: QuizCard; passed: boolean; newPercent: number }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [backConfirm, setBackConfirm] = useState(false);
@@ -204,6 +205,7 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
     setCurrentIdx(0);
     setResults([]);
     setSelected(null);
+    setConfusionCount(0);
     setShowTips(false);
     setUsedTip(false);
     setError(null);
@@ -325,6 +327,15 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
 
     const card = quizCards[currentIdx];
     const passed = choice === card.answer;
+    if (!passed) {
+      // Count the exact mistaken pairing, without pretending to know its cause.
+      try {
+        const key = `flashkado-confusion-${userId}-${card.id}-${choice}`;
+        const next = Math.min(999, Number(localStorage.getItem(key) || 0) + 1);
+        localStorage.setItem(key, String(next));
+        setConfusionCount(next);
+      } catch { setConfusionCount(0); }
+    }
     // Assisted answers still count as quiz attempts, but never silently clear
     // a struggling word or imply that it was recalled without help.
     const old = card.scores?.jp_to_en || { pass: 0, fail: 0, total: 0, percent: 0 };
@@ -587,6 +598,7 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
                     <p className="font-black text-amber-900">Mistake comparison</p>
                     <p>Your choice: {selected}</p>
                     <p>Correct meaning: {currentCard.answer}</p>
+                    {confusionCount >= 2 && <p className="font-bold text-amber-900">Repeated confusion: you have chosen this incorrect meaning {confusionCount} times on this device.</p>}
                     <p>Compare these meanings and the Japanese example. A wrong choice alone does not prove whether the problem was kanji, reading, or vocabulary recall.</p>
                   </div>
                   {knownConnections(currentCard.japanese).length > 0 && (
