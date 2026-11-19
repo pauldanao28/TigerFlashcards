@@ -2236,6 +2236,19 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               </div>
             )}
           </div>
+          {/* Quiz shortcut on its own line below the review counters. */}
+          <div className="absolute right-3 top-[88px] z-10 pointer-events-auto">
+            {/* Same POOL_SIZE threshold WeakWordsQuiz.tsx samples from — only shown
+                once there's a full round's worth, same as the Quick Actions badge. */}
+            {weakWordsCount >= 10 && (
+              <Link
+                href="/quizzes?open=weak_words"
+                className="block text-[9px] font-black text-rose-400 tabular-nums pr-1 active:opacity-70"
+              >
+                😓 {t.struggling} ({weakWordsCount})
+              </Link>
+            )}
+          </div>
           {/* Top-right controls — Study Circle + Mode toggle */}
           <div className="flex flex-col items-end gap-1 pointer-events-auto shrink-0">
             <div className="relative flex items-center gap-2 shrink-0">
@@ -2352,16 +2365,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 Synced
               </div>
             )}
-            {/* Same POOL_SIZE threshold WeakWordsQuiz.tsx samples from — only shown
-                once there's a full round's worth, same as the Quick Actions badge. */}
-            {weakWordsCount >= 10 && (
-              <Link
-                href="/quizzes?open=weak_words"
-                className="block text-[9px] font-black text-rose-400 tabular-nums pr-1 active:opacity-70"
-              >
-                😓 {t.struggling} ({weakWordsCount})
-              </Link>
-            )}
+
           </div>
         </div>
 
