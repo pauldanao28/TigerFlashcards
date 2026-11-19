@@ -496,7 +496,7 @@ export default function Flashcard({
 
           {/* BACK SIDE */}
           <div
-            className="absolute inset-0 flex flex-col bg-indigo-600 text-white rounded-3xl shadow-2xl p-8 text-center overflow-hidden"
+            className="absolute inset-0 flex flex-col bg-indigo-600 text-white rounded-3xl shadow-2xl p-5 sm:p-8 text-center overflow-hidden"
             style={{
               transform: "rotateY(180deg) translateZ(0)",
               WebkitTransform: "rotateY(180deg) translateZ(0)",
@@ -540,16 +540,16 @@ export default function Flashcard({
                 vertically-centered block tall enough to nearly fill this container has
                 near-zero top margin and sits right under those badges. This reserves
                 real clearance unconditionally. */}
-            <div className="flex-1 min-h-0 flex flex-col w-full overflow-hidden pt-8">
+            <div className="flex-1 min-h-0 flex flex-col w-full pt-8">
               {/* Content group — centered within whatever space is left above the
                   footer below (which is shrink-0, a fixed sibling, not part of this
                   centered group) — so the footer's position no longer depends on how
                   much reading/heading/badge content there is above it; the Listen/
                   Lightbulb/Report row always lands in roughly the same place instead
                   of drifting with every card. */}
-              <div className="flex-1 min-h-0 flex flex-col items-center justify-center w-full overflow-hidden">
+              <div className="flex-1 min-h-0 flex flex-col items-center justify-start w-full overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {(language === "jp" || language === "en") && card?.reading && (
-                  <p className={`text-indigo-200 ${READING_SIZE} mb-2 font-medium tracking-wide animate-fade-in truncate w-full`}>
+                  <p className={`text-indigo-200 ${READING_SIZE} mb-2 font-medium tracking-wide animate-fade-in w-full shrink-0 whitespace-normal break-words leading-relaxed`}>
                     {card?.reading}
                   </p>
                 )}
@@ -557,7 +557,7 @@ export default function Flashcard({
                 {/* Kanji itself (isBackJapanese) is pinned, never shrunk. The English
                     meaning (backHeadingClass) is just big or small, from its own +
                     the te-form's length — see isHeadingBig above. */}
-                <h2 className={`font-bold leading-tight break-words w-full ${backHeadingClass}`}>
+                <h2 className={`font-bold leading-tight break-words w-full shrink-0 ${backHeadingClass}`}>
                   {backText}
                 </h2>
 
