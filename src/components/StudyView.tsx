@@ -413,6 +413,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const [swipeOnly, setSwipeOnly] = useState(false);
   const [reflexMode, setReflexMode] = useState(false);
   const [showMiniFilters, setShowMiniFilters] = useState(false);
+  const [showMobileInsights, setShowMobileInsights] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const [swipeFeedback, setSwipeFeedback] = useState<{
@@ -2284,27 +2285,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     transition={{ duration: 0.15 }}
                     className="absolute top-full right-0 mt-2 flex flex-col items-end gap-2 z-[60]"
                   >
-                    <button type="button" onClick={() => { setShowJlptBreakdown(true); setShowQuickMenu(false); }} title="Study Filters" aria-label="Study Filters" className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all">
-                      <Filter size={19} className="text-slate-500" />
-                      {statusFilters.length > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 border-2 border-white" />}
-                    </button>
-                    <Link href="/quizzes?open=weak_words" onClick={() => setShowQuickMenu(false)} title="Struggling Words Quiz" aria-label="Struggling Words Quiz" className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all">
-                      <Brain size={19} className="text-rose-500" />
-                      {weakWordsCount > 0 && <span className="absolute -top-1 -right-1 rounded-full min-w-4 h-4 px-0.5 bg-rose-500 text-white text-[9px] font-black flex items-center justify-center">{weakWordsCount}</span>}
-                    </Link>
-                    <details className="relative w-11 h-11 rounded-2xl border border-white bg-white shadow-sm text-slate-500">
-                      <summary title="Learning Insights" aria-label="Learning Insights" className="list-none [&::-webkit-details-marker]:hidden cursor-pointer w-full h-full flex items-center justify-center"><ChartNoAxesColumn size={19} className="text-indigo-500" /></summary>
-                      <div className="absolute right-12 top-0 z-[90] w-[min(75vw,280px)] rounded-xl border border-slate-200 bg-white p-3 shadow-xl text-[11px] space-y-1 text-left leading-relaxed">
-                <p>Recognition accuracy: {retentionSnapshot.recognition == null ? "No reviews" : `${retentionSnapshot.recognition}%`}</p>
-                <p>Recall accuracy: {retentionSnapshot.recall == null ? "No reviews" : `${retentionSnapshot.recall}%`}</p>
-                <p>Weak cards (&lt;50% after 3+ attempts): {retentionSnapshot.weak}</p>
-                <p>Reviewed cards: {retentionSnapshot.reviewed}</p>
-                <p>Last reviewed 7+ days ago: {retentionSnapshot.olderThanWeek}</p>
-                <p>7+ day return recall: {returnRetention.sevenTotal ? `${Math.round(returnRetention.sevenPass / returnRetention.sevenTotal * 100)}% (${returnRetention.sevenTotal} reviews)` : "Not measured yet"}</p>
-                <p>30+ day return recall: {returnRetention.thirtyTotal ? `${Math.round(returnRetention.thirtyPass / returnRetention.thirtyTotal * 100)}% (${returnRetention.thirtyTotal} reviews)` : "Not measured yet"}</p>
-                <p className="text-slate-400">Return recall measures reviews of the same word at least 7 or 30 days apart. Earlier study history does not count toward these new measurements.</p>
-                      </div>
-                    </details>
                     <button
                       onClick={() => { setIsSocialOpen(true); setShowQuickMenu(false); }}
                       className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
@@ -2313,6 +2293,17 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                       {friends.some((f) => f.status === "pending" && !f.isSentByMe) && (
                         <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-white" />
                       )}
+                    </button>
+                    <button type="button" onClick={() => { setShowJlptBreakdown(true); setShowQuickMenu(false); }} title="Study Filters" aria-label="Study Filters" className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all">
+                      <Filter size={19} className="text-slate-500" />
+                      {statusFilters.length > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 border-2 border-white" />}
+                    </button>
+                    <Link href="/quizzes?open=weak_words" onClick={() => setShowQuickMenu(false)} title="Struggling Words Quiz" aria-label="Struggling Words Quiz" className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all">
+                      <Brain size={19} className="text-rose-500" />
+                      {weakWordsCount > 0 && <span className="absolute -top-1 -right-1 rounded-full min-w-4 h-4 px-0.5 bg-rose-500 text-white text-[9px] font-black flex items-center justify-center">{weakWordsCount}</span>}
+                    </Link>
+                    <button type="button" onClick={() => { setShowMobileInsights(true); setShowQuickMenu(false); }} title="Learning Insights" aria-label="Learning Insights" className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all">
+                      <ChartNoAxesColumn size={19} className="text-indigo-500" />
                     </button>
                     <button
                       onClick={() => { setShowHistoryModal(true); setShowQuickMenu(false); }}
@@ -2373,6 +2364,24 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
             )}
           </div>
         </div>
+
+        {showMobileInsights && (
+          <div className="md:hidden fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 px-5" onClick={() => setShowMobileInsights(false)}>
+            <div role="dialog" aria-modal="true" aria-label="Learning Insights" className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl text-sm text-slate-600" onClick={(e) => e.stopPropagation()}>
+              <div className="mb-4 flex items-center justify-between"><span className="font-black text-slate-800">Learning Insights</span><button type="button" aria-label="Close insights" onClick={() => setShowMobileInsights(false)}><X size={20} /></button></div>
+              <div className="space-y-2 leading-relaxed">
+                <p>Recognition accuracy: {retentionSnapshot.recognition == null ? "No reviews" : `${retentionSnapshot.recognition}%`}</p>
+                <p>Recall accuracy: {retentionSnapshot.recall == null ? "No reviews" : `${retentionSnapshot.recall}%`}</p>
+                <p>Weak cards (&lt;50% after 3+ attempts): {retentionSnapshot.weak}</p>
+                <p>Reviewed cards: {retentionSnapshot.reviewed}</p>
+                <p>Last reviewed 7+ days ago: {retentionSnapshot.olderThanWeek}</p>
+                <p>7+ day return recall: {returnRetention.sevenTotal ? `${Math.round(returnRetention.sevenPass / returnRetention.sevenTotal * 100)}% (${returnRetention.sevenTotal} reviews)` : "Not measured yet"}</p>
+                <p>30+ day return recall: {returnRetention.thirtyTotal ? `${Math.round(returnRetention.thirtyPass / returnRetention.thirtyTotal * 100)}% (${returnRetention.thirtyTotal} reviews)` : "Not measured yet"}</p>
+                <p className="text-slate-400">Return recall measures reviews of the same word at least 7 or 30 days apart. Earlier study history does not count toward these new measurements.</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* --- 2. DESKTOP NAVIGATION --- */}
         <div className="hidden md:flex relative top-0 w-full z-50 px-8 py-8 items-center justify-between pointer-events-auto">
