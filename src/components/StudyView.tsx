@@ -2254,6 +2254,17 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 )}
               </AnimatePresence>
             </div>
+            {/* Direct struggling-word shortcut, immediately below the Reflex Mode row. */}
+            <button
+              type="button"
+              onClick={() => toggleStatusFilter("strugglingToday")}
+              aria-pressed={statusFilters.includes("strugglingToday")}
+              className={`rounded-xl px-3 py-1.5 text-[10px] font-black border shadow-sm transition-all active:scale-95 ${statusFilters.includes("strugglingToday")
+                ? "bg-amber-500 text-white border-amber-500"
+                : "bg-white/90 text-amber-700 border-amber-200"}`}
+            >
+              Struggling Today · {strugglingTodayIds.size}
+            </button>
             {/* Goal chips — plain text, no box, right-aligned at the same row level as
                 the TIGER card's N-level bar underneath it (moved out of that card so it
                 doesn't have to grow a 3rd row to fit them). */}
