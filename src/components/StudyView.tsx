@@ -2232,7 +2232,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 >
                   🎯 {masteredToday}/{MASTERED_GOAL}
                 </button>
-    
+              </div>
+            )}
           </div>
           {/* Top-right controls — Study Circle + Mode toggle */}
           <div className="flex flex-col items-end gap-1 pointer-events-auto shrink-0">
@@ -2369,11 +2370,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               </Link>
             )}
           </div>
-
-            )}
-          </div>
-
-
         </div>
 
         {/* --- 2. DESKTOP NAVIGATION --- */}
