@@ -11,6 +11,7 @@ import ReaderView from "@/components/ReaderView";
 import WatchView from "@/components/WatchView";
 import TranslateView from "@/components/TranslateView";
 import WeakWordsQuiz from "@/components/WeakWordsQuiz";
+import ConversationSpeaking from "@/components/ConversationSpeaking";
 
 function QuizzesInner() {
   const router = useRouter();
@@ -30,6 +31,7 @@ function QuizzesInner() {
   const [showWatch, setShowWatch] = useState(open === "watch");
   const [showTranslate, setShowTranslate] = useState(open === "translate");
   const [showWeakWords, setShowWeakWords] = useState(open === "weak_words");
+  const [showConversation, setShowConversation] = useState(open === "conversation");
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -128,6 +130,21 @@ function QuizzesInner() {
           </div>
         </button>
 
+        {/* Separate scenario-based conversation speaking practice */}
+        <button
+          onClick={() => setShowConversation(true)}
+          className="bg-white rounded-2xl p-5 border-2 border-indigo-100 shadow-sm active:scale-95 transition-all text-left w-full"
+        >
+          <div className="flex items-center gap-4">
+            <span className="text-3xl">🎙️</span>
+            <div className="flex-1">
+              <p className="font-black text-slate-900">Conversation Speaking</p>
+              <p className="text-xs text-slate-400 mt-0.5">Real-life scenarios · English to Japanese speaking · AI feedback</p>
+            </div>
+            <span className="text-slate-300 text-lg">›</span>
+          </div>
+        </button>
+
         {/* Reading / Sentence Quiz */}
         <button
           onClick={() => setShowSentence(true)}
@@ -213,6 +230,7 @@ function QuizzesInner() {
       </div>
 
       {/* Overlays */}
+      {showConversation && <ConversationSpeaking onClose={() => setShowConversation(false)} />}
       {showSentence && (
         <SentenceQuiz userId={userId} isAdmin={isAdmin} onClose={() => setShowSentence(false)} />
       )}
