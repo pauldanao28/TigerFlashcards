@@ -583,6 +583,18 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
                   <p className="font-semibold text-amber-900">{currentCard.english}</p>
                   <p className="text-slate-700">{currentCard.sentence_jp.replaceAll("【", "").replaceAll("】", "")}</p>
                   <p className="text-xs text-slate-600">{currentCard.sentence_en}</p>
+                  <div className="rounded-xl bg-white/70 border border-amber-200 p-3 space-y-1 text-xs text-slate-700">
+                    <p className="font-black text-amber-900">Mistake comparison</p>
+                    <p>Your choice: {currentCard.choices[selected]}</p>
+                    <p>Correct meaning: {currentCard.choices[currentCard.answer]}</p>
+                    <p>Compare these meanings and the Japanese example. A wrong choice alone does not prove whether the problem was kanji, reading, or vocabulary recall.</p>
+                  </div>
+                  {knownConnections(currentCard.japanese).length > 0 && (
+                    <div className="rounded-xl border border-amber-200 bg-white/70 p-3 space-y-1">
+                      <p className="text-xs font-black text-amber-900">Related mastered words</p>
+                      {knownConnections(currentCard.japanese).map(known => <p key={known.shared} className="text-xs text-slate-700">{known.shared} → {known.japanese}（{known.reading}）— {known.english}</p>)}
+                    </div>
+                  )}
                   {currentCard.mnemonic?.entries?.map((entry) => (
                     <div key={entry.character} className="border-t border-amber-200 pt-2 text-xs text-amber-900">
                       <p className="font-bold">{entry.character} — {entry.radicals}</p>
