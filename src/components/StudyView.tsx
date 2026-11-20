@@ -2277,17 +2277,17 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
             <div className="relative flex items-center gap-2 shrink-0">
               <button
                 onClick={toggleReflexMode}
-                title="Word Reflex"
-                aria-label="Word Reflex"
+                title="Reflex Mode"
+                aria-label="Reflex Mode"
                 aria-pressed={reflexMode}
-                className={`shrink-0 relative flex items-center justify-center gap-1.5 px-3 h-11 rounded-2xl border shadow-sm active:scale-95 transition-all ${
+                className={`shrink-0 relative flex items-center justify-center gap-2 px-4 h-11 rounded-2xl border shadow-sm active:scale-95 transition-all ${
                   reflexMode
                     ? "bg-indigo-600 border-indigo-600 text-white"
                     : "bg-white/80 backdrop-blur-md border-white text-slate-500"
                 }`}
               >
                 <Zap size={18} fill={reflexMode ? "currentColor" : "none"} />
-                <span className="text-xs font-black whitespace-nowrap">Word Reflex</span>
+                <span className="text-xs font-black whitespace-nowrap">Reflex Mode</span>
               </button>
               {/* Collapsed behind a single trigger — the dropdown below is absolutely
                   positioned so opening it never pushes the card/content down. */}
