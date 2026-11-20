@@ -2280,14 +2280,14 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 title="Reflex Mode"
                 aria-label="Reflex Mode"
                 aria-pressed={reflexMode}
-                className={`shrink-0 relative flex items-center justify-center gap-2 px-4 h-11 rounded-2xl border shadow-sm active:scale-95 transition-all ${
+                className={`shrink-0 relative flex items-center justify-center gap-1.5 px-2.5 h-10 rounded-2xl border shadow-sm active:scale-95 transition-all ${
                   reflexMode
                     ? "bg-indigo-600 border-indigo-600 text-white"
                     : "bg-white/80 backdrop-blur-md border-white text-slate-500"
                 }`}
               >
-                <Zap size={18} fill={reflexMode ? "currentColor" : "none"} />
-                <span className="text-xs font-black whitespace-nowrap">Reflex Mode</span>
+                <Zap size={16} fill={reflexMode ? "currentColor" : "none"} />
+                <span className="text-[11px] font-black whitespace-nowrap">Reflex Mode</span>
               </button>
               {/* Collapsed behind a single trigger — the dropdown below is absolutely
                   positioned so opening it never pushes the card/content down. */}
@@ -2317,10 +2317,9 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                       onClick={() => { setLanguage(l => l === "jp" ? "en" : "jp"); setShowQuickMenu(false); }}
                       title={language === "jp" ? "Switch to Recall" : "Switch to Recognition"}
                       aria-label={language === "jp" ? "Switch to Recall" : "Switch to Recognition"}
-                      className="flex items-center justify-center gap-2 min-w-11 h-11 px-3 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
+                      className="flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
                     >
                       <span className="text-lg">{language === "jp" ? "🇯🇵" : "🇺🇸"}</span>
-                      <span className="text-[10px] font-black text-slate-600">{language === "jp" ? t.recognition : t.recall}</span>
                     </button>
                     <button
                       onClick={() => { setIsSocialOpen(true); setShowQuickMenu(false); }}
