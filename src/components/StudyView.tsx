@@ -2689,7 +2689,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           </div>
 
           {/* --- 3b. CARD ANCHOR (Locked Position) --- */}
-          <div className="w-full flex-1 flex flex-col justify-center items-center relative min-h-0 pt-2 md:pt-0">
+          <div className="w-full flex-1 flex flex-col justify-center items-center relative min-h-0 pt-2 md:pt-0 max-md:-translate-y-12">
             <div className="w-full flex justify-center relative">
               {/* THE "LOCKED" BOX: 
         1. 'aspect-[3/4]' + 'w-full' + 'max-w-...' creates the same shape on all screens.
