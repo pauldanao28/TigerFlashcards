@@ -2375,8 +2375,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
             </div>
 
           </div>
-          {/* Mobile stats live in a dedicated normal-flow row, never over the controls. */}
-          <div className="w-full flex flex-wrap items-center justify-end gap-x-3 gap-y-1 pt-1 px-1 pointer-events-auto">
+          {/* Row 2: study counters, always right-aligned beneath the header. */}
+          <div className="w-full flex justify-end px-1 pt-1 pointer-events-auto">
             {!dataLoading && cards.length > 0 && (
               <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 min-w-0">
                 <button onClick={showReviewsHint} className="whitespace-nowrap text-[9px] font-black text-slate-400 tabular-nums active:scale-95">🔁 {reviewsToday}/{REVIEW_TARGET}</button>
@@ -2384,23 +2384,28 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 <button onClick={showMasteredHint} className={`whitespace-nowrap text-[9px] font-black tabular-nums active:scale-95 ${masteredToday >= MASTERED_GOAL ? "text-emerald-500" : "text-slate-400"}`}>🎯 {masteredToday}/{MASTERED_GOAL}</button>
               </div>
             )}
-            {weakWordsCount >= 10 && (
-              <Link href="/quizzes?open=weak_words" className="whitespace-nowrap text-[9px] font-black text-rose-400">
-                😓 {t.struggling} ({weakWordsCount})
-              </Link>
-            )}
-            {!isOnline && (
-              <div className="inline-flex items-center gap-1 whitespace-nowrap text-[9px] font-black text-slate-500 uppercase">
-                <WifiOff size={11} className="shrink-0" />
-                Offline{pendingSyncCount > 0 ? ` · ${pendingSyncCount}` : ""}
-              </div>
-            )}
-            {isOnline && justSyncedCount != null && (
-              <div className="inline-flex items-center gap-1 whitespace-nowrap text-[9px] font-black text-emerald-500 uppercase">
-                <Check size={11} className="shrink-0" /> Synced
-              </div>
-            )}
           </div>
+          {/* Row 3: connection status and struggling words, independently right-aligned. */}
+          {(weakWordsCount >= 10 || !isOnline || (isOnline && justSyncedCount != null)) && (
+            <div className="w-full flex flex-wrap items-center justify-end gap-x-3 gap-y-1 px-1 pointer-events-auto">
+              {!isOnline && (
+                <div className="inline-flex items-center gap-1 whitespace-nowrap text-[9px] font-black text-slate-500 uppercase">
+                  <WifiOff size={11} className="shrink-0" />
+                  Offline{pendingSyncCount > 0 ? ` · ${pendingSyncCount}` : ""}
+                </div>
+              )}
+              {isOnline && justSyncedCount != null && (
+                <div className="inline-flex items-center gap-1 whitespace-nowrap text-[9px] font-black text-emerald-500 uppercase">
+                  <Check size={11} className="shrink-0" /> Synced
+                </div>
+              )}
+              {weakWordsCount >= 10 && (
+                <Link href="/quizzes?open=weak_words" className="whitespace-nowrap text-[9px] font-black text-rose-400">
+                  😓 {t.struggling} ({weakWordsCount})
+                </Link>
+              )}
+            </div>
+          )}
         </div>
 
         {showMobileInsights && (
