@@ -139,7 +139,7 @@ function QuizzesInner() {
             <span className="text-3xl">🎙️</span>
             <div className="flex-1">
               <p className="font-black text-slate-900">Conversation Speaking</p>
-              <p className="text-xs text-slate-400 mt-0.5">Real-life scenarios · English to Japanese speaking · AI feedback</p>
+              <p className="text-xs text-slate-400 mt-0.5">Real-life scenarios · English ↔ Japanese speaking & comprehension · AI feedback</p>
             </div>
             <span className="text-slate-300 text-lg">›</span>
           </div>
