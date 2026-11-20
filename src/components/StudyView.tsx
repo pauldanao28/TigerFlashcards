@@ -271,6 +271,29 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(hasCachedData);
 
   const [language, setLanguage] = useState<"en" | "jp">("jp");
+  // Review history is account-wide (Supabase), not local to this device.
+  // Each direction has its own last ten actual review outcomes.
+  const [recentCardReviews, setRecentCardReviews] = useState<{ cardId: string; direction: string; results: boolean[] } | null>(null);
+  const [recentReviewVersion, setRecentReviewVersion] = useState(0);
+  useEffect(() => {
+    const cardId = currentCard?.id;
+    if (!user?.id || !cardId) { return; }
+    const direction = language === "jp" ? "jp_to_en" : "en_to_jp";
+    let cancelled = false;
+    setRecentCardReviews(null);
+    const load = async () => {
+      const { data, error } = await supabase.from("study_review_events")
+        .select("passed").eq("user_id", user.id).eq("card_id", cardId)
+        .eq("direction", direction).order("reviewed_at", { ascending: false })
+        .order("id", { ascending: false }).limit(10);
+      if (cancelled) return;
+      if (error) { console.warn("Recent review history unavailable:", error.message); return; }
+      setRecentCardReviews({ cardId, direction, results: (data ?? []).map(item => item.passed === true).reverse() });
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [user?.id, currentCard?.id, language, recentReviewVersion]);
+
   const [streak, setStreak] = useState(0);
   const [sessionStreak, setSessionStreak] = useState(0);
   // Asia/Singapore, not device-local — same fixed day boundary the update_streak RPC
@@ -980,7 +1003,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         p_passed: isPass,
       }).then(({ error }) => {
         if (error) console.warn("Review history could not be saved:", error.message);
-        else void refreshReturnRetention();
+        else { void refreshReturnRetention(); setRecentReviewVersion(v => v + 1); }
       });
 
       // Session stats
@@ -2668,23 +2691,32 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               )}
             </div>
 
-            {/* Accuracy info — card's avg Reflex Mode speed tacked on here too, rather
-                than on the card's own back face, which is tight on vertical space
-                (badges + te-form can already run close to the limit without also
-                reserving a line for this). */}
+            {/* Compact per-card last ten results, oldest to newest; blanks mean no review yet. */}
             {!dataLoading && cards.length > 0 && currentCard && (
-              <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] text-center">
-                {language === "jp" ? `🇯🇵 ${t.recognition}` : `🇺🇸 ${t.recall}`}
-                {" | "}
-                <span className="font-black text-slate-300">
+              <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[10px] font-black text-slate-400 text-center">
+                <span className="whitespace-nowrap">
+                  {language === "jp" ? `🇯🇵 ${t.recognition}` : `🇺🇸 ${t.recall}`}
+                  {" · "}
                   {currentCard.scores?.[language === "jp" ? "jp_to_en" : "en_to_jp"]?.percent || 0}% {t.accuracy}
                 </span>
+                {recentCardReviews?.cardId === currentCard.id &&
+                  recentCardReviews.direction === (language === "jp" ? "jp_to_en" : "en_to_jp") && (
+                  <div className="inline-flex items-center gap-1" role="img"
+                    aria-label={`Last ${recentCardReviews.results.length} reviews, oldest to newest: ${recentCardReviews.results.map(p => p ? "correct" : "incorrect").join(", ") || "none"}`}
+                    title="Last 10 reviews · green correct, red incorrect · oldest to newest">
+                    {Array.from({ length: 10 }, (_, i) => {
+                      const result = recentCardReviews.results[i];
+                      return <span key={i} aria-hidden="true"
+                        className={`h-1.5 w-1.5 sm:h-2 sm:w-2 shrink-0 rounded-full ${result === undefined ? "bg-slate-200" : result ? "bg-emerald-500" : "bg-rose-500"}`} />;
+                    })}
+                  </div>
+                )}
                 {!!currentCard.reflex_attempts && (
-                  <span className="font-black text-amber-500">
-                    {" "}· ⚡{((currentCard.reflex_time_total_ms ?? 0) / currentCard.reflex_attempts / 1000).toFixed(1)}s
+                  <span className="font-black text-amber-500 whitespace-nowrap">
+                    ⚡{((currentCard.reflex_time_total_ms ?? 0) / currentCard.reflex_attempts / 1000).toFixed(1)}s
                   </span>
                 )}
-              </span>
+              </div>
             )}
           </div>
 
