@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { X, Mic, Square, Loader2, RotateCcw } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
+import CustomSelect from "@/components/CustomSelect";
 
 type Turn = { staff_jp: string; task_en: string; reference_jp: string; tip_en: string };
 type Feedback = { acceptable: boolean; feedback: string; suggestion: string };
@@ -99,8 +100,12 @@ export default function ConversationSpeaking({ onClose }: { onClose: () => void 
             <div className="grid grid-cols-2 gap-2">
               {scenarios.map(item => <button key={item.value} type="button" onClick={() => setScenario(item.value)} aria-pressed={scenario === item.value} className={`rounded-xl p-3 text-left text-sm font-bold border ${scenario === item.value ? "border-indigo-500 bg-indigo-50 text-indigo-800" : "border-slate-200 bg-white"}`}>{item.label}</button>)}
             </div>
-            <div><label htmlFor="conversation-level" className="block text-xs font-bold mb-2">Difficulty</label><select id="conversation-level" value={level} onChange={e => setLevel(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white p-3">{["N5","N4","N3","N2"].map(v => <option key={v}>{v}</option>)}</select></div>
-            <div><label htmlFor="conversation-style" className="block text-xs font-bold mb-2">Speaking style</label><select id="conversation-style" value={style} onChange={e => setStyle(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white p-3"><option value="mixed">Mixed — natural everyday Japanese</option><option value="polite">Polite — です・ます</option><option value="casual">Casual — タメ口</option></select></div>
+            <CustomSelect label="Difficulty" value={level} onChange={setLevel} options={["N5", "N4", "N3", "N2"].map(v => ({ value: v, label: v }))} />
+            <CustomSelect label="Speaking style" value={style} onChange={setStyle} options={[
+              { value: "mixed", label: "Mixed — natural everyday Japanese" },
+              { value: "polite", label: "Polite — です・ます" },
+              { value: "casual", label: "Casual — タメ口" },
+            ]} />
             <div className="rounded-xl bg-indigo-50 p-3 text-sm text-indigo-900">English → Japanese speaking · 10 connected turns · AI feedback and retries</div>
             <button type="button" onClick={start} disabled={loading} className="w-full rounded-2xl bg-indigo-600 text-white font-black py-4 disabled:opacity-50">{loading ? "Generating conversation…" : "Start Conversation"}</button>
           </div>
