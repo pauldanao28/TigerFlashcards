@@ -2240,38 +2240,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
             </div>
             </div>
           </div>
-          {/* Progress sits level with the N-level indicator, below the mode icons. */}
-          <div className="absolute right-3 top-[64px] z-10 pointer-events-auto">
-            {!dataLoading && cards.length > 0 && (
-              <div className="flex items-center gap-1.5 pr-0 shrink-0">
-                <button onClick={showReviewsHint} className="flex items-center gap-0.5 text-[9px] font-black text-slate-400 tabular-nums active:scale-95 transition-transform">
-                  🔁 {reviewsToday}/{REVIEW_TARGET}
-                </button>
-                <button onClick={showStillLearningHint} className="flex items-center gap-0.5 text-[9px] font-black text-slate-400 tabular-nums active:scale-95 transition-transform">
-                  📋 {stillLearningCount}
-                </button>
-                <button
-                  onClick={showMasteredHint}
-                  className={`flex items-center gap-0.5 text-[9px] font-black tabular-nums active:scale-95 transition-transform ${masteredToday >= MASTERED_GOAL ? "text-emerald-500" : "text-slate-400"}`}
-                >
-                  🎯 {masteredToday}/{MASTERED_GOAL}
-                </button>
-              </div>
-            )}
-          </div>
-          {/* Quiz shortcut on its own line below the review counters. */}
-          <div className="absolute right-3 top-[88px] z-10 pointer-events-auto">
-            {/* Same POOL_SIZE threshold WeakWordsQuiz.tsx samples from — only shown
-                once there's a full round's worth, same as the Quick Actions badge. */}
-            {weakWordsCount >= 10 && (
-              <Link
-                href="/quizzes?open=weak_words"
-                className="block text-[9px] font-black text-rose-400 tabular-nums pr-1 active:opacity-70"
-              >
-                😓 {t.struggling} ({weakWordsCount})
-              </Link>
-            )}
-          </div>
           {/* Top-right controls — Study Circle + Mode toggle */}
           <div className="flex flex-col items-end gap-1 pointer-events-auto shrink-0">
             <div className="relative flex items-center gap-2 shrink-0">
@@ -2371,24 +2339,33 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 )}
               </AnimatePresence>
             </div>
-            {/* Connectivity status — moved here under the goal chips (was a centered
-                banner mid-screen) so it reads as part of this status column instead
-                of interrupting the card area. A graded answer's own score always
-                queues locally (offlineScoreQueue.ts) instead of being lost, so this
-                is purely informational. */}
+
+          </div>
+          {/* Mobile stats live in a dedicated normal-flow row, never over the controls. */}
+          <div className="w-full flex flex-wrap items-center justify-end gap-x-3 gap-y-1 pt-1 px-1 pointer-events-auto">
+            {!dataLoading && cards.length > 0 && (
+              <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 min-w-0">
+                <button onClick={showReviewsHint} className="whitespace-nowrap text-[9px] font-black text-slate-400 tabular-nums active:scale-95">🔁 {reviewsToday}/{REVIEW_TARGET}</button>
+                <button onClick={showStillLearningHint} className="whitespace-nowrap text-[9px] font-black text-slate-400 tabular-nums active:scale-95">📋 {stillLearningCount}</button>
+                <button onClick={showMasteredHint} className={`whitespace-nowrap text-[9px] font-black tabular-nums active:scale-95 ${masteredToday >= MASTERED_GOAL ? "text-emerald-500" : "text-slate-400"}`}>🎯 {masteredToday}/{MASTERED_GOAL}</button>
+              </div>
+            )}
+            {weakWordsCount >= 10 && (
+              <Link href="/quizzes?open=weak_words" className="whitespace-nowrap text-[9px] font-black text-rose-400">
+                😓 {t.struggling} ({weakWordsCount})
+              </Link>
+            )}
             {!isOnline && (
-              <div className="flex items-center gap-1 pr-1 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                <WifiOff size={10} />
+              <div className="inline-flex items-center gap-1 whitespace-nowrap text-[9px] font-black text-slate-500 uppercase">
+                <WifiOff size={11} className="shrink-0" />
                 Offline{pendingSyncCount > 0 ? ` · ${pendingSyncCount}` : ""}
               </div>
             )}
             {isOnline && justSyncedCount != null && (
-              <div className="flex items-center gap-1 pr-1 text-[9px] font-black text-emerald-500 uppercase tracking-widest">
-                <Check size={10} />
-                Synced
+              <div className="inline-flex items-center gap-1 whitespace-nowrap text-[9px] font-black text-emerald-500 uppercase">
+                <Check size={11} className="shrink-0" /> Synced
               </div>
             )}
-
           </div>
         </div>
 
