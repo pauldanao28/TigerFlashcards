@@ -176,7 +176,7 @@ export default function Flashcard({
   // 2. Monitor 'x' for Haptics
   useEffect(() => {
     const unsubscribe = x.on("change", (latestX) => {
-      const threshold = 100;
+      const threshold = 60;
       if (Math.abs(latestX) > threshold && !hasVibrated) {
         triggerHaptic(50);
         setHasVibrated(true);
@@ -235,15 +235,15 @@ export default function Flashcard({
   };
 
   const handleDragEnd = (event: any, info: any) => {
-    const swipeThreshold = 100;
+    const swipeThreshold = 60;
 
     forceUnlock();
 
-    if (info.offset.x > swipeThreshold) {
+    if (info.offset.x > swipeThreshold || (info.offset.x > 24 && info.velocity.x > 450)) {
       onSwipe?.("right");
       playUISound("success", sfxEnabled ?? false);
       swipeHaptic("success");
-    } else if (info.offset.x < -swipeThreshold) {
+    } else if (info.offset.x < -swipeThreshold || (info.offset.x < -24 && info.velocity.x < -450)) {
       onSwipe?.("left");
       playUISound("fail", sfxEnabled ?? false);
       swipeHaptic("fail");
