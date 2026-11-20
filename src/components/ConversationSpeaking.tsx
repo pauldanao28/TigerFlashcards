@@ -4,7 +4,7 @@ import { X, Mic, Square, Loader2, RotateCcw } from "lucide-react";
 import { authedFetch } from "@/lib/authedFetch";
 import CustomSelect from "@/components/CustomSelect";
 
-type Turn = { staff_jp: string; task_en: string; reference_jp: string; tip_en: string };
+type Turn = { staff_jp: string; task_en: string; reference_jp: string; reference_en: string; tip_en: string };
 type Feedback = { acceptable: boolean; feedback: string; suggestion: string };
 type SpeechResultEvent = { results: ArrayLike<ArrayLike<{ transcript: string }>> };
 type Recognizer = { lang: string; continuous: boolean; interimResults: boolean; onresult: ((event: SpeechResultEvent) => void) | null; onerror: (() => void) | null; onend: (() => void) | null; start: () => void; stop: () => void };
@@ -20,6 +20,7 @@ export default function ConversationSpeaking({ onClose }: { onClose: () => void 
   const [scenario, setScenario] = useState("restaurant");
   const [level, setLevel] = useState("N4");
   const [style, setStyle] = useState("mixed");
+  const [direction, setDirection] = useState<"en-ja" | "ja-en">("en-ja");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState("");
@@ -55,8 +56,8 @@ export default function ConversationSpeaking({ onClose }: { onClose: () => void 
     try {
       const instance = new Ctor();
       recognizer.current = instance;
-      instance.lang = "ja-JP"; instance.continuous = false; instance.interimResults = false;
-      instance.onresult = e => { setAnswer(e.results[0]?.[0]?.transcript || ""); setFeedback(null); setError(""); };
+      instance.lang = direction === "en-ja" ? "ja-JP" : "en-US"; instance.continuous = false; instance.interimResults = false;
+      instance.onresult = e => { setAnswer(e.results[0]?.[0]?.transcript || ""); setFeedback(null); setRevealed(false); setError(""); };
       instance.onerror = () => { setError("Microphone recognition failed. Check permissions or type your answer."); setListening(false); };
       instance.onend = () => { setListening(false); recognizer.current = null; };
       instance.start(); setListening(true); setError("");
@@ -70,7 +71,7 @@ export default function ConversationSpeaking({ onClose }: { onClose: () => void 
     try {
       const response = await authedFetch("/api/quiz/sentence-feedback", {
         method: "POST",
-        body: JSON.stringify({ english: turn.task_en, reference: turn.reference_jp, answer: answer.trim() }),
+        body: JSON.stringify({ english: direction === "ja-en" ? turn.reference_jp : turn.task_en, reference: direction === "ja-en" ? turn.reference_en : turn.reference_jp, answer: answer.trim(), direction }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Feedback unavailable");
@@ -100,13 +101,17 @@ export default function ConversationSpeaking({ onClose }: { onClose: () => void 
             <div className="grid grid-cols-2 gap-2">
               {scenarios.map(item => <button key={item.value} type="button" onClick={() => setScenario(item.value)} aria-pressed={scenario === item.value} className={`rounded-xl p-3 text-left text-sm font-bold border ${scenario === item.value ? "border-indigo-500 bg-indigo-50 text-indigo-800" : "border-slate-200 bg-white"}`}>{item.label}</button>)}
             </div>
+            <CustomSelect label="Practice direction" value={direction} onChange={value => setDirection(value as "en-ja" | "ja-en")} options={[
+              { value: "en-ja", label: "English → Japanese · Speak Japanese" },
+              { value: "ja-en", label: "Japanese → English · Explain in English" },
+            ]} />
             <CustomSelect label="Difficulty" value={level} onChange={setLevel} options={["N5", "N4", "N3", "N2"].map(v => ({ value: v, label: v }))} />
             <CustomSelect label="Speaking style" value={style} onChange={setStyle} options={[
               { value: "mixed", label: "Mixed — natural everyday Japanese" },
               { value: "polite", label: "Polite — です・ます" },
               { value: "casual", label: "Casual — タメ口" },
             ]} />
-            <div className="rounded-xl bg-indigo-50 p-3 text-sm text-indigo-900">English → Japanese speaking · 10 connected turns · AI feedback and retries</div>
+            <div className="rounded-xl bg-indigo-50 p-3 text-sm text-indigo-900">{direction === "en-ja" ? "English → Japanese speaking" : "Japanese → English comprehension"} · 10 connected turns · AI feedback and retries</div>
             <button type="button" onClick={start} disabled={loading} className="w-full rounded-2xl bg-indigo-600 text-white font-black py-4 disabled:opacity-50">{loading ? "Generating conversation…" : "Start Conversation"}</button>
           </div>
         ) : done ? (
@@ -118,20 +123,20 @@ export default function ConversationSpeaking({ onClose }: { onClose: () => void 
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex justify-between text-xs font-bold text-slate-500"><span>{scenarios.find(s => s.value === scenario)?.label} · {level} · {style}</span><span>Turn {index + 1} / {turns.length}</span></div>
+            <div className="flex justify-between text-xs font-bold text-slate-500"><span>{scenarios.find(s => s.value === scenario)?.label} · {level} · {style} · {direction === "en-ja" ? "EN → JP" : "JP → EN"}</span><span>Turn {index + 1} / {turns.length}</span></div>
             <div className="h-2 rounded-full bg-slate-200 overflow-hidden"><div className="h-full bg-indigo-600 transition-all" style={{ width: `${(index / turns.length) * 100}%` }}/></div>
             <div className="rounded-2xl bg-white border border-slate-100 p-5 space-y-2"><p className="text-[10px] font-black uppercase text-slate-400">Conversation partner says</p><p className="text-xl leading-relaxed font-semibold">{turn.staff_jp}</p><button type="button" onClick={() => { if ("speechSynthesis" in window) { window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(turn.staff_jp); u.lang = "ja-JP"; window.speechSynthesis.speak(u); } }} className="text-xs font-bold text-indigo-600">🔊 Listen</button></div>
-            <div className="rounded-2xl bg-indigo-50 border border-indigo-100 p-5 space-y-2"><p className="text-[10px] font-black uppercase text-indigo-600">Say this in Japanese</p><p className="text-lg font-semibold">{turn.task_en}</p></div>
+            <div className="rounded-2xl bg-indigo-50 border border-indigo-100 p-5 space-y-2"><p className="text-[10px] font-black uppercase text-indigo-600">{direction === "en-ja" ? "Say this in Japanese" : "Translate this reply into English"}</p><p className="text-lg font-semibold">{direction === "en-ja" ? turn.task_en : turn.reference_jp}</p></div>
             <div className="rounded-2xl bg-white border border-slate-100 p-4 space-y-3">
-              <div className="flex gap-2 items-start"><textarea aria-label="Your Japanese response" rows={3} value={answer} onChange={e => { setAnswer(e.target.value); setFeedback(null); }} placeholder="日本語で話す・書く…" className="flex-1 min-w-0 rounded-xl border border-slate-200 p-3 text-base"/><button type="button" onClick={speak} className={`rounded-xl p-3 text-white ${listening ? "bg-rose-500" : "bg-indigo-600"}`} aria-label={listening ? "Stop recording" : "Speak Japanese"}>{listening ? <Square size={22}/> : <Mic size={22}/>}</button></div>
+              <div className="flex gap-2 items-start"><textarea aria-label={direction === "en-ja" ? "Your Japanese response" : "Your English translation"} rows={3} value={answer} onChange={e => { setAnswer(e.target.value); setFeedback(null); setRevealed(false); }} placeholder={direction === "en-ja" ? "日本語で話す・書く…" : "Speak or type the English meaning…"} className="flex-1 min-w-0 rounded-xl border border-slate-200 p-3 text-base"/><button type="button" onClick={speak} className={`rounded-xl p-3 text-white ${listening ? "bg-rose-500" : "bg-indigo-600"}`} aria-label={listening ? "Stop recording" : direction === "en-ja" ? "Speak Japanese" : "Speak English"}>{listening ? <Square size={22}/> : <Mic size={22}/>}</button></div>
               <p className="text-[11px] text-slate-500">Microphone converts speech to text; it does not measure pronunciation.</p>
-              <button type="button" onClick={check} disabled={!answer.trim() || checking} className="w-full rounded-xl bg-indigo-600 py-3 text-white font-bold disabled:opacity-40">{checking ? <span className="inline-flex gap-2 items-center"><Loader2 className="animate-spin" size={16}/> Checking…</span> : "Check my Japanese"}</button>
+              <button type="button" onClick={check} disabled={!answer.trim() || checking} className="w-full rounded-xl bg-indigo-600 py-3 text-white font-bold disabled:opacity-40">{checking ? <span className="inline-flex gap-2 items-center"><Loader2 className="animate-spin" size={16}/> Checking…</span> : direction === "en-ja" ? "Check my Japanese" : "Check my English"}</button>
               {attempts > 0 && <p className="text-xs text-slate-500">Retry attempt {attempts + 1}</p>}
             </div>
             {error && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
             {revealed && <div className="rounded-2xl bg-white border border-slate-100 p-4 space-y-3">
               {feedback && <><p className={`font-black ${feedback.acceptable ? "text-emerald-700" : "text-amber-700"}`}>{feedback.acceptable ? "Natural answer accepted" : "Let's improve this sentence"}</p><p className="text-sm">{feedback.feedback}</p></>}
-              <p className="text-xs font-bold text-slate-500">Reference Japanese</p><p className="text-lg font-semibold">{turn.reference_jp}</p>
+              <p className="text-xs font-bold text-slate-500">{direction === "en-ja" ? "Reference Japanese" : "Reference English"}</p><p className="text-lg font-semibold">{direction === "en-ja" ? turn.reference_jp : turn.reference_en}</p>
               {feedback?.suggestion && <p className="text-sm text-slate-600">Suggestion: {feedback.suggestion}</p>}
               <p className="text-sm text-slate-500">Tip: {turn.tip_en}</p>
               <div className="flex gap-2"><button type="button" onClick={retry} className="flex-1 inline-flex justify-center items-center gap-1 rounded-xl border border-indigo-200 bg-indigo-50 py-3 font-bold text-indigo-700"><RotateCcw size={16}/> Retry</button><button type="button" onClick={next} className="flex-1 rounded-xl bg-indigo-600 py-3 font-bold text-white">{index + 1 === turns.length ? "Finish" : "Next turn"}</button></div>
