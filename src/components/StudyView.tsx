@@ -273,26 +273,48 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const [language, setLanguage] = useState<"en" | "jp">("jp");
   // Review history is account-wide (Supabase), not local to this device.
   // Each direction has its own last ten actual review outcomes.
-  const [recentCardReviews, setRecentCardReviews] = useState<{ cardId: string; direction: string; results: boolean[] } | null>(null);
+  type RecentReview = { cardId: string; direction: string; results: boolean[] };
+  const recentReviewCache = useRef<Map<string, boolean[]>>(new Map());
+  const [recentCardReviews, setRecentCardReviews] = useState<RecentReview | null>(null);
   const [recentReviewVersion, setRecentReviewVersion] = useState(0);
+  const currentReviewDirection = language === "jp" ? "jp_to_en" : "en_to_jp";
+
+  // Read the last known results synchronously, so dots appear with the card.
+  // Supabase remains authoritative: cached results are refreshed in the background.
   useEffect(() => {
-    const cardId = currentCard?.id;
-    if (!user?.id || !cardId) { return; }
-    const direction = language === "jp" ? "jp_to_en" : "en_to_jp";
+    if (!user?.id || !currentCard?.id) { setRecentCardReviews(null); return; }
+    const cardId = currentCard.id;
+    const direction = currentReviewDirection;
+    const key = `${user.id}:${cardId}:${direction}`;
+    let cachedResults = recentReviewCache.current.get(key);
+    if (!cachedResults && typeof window !== "undefined") {
+      try {
+        const stored = sessionStorage.getItem("study_last10_" + key);
+        if (stored) {
+          const parsed: unknown = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length <= 10 && parsed.every(v => typeof v === "boolean")) {
+            cachedResults = parsed as boolean[];
+            recentReviewCache.current.set(key, cachedResults);
+          }
+        }
+      } catch { /* Storage is optional; server history still works. */ }
+    }
+    setRecentCardReviews(cachedResults ? { cardId, direction, results: cachedResults } : null);
     let cancelled = false;
-    setRecentCardReviews(null);
-    const load = async () => {
+    void (async () => {
       const { data, error } = await supabase.from("study_review_events")
         .select("passed").eq("user_id", user.id).eq("card_id", cardId)
         .eq("direction", direction).order("reviewed_at", { ascending: false })
         .order("id", { ascending: false }).limit(10);
       if (cancelled) return;
       if (error) { console.warn("Recent review history unavailable:", error.message); return; }
-      setRecentCardReviews({ cardId, direction, results: (data ?? []).map(item => item.passed === true).reverse() });
-    };
-    void load();
+      const results = (data ?? []).map(item => item.passed === true).reverse();
+      recentReviewCache.current.set(key, results);
+      try { sessionStorage.setItem("study_last10_" + key, JSON.stringify(results)); } catch { /* ignore */ }
+      setRecentCardReviews({ cardId, direction, results });
+    })();
     return () => { cancelled = true; };
-  }, [user?.id, currentCard?.id, language, recentReviewVersion]);
+  }, [user?.id, currentCard?.id, currentReviewDirection, recentReviewVersion]);
 
   const [streak, setStreak] = useState(0);
   const [sessionStreak, setSessionStreak] = useState(0);
@@ -1003,7 +1025,19 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         p_passed: isPass,
       }).then(({ error }) => {
         if (error) console.warn("Review history could not be saved:", error.message);
-        else { void refreshReturnRetention(); setRecentReviewVersion(v => v + 1); }
+        else {
+          void refreshReturnRetention();
+          // Update the displayed history immediately after a successful save.
+          // Avoid waiting for another request just to paint the new dot.
+          const direction = language === "jp" ? "jp_to_en" : "en_to_jp";
+          const key = `${user.id}:${currentCard.id}:${direction}`;
+          const prior = recentReviewCache.current.get(key) ?? [];
+          const updated = [...prior, isPass].slice(-10);
+          recentReviewCache.current.set(key, updated);
+          try { sessionStorage.setItem("study_last10_" + key, JSON.stringify(updated)); } catch { /* ignore */ }
+          setRecentCardReviews(prev => prev?.cardId === currentCard.id && prev.direction === direction
+            ? { cardId: currentCard.id, direction, results: updated } : prev);
+        }
       });
 
       // Session stats
