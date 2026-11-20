@@ -2276,27 +2276,18 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           <div className="flex flex-col items-end gap-1 pointer-events-auto shrink-0">
             <div className="relative flex items-center gap-2 shrink-0">
               <button
-                onClick={() => setLanguage((l) => (l === "jp" ? "en" : "jp"))}
-                title={language === "jp" ? t.recognition : t.recall}
-                className={`shrink-0 flex items-center justify-center w-11 h-11 rounded-2xl border font-black transition-all active:scale-95 ${
-                  language === "jp"
-                    ? "bg-indigo-50 border-indigo-100 text-indigo-600"
-                    : "bg-orange-50 border-orange-100 text-orange-600"
-                }`}
-              >
-                <span className="text-lg leading-none">{language === "jp" ? "🇯🇵" : "🇺🇸"}</span>
-              </button>
-              {/* Icon-only — no label, keeps this row compact next to the language pill */}
-              <button
                 onClick={toggleReflexMode}
-                title="Reflex Mode"
-                className={`shrink-0 relative flex items-center justify-center w-11 h-11 rounded-2xl border shadow-sm active:scale-95 transition-all ${
+                title="Word Reflex"
+                aria-label="Word Reflex"
+                aria-pressed={reflexMode}
+                className={`shrink-0 relative flex items-center justify-center gap-1.5 px-3 h-11 rounded-2xl border shadow-sm active:scale-95 transition-all ${
                   reflexMode
                     ? "bg-indigo-600 border-indigo-600 text-white"
-                    : "bg-white/80 backdrop-blur-md border-white text-slate-400"
+                    : "bg-white/80 backdrop-blur-md border-white text-slate-500"
                 }`}
               >
                 <Zap size={18} fill={reflexMode ? "currentColor" : "none"} />
+                <span className="text-xs font-black whitespace-nowrap">Word Reflex</span>
               </button>
               {/* Collapsed behind a single trigger — the dropdown below is absolutely
                   positioned so opening it never pushes the card/content down. */}
@@ -2321,6 +2312,16 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     transition={{ duration: 0.15 }}
                     className="absolute top-full right-0 mt-2 flex flex-col items-end gap-2 z-[60]"
                   >
+                    <button
+                      type="button"
+                      onClick={() => { setLanguage(l => l === "jp" ? "en" : "jp"); setShowQuickMenu(false); }}
+                      title={language === "jp" ? "Switch to Recall" : "Switch to Recognition"}
+                      aria-label={language === "jp" ? "Switch to Recall" : "Switch to Recognition"}
+                      className="flex items-center justify-center gap-2 min-w-11 h-11 px-3 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
+                    >
+                      <span className="text-lg">{language === "jp" ? "🇯🇵" : "🇺🇸"}</span>
+                      <span className="text-[10px] font-black text-slate-600">{language === "jp" ? t.recognition : t.recall}</span>
+                    </button>
                     <button
                       onClick={() => { setIsSocialOpen(true); setShowQuickMenu(false); }}
                       className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all"
