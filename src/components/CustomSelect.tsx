@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useId, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown, X } from "lucide-react";
 
 type Option = { value: string; label: string };
@@ -26,25 +27,27 @@ export default function CustomSelect({ label, value, options, onChange }: Props)
         className="w-full flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-900 active:scale-[0.99] transition-transform">
         <span>{selected?.label ?? value}</span><ChevronDown size={17} className="shrink-0 text-indigo-600" />
       </button>
-      {open && (
-        <div className="fixed inset-0 z-[250] flex items-end sm:items-center sm:justify-center">
-          <button type="button" aria-label="Close selector" onClick={() => setOpen(false)} className="absolute inset-0 bg-slate-950/70" />
-          <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="relative w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl bg-slate-900 px-4 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl">
-            <div className="flex items-center justify-between mb-5">
-              <h3 id={titleId} className="text-white font-black text-sm uppercase tracking-widest">{label}</h3>
-              <button type="button" aria-label="Close selector" onClick={() => setOpen(false)} className="rounded-xl p-2 text-slate-300 hover:text-white"><X size={20}/></button>
+      {open && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-end sm:items-center sm:justify-center">
+          <button type="button" aria-label="Close selector" onClick={() => setOpen(false)} className="absolute inset-0 bg-slate-900/40" />
+          <div role="dialog" aria-modal="true" aria-labelledby={titleId}
+            className="relative flex w-full max-h-[calc(100dvh-1rem)] flex-col rounded-t-3xl border border-slate-200 bg-white px-4 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-2xl sm:max-w-md sm:rounded-3xl">
+            <div className="flex shrink-0 items-center justify-between mb-5">
+              <h3 id={titleId} className="text-slate-900 font-black text-sm uppercase tracking-widest">{label}</h3>
+              <button type="button" aria-label="Close selector" onClick={() => setOpen(false)} className="rounded-xl p-2 text-slate-500 hover:text-slate-900"><X size={20}/></button>
             </div>
-            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+            <div className="min-h-0 space-y-2 overflow-y-auto overscroll-contain pb-1">
               {options.map(option => {
                 const active = option.value === value;
                 return <button type="button" key={option.value} aria-pressed={active} onClick={() => { onChange(option.value); setOpen(false); }}
-                  className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-4 text-left text-sm font-bold transition-colors ${active ? "bg-indigo-600 border-indigo-500 text-white" : "bg-slate-800 border-slate-700 text-slate-100 hover:border-indigo-400"}`}>
-                  <span>{option.label}</span>{active && <Check size={18} className="shrink-0" />}
+                  className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-4 text-left text-sm font-bold transition-colors ${active ? "bg-indigo-50 border-indigo-500 text-indigo-800" : "bg-white border-slate-200 text-slate-800 hover:border-indigo-300"}`}>
+                  <span>{option.label}</span>{active && <Check size={18} className="shrink-0 text-indigo-600" />}
                 </button>;
               })}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
