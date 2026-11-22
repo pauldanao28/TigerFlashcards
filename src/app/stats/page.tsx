@@ -27,7 +27,7 @@ import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/text
 // mnemonic for.
 const KANJI_RE = /[一-鿿]/;
 
-interface StatsCardsCache { userId: string; cards: FlashcardData[]; deckId: string; }
+interface StatsCardsCache { userId: string; cards: FlashcardData[]; deckId: string; fetchedAt?: number; }
 // In-memory — survives in-app navigation back to this tab, but a real page reload
 // (pull-to-refresh, browser refresh, the app being relaunched) wipes it, since that
 // resets the whole JS runtime.
@@ -37,6 +37,7 @@ let _statsCardsCache: StatsCardsCache | null = null;
 // instantly, then silently replaced once fetchCards' real network call lands), so every
 // access is guarded; a failure here (quota exceeded, private browsing) just means the
 // page falls back to its normal cold-load behavior.
+const CARDS_CACHE_FRESH_MS = 45_000;
 const cardsCacheKey = (userId: string) => `flashkado-cards-cache-${userId}`;
 function loadPersistedCardsCache(userId: string): StatsCardsCache | null {
   try {
@@ -296,8 +297,18 @@ export default function StatsPage() {
   // to revalidate that snapshot in the background (stale-while-revalidate).
   useEffect(() => {
     if (!user || !defaultDeckId) return;
+    // Avoid downloading the same complete deck again when bouncing between tabs.
+    // Only skip when the Cards-specific snapshot is recent and belongs to this
+    // exact user/deck. A missing timestamp always triggers revalidation.
+    const cached = (_statsCardsCache?.userId === user.id ? _statsCardsCache : null) ?? loadPersistedCardsCache(user.id);
+    if (cached?.deckId === defaultDeckId && cached.fetchedAt &&
+        Date.now() - cached.fetchedAt < CARDS_CACHE_FRESH_MS) {
+      setCards(cached.cards);
+      setInitLoading(false);
+      return;
+    }
     fetchCards();
-  }, [user, defaultDeckId]);
+  }, [user?.id, defaultDeckId]);
 
   // Struggling/Explained Today are both written to from Study — often a *separate*
   // window (the Mini Mode popup), not just a different in-app page. visibilitychange
@@ -521,7 +532,7 @@ export default function StatsPage() {
 
       setCards(flattened);
       if (user && defaultDeckId) {
-        const freshCache: StatsCardsCache = { userId: user.id, cards: flattened, deckId: defaultDeckId };
+        const freshCache: StatsCardsCache = { userId: user.id, cards: flattened, deckId: defaultDeckId, fetchedAt: Date.now() };
         _statsCardsCache = freshCache;
         savePersistedCardsCache(freshCache);
       }
