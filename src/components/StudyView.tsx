@@ -732,7 +732,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     // together instead of awaiting the RPC first cuts a full sequential round trip
     // off the slowest part of Study's initial load.
     const PAGE_SIZE = 1000;
-    const fetchPage = (from: number) =>
+    const FIRST_BATCH = 100;
+    const fetchPage = (from: number, size = PAGE_SIZE) =>
       supabase
         .from("master_cards")
         .select(
@@ -744,49 +745,22 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         )
         .eq("deck_cards.deck_id", defaultDeckId)
         .eq("user_scores.user_id", user?.id)
-        // Required for .range() pagination to be reliable past one page — without a
-        // deterministic order, Postgres doesn't guarantee stable row order between
-        // separate paged queries, so rows can be skipped or duplicated across pages.
         .order("id", { ascending: true })
-        .range(from, from + PAGE_SIZE - 1);
+        .range(from, from + size - 1);
 
-    // Pages are independent range reads, so the first two (covering up to 2000
-    // cards — comfortably more than almost any deck) go out together instead of
-    // waiting on each other; only a deck big enough to need a third page falls
-    // back to fetching the rest sequentially below.
-    const [flaggedRes, page0Res, page1Res] = await Promise.all([
+    // Fetch just 100 cards first so the first card does not wait for the entire deck.
+    // The full deck is still fetched and replaces this preview before normal study
+    // selection proceeds. Flagged cards are excluded from both stages.
+    const [firstRes, flaggedRes] = await Promise.all([
+      fetchPage(0, FIRST_BATCH),
       supabase.rpc("get_pending_flagged_card_ids"),
-      fetchPage(0),
-      fetchPage(PAGE_SIZE),
     ]);
     const flaggedCardIds = new Set((flaggedRes.data ?? []).map((r: { card_id: string }) => r.card_id));
-
-    const allData: any[] = [...(page0Res.data ?? []), ...(page1Res.data ?? [])];
-    let error = page0Res.error || page1Res.error;
-    if (!error && page1Res.data && page1Res.data.length === PAGE_SIZE) {
-      for (let from = PAGE_SIZE * 2; ; from += PAGE_SIZE) {
-        const { data: page, error: pageErr } = await fetchPage(from);
-        if (pageErr) { error = pageErr; break; }
-        if (page) allData.push(...page);
-        if (!page || page.length < PAGE_SIZE) break;
-      }
-    }
-    const data = allData.filter((card) => !flaggedCardIds.has(card.id));
-
-    if (!error && data) {
-      // A card graded offline queues its score locally (offlineScoreQueue.ts) and
-      // may not have reached the server yet by the time this live fetch resolves —
-      // reopening the app kicks off this fetch and the queue's own flush at the
-      // same time, and if the fetch wins that race, it would otherwise overwrite
-      // the correct, just-earned local score with the server's still-stale one
-      // (visibly regressing accuracy/mastery until the next card is graded).
-      // Anything still in the queue is by definition more current than whatever
-      // the server has, so it wins here regardless of which request happened to
-      // finish first.
+    const flatten = (rows: any[]) => {
       const pendingByCard = new Map(
         (user ? readScoreQueue(user.id) : []).map((entry) => [entry.payload.card_id, entry.payload]),
       );
-      const flattened = data.map((card: any) => {
+      return rows.filter((card) => !flaggedCardIds.has(card.id)).map((card: any) => {
         const pending = pendingByCard.get(card.id);
         return {
           ...card,
@@ -801,6 +775,36 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           reflex_attempts: pending?.reflex_attempts ?? card.user_scores?.[0]?.reflex_attempts ?? 0,
         };
       });
+    };
+    if (!firstRes.error && firstRes.data && firstRes.data.length > 0 && cards.length === 0) {
+      const preview = flatten(firstRes.data);
+      if (preview.length > 0) {
+        setCards(preview);
+        setCurrentCard(prev => prev ?? getNextPriorityCard(preview, "jp"));
+        setDataLoading(false);
+        setHasLoadedOnce(true);
+      }
+    }
+    // Finish fetching all remaining pages in the background, then publish the
+    // complete deck. Never cache the 100-card preview as a complete deck.
+    const [page0Tail, page1Res] = await Promise.all([
+      firstRes.data?.length === FIRST_BATCH ? fetchPage(FIRST_BATCH, PAGE_SIZE - FIRST_BATCH) : Promise.resolve({ data: [], error: null }),
+      firstRes.data?.length === FIRST_BATCH ? fetchPage(PAGE_SIZE) : Promise.resolve({ data: [], error: null }),
+    ]);
+    const allData: any[] = [...(firstRes.data ?? []), ...(page0Tail.data ?? []), ...(page1Res.data ?? [])];
+    let error = firstRes.error || page0Tail.error || page1Res.error;
+    if (!error && page1Res.data && page1Res.data.length === PAGE_SIZE) {
+      for (let from = PAGE_SIZE * 2; ; from += PAGE_SIZE) {
+        const { data: page, error: pageErr } = await fetchPage(from);
+        if (pageErr) { error = pageErr; break; }
+        if (page) allData.push(...page);
+        if (!page || page.length < PAGE_SIZE) break;
+      }
+    }
+    const data = allData.filter((card) => !flaggedCardIds.has(card.id));
+
+    if (!error && data) {
+      const flattened = flatten(data);
       setCards(flattened);
       if (flattened.length > 0) {
         // ✅ FIX: Only pick a new card if we don't already have one on screen.
