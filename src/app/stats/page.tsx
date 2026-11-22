@@ -38,6 +38,14 @@ let _statsCardsCache: StatsCardsCache | null = null;
 // access is guarded; a failure here (quota exceeded, private browsing) just means the
 // page falls back to its normal cold-load behavior.
 const CARDS_CACHE_FRESH_MS = 45_000;
+function isCardsSnapshotValid(userId: string, snapshot: StatsCardsCache): boolean {
+  if (!snapshot.fetchedAt) return false;
+  try {
+    const invalidated = Number(localStorage.getItem(`flashkado-cards-invalidated-${userId}`) || 0);
+    return snapshot.fetchedAt > invalidated;
+  } catch { return false; }
+}
+
 const cardsCacheKey = (userId: string) => `flashkado-cards-cache-${userId}`;
 function loadPersistedCardsCache(userId: string): StatsCardsCache | null {
   try {
@@ -266,7 +274,7 @@ export default function StatsPage() {
           // below once defaultDeckId is set — on purpose, to revalidate this snapshot in
           // the background rather than trusting it for the rest of the session.
           const cached = (_statsCardsCache?.userId === user.id ? _statsCardsCache : null) ?? loadPersistedCardsCache(user.id);
-          if (cached) {
+          if (cached && isCardsSnapshotValid(user.id, cached)) {
             setCards(cached.cards);
             setDefaultDeckId(cached.deckId);
             setInitLoading(false);
@@ -282,7 +290,7 @@ export default function StatsPage() {
           // Nothing to wait for (no deck → fetchCards never runs) — reveal now. Otherwise
           // leave the gate to fetchCards's own first-page handler, so the page doesn't
           // show every stat at zero before the real numbers land.
-          if (!cached && !deckId) setInitLoading(false);
+          if ((!cached || !isCardsSnapshotValid(user.id, cached)) && !deckId) setInitLoading(false);
         } catch (error) {
           console.error("Error loading stats:", error);
           setInitLoading(false);
@@ -302,6 +310,7 @@ export default function StatsPage() {
     // exact user/deck. A missing timestamp always triggers revalidation.
     const cached = (_statsCardsCache?.userId === user.id ? _statsCardsCache : null) ?? loadPersistedCardsCache(user.id);
     if (cached?.deckId === defaultDeckId && cached.fetchedAt &&
+        isCardsSnapshotValid(user.id, cached) &&
         Date.now() - cached.fetchedAt < CARDS_CACHE_FRESH_MS) {
       setCards(cached.cards);
       setInitLoading(false);
