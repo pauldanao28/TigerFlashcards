@@ -14,10 +14,16 @@ const scenarios = [
   { value: "restaurant", label: "🍜 Restaurant" }, { value: "shopping", label: "🛍️ Shopping" },
   { value: "travel", label: "🚆 Travel & Trains" }, { value: "hotel", label: "🏨 Hotel" },
   { value: "daily", label: "☀️ Daily Life" }, { value: "friends", label: "💬 Friends" },
+  { value: "custom", label: "✏️ Custom Topic" },
 ];
 
 export default function ConversationSpeaking({ onClose }: { onClose: () => void }) {
   const [scenario, setScenario] = useState("restaurant");
+  const [customTopic, setCustomTopic] = useState("");
+  const [recentTopics, setRecentTopics] = useState<string[]>([]);
+  useEffect(() => {
+    try { const saved = JSON.parse(localStorage.getItem("flashkado-speaking-topics") || "[]"); if (Array.isArray(saved)) setRecentTopics(saved.filter((x): x is string => typeof x === "string").slice(0, 5)); } catch { /* ignore */ }
+  }, []);
   const [level, setLevel] = useState("N4");
   const [style, setStyle] = useState("mixed");
   const [direction, setDirection] = useState<"en-ja" | "ja-en">("en-ja");
@@ -39,10 +45,15 @@ export default function ConversationSpeaking({ onClose }: { onClose: () => void 
   const start = async () => {
     setLoading(true); setError("");
     try {
-      const response = await authedFetch("/api/quiz/conversation-speaking", { method: "POST", body: JSON.stringify({ scenario, level, style }) });
+      const response = await authedFetch("/api/quiz/conversation-speaking", { method: "POST", body: JSON.stringify({ scenario, customTopic: scenario === "custom" ? customTopic.trim() : undefined, level, style }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Generation failed");
       if (!Array.isArray(body.turns) || !body.turns.length) throw new Error("No conversation generated");
+      if (scenario === "custom") {
+        const next = [customTopic.trim(), ...recentTopics.filter(t => t !== customTopic.trim())].slice(0, 5);
+        setRecentTopics(next);
+        try { localStorage.setItem("flashkado-speaking-topics", JSON.stringify(next)); } catch { /* ignore */ }
+      }
       setTurns(body.turns); setIndex(0); setAnswer(""); setFeedback(null); setRevealed(false); setCorrect(0); setAttempts(0); setDone(false);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not start"); }
     finally { setLoading(false); }
@@ -101,6 +112,13 @@ export default function ConversationSpeaking({ onClose }: { onClose: () => void 
             <div className="grid grid-cols-2 gap-2">
               {scenarios.map(item => <button key={item.value} type="button" onClick={() => setScenario(item.value)} aria-pressed={scenario === item.value} className={`rounded-xl p-3 text-left text-sm font-bold border ${scenario === item.value ? "border-indigo-500 bg-indigo-50 text-indigo-800" : "border-slate-200 bg-white"}`}>{item.label}</button>)}
             </div>
+            {scenario === "custom" && (
+              <div className="space-y-2">
+                <label htmlFor="custom-speaking-topic" className="block text-sm font-bold text-slate-700">What would you like to talk about?</label>
+                <textarea id="custom-speaking-topic" maxLength={180} value={customTopic} onChange={e => setCustomTopic(e.target.value)} placeholder="e.g. My Japan trip, basketball, plans with friends" className="w-full rounded-xl border border-slate-200 p-3 text-sm bg-white" rows={2} />
+                {recentTopics.length > 0 && <div className="flex flex-wrap gap-2">{recentTopics.map(t => <button type="button" key={t} onClick={() => setCustomTopic(t)} className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs text-indigo-800">{t}</button>)}</div>}
+              </div>
+            )}
             <CustomSelect label="Practice direction" value={direction} onChange={value => setDirection(value as "en-ja" | "ja-en")} options={[
               { value: "en-ja", label: "English → Japanese · Speak Japanese" },
               { value: "ja-en", label: "Japanese → English · Explain in English" },
@@ -112,7 +130,7 @@ export default function ConversationSpeaking({ onClose }: { onClose: () => void 
               { value: "casual", label: "Casual — タメ口" },
             ]} />
             <div className="rounded-xl bg-indigo-50 p-3 text-sm text-indigo-900">{direction === "en-ja" ? "English → Japanese speaking" : "Japanese → English comprehension"} · 10 connected turns · AI feedback and retries</div>
-            <button type="button" onClick={start} disabled={loading} className="w-full rounded-2xl bg-indigo-600 text-white font-black py-4 disabled:opacity-50">{loading ? "Generating conversation…" : "Start Conversation"}</button>
+            <button type="button" onClick={start} disabled={loading || (scenario === "custom" && customTopic.trim().length < 3)} className="w-full rounded-2xl bg-indigo-600 text-white font-black py-4 disabled:opacity-50">{loading ? "Generating conversation…" : "Start Conversation"}</button>
           </div>
         ) : done ? (
           <div className="rounded-2xl bg-white border border-slate-100 p-6 space-y-4 text-center">
