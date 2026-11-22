@@ -2203,13 +2203,13 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         </AnimatePresence>
 
         {/* --- 1. MOBILE NAVIGATION --- */}
-        <div className="md:hidden sticky top-0 relative w-full z-50 px-3 py-2 flex flex-wrap gap-y-2 justify-between items-start bg-slate-50/80 backdrop-blur-md">
+        <div className="md:hidden sticky top-0 relative w-full z-50 px-3 py-2 min-h-[94px] flex justify-between items-start bg-slate-50/80 backdrop-blur-md">
           <div className="flex flex-col gap-1 pointer-events-auto min-w-0 flex-1">
             <div className="flex items-center gap-3 min-w-0">
             <Link href="/" className="active:scale-95 transition-transform shrink-0">
               <Logo className="w-10 h-12" />
             </Link>
-            <div className="flex flex-col gap-1.5 bg-white/80 backdrop-blur-md px-3 py-2 rounded-2xl border border-white shadow-sm min-w-0 flex-1 max-w-[190px]">
+            <div className="flex flex-col gap-1.5 bg-white/80 backdrop-blur-md px-3 py-2 rounded-2xl border border-white shadow-sm min-w-0 flex-1 max-w-[min(190px,38vw)]">
               <div className="flex items-center justify-between gap-3 min-w-0">
                 <span className="text-[10px] font-black uppercase tracking-tight text-slate-800 italic leading-none truncate min-w-0">
                   {profileName?.split(" ")[0] || ""}
@@ -2375,10 +2375,10 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
             </div>
 
           </div>
-          {/* Row 2: study counters, always right-aligned beneath the header. */}
-          <div className="w-full flex justify-end px-1 pt-1 pointer-events-auto">
+          {/* Align counters with the JLPT filter line inside the mastery card. */}
+          <div className="absolute top-[44px] right-3 flex justify-end pointer-events-auto">
             {!dataLoading && cards.length > 0 && (
-              <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 min-w-0">
+              <div className="flex items-center justify-end gap-1.5 min-w-0">
                 <button onClick={showReviewsHint} className="whitespace-nowrap text-[9px] font-black text-slate-400 tabular-nums active:scale-95">🔁 {reviewsToday}/{REVIEW_TARGET}</button>
                 <button onClick={showStillLearningHint} className="whitespace-nowrap text-[9px] font-black text-slate-400 tabular-nums active:scale-95">📋 {stillLearningCount}</button>
                 <button onClick={showMasteredHint} className={`whitespace-nowrap text-[9px] font-black tabular-nums active:scale-95 ${masteredToday >= MASTERED_GOAL ? "text-emerald-500" : "text-slate-400"}`}>🎯 {masteredToday}/{MASTERED_GOAL}</button>
@@ -2387,7 +2387,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           </div>
           {/* Row 3: connection status and struggling words, independently right-aligned. */}
           {(weakWordsCount >= 10 || !isOnline || (isOnline && justSyncedCount != null)) && (
-            <div className="w-full flex flex-wrap items-center justify-end gap-x-3 gap-y-1 px-1 pointer-events-auto">
+            <div className="absolute top-[65px] right-3 flex flex-wrap items-center justify-end gap-x-2 gap-y-1 max-w-[55%] pointer-events-auto">
               {!isOnline && (
                 <div className="inline-flex items-center gap-1 whitespace-nowrap text-[9px] font-black text-slate-500 uppercase">
                   <WifiOff size={11} className="shrink-0" />
