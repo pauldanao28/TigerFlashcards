@@ -267,6 +267,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const [defaultDeckId, setDefaultDeckId] = useState<string | null>(() => cached?.deckId ?? null);
 
   const [dataLoading, setDataLoading] = useState(!hasCachedData);
+  const partialDeckLoadingRef = useRef(false);
   const [aiLoading, setAiLoading] = useState(false); // AI Syncing
   const [hasLoadedOnce, setHasLoadedOnce] = useState(hasCachedData);
 
@@ -779,6 +780,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     if (!firstRes.error && firstRes.data && firstRes.data.length > 0 && cards.length === 0) {
       const preview = flatten(firstRes.data);
       if (preview.length > 0) {
+        partialDeckLoadingRef.current = true;
         setCards(preview);
         setCurrentCard(prev => prev ?? getNextPriorityCard(preview, "jp"));
         setDataLoading(false);
@@ -805,6 +807,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
 
     if (!error && data) {
       const flattened = flatten(data);
+      partialDeckLoadingRef.current = false;
       setCards(flattened);
       if (flattened.length > 0) {
         // ✅ FIX: Only pick a new card if we don't already have one on screen.
@@ -829,6 +832,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       // as they are rather than erroring out.
       console.error("fetchInitialData failed (likely offline):", e);
     } finally {
+      partialDeckLoadingRef.current = false;
       setDataLoading(false);
       setHasLoadedOnce(true);
     }
@@ -888,7 +892,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   // whole deck and only actually changes on a fresh fetch or a card edit, not on
   // every card reviewed.
   useEffect(() => {
-    if (user?.id && cards.length > 0) {
+    if (user?.id && cards.length > 0 && !partialDeckLoadingRef.current) {
       _studyCache = { userId: user.id, cards, deckId: defaultDeckId, currentCard };
       persistStudyCards(user.id, defaultDeckId, cards);
     }
