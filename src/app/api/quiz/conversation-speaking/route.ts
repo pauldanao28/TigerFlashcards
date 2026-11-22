@@ -18,7 +18,10 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   let payload: Record<string, unknown>;
   try { payload = await req.json(); } catch { return NextResponse.json({ error: "Invalid request" }, { status: 400 }); }
-  const scenario = typeof payload.scenario === "string" && scenarios[payload.scenario] ? payload.scenario : "restaurant";
+  const requestedScenario = typeof payload.scenario === "string" ? payload.scenario : "restaurant";
+  const scenario = requestedScenario === "custom" ? "custom" : scenarios[requestedScenario] ? requestedScenario : "restaurant";
+  const customTopic = typeof payload.customTopic === "string" ? payload.customTopic.trim().slice(0, 180) : "";
+  if (scenario === "custom" && customTopic.length < 3) return NextResponse.json({ error: "Enter a custom topic (at least 3 characters)." }, { status: 400 });
   const level = ["N5", "N4", "N3", "N2"].includes(String(payload.level)) ? String(payload.level) : "N4";
   const style = ["mixed", "polite", "casual"].includes(String(payload.style)) ? String(payload.style) : "mixed";
   if (!process.env.GOOGLE_GEMINI_API_KEY) return NextResponse.json({ error: "AI unavailable" }, { status: 503 });
@@ -26,7 +29,7 @@ export async function POST(req: Request) {
   if (!usage.allowed) return NextResponse.json({ error: "Daily AI limit reached" }, { status: 429 });
 
   const prompt = `Create a connected, realistic Japanese conversation speaking exercise with exactly 10 chronological turns.
-Scenario: ${scenarios[scenario]}
+Scenario: ${scenario === "custom" ? `Two people have a realistic conversation about this user-selected topic: ${JSON.stringify(customTopic)}` : scenarios[scenario]}
 Level: JLPT ${level}. Style: ${style} (mixed means natural polite speech to staff and casual speech to friends).
 At every turn, a Japanese conversation partner speaks first (staff_jp), then the learner receives a short ENGLISH instruction (task_en) describing what they should SAY IN JAPANESE in reply.
 Provide a natural reference Japanese reply (reference_jp), its faithful natural English translation (reference_en), and a short English grammar/vocabulary tip (tip_en).
