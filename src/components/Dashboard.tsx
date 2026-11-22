@@ -161,6 +161,28 @@ function ScoreTile({
 
 // Module-level cache — survives Next.js client-side navigation, clears on full reload
 const _dashboardCache = new Map<string, ProfileScores>();
+const dashboardCacheKey = (userId: string) => `flashkado-dashboard-${userId}`;
+function readDashboardCache(userId: string): ProfileScores | null {
+  if (!userId) return null;
+  const memory = _dashboardCache.get(userId);
+  if (memory) return memory;
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(dashboardCacheKey(userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { savedAt: number; data: ProfileScores };
+    // Old data is a display-only fallback; always revalidate against Supabase.
+    if (!parsed?.data || !parsed.savedAt || Date.now() - parsed.savedAt > 7 * 86400000) return null;
+    _dashboardCache.set(userId, parsed.data);
+    return parsed.data;
+  } catch { return null; }
+}
+function saveDashboardCache(userId: string, data: ProfileScores) {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem(dashboardCacheKey(userId), JSON.stringify({ savedAt: Date.now(), data })); }
+  catch { /* Storage unavailable; in-memory cache still works. */ }
+}
+
 
 const OVERALL_SEGMENTS = [
   { label: "N5", color: "bg-emerald-400" },
@@ -295,7 +317,7 @@ function OverallBanner({ level, score }: { level: string; score: number }) {
 export default function Dashboard() {
   const { user } = useAuth();
   const [data, setData] = useState<ProfileScores | null>(
-    () => _dashboardCache.get(user?.id ?? "") ?? null
+    () => readDashboardCache(user?.id ?? "")
   );
   const [doneTodayQuizzes, setDoneTodayQuizzes] = useState({ reading: false, listening: false, grammar: false });
   const [isSocialOpen, setIsSocialOpen] = useState(false);
@@ -430,6 +452,7 @@ export default function Dashboard() {
         vocab_nlevel: raw.vocab_nlevel ?? "N5",
       };
       _dashboardCache.set(user.id, fresh);
+      saveDashboardCache(user.id, fresh);
       setData(fresh);
 
       // Catches badges that don't require hitting today's goal at all (mastery, JLPT
@@ -448,6 +471,13 @@ export default function Dashboard() {
     // tab focus, etc.) even for the same session, which was re-triggering this whole
     // fetch-and-recompute sequence repeatedly and made the displayed numbers flicker.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // Hydrate once auth resolves on a cold launch; do not block on the RPC.
+  useEffect(() => {
+    if (!user?.id) return;
+    const cached = readDashboardCache(user.id);
+    if (cached) setData(cached);
   }, [user?.id]);
 
   // Badges summary card — moved here from the Cards page so progress/motivation
