@@ -75,12 +75,15 @@ export default function DailyJapaneseRoutine() {
         const current = previous[active] ?? { seconds: 0, done: false };
         const target = (minutes[active] ?? 0) * 60;
         const seconds = Math.min(target, current.seconds + elapsed);
-        if (seconds >= target) setActive(null);
         return { ...previous, [active]: { seconds, done: current.done || seconds >= target } };
       });
     }, 1000);
     return () => window.clearInterval(interval);
   }, [active, ready, minutes]);
+
+  useEffect(() => {
+    if (active && progress[active]?.done) setActive(null);
+  }, [active, progress]);
 
   if (!uid || !ready) return null;
   const total = ACTIVITIES.reduce((sum, a) => sum + (minutes[a.id] || 0), 0);
