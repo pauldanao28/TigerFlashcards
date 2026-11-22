@@ -479,24 +479,28 @@ export default function StatsPage() {
       // after every page has landed (not per-page) — updating them as each page arrived
       // made the numbers visibly count up page by page (0 → 1000 → 2000 → 2900) instead
       // of just appearing once, correct.
-      const allData: any[] = [];
-      let error = null;
       const PAGE_SIZE = 1000;
-      for (let from = 0; ; from += PAGE_SIZE) {
-        const { data: page, error: pageErr } = await supabase
-          .from("master_cards")
-          .select(`*, deck_cards!inner(deck_id, added_at), user_scores(scores_json, is_priority, prioritized_at, reflex_time_total_ms, reflex_attempts, updated_at)`)
-          .eq("deck_cards.deck_id", defaultDeckId)
-          .eq("user_scores.user_id", user.id)
-          .order("added_at", { foreignTable: "deck_cards", ascending: false })
-          // Tiebreaker for cards added in the same batch (identical added_at) — without
-          // a unique secondary key, .range() pagination can skip or duplicate rows among
-          // ties once the deck crosses one page.
-          .order("id", { ascending: true })
-          .range(from, from + PAGE_SIZE - 1);
-        if (pageErr) { error = pageErr; break; }
-        if (page) allData.push(...page);
-        if (!page || page.length < PAGE_SIZE) break;
+      const fetchPage = (from: number) => supabase
+        .from("master_cards")
+        .select(`*, deck_cards!inner(deck_id, added_at), user_scores(scores_json, is_priority, prioritized_at, reflex_time_total_ms, reflex_attempts, updated_at)`)
+        .eq("deck_cards.deck_id", defaultDeckId)
+        .eq("user_scores.user_id", user.id)
+        .order("added_at", { foreignTable: "deck_cards", ascending: false })
+        .order("id", { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
+
+      // Most decks fit in two pages. Fetch them concurrently instead of waiting
+      // for page one before even starting page two.
+      const [first, second] = await Promise.all([fetchPage(0), fetchPage(PAGE_SIZE)]);
+      const allData: any[] = [...(first.data ?? []), ...(second.data ?? [])];
+      let error = first.error || second.error;
+      if (!error && second.data?.length === PAGE_SIZE) {
+        for (let from = PAGE_SIZE * 2; ; from += PAGE_SIZE) {
+          const { data: page, error: pageErr } = await fetchPage(from);
+          if (pageErr) { error = pageErr; break; }
+          if (page) allData.push(...page);
+          if (!page || page.length < PAGE_SIZE) break;
+        }
       }
 
       if (error) { console.error("Fetch Error:", (error as any).message); return; }
