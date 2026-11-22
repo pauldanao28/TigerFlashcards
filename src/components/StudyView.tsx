@@ -2203,7 +2203,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         </AnimatePresence>
 
         {/* --- 1. MOBILE NAVIGATION --- */}
-        <div className="md:hidden sticky top-0 relative w-full z-50 px-3 py-2 min-h-[94px] flex justify-between items-start bg-slate-50/80 backdrop-blur-md">
+        <div className="md:hidden sticky top-0 relative w-full z-50 px-3 py-2 flex justify-between items-start gap-2 bg-slate-50/80 backdrop-blur-md">
           <div className="flex flex-col gap-1 pointer-events-auto min-w-0 flex-1">
             <div className="flex items-center gap-3 min-w-0">
             <Link href="/" className="active:scale-95 transition-transform shrink-0">
@@ -2240,7 +2240,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 <div className="flex items-center gap-1 mt-0.5">
                   <button
                     onClick={() => setShowJlptBreakdown(true)}
-                    className="flex flex-1 items-center gap-2 active:scale-95 transition-transform"
+                    className="flex flex-1 min-w-0 items-center gap-1 active:scale-95 transition-transform"
                   >
                     <div className="flex-1 h-1.5 rounded-full overflow-hidden flex bg-slate-200">
                       {selectedJlptLevels.length > 0 ? (
@@ -2254,7 +2254,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                         return <div key={level} className={JLPT_BAR_COLOR[level]} style={{ width: `${pct}%` }} />;
                       })}
                     </div>
-                    <span className={`text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${selectedJlptLevels.length === 1 ? JLPT_BADGE_COLOR[selectedJlptLevels[0]].split(" ")[1] : selectedJlptLevels.length > 1 ? "text-indigo-600" : "text-slate-500"}`}>
+                    <span className={`text-[9px] font-black uppercase tracking-tight truncate ${selectedJlptLevels.length === 1 ? JLPT_BADGE_COLOR[selectedJlptLevels[0]].split(" ")[1] : selectedJlptLevels.length > 1 ? "text-indigo-600" : "text-slate-500"}`}>
                       {jlptFilterLabel
                         ? `${jlptFilterLabel} ${jlptLevelMastery ?? 0}%`
                         : `${dominantJlptLevel} ${jlptTaggedTotal > 0 ? Math.round((jlptDistribution[dominantJlptLevel] / jlptTaggedTotal) * 100) : 0}%`}
@@ -2275,7 +2275,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
             </div>
           </div>
           {/* Top-right controls — Study Circle + Mode toggle */}
-          <div className="flex flex-col items-end gap-1 pointer-events-auto shrink-0">
+          <div className="flex flex-col items-end gap-1 pointer-events-auto shrink-0 max-w-[52%]">
             <div className="relative flex items-center gap-2 shrink-0">
               <button
                 onClick={toggleReflexMode}
@@ -2374,9 +2374,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               </AnimatePresence>
             </div>
 
-          </div>
-          {/* Align counters with the JLPT filter line inside the mastery card. */}
-          <div className="absolute top-[44px] right-3 flex justify-end pointer-events-auto">
+            {/* Stats follow the control buttons in normal flow, avoiding overlap. */}
+            <div className="flex w-full justify-end pt-1 pointer-events-auto">
             {!dataLoading && cards.length > 0 && (
               <div className="flex items-center justify-end gap-1.5 min-w-0">
                 <button onClick={showReviewsHint} className="whitespace-nowrap text-[9px] font-black text-slate-400 tabular-nums active:scale-95">🔁 {reviewsToday}/{REVIEW_TARGET}</button>
@@ -2384,10 +2383,10 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 <button onClick={showMasteredHint} className={`whitespace-nowrap text-[9px] font-black tabular-nums active:scale-95 ${masteredToday >= MASTERED_GOAL ? "text-emerald-500" : "text-slate-400"}`}>🎯 {masteredToday}/{MASTERED_GOAL}</button>
               </div>
             )}
-          </div>
-          {/* Row 3: connection status and struggling words, independently right-aligned. */}
+            </div>
+            {/* Connection and struggling words share the right-aligned third line. */}
           {(weakWordsCount >= 10 || !isOnline || (isOnline && justSyncedCount != null)) && (
-            <div className="absolute top-[88px] right-3 flex flex-nowrap items-center justify-end gap-2 max-w-[calc(100%-1.5rem)] min-w-0 pointer-events-auto">
+            <div className="flex w-full items-center justify-end gap-1.5 min-w-0 pointer-events-auto">
               {!isOnline && (
                 <div className="inline-flex items-center gap-1 whitespace-nowrap text-[9px] font-black text-slate-500 uppercase">
                   <WifiOff size={11} className="shrink-0" />
@@ -2406,6 +2405,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               )}
             </div>
           )}
+          </div>
+
         </div>
 
         {showMobileInsights && (
