@@ -2387,7 +2387,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           </div>
           {/* Row 3: connection status and struggling words, independently right-aligned. */}
           {(weakWordsCount >= 10 || !isOnline || (isOnline && justSyncedCount != null)) && (
-            <div className="absolute top-[65px] right-3 flex flex-wrap items-center justify-end gap-x-2 gap-y-1 max-w-[55%] pointer-events-auto">
+            <div className="absolute top-[88px] right-3 flex flex-nowrap items-center justify-end gap-2 max-w-[calc(100%-1.5rem)] min-w-0 pointer-events-auto">
               {!isOnline && (
                 <div className="inline-flex items-center gap-1 whitespace-nowrap text-[9px] font-black text-slate-500 uppercase">
                   <WifiOff size={11} className="shrink-0" />
@@ -2400,7 +2400,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 </div>
               )}
               {weakWordsCount >= 10 && (
-                <Link href="/quizzes?open=weak_words" className="whitespace-nowrap text-[9px] font-black text-rose-400">
+                <Link href="/quizzes?open=weak_words" className="min-w-0 truncate text-[9px] font-black text-rose-400">
                   😓 {t.struggling} ({weakWordsCount})
                 </Link>
               )}
