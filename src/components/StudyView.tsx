@@ -83,6 +83,13 @@ let _studyCache: StudyCacheEntry | null = null;
 // and only changes when freshly fetched, while `current` is tiny and changes on
 // every single card reviewed — writing the whole deck back to localStorage on every
 // flip would be real, pointless work on every review.
+// Cards tab keeps a short-lived snapshot. A local review or priority change
+// invalidates it so switching tabs never displays knowingly stale scores.
+function invalidateCardsTabSnapshot(userId: string) {
+  if (typeof window === "undefined") return;
+  try { localStorage.removeItem(`flashkado-cards-cache-${userId}`); }
+  catch { /* Storage may be unavailable. */ }
+}
 const studyCardsKey = (userId: string) => `flashkado_study_cards_${userId}`;
 const studyCurrentKey = (userId: string) => `flashkado_study_current_${userId}`;
 const reflexModeKey = (userId: string) => `flashkado_reflex_mode_${userId}`;
@@ -1196,7 +1203,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       // was added) made the app feel stuck on every grade. It's offline-safe
       // regardless of when it's called (queues itself on failure — see
       // offlineScoreQueue.ts), so there's nothing it needs to block the UI for.
-      upsertScoreOrQueue(user.id, {
+      invalidateCardsTabSnapshot(user.id);
+    upsertScoreOrQueue(user.id, {
         user_id: user.id,
         card_id: currentCard.id,
         scores_json: newScores,
@@ -1336,6 +1344,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     // already advanced. Same reasoning as handleScore: offline-safe regardless
     // of when it's called, so it shouldn't block the swipe UI on a slow/
     // re-establishing connection (e.g. right after the app resumes from background).
+    invalidateCardsTabSnapshot(user.id);
     upsertScoreOrQueue(user.id, {
       user_id: user.id,
       card_id: currentCard.id,
@@ -1376,6 +1385,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       if (demotedId && c.id === demotedId) return { ...c, is_priority: false, prioritized_at: null };
       return c;
     };
+    invalidateCardsTabSnapshot(user.id);
     setCards((prev) => prev.map(applyPatch));
     setCurrentCard((prev) => (prev ? applyPatch(prev) : prev));
   }, [user, cards]);
