@@ -87,7 +87,10 @@ let _studyCache: StudyCacheEntry | null = null;
 // invalidates it so switching tabs never displays knowingly stale scores.
 function invalidateCardsTabSnapshot(userId: string) {
   if (typeof window === "undefined") return;
-  try { localStorage.removeItem(`flashkado-cards-cache-${userId}`); }
+  try {
+    localStorage.removeItem(`flashkado-cards-cache-${userId}`);
+    localStorage.setItem(`flashkado-cards-invalidated-${userId}`, String(Date.now()));
+  }
   catch { /* Storage may be unavailable. */ }
 }
 const studyCardsKey = (userId: string) => `flashkado_study_cards_${userId}`;
