@@ -94,6 +94,15 @@ function BottomNavInner() {
   const [streak, setStreak] = useState(0);
   const [weakWordsCount, setWeakWordsCount] = useState<number | null>(null);
   const [pendingWordsCount, setPendingWordsCount] = useState<number | null>(null);
+  // Preload the three primary routes while the user is on any one of them.
+  // Next.js normally prefetches links only when they are visible; proactively
+  // warming these routes reduces the delay when switching between tabs.
+  useEffect(() => {
+    if (!user?.id || loading) return;
+    const routes = ["/", "/study", "/stats"].filter(href => href !== path);
+    routes.forEach(href => router.prefetch(href));
+  }, [user?.id, loading, path, router]);
+
 
   // Fetched lazily (only once the Quick Actions sheet is opened) since most page
   // loads never touch Add Cards/Friends/the Weak Words badge — no need to pay for
