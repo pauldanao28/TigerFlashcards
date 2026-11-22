@@ -19,6 +19,7 @@ import { pickDailyQuests, questProgress, type QuestProgressSource } from "@/lib/
 import { BADGES } from "@/lib/badges";
 import { CONFETTI_PARTICLES } from "@/lib/confetti";
 import SparkLine from "@/components/SparkLine";
+import DailyJapaneseRoutine from "@/components/DailyJapaneseRoutine";
 
 type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
 
@@ -947,6 +948,8 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      <DailyJapaneseRoutine />
 
       {/* Advanced Stats — separate page, all live-computed. */}
       <Link
