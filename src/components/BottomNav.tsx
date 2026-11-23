@@ -104,6 +104,18 @@ function BottomNavInner() {
   }, [user?.id, loading, path, router]);
 
 
+  // Warm the essential default deck lookup as soon as authentication is ready.
+  // Add Cards should not wait for the optional Quick Actions badge/profile requests.
+  useEffect(() => {
+    if (!user?.id || loading || defaultDeckId) return;
+    let cancelled = false;
+    supabase.from("decks").select("id").eq("user_id", user.id).eq("is_default", true).maybeSingle()
+      .then(({ data, error }) => {
+        if (!cancelled && !error && data?.id) setDefaultDeckId(data.id);
+      });
+    return () => { cancelled = true; };
+  }, [user?.id, loading, defaultDeckId]);
+
   // Fetched lazily (only once the Quick Actions sheet is opened) since most page
   // loads never touch Add Cards/Friends/the Weak Words badge — no need to pay for
   // this on every navigation. Covers all three tiles' data needs in one round trip.
@@ -114,11 +126,10 @@ function BottomNavInner() {
   // effect loads — onQueueCountChange below keeps pendingWordsCount live only while
   // AddWordsSheet itself is actually interacted with.
   useEffect(() => {
-    if (!showQuickActions || !user || defaultDeckId) return;
+    if (!showQuickActions || !user) return;
     (async () => {
       const todaySg = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
-      const [{ data: deck }, { data: profile }, { data: weakCount }] = await Promise.all([
-        supabase.from("decks").select("id").eq("user_id", user.id).eq("is_default", true).single(),
+      const [{ data: profile }, { data: weakCount }] = await Promise.all([
         supabase
           .from("profiles")
           .select("is_admin, blocked_words, full_name, avatar_url, referral_code, streak_count, pending_words")
@@ -126,7 +137,6 @@ function BottomNavInner() {
           .single(),
         supabase.rpc("count_weak_words", { p_today: todaySg }),
       ]);
-      if (deck) setDefaultDeckId(deck.id);
       if (profile) {
         setIsAdmin(!!profile.is_admin);
         setBlocklist(profile.blocked_words || []);
@@ -138,7 +148,7 @@ function BottomNavInner() {
       }
       if (typeof weakCount === "number") setWeakWordsCount(weakCount);
     })();
-  }, [showQuickActions, user, defaultDeckId]);
+  }, [showQuickActions, user]);
 
   if (!SHOW_ON.has(path)) return null;
   // Hidden in the mini popup player, and on Study specifically once a desktop
