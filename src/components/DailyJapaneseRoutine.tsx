@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { ChevronDown, ChevronUp, BookOpen, Pencil, BookText, Headphones, Mic } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 type Activity = { id: string; label: string; href: string };
@@ -30,6 +31,7 @@ export default function DailyJapaneseRoutine({ reviewsToday = 0, reviewGoal = 10
   const [progress, setProgress] = useState<Progress>(blank);
   const [active, setActive] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [setup, setSetup] = useState(false);
   const [budget, setBudget] = useState(25);
   const [focus, setFocus] = useState("balanced");
@@ -127,11 +129,26 @@ export default function DailyJapaneseRoutine({ reviewsToday = 0, reviewGoal = 10
   const completed = ACTIVITIES.filter(a => (minutes[a.id] || 0) === 0 || progress[a.id]?.done || (a.id === "vocabulary" && vocabGoalMet)).length;
   return (
     <section className={embedded ? "mt-4 border-t border-slate-100 pt-4" : "mx-4 mt-4 max-w-2xl md:mx-auto rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm"} aria-label="Daily Japanese routine">
-      <div className="flex items-start justify-between gap-2">
-        <div><p className="text-[10px] font-black uppercase tracking-wider text-indigo-600">毎日の日本語練習</p><h2 className="text-lg font-black text-slate-900">Daily Japanese Routine</h2><p className="text-xs text-slate-500">Any order · {completed}/5 complete · {total} min target</p></div>
-        <button type="button" onClick={() => setEditing(v => !v)} className="rounded-lg border px-3 py-2 text-xs font-bold text-indigo-700">{editing ? "Done" : "Adjust"}</button>
-      </div>
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-indigo-500 transition-all" style={{ width: `${completed / ACTIVITIES.length * 100}%` }}/></div>
+      <button type="button" onClick={() => setExpanded(v => !v)} aria-expanded={expanded} aria-controls="daily-routine-details" className="flex w-full items-center justify-between gap-3 text-left">
+        <div className="min-w-0">
+          <p className="text-sm font-black text-slate-900">Daily Routine</p>
+          <p className="mt-0.5 text-xs text-slate-500">{completed}/5 complete · {total} min planned</p>
+        </div>
+        {expanded ? <ChevronUp size={18} className="shrink-0 text-slate-500" /> : <ChevronDown size={18} className="shrink-0 text-slate-500" />}
+      </button>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-indigo-500 transition-all" style={{ width: `${completed / ACTIVITIES.length * 100}%` }}/></div>
+      {!expanded && <div className="mt-3 grid grid-cols-5 gap-1" aria-label="Routine activity status">
+        {ACTIVITIES.map((a, i) => {
+          const Icon = [BookOpen, Pencil, BookText, Headphones, Mic][i];
+          const done = (minutes[a.id] || 0) === 0 || progress[a.id]?.done || (a.id === "vocabulary" && vocabGoalMet);
+          return <div key={a.id} className="flex min-w-0 flex-col items-center gap-1">
+            <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${done ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"}`}><Icon size={16} /></span>
+            <span className="max-w-full truncate text-[9px] font-semibold text-slate-500">{a.id === "vocabulary" ? "Vocab" : a.label}</span>
+          </div>;
+        })}
+      </div>}
+      {expanded && <div id="daily-routine-details">
+        <div className="mt-3 flex justify-end"><button type="button" onClick={() => setEditing(v => !v)} className="rounded-lg border border-indigo-200 px-3 py-1.5 text-xs font-bold text-indigo-700">{editing ? "Done adjusting" : "Adjust minutes"}</button></div>
       <div className="mt-3 space-y-3">
         {ACTIVITIES.map(a => {
           const target = (minutes[a.id] || 0) * 60;
@@ -156,6 +173,7 @@ export default function DailyJapaneseRoutine({ reviewsToday = 0, reviewGoal = 10
         })}
       </div>
       <p className="mt-3 text-xs text-slate-500">Vocabulary is automatically complete when your review goal is met. Other activities are flexible. Timers count only while Home is visible; daily progress is stored on this device.</p>
+      </div>}
     </section>
   );
 }
