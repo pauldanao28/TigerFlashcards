@@ -151,7 +151,7 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
     setMnemonicCard(card);
     if (card.mnemonic || mnemonicLoading) return;
     const confirmed = await showConfirm(
-      `Generate a memory aid for ${card.japanese}? This uses one of your daily AI lookups.`,
+      `Generate a memory aid for ${card.japanese}? This uses one of your daily memory-aid requests.`,
       { title: "Remember this kanji?", confirmLabel: "Generate" },
     );
     if (!confirmed) { setMnemonicCard(null); return; }
@@ -429,7 +429,7 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
           <div>
             <h2 className="text-xl font-black text-slate-900 mb-2">Review your weak words</h2>
             <p className="text-slate-500 font-medium text-sm leading-relaxed">
-              Prioritizes words you keep failing today, quizzes them in AI-written sentences,
+              Prioritizes words you keep failing today, quizzes them in practice sentences,
               and shows Memory Rescue after a missed answer. One lucky correct answer
               won&apos;t remove a word from today&apos;s rescue pool.
             </p>
