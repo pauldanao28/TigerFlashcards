@@ -129,14 +129,14 @@ export default function ConversationSpeaking({ onClose }: { onClose: () => void 
               { value: "polite", label: "Polite — です・ます" },
               { value: "casual", label: "Casual — タメ口" },
             ]} />
-            <div className="rounded-xl bg-indigo-50 p-3 text-sm text-indigo-900">{direction === "en-ja" ? "English → Japanese speaking" : "Japanese → English comprehension"} · 10 connected turns · AI feedback and retries</div>
+            <div className="rounded-xl bg-indigo-50 p-3 text-sm text-indigo-900">{direction === "en-ja" ? "English → Japanese speaking" : "Japanese → English comprehension"} · 10 connected turns · feedback and retries</div>
             <button type="button" onClick={start} disabled={loading || (scenario === "custom" && customTopic.trim().length < 3)} className="w-full rounded-2xl bg-indigo-600 text-white font-black py-4 disabled:opacity-50">{loading ? "Generating conversation…" : "Start Conversation"}</button>
           </div>
         ) : done ? (
           <div className="rounded-2xl bg-white border border-slate-100 p-6 space-y-4 text-center">
             <h3 className="text-xl font-black">Conversation complete!</h3>
-            <p className="text-slate-600">You completed {turns.length} speaking turns. {correct} were accepted by AI on the final checked attempt.</p>
-            <p className="text-xs text-slate-500">AI feedback is approximate and does not grade pronunciation.</p>
+            <p className="text-slate-600">You completed {turns.length} speaking turns. {correct} were accepted on the final checked attempt.</p>
+            <p className="text-xs text-slate-500">Feedback focuses on your answer, not precise pronunciation.</p>
             <button type="button" onClick={() => { setTurns([]); setDone(false); }} className="w-full rounded-xl bg-indigo-600 text-white py-3 font-bold">New conversation</button>
           </div>
         ) : (
