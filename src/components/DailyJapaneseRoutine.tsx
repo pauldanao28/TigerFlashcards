@@ -30,6 +30,9 @@ export default function DailyJapaneseRoutine({ reviewsToday = 0, reviewGoal = 10
   const [progress, setProgress] = useState<Progress>(blank);
   const [active, setActive] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [setup, setSetup] = useState(false);
+  const [budget, setBudget] = useState(25);
+  const [focus, setFocus] = useState("balanced");
   const [ready, setReady] = useState(false);
   const lastTick = useRef<number | null>(null);
   const settingsKey = uid ? `flashkado-routine-settings-${uid}` : "";
@@ -37,6 +40,7 @@ export default function DailyJapaneseRoutine({ reviewsToday = 0, reviewGoal = 10
 
   useEffect(() => {
     if (!uid) { setReady(false); return; }
+    setSetup(localStorage.getItem(settingsKey) === null);
     const stored = read<Record<string, number>>(settingsKey, DEFAULT_MINUTES);
     setMinutes(Object.fromEntries(ACTIVITIES.map(a => [a.id, Number.isFinite(stored[a.id]) ? Math.min(60, Math.max(0, stored[a.id])) : 5])));
     setProgress(read<Progress>(progressKey, blank()));
@@ -46,9 +50,9 @@ export default function DailyJapaneseRoutine({ reviewsToday = 0, reviewGoal = 10
   }, [uid, settingsKey, progressKey]);
 
   useEffect(() => {
-    if (!ready || !uid) return;
+    if (!ready || !uid || setup) return;
     try { localStorage.setItem(settingsKey, JSON.stringify(minutes)); } catch { /* ignore storage errors */ }
-  }, [minutes, ready, uid, settingsKey]);
+  }, [minutes, ready, uid, settingsKey, setup]);
   useEffect(() => {
     if (!ready || !uid) return;
     try { localStorage.setItem(progressKey, JSON.stringify(progress)); } catch { /* ignore storage errors */ }
@@ -85,7 +89,39 @@ export default function DailyJapaneseRoutine({ reviewsToday = 0, reviewGoal = 10
     if (active && progress[active]?.done) setActive(null);
   }, [active, progress]);
 
+  const allocate = (choice: string, total: number) => {
+    setFocus(choice); setBudget(total);
+    const weights: Record<string, number[]> = { balanced: [1,1,1,1,1], speaking: [1,1,1,2,3], vocabulary: [3,1,1,1,1], comprehension: [1,1,3,3,1] };
+    const w = weights[choice] || weights.balanced;
+    const sum = w.reduce((a,b) => a+b, 0);
+    const vals = w.map(x => Math.floor(total*x/sum));
+    for (let i = 0, rest = total-vals.reduce((a,b)=>a+b,0); rest > 0; i++,rest--) vals[i%5]++;
+    setMinutes(Object.fromEntries(ACTIVITIES.map((a,i)=>[a.id,vals[i]])));
+  };
+  const saveSetup = (skip = false) => {
+    const values = skip ? DEFAULT_MINUTES : minutes;
+    setMinutes(values);
+    try { localStorage.setItem(settingsKey, JSON.stringify(values)); } catch { /* ignore */ }
+    setSetup(false);
+  };
   if (!uid || !ready) return null;
+  if (setup) return (
+    <section className="mx-4 mt-4 max-w-2xl md:mx-auto rounded-2xl border border-indigo-100 bg-white p-5 shadow-sm">
+      <p className="text-xs font-black uppercase text-indigo-600">Your learning commitment</p>
+      <h2 className="mt-1 text-xl font-black text-slate-900">Build your daily Japanese plan</h2>
+      <p className="mt-1 text-sm text-slate-500">Choose your time and focus. Adjust it anytime. Your existing Daily Goals stay unchanged.</p>
+      <p className="mt-4 text-xs font-bold">How many minutes per day?</p>
+      <div className="mt-2 flex flex-wrap gap-2">{[10,15,25,40,60].map(n=><button key={n} type="button" onClick={()=>allocate(focus,n)} className={"rounded-lg border px-3 py-2 text-sm font-bold "+(budget===n?"border-indigo-500 bg-indigo-50 text-indigo-700":"border-slate-200")}>{n} min</button>)}</div>
+      <p className="mt-4 text-xs font-bold">What would you like to focus on?</p>
+      <div className="mt-2 grid grid-cols-2 gap-2">{[{id:"balanced",label:"Balanced"},{id:"speaking",label:"Speaking"},{id:"vocabulary",label:"Vocabulary"},{id:"comprehension",label:"Reading & Listening"}].map(o=><button key={o.id} type="button" onClick={()=>allocate(o.id,budget)} className={"rounded-lg border p-3 text-left text-xs font-bold "+(focus===o.id?"border-indigo-500 bg-indigo-50 text-indigo-700":"border-slate-200")}>{o.label}</button>)}</div>
+      <p className="mt-4 text-xs font-bold">Fine-tune your daily minutes</p>
+      <div className="mt-2 space-y-2">{ACTIVITIES.map(a=><label key={a.id} className="flex items-center justify-between gap-2 text-sm"><span>{a.label}</span><span><input type="number" min={0} max={60} value={minutes[a.id]||0} onChange={e=>setMinutes(p=>({...p,[a.id]:Math.max(0,Math.min(60,Number(e.target.value)||0))}))} className="w-16 rounded-lg border p-2 text-right" /> min</span></label>)}</div>
+      <p className="mt-3 text-xs text-slate-500">Total: {Object.values(minutes).reduce((a,b)=>a+b,0)} minutes/day</p>
+      <button type="button" onClick={()=>saveSetup()} className="mt-4 w-full rounded-xl bg-indigo-600 p-3 text-sm font-black text-white">Save my commitment</button>
+      <button type="button" onClick={()=>saveSetup(true)} className="mt-2 w-full p-2 text-xs font-semibold text-slate-500">Skip · Use balanced 25-minute plan</button>
+    </section>
+  );
+
   const total = ACTIVITIES.reduce((sum, a) => sum + (minutes[a.id] || 0), 0);
   const vocabGoalMet = reviewsToday >= reviewGoal;
   const completed = ACTIVITIES.filter(a => (minutes[a.id] || 0) === 0 || progress[a.id]?.done || (a.id === "vocabulary" && vocabGoalMet)).length;
