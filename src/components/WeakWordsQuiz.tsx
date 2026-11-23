@@ -151,7 +151,7 @@ export default function WeakWordsQuiz({ userId, isAdmin = false, onClose }: { us
     setMnemonicCard(card);
     if (card.mnemonic || mnemonicLoading) return;
     const confirmed = await showConfirm(
-      `Generate a memory aid for ${card.japanese}? This uses one of your daily AI lookups.`,
+      `Generate a memory aid for ${card.japanese}? An AI-generated memory aid will be created.`,
       { title: "Remember this kanji?", confirmLabel: "Generate" },
     );
     if (!confirmed) { setMnemonicCard(null); return; }
