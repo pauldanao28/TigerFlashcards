@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, MicOff, X, RotateCcw } from "lucide-react";
+import CustomSelect from "@/components/CustomSelect";
 
 type Item = { text: string; reading: string; level: "N5" | "N4" | "N3" };
 const BANK: Item[] = [
@@ -130,7 +131,7 @@ export default function ReadingAloudDrill({onClose}:{onClose:()=>void}) {
       <div className="flex items-center justify-between"><div><p className="text-xs font-black text-indigo-600">音読練習</p><h2 className="text-2xl font-black text-slate-900">Reading Aloud Drill</h2></div><button type="button" onClick={()=>{stop();onClose();}} aria-label="Close reading drill" className="rounded-xl border bg-white p-2"><X size={20}/></button></div>
       {!running && !item && <div className="mt-8 rounded-2xl bg-white p-5 border space-y-4">
         <p className="text-sm text-slate-600">Read 20 Japanese words and phrases aloud. One tap starts the session; the microphone listens automatically between items. No AI evaluation calls.</p>
-        <label className="block text-sm font-bold">Difficulty<select value={level} onChange={e=>setLevel(e.target.value)} className="mt-2 w-full rounded-xl border p-3"><option value="mixed">Mixed N5–N3</option><option value="N5">N5</option><option value="N4">N4 (includes N5)</option><option value="N3">N3 (plus other levels if needed)</option></select></label>
+        <CustomSelect label="Difficulty" value={level} onChange={setLevel} options={[{value:"mixed",label:"Mixed N5–N3"},{value:"N5",label:"N5"},{value:"N4",label:"N4 (includes N5)"},{value:"N3",label:"N3 (plus other levels if needed)"}]} />
         <button onClick={start} className="w-full rounded-xl bg-indigo-600 p-4 font-bold text-white"><Mic className="mr-2 inline" size={18}/> Start 20-item drill</button>
       </div>}
       {item && <div className="mt-7 space-y-4">
