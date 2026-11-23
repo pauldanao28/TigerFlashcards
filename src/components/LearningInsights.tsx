@@ -263,7 +263,7 @@ export default function LearningInsights({ isAdmin }: { isAdmin: boolean }) {
       {isAdmin && (
         <section className="min-w-0">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">AI Analysis</h3>
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Learning Analysis</h3>
             <button
               onClick={handleAnalyze}
               disabled={analyzing}
