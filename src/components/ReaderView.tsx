@@ -468,7 +468,7 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
               onClick={() => setGenOpen(true)}
               className="w-full py-4 bg-white border-2 border-dashed border-indigo-200 text-indigo-600 rounded-2xl font-black text-sm uppercase tracking-widest active:scale-[0.98] transition-all flex items-center justify-center gap-2"
             >
-              <Sparkles size={16} /> Create a Practice Passage
+              <Sparkles size={16} /> Let AI Write Me a Passage
             </button>
           ) : (
             <div className="bg-indigo-50 border-2 border-dashed border-indigo-200 rounded-3xl p-4 flex flex-col gap-3">
