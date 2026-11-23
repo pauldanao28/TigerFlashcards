@@ -739,6 +739,7 @@ export default function Dashboard() {
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Not Yet Mastered</p>
             </div>
           </div>
+          <DailyJapaneseRoutine embedded reviewsToday={daily_count} reviewGoal={REVIEW_TARGET} />
           <button
             onClick={() => { fetchHistory(); setShowCelebration(true); }}
             className="w-full flex items-center justify-between mt-4 pt-3 border-t border-slate-100 active:scale-[0.99] transition-all"
@@ -750,6 +751,8 @@ export default function Dashboard() {
           </button>
         </div>
       )}
+
+      {data.deck_size === 0 && <DailyJapaneseRoutine reviewsToday={daily_count} reviewGoal={REVIEW_TARGET} />}
 
       {/* Section label + today's activity pills */}
       <div className="px-5 pt-5 pb-2 flex items-center justify-between">
@@ -948,8 +951,6 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-
-      <DailyJapaneseRoutine />
 
       {/* Advanced Stats — separate page, all live-computed. */}
       <Link
