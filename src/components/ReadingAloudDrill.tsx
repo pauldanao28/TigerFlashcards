@@ -28,8 +28,8 @@ const BANK: Item[] = [
   {text:"思ったより難しかったです。",reading:"おもったよりむずかしかったです",level:"N3"},
   {text:"忘れないようにメモしておきます。",reading:"わすれないようにメモしておきます",level:"N3"}
 ];
-type Recognition = { lang: string; continuous: boolean; interimResults: boolean; onresult: ((e: { results: ArrayLike<{ 0: { transcript: string } }> }) => void) | null; onerror: ((e: { error: string }) => void) | null; onend: (() => void) | null; start: () => void; stop: () => void; abort: () => void };
-type SpeechWindow = Window & { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
+type Recognition = { lang: string; continuous: boolean; interimResults: boolean; onresult: ((e: { results: ArrayLike<{ 0: { transcript: string } }> }) => void) | null; onerror: ((e: { error: string }) => void) | null; onend: (() => void) | null; start: () => void; stop: () => void; abort?: () => void };
+type SpeechWindow = { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
 const normalize = (s: string) => s.normalize("NFKC").replace(/[\s、。！？!?.,・「」『』]/g,"").replace(/ヵ/g,"か").replace(/[ァ-ヶ]/g,c=>String.fromCharCode(c.charCodeAt(0)-96));
 const pick = (level: string) => {
   const pool = BANK.filter(x => level === "mixed" || x.level === level || (level === "N4" && x.level === "N5"));
@@ -64,7 +64,7 @@ export default function ReadingAloudDrill({onClose}:{onClose:()=>void}) {
   const listenRef = useRef<(position:number,list:Item[])=>void>(()=>{});
   const listen = useCallback((position:number, list:Item[]):void => {
     if(!active.current) return;
-    const Speech = (window as SpeechWindow).SpeechRecognition || (window as SpeechWindow).webkitSpeechRecognition;
+    const Speech = (window as unknown as SpeechWindow).SpeechRecognition || (window as unknown as SpeechWindow).webkitSpeechRecognition;
     if(!Speech) { setSupported(false);stop();setStatus("Speech recognition is unavailable in this browser.");return; }
     const rec = new Speech();
     recognition.current=rec;
@@ -110,7 +110,7 @@ export default function ReadingAloudDrill({onClose}:{onClose:()=>void}) {
     const list=pick(level);
     itemsRef.current=list;indexRef.current=0;correctRef.current=0;
     setItems(list);setIndex(0);setCorrect(0);setHeard("");setHint(false);
-    const Speech=(window as SpeechWindow).SpeechRecognition||(window as SpeechWindow).webkitSpeechRecognition;
+    const Speech=(window as unknown as SpeechWindow).SpeechRecognition||(window as unknown as SpeechWindow).webkitSpeechRecognition;
     if(!Speech){setSupported(false);setStatus("Speech recognition is unavailable in this browser.");return;}
     active.current=true;setRunning(true);setStatus("Listening…");
     listen(0,list);
