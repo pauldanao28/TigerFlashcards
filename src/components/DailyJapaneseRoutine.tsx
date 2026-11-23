@@ -22,7 +22,7 @@ const read = <T,>(key: string, fallback: T): T => {
 };
 const blank = (): Progress => Object.fromEntries(ACTIVITIES.map(a => [a.id, { seconds: 0, done: false }]));
 
-export default function DailyJapaneseRoutine() {
+export default function DailyJapaneseRoutine({ reviewsToday = 0, reviewGoal = 100, embedded = false }: { reviewsToday?: number; reviewGoal?: number; embedded?: boolean }) {
   const { user } = useAuth();
   const uid = user?.id;
   const [date, setDate] = useState(dayKey);
@@ -87,9 +87,10 @@ export default function DailyJapaneseRoutine() {
 
   if (!uid || !ready) return null;
   const total = ACTIVITIES.reduce((sum, a) => sum + (minutes[a.id] || 0), 0);
-  const completed = ACTIVITIES.filter(a => (minutes[a.id] || 0) === 0 || progress[a.id]?.done).length;
+  const vocabGoalMet = reviewsToday >= reviewGoal;
+  const completed = ACTIVITIES.filter(a => (minutes[a.id] || 0) === 0 || progress[a.id]?.done || (a.id === "vocabulary" && vocabGoalMet)).length;
   return (
-    <section className="mx-4 mt-4 max-w-2xl md:mx-auto rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm" aria-label="Daily Japanese routine">
+    <section className={embedded ? "mt-4 border-t border-slate-100 pt-4" : "mx-4 mt-4 max-w-2xl md:mx-auto rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm"} aria-label="Daily Japanese routine">
       <div className="flex items-start justify-between gap-2">
         <div><p className="text-[10px] font-black uppercase tracking-wider text-indigo-600">毎日の日本語練習</p><h2 className="text-lg font-black text-slate-900">Daily Japanese Routine</h2><p className="text-xs text-slate-500">Any order · {completed}/5 complete · {total} min target</p></div>
         <button type="button" onClick={() => setEditing(v => !v)} className="rounded-lg border px-3 py-2 text-xs font-bold text-indigo-700">{editing ? "Done" : "Adjust"}</button>
@@ -101,22 +102,24 @@ export default function DailyJapaneseRoutine() {
           const current = progress[a.id] ?? { seconds: 0, done: false };
           const remaining = Math.max(0, target - current.seconds);
           const running = active === a.id;
+          const autoDone = a.id === "vocabulary" && vocabGoalMet;
+          const isDone = current.done || autoDone || target === 0;
           return <div key={a.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
             <div className="flex items-center gap-2">
-              <input aria-label={`Complete ${a.label}`} type="checkbox" checked={current.done || target === 0} disabled={target === 0} onChange={e => { if (running) setActive(null); setProgress(p => ({ ...p, [a.id]: { ...(p[a.id] ?? { seconds: 0 }), done: e.target.checked } })); }} className="h-4 w-4 accent-indigo-600" />
-              <span className="flex-1 text-sm font-bold text-slate-800">{a.label}</span>
+              <input aria-label={`Complete ${a.label}`} type="checkbox" checked={isDone} disabled={target === 0 || autoDone} onChange={e => { if (running) setActive(null); setProgress(p => ({ ...p, [a.id]: { ...(p[a.id] ?? { seconds: 0 }), done: e.target.checked } })); }} className="h-4 w-4 accent-indigo-600" />
+              <span className="flex-1 text-sm font-bold text-slate-800">{a.label}{autoDone && <span className="ml-2 text-[10px] font-semibold text-emerald-600">Review goal met</span>}</span>
               <span className="text-xs tabular-nums text-slate-600">{Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")} left</span>
             </div>
             {editing && <label className="mt-2 flex items-center gap-2 text-xs text-slate-600">Daily minutes <input type="number" min={0} max={60} value={minutes[a.id] ?? 5} onChange={e => { setActive(null); setMinutes(p => ({ ...p, [a.id]: Math.max(0, Math.min(60, Number(e.target.value) || 0)) })); }} className="w-16 rounded-md border bg-white px-2 py-1" /></label>}
             <div className="mt-2 flex items-center gap-2">
-              <button type="button" disabled={target === 0 || current.done} onClick={() => setActive(running ? null : a.id)} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40">{running ? "Pause" : "Start / Resume"}</button>
+              <button type="button" disabled={target === 0 || isDone} onClick={() => setActive(running ? null : a.id)} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40">{running ? "Pause" : "Start / Resume"}</button>
               <Link href={a.href} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700">Open {a.label}</Link>
               {current.seconds > 0 && <button type="button" onClick={() => { if (running) setActive(null); setProgress(p => ({ ...p, [a.id]: { seconds: 0, done: false } })); }} className="ml-auto text-xs text-slate-500">Reset</button>}
             </div>
           </div>;
         })}
       </div>
-      <p className="mt-3 text-xs text-slate-500">Your existing Daily Goals remain separate. Timers count only while this routine is open and visible. Progress is saved on this device for each day.</p>
+      <p className="mt-3 text-xs text-slate-500">Vocabulary is automatically complete when your review goal is met. Other activities are flexible. Timers count only while Home is visible; daily progress is stored on this device.</p>
     </section>
   );
 }
