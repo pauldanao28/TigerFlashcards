@@ -744,9 +744,9 @@ export default function Dashboard() {
         });
         const allQuestsDone = questStates.length > 0 && questStates.every((q) => q.done);
         return (
-          <div className="mx-4 mt-4 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Today&apos;s Quests</p>
+          <details className="mx-4 mt-4 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm group">
+            <div className="flex items-center justify-between mb-3 gap-2">
+              <summary className="cursor-pointer flex-1 text-[10px] font-black uppercase tracking-widest text-slate-500">Today&apos;s Quests · {questStates.filter(q => q.done).length}/{questStates.length} complete</summary>
               {allQuestsDone && (
                 <button
                   onClick={() => setIsQuestsShareOpen(true)}
@@ -787,7 +787,7 @@ export default function Dashboard() {
                   </div>
               ))}
             </div>
-          </div>
+          </details>
         );
       })()}
 
