@@ -130,7 +130,7 @@ export default function ReadingAloudDrill({onClose}:{onClose:()=>void}) {
     <div className="mx-auto max-w-xl px-5 py-6 pb-16">
       <div className="flex items-center justify-between"><div><p className="text-xs font-black text-indigo-600">音読練習</p><h2 className="text-2xl font-black text-slate-900">Reading Aloud Drill</h2></div><button type="button" onClick={()=>{stop();onClose();}} aria-label="Close reading drill" className="rounded-xl border bg-white p-2"><X size={20}/></button></div>
       {!running && !item && <div className="mt-8 rounded-2xl bg-white p-5 border space-y-4">
-        <p className="text-sm text-slate-600">Read 20 Japanese words and phrases aloud. One tap starts the session; the microphone listens automatically between items. No AI evaluation calls.</p>
+        <p className="text-sm text-slate-600">Practice reading 20 Japanese words and phrases aloud. Tap Start once, then read each item when it appears.</p>
         <CustomSelect label="Difficulty" value={level} onChange={setLevel} options={[{value:"mixed",label:"Mixed N5–N3"},{value:"N5",label:"N5"},{value:"N4",label:"N4 (includes N5)"},{value:"N3",label:"N3 (plus other levels if needed)"}]} />
         <button onClick={start} className="w-full rounded-xl bg-indigo-600 p-4 font-bold text-white"><Mic className="mr-2 inline" size={18}/> Start 20-item drill</button>
       </div>}
@@ -148,7 +148,7 @@ export default function ReadingAloudDrill({onClose}:{onClose:()=>void}) {
         <div className="flex gap-2">{running?<><button onClick={stop} className="flex-1 rounded-xl border bg-white p-3 font-bold"><MicOff className="mr-2 inline" size={16}/> Stop</button><button onClick={skip} className="flex-1 rounded-xl border bg-white p-3 font-bold">Skip</button></>:<button onClick={start} className="w-full rounded-xl bg-indigo-600 p-3 font-bold text-white"><RotateCcw className="mr-2 inline" size={16}/> New drill</button>}</div>
       </div>}
       {!supported&&<p className="mt-4 text-sm text-rose-600">Try a browser that supports Japanese speech recognition. Recognition may use an online service.</p>}
-      <p className="mt-6 text-xs text-slate-400">Speech-to-text matching checks recognized words, not precise pronunciation. Browser recognition may require internet and can mishear correct speech.</p>
+      <p className="mt-6 text-xs text-slate-400">Tip: Speak clearly in a quiet place. If your answer isn't recognized, try again or use Skip.</p>
     </div>
   </div>;
 }
