@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronUp, BookOpen, Pencil, BookText, Headphones, Mic } from "lucide-react";
+import { ChevronRight, X, BookOpen, Pencil, BookText, Headphones, Mic } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 type Activity = { id: string; label: string; href: string };
@@ -37,6 +37,12 @@ export default function DailyJapaneseRoutine({ reviewsToday = 0, reviewGoal = 10
   const [focus, setFocus] = useState("balanced");
   const [ready, setReady] = useState(false);
   const lastTick = useRef<number | null>(null);
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setExpanded(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [expanded]);
   const settingsKey = uid ? `flashkado-routine-settings-${uid}` : "";
   const progressKey = uid ? `flashkado-routine-progress-${uid}-${date}` : "";
 
@@ -129,15 +135,15 @@ export default function DailyJapaneseRoutine({ reviewsToday = 0, reviewGoal = 10
   const completed = ACTIVITIES.filter(a => (minutes[a.id] || 0) === 0 || progress[a.id]?.done || (a.id === "vocabulary" && vocabGoalMet)).length;
   return (
     <section className={embedded ? "mt-4 border-t border-slate-100 pt-4" : "mx-4 mt-4 max-w-2xl md:mx-auto rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm"} aria-label="Daily Japanese routine">
-      <button type="button" onClick={() => setExpanded(v => !v)} aria-expanded={expanded} aria-controls="daily-routine-details" className="flex w-full items-center justify-between gap-3 text-left">
+      <button type="button" onClick={() => setExpanded(v => !v)} aria-haspopup="dialog" aria-expanded={expanded} className="flex w-full items-center justify-between gap-3 text-left">
         <div className="min-w-0">
           <p className="text-sm font-black text-slate-900">Daily Routine</p>
           <p className="mt-0.5 text-xs text-slate-500">{completed}/5 complete · {total} min planned</p>
         </div>
-        {expanded ? <ChevronUp size={18} className="shrink-0 text-slate-500" /> : <ChevronDown size={18} className="shrink-0 text-slate-500" />}
+        <ChevronRight size={18} className="shrink-0 text-slate-500" />
       </button>
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-indigo-500 transition-all" style={{ width: `${completed / ACTIVITIES.length * 100}%` }}/></div>
-      {!expanded && <div className="mt-3 grid grid-cols-5 gap-1" aria-label="Routine activity status">
+      {<div className="mt-3 grid grid-cols-5 gap-1" aria-label="Routine activity status">
         {ACTIVITIES.map((a, i) => {
           const Icon = [BookOpen, Pencil, BookText, Headphones, Mic][i];
           const done = (minutes[a.id] || 0) === 0 || progress[a.id]?.done || (a.id === "vocabulary" && vocabGoalMet);
@@ -147,7 +153,14 @@ export default function DailyJapaneseRoutine({ reviewsToday = 0, reviewGoal = 10
           </div>;
         })}
       </div>}
-      {expanded && <div id="daily-routine-details">
+      {expanded && <div className="fixed inset-0 z-[240] flex items-end justify-center sm:items-center" role="presentation">
+        <button type="button" aria-label="Close daily routine" onClick={() => setExpanded(false)} className="absolute inset-0 bg-slate-900/50" />
+        <div role="dialog" aria-modal="true" aria-labelledby="daily-routine-modal-title" className="relative z-10 flex max-h-[92dvh] w-full max-w-xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
+          <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4">
+            <div><p className="text-[10px] font-black uppercase text-indigo-600">毎日の日本語練習</p><h2 id="daily-routine-modal-title" className="text-lg font-black text-slate-900">Daily Japanese Routine</h2><p className="text-xs text-slate-500">{completed}/5 complete · {total} min planned</p></div>
+            <button type="button" onClick={() => setExpanded(false)} aria-label="Close routine" className="rounded-full border border-slate-200 p-2"><X size={20}/></button>
+          </div>
+          <div id="daily-routine-details" className="overflow-y-auto px-5 pb-8">
         <div className="mt-3 flex justify-end"><button type="button" onClick={() => setEditing(v => !v)} className="rounded-lg border border-indigo-200 px-3 py-1.5 text-xs font-bold text-indigo-700">{editing ? "Done adjusting" : "Adjust minutes"}</button></div>
       <div className="mt-3 space-y-3">
         {ACTIVITIES.map(a => {
@@ -173,7 +186,7 @@ export default function DailyJapaneseRoutine({ reviewsToday = 0, reviewGoal = 10
         })}
       </div>
       <p className="mt-3 text-xs text-slate-500">Vocabulary is automatically complete when your review goal is met. Other activities are flexible. Timers count only while Home is visible; daily progress is stored on this device.</p>
-      </div>}
+      </div></div></div>}
     </section>
   );
 }
