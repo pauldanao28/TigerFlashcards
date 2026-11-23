@@ -56,7 +56,7 @@ export default function ReadingAloudDrill({onClose}:{onClose:()=>void}) {
     active.current=false;
     if(nextTimer.current) clearTimeout(nextTimer.current);
     nextTimer.current=null;
-    try { recognition.current?.abort(); } catch {}
+    try { recognition.current?.abort?.(); } catch {}
     recognition.current=null;
     setRunning(false);
   },[]);
@@ -117,7 +117,7 @@ export default function ReadingAloudDrill({onClose}:{onClose:()=>void}) {
   };
   const skip=()=>{
     if(!running)return;
-    try{recognition.current?.abort();}catch{}
+    try{recognition.current?.abort?.();}catch{}
     if(nextTimer.current)clearTimeout(nextTimer.current);
     nextTimer.current=null;
     const next=indexRef.current+1;indexRef.current=next;setIndex(next);setHeard("");setHint(false);
