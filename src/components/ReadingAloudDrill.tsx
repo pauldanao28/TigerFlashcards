@@ -32,7 +32,7 @@ type Recognition = { lang: string; continuous: boolean; interimResults: boolean;
 type SpeechWindow = Window & { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
 const normalize = (s: string) => s.normalize("NFKC").replace(/[\s、。！？!?.,・「」『』]/g,"").replace(/ヵ/g,"か").replace(/[ァ-ヶ]/g,c=>String.fromCharCode(c.charCodeAt(0)-96));
 const pick = (level: string) => {
-  const pool = BANK.filter(x => level === "mixed" || x.level === level || (level === "N4" && x.level === "N5") || (level === "N3" && x.level !== "N3" ? false : false));
+  const pool = BANK.filter(x => level === "mixed" || x.level === level || (level === "N4" && x.level === "N5"));
   const source = pool.length >= 20 ? pool : [...pool, ...BANK.filter(x => !pool.includes(x))];
   return [...source].sort(()=>Math.random()-0.5).slice(0,20);
 };
@@ -61,7 +61,8 @@ export default function ReadingAloudDrill({onClose}:{onClose:()=>void}) {
     setRunning(false);
   },[]);
   useEffect(()=>()=>stop(),[stop]);
-  const listen = useCallback((position:number, list:Item[]) => {
+  const listenRef = useRef<(position:number,list:Item[])=>void>(()=>{});
+  const listen = useCallback((position:number, list:Item[]):void => {
     if(!active.current) return;
     const Speech = (window as SpeechWindow).SpeechRecognition || (window as SpeechWindow).webkitSpeechRecognition;
     if(!Speech) { setSupported(false);stop();setStatus("Speech recognition is unavailable in this browser.");return; }
@@ -85,7 +86,7 @@ export default function ReadingAloudDrill({onClose}:{onClose:()=>void}) {
           const next=position+1;
           indexRef.current=next;setIndex(next);setHeard("");setHint(false);
           if(next>=list.length){stop();setStatus("Drill complete!");return;}
-          setStatus("Listening…");listen(next,list);
+          setStatus("Listening…");listenRef.current(next,list);
         },850);
       } else {
         setStatus("Not matched — try reading it again.");
@@ -99,10 +100,11 @@ export default function ReadingAloudDrill({onClose}:{onClose:()=>void}) {
     rec.onend=()=>{
       if(!active.current||position!==indexRef.current||nextTimer.current)return;
       // Mobile recognition sessions end after a pause; restart automatically.
-      nextTimer.current=setTimeout(()=>{nextTimer.current=null;if(active.current&&position===indexRef.current)listen(position,list);},350);
+      nextTimer.current=setTimeout(()=>{nextTimer.current=null;if(active.current&&position===indexRef.current)listenRef.current(position,list);},350);
     };
     try{rec.start();}catch{setStatus("Unable to start microphone. Try again.");stop();}
   },[stop]);
+  listenRef.current=listen;
   const start=()=>{
     stop();
     const list=pick(level);
