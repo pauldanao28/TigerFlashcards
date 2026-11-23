@@ -637,6 +637,43 @@ export default function Dashboard() {
         <ChevronRight size={18} className="text-slate-300 shrink-0" />
       </Link>
 
+      {/* Section label + today's activity pills */}
+      <div className="px-5 pt-5 pb-2 flex items-center justify-between">
+        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Your Skills</p>
+        <div className="flex items-center gap-1.5">
+          {/* Vocab: shows daily progress */}
+          {(() => {
+            const done = daily_count >= DAILY_GOAL;
+            return (
+              <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border ${done ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+                🃏 {done ? "✓" : `${daily_count}/${DAILY_GOAL}`}
+              </span>
+            );
+          })()}
+          {/* Reading done today */}
+          <span className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-black border ${doneTodayQuizzes.reading ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+            📖 {doneTodayQuizzes.reading ? "✓" : "·"}
+          </span>
+          {/* Listening done today */}
+          <span className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-black border ${doneTodayQuizzes.listening ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+            🎧 {doneTodayQuizzes.listening ? "✓" : "·"}
+          </span>
+          {/* Grammar done today */}
+          <span className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-black border ${doneTodayQuizzes.grammar ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
+            📝 {doneTodayQuizzes.grammar ? "✓" : "·"}
+          </span>
+        </div>
+      </div>
+
+      {/* 2×2 skill tiles */}
+      <div className="px-4 grid grid-cols-2 gap-3">
+        <ScoreTile href="/study"                   skill="vocab"     emoji="🃏" label="Vocabulary" score={data.vocab_score}     sub={`${data.deck_size.toLocaleString()} cards in deck`} nlevelOverride={data.vocab_nlevel} />
+        <ScoreTile href="/quizzes?open=grammar"    skill="grammar"   emoji="📝" label="Grammar"    score={data.grammar_score} />
+        <ScoreTile href="/quizzes?open=sentence"   skill="reading"   emoji="📖" label="Reading"    score={data.reading_score}   sub="Sentence quiz" />
+        <ScoreTile href="/quizzes?open=listening"  skill="listening" emoji="🎧" label="Listening"  score={data.listening_score} sub="Listening quiz" />
+      </div>
+
+
       {/* Today — grouped together and placed right under the header since this is
           the most actionable content on the page (what to do today), rather than
           scattered between the skill/vocab breakdown sections below. */}
@@ -753,42 +790,6 @@ export default function Dashboard() {
       )}
 
       {data.deck_size === 0 && <DailyJapaneseRoutine reviewsToday={daily_count} reviewGoal={REVIEW_TARGET} />}
-
-      {/* Section label + today's activity pills */}
-      <div className="px-5 pt-5 pb-2 flex items-center justify-between">
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Your Skills</p>
-        <div className="flex items-center gap-1.5">
-          {/* Vocab: shows daily progress */}
-          {(() => {
-            const done = daily_count >= DAILY_GOAL;
-            return (
-              <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border ${done ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
-                🃏 {done ? "✓" : `${daily_count}/${DAILY_GOAL}`}
-              </span>
-            );
-          })()}
-          {/* Reading done today */}
-          <span className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-black border ${doneTodayQuizzes.reading ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
-            📖 {doneTodayQuizzes.reading ? "✓" : "·"}
-          </span>
-          {/* Listening done today */}
-          <span className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-black border ${doneTodayQuizzes.listening ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
-            🎧 {doneTodayQuizzes.listening ? "✓" : "·"}
-          </span>
-          {/* Grammar done today */}
-          <span className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-black border ${doneTodayQuizzes.grammar ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
-            📝 {doneTodayQuizzes.grammar ? "✓" : "·"}
-          </span>
-        </div>
-      </div>
-
-      {/* 2×2 skill tiles */}
-      <div className="px-4 grid grid-cols-2 gap-3">
-        <ScoreTile href="/study"                   skill="vocab"     emoji="🃏" label="Vocabulary" score={data.vocab_score}     sub={`${data.deck_size.toLocaleString()} cards in deck`} nlevelOverride={data.vocab_nlevel} />
-        <ScoreTile href="/quizzes?open=grammar"    skill="grammar"   emoji="📝" label="Grammar"    score={data.grammar_score} />
-        <ScoreTile href="/quizzes?open=sentence"   skill="reading"   emoji="📖" label="Reading"    score={data.reading_score}   sub="Sentence quiz" />
-        <ScoreTile href="/quizzes?open=listening"  skill="listening" emoji="🎧" label="Listening"  score={data.listening_score} sub="Listening quiz" />
-      </div>
 
       {/* Vocabulary by JLPT level */}
       {data.deck_size > 0 && (
