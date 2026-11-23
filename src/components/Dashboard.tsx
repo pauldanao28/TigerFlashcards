@@ -674,6 +674,61 @@ export default function Dashboard() {
       </div>
 
 
+      {/* A zero-card account otherwise lands here (Home, not /study) with nothing
+          telling it what to do — onboarding's starter-pack choice only ever shows on
+          /study, which a new or returning user might never visit on their own. */}
+      {data.deck_size === 0 && (
+        <Link
+          href="/stats"
+          className="mx-4 mt-3 flex items-center gap-3 bg-indigo-600 rounded-2xl p-4 shadow-sm active:scale-[0.98] transition-all"
+        >
+          <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center text-2xl shrink-0">
+            🎴
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-white font-black text-sm uppercase italic tracking-tight">Add your first words</p>
+            <p className="text-indigo-200 text-[11px] font-bold mt-0.5">Grab a starter pack to begin studying</p>
+          </div>
+          <ChevronRight size={18} className="text-indigo-200 shrink-0" />
+        </Link>
+      )}
+
+      {data.deck_size > 0 && (
+        <div className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Today</p>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div>
+              <p className="text-xl font-black text-slate-800 tabular-nums">
+                {daily_count}<span className="text-slate-300 text-sm">/{REVIEW_TARGET}</span>
+              </p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Reviews</p>
+            </div>
+            <div>
+              <p className={`text-xl font-black tabular-nums ${mastered_today >= MASTERED_GOAL ? "text-emerald-600" : "text-slate-800"}`}>
+                {mastered_today}<span className="text-slate-300 text-sm">/{MASTERED_GOAL}</span>
+              </p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Mastered</p>
+            </div>
+            <div>
+              <p className="text-xl font-black text-slate-800 tabular-nums">{still_learning}</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Not Yet Mastered</p>
+            </div>
+          </div>
+          <DailyJapaneseRoutine embedded reviewsToday={daily_count} reviewGoal={REVIEW_TARGET} />
+          <button
+            onClick={() => { fetchHistory(); setShowCelebration(true); }}
+            className="w-full flex items-center justify-between mt-4 pt-3 border-t border-slate-100 active:scale-[0.99] transition-all"
+          >
+            <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-600">
+              <BarChart3 size={13} /> 14-Day Progress
+            </span>
+            <ChevronRight size={15} className="text-slate-300" />
+          </button>
+        </div>
+      )}
+
+      {data.deck_size === 0 && <DailyJapaneseRoutine reviewsToday={daily_count} reviewGoal={REVIEW_TARGET} />}
+
       {/* Today — grouped together and placed right under the header since this is
           the most actionable content on the page (what to do today), rather than
           scattered between the skill/vocab breakdown sections below. */}
@@ -736,60 +791,6 @@ export default function Dashboard() {
         );
       })()}
 
-      {/* A zero-card account otherwise lands here (Home, not /study) with nothing
-          telling it what to do — onboarding's starter-pack choice only ever shows on
-          /study, which a new or returning user might never visit on their own. */}
-      {data.deck_size === 0 && (
-        <Link
-          href="/stats"
-          className="mx-4 mt-3 flex items-center gap-3 bg-indigo-600 rounded-2xl p-4 shadow-sm active:scale-[0.98] transition-all"
-        >
-          <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center text-2xl shrink-0">
-            🎴
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-white font-black text-sm uppercase italic tracking-tight">Add your first words</p>
-            <p className="text-indigo-200 text-[11px] font-bold mt-0.5">Grab a starter pack to begin studying</p>
-          </div>
-          <ChevronRight size={18} className="text-indigo-200 shrink-0" />
-        </Link>
-      )}
-
-      {data.deck_size > 0 && (
-        <div className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Today</p>
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <div>
-              <p className="text-xl font-black text-slate-800 tabular-nums">
-                {daily_count}<span className="text-slate-300 text-sm">/{REVIEW_TARGET}</span>
-              </p>
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Reviews</p>
-            </div>
-            <div>
-              <p className={`text-xl font-black tabular-nums ${mastered_today >= MASTERED_GOAL ? "text-emerald-600" : "text-slate-800"}`}>
-                {mastered_today}<span className="text-slate-300 text-sm">/{MASTERED_GOAL}</span>
-              </p>
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Mastered</p>
-            </div>
-            <div>
-              <p className="text-xl font-black text-slate-800 tabular-nums">{still_learning}</p>
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Not Yet Mastered</p>
-            </div>
-          </div>
-          <DailyJapaneseRoutine embedded reviewsToday={daily_count} reviewGoal={REVIEW_TARGET} />
-          <button
-            onClick={() => { fetchHistory(); setShowCelebration(true); }}
-            className="w-full flex items-center justify-between mt-4 pt-3 border-t border-slate-100 active:scale-[0.99] transition-all"
-          >
-            <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-600">
-              <BarChart3 size={13} /> 14-Day Progress
-            </span>
-            <ChevronRight size={15} className="text-slate-300" />
-          </button>
-        </div>
-      )}
-
-      {data.deck_size === 0 && <DailyJapaneseRoutine reviewsToday={daily_count} reviewGoal={REVIEW_TARGET} />}
 
       {/* Vocabulary by JLPT level */}
       {data.deck_size > 0 && (
