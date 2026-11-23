@@ -147,7 +147,7 @@ export default function ReadingAloudDrill({onClose}:{onClose:()=>void}) {
         </div>:<div className="rounded-3xl bg-white p-8 text-center"><h3 className="text-xl font-black">Drill complete!</h3><p className="mt-2">{correct}/20 recognized correctly</p></div>}
         <div className="flex gap-2">{running?<><button onClick={stop} className="flex-1 rounded-xl border bg-white p-3 font-bold"><MicOff className="mr-2 inline" size={16}/> Stop</button><button onClick={skip} className="flex-1 rounded-xl border bg-white p-3 font-bold">Skip</button></>:<button onClick={start} className="w-full rounded-xl bg-indigo-600 p-3 font-bold text-white"><RotateCcw className="mr-2 inline" size={16}/> New drill</button>}</div>
       </div>}
-      {!supported&&<p className="mt-4 text-sm text-rose-600">Try a browser that supports Japanese speech recognition. Recognition may use an online service.</p>}
+      {!supported&&<p className="mt-4 text-sm text-rose-600">Voice recognition isn't supported in this browser. Try Chrome or another supported browser.</p>}
       <p className="mt-6 text-xs text-slate-400">Tip: Speak clearly in a quiet place. If your answer isn't recognized, try again or use Skip.</p>
     </div>
   </div>;
