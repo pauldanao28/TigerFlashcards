@@ -559,7 +559,7 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
           <div>
             <h2 className="text-xl font-black text-slate-900 mb-2">Reading Quiz</h2>
             <p className="text-slate-500 font-medium text-sm leading-relaxed">
-              AI writes a sentence using one of your vocabulary cards. Read it, figure out the highlighted word from context, then reveal to check yourself. 20 sentences per round.
+              Practice with sentences based on your vocabulary cards. Read it, figure out the highlighted word from context, then reveal to check yourself. 20 sentences per round.
             </p>
           </div>
           <div className="w-full bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 text-left space-y-1.5">
@@ -672,18 +672,18 @@ export default function SentenceQuiz({ userId, isAdmin = false, onClose }: Sente
                   {revealed && translationDirection === "en-ja" && <div className="space-y-2">
                     <button type="button" disabled={!writtenAnswer.trim() || feedbackLoading} onClick={requestSentenceFeedback}
                       className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-black text-white disabled:opacity-40">
-                      {feedbackLoading ? "Checking Japanese…" : "Check with AI"}
+                      {feedbackLoading ? "Checking Japanese…" : "Check answer"}
                     </button>
                     {sentenceFeedback && <div className="rounded-xl bg-white p-3 text-xs text-slate-700 space-y-1" role="status">
                       <p className="font-black">{sentenceFeedback.acceptable ? "Looks acceptable" : "Needs improvement"}</p>
                       <p>{sentenceFeedback.feedback}</p>
                       <p className="font-medium">Suggestion: {sentenceFeedback.suggestion}</p>
-                      <p className="text-slate-400">AI feedback can be imperfect. This does not change your quiz score.</p>
+                      <p className="text-slate-400">Feedback is a learning guide and does not change your quiz score.</p>
                     </div>}
                     {sentenceFeedback && !sentenceFeedback.acceptable && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
                       <p className="text-xs font-bold text-amber-900">Try saying the corrected sentence again before continuing.</p>
                       <button type="button" onClick={retryTranslation} className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-xs font-black text-white">↻ Retry sentence{retryAttempts > 0 ? ` · Attempt ${retryAttempts + 1}` : ""}</button>
-                      <p className="text-[10px] text-amber-800">You can still continue if you need to. AI feedback is not a pronunciation score.</p>
+                      <p className="text-[10px] text-amber-800">You can still continue if you need to. This check does not measure pronunciation.</p>
                     </div>}
                     {sentenceFeedback?.acceptable && retryAttempts > 0 && <p className="rounded-lg bg-emerald-50 p-2 text-xs font-bold text-emerald-700">Nice improvement! You can continue to the next sentence.</p>}
                     {feedbackError && <p role="alert" className="text-xs text-rose-600">{feedbackError}</p>}
