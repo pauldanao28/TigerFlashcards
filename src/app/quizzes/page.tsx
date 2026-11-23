@@ -12,6 +12,7 @@ import WatchView from "@/components/WatchView";
 import TranslateView from "@/components/TranslateView";
 import WeakWordsQuiz from "@/components/WeakWordsQuiz";
 import ConversationSpeaking from "@/components/ConversationSpeaking";
+import ReadingAloudDrill from "@/components/ReadingAloudDrill";
 
 function QuizzesInner() {
   const router = useRouter();
@@ -32,6 +33,7 @@ function QuizzesInner() {
   const [showTranslate, setShowTranslate] = useState(open === "translate");
   const [showWeakWords, setShowWeakWords] = useState(open === "weak_words");
   const [showConversation, setShowConversation] = useState(open === "conversation");
+  const [showReadingAloud, setShowReadingAloud] = useState(open === "reading_aloud");
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -145,6 +147,10 @@ function QuizzesInner() {
           </div>
         </button>
 
+        <button onClick={() => setShowReadingAloud(true)} className="bg-white rounded-2xl p-5 border-2 border-indigo-100 shadow-sm active:scale-95 transition-all text-left w-full">
+          <div className="flex items-center gap-4"><span className="text-3xl">🎤</span><div className="flex-1"><p className="font-black text-slate-900">Reading Aloud Drill · 音読</p><p className="text-xs text-slate-400 mt-0.5">20 Japanese words and phrases · hands-free microphone · instant matching</p></div><span className="text-slate-300 text-lg">›</span></div>
+        </button>
+
         {/* Reading / Sentence Quiz */}
         <button
           onClick={() => setShowSentence(true)}
@@ -231,6 +237,7 @@ function QuizzesInner() {
 
       {/* Overlays */}
       {showConversation && <ConversationSpeaking onClose={() => setShowConversation(false)} />}
+      {showReadingAloud && <ReadingAloudDrill onClose={() => setShowReadingAloud(false)} />}
       {showSentence && (
         <SentenceQuiz userId={userId} isAdmin={isAdmin} onClose={() => setShowSentence(false)} />
       )}
