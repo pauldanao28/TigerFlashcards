@@ -69,7 +69,7 @@ function QuizzesInner() {
             <span className="text-3xl">📚</span>
             <div className="flex-1">
               <p className="font-black text-slate-900">Reader</p>
-              <p className="text-xs text-slate-400 mt-0.5">Paste any text (or let AI write one) — tap words to add them, ask about grammar</p>
+              <p className="text-xs text-slate-400 mt-0.5">Paste any text (or generate a passage) — tap words to add them, ask about grammar</p>
             </div>
             <span className="text-slate-300 text-lg">›</span>
           </div>
@@ -141,7 +141,7 @@ function QuizzesInner() {
             <span className="text-3xl">🎙️</span>
             <div className="flex-1">
               <p className="font-black text-slate-900">Conversation Speaking</p>
-              <p className="text-xs text-slate-400 mt-0.5">Real-life scenarios · English ↔ Japanese speaking & comprehension · AI feedback</p>
+              <p className="text-xs text-slate-400 mt-0.5">Real-life scenarios · English ↔ Japanese speaking & comprehension · answer feedback</p>
             </div>
             <span className="text-slate-300 text-lg">›</span>
           </div>
@@ -190,7 +190,7 @@ function QuizzesInner() {
             <span className="text-3xl">📝</span>
             <div className="flex-1">
               <p className="font-black text-slate-900">Grammar Quiz</p>
-              <p className="text-xs text-slate-400 mt-0.5">AI grammar practice based on your level</p>
+              <p className="text-xs text-slate-400 mt-0.5">Grammar practice based on your level</p>
             </div>
             <span className="text-slate-300 text-lg">›</span>
           </div>
