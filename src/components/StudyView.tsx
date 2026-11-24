@@ -552,35 +552,44 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
 
   // Pending referrals (tg_referrer) are processed app-wide by AccountSetupGuard now.
 
+  const [environmentFailed, setEnvironmentFailed] = useState(false);
+  const [environmentAttempt, setEnvironmentAttempt] = useState(0);
   // --- 3. Profile & Deck Fetching (The "Waterfall" Start) ---
   useEffect(() => {
     if (!user) return;
 
+    let cancelled = false;
+    const controller = new AbortController();
+    const timer = setTimeout(() => { controller.abort(); if (!cancelled) setEnvironmentFailed(true); }, 15000);
+    setEnvironmentFailed(false);
     const fetchUserEnvironment = async () => {
       // Fetch Profile & Deck in parallel for speed
       const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
       const [profileRes, deckRes, reviewCountRes, masteryCountRes, weakWordsRes] = await Promise.all([
-        supabase.from("profiles").select("*").eq("id", user?.id).maybeSingle(),
+        supabase.from("profiles").select("*").eq("id", user?.id).maybeSingle().abortSignal(controller.signal),
         supabase
           .from("decks")
           .select("id")
           .eq("user_id", user?.id)
           .eq("is_default", true)
-          .maybeSingle(),
+          .maybeSingle().abortSignal(controller.signal),
         supabase
           .from("user_review_counts")
           .select("count")
           .eq("user_id", user?.id)
           .eq("study_date", sgToday)
-          .maybeSingle(),
+          .maybeSingle().abortSignal(controller.signal),
         supabase
           .from("user_mastery_counts")
           .select("count")
           .eq("user_id", user?.id)
           .eq("mastery_date", sgToday)
-          .maybeSingle(),
-        supabase.rpc("count_weak_words", { p_today: sgToday }),
+          .maybeSingle().abortSignal(controller.signal),
+        supabase.rpc("count_weak_words", { p_today: sgToday }).abortSignal(controller.signal),
       ]);
+      clearTimeout(timer);
+      if (cancelled || controller.signal.aborted) return;
+      if (profileRes.error || deckRes.error) { setEnvironmentFailed(true); return; }
       if (reviewCountRes.data) setReviewsToday(reviewCountRes.data.count);
       if (masteryCountRes.data) setMasteredToday(masteryCountRes.data.count);
       if (typeof weakWordsRes.data === "number") setWeakWordsCount(weakWordsRes.data);
@@ -645,8 +654,9 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       }
     };
 
-    fetchUserEnvironment();
-  }, [user]);
+    void fetchUserEnvironment().catch(err => { clearTimeout(timer); if (!cancelled) { console.error("Profile/deck load failed:", err); setEnvironmentFailed(true); } });
+    return () => { cancelled = true; clearTimeout(timer); controller.abort(); };
+  }, [user?.id, environmentAttempt]);
 
   // Card ids failed 3+ times today (Asia/Singapore calendar date) — backs the
   // "Struggling Today" trouble filter. Same table/threshold as the Cards page's
@@ -757,14 +767,14 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         .eq("deck_cards.deck_id", defaultDeckId)
         .eq("user_scores.user_id", user?.id)
         .order("id", { ascending: true })
-        .range(from, from + size - 1);
+        .range(from, from + size - 1).abortSignal(AbortSignal.timeout(20000));
 
     // Fetch just 100 cards first so the first card does not wait for the entire deck.
     // The full deck is still fetched and replaces this preview before normal study
     // selection proceeds. Flagged cards are excluded from both stages.
     const [firstRes, flaggedRes] = await Promise.all([
       fetchPage(0, FIRST_BATCH),
-      supabase.rpc("get_pending_flagged_card_ids"),
+      supabase.rpc("get_pending_flagged_card_ids").abortSignal(AbortSignal.timeout(20000)),
     ]);
     const flaggedCardIds = new Set((flaggedRes.data ?? []).map((r: { card_id: string }) => r.card_id));
     const flatten = (rows: any[]) => {
@@ -846,7 +856,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       setDataLoading(false);
       setHasLoadedOnce(true);
     }
-  }, [user, defaultDeckId, hasOnboarded]);
+  }, [user?.id, defaultDeckId, hasOnboarded]);
 
   useEffect(() => {
     fetchInitialData();
@@ -1771,6 +1781,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
 
   // Show full-screen loading until the first deck fetch completes
   if (!hasLoadedOnce) {
+    if (environmentFailed) return <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 px-6 text-center"><p className="font-bold text-slate-800">Unable to load your cards.</p><p className="text-sm text-slate-500">Check your connection and try again.</p><button className="rounded-xl bg-indigo-600 px-6 py-3 font-bold text-white" onClick={() => setEnvironmentAttempt(n => n + 1)}>Retry</button></div>;
     return <LoadingScreen />;
   }
 
