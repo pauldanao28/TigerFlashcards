@@ -10,10 +10,13 @@ function ShareHandler() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<Status>("saving");
   const [word, setWord] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [errorMessage, setErrorMessage] = useState("Unable to save the shared text.");
 
   useEffect(() => {
-    const raw = (searchParams.get("text") || searchParams.get("title") || "").trim();
-    if (!raw) { setStatus("error"); return; }
+    setStatus("saving");
+    const raw = (searchParams.get("text") || searchParams.get("title") || searchParams.get("url") || "").trim();
+    if (!raw) { setErrorMessage("No text was received. Select a word and share it again."); setStatus("error"); return; }
 
     // Chrome passes: quoted selected text + newline + page URL (with #:~:text= fragment).
     // 1. Split into lines, drop any URL lines.
@@ -33,21 +36,25 @@ function ShareHandler() {
 
     const save = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session }, error: authError } = await supabase.auth.getSession();
+        if (authError) throw authError;
+        const user = session?.user;
         if (!user) { setStatus("noauth"); return; }
 
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("pending_words")
           .eq("id", user.id)
-          .single();
+          .single().abortSignal(AbortSignal.timeout(15000));
+        if (profileError) throw profileError;
 
         // Merge Supabase + localStorage so we never drop words that haven't synced yet
         const fromDb: string[] = profile?.pending_words ?? [];
         let fromStorage: string[] = [];
         try {
           const stored = localStorage.getItem(`flashkado-word-list-${user.id}`);
-          fromStorage = stored ? JSON.parse(stored) : [];
+          const parsed: unknown = stored ? JSON.parse(stored) : [];
+          fromStorage = Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : [];
         } catch { /* storage unavailable */ }
 
         // Union of both sources, preserving order (DB first, then any local-only additions)
@@ -59,20 +66,23 @@ function ShareHandler() {
         }
 
         const updated = [...merged, word];
-        await supabase.from("profiles").update({ pending_words: updated }).eq("id", user.id);
+        const { error: saveError } = await supabase.from("profiles").update({ pending_words: updated }).eq("id", user.id).abortSignal(AbortSignal.timeout(15000));
+        if (saveError) throw saveError;
 
         try {
           localStorage.setItem(`flashkado-word-list-${user.id}`, JSON.stringify(updated));
         } catch { /* storage unavailable */ }
 
         setStatus("done");
-      } catch {
+      } catch (error) {
+        console.error("Shared word save failed:", error);
+        setErrorMessage("Could not save your word. Check your connection and retry.");
         setStatus("error");
       }
     };
 
     save();
-  }, []);
+  }, [searchParams, attempt]);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-8 gap-6">
@@ -121,7 +131,8 @@ function ShareHandler() {
       {status === "error" && (
         <div className="flex flex-col items-center gap-4 text-center">
           <div className="text-3xl">⚠️</div>
-          <p className="text-sm font-black text-slate-700">Something went wrong</p>
+          <p className="text-sm font-black text-slate-700">{errorMessage}</p>
+          {word && <button type="button" onClick={() => setAttempt(n => n + 1)} className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-sm">Retry saving</button>}
           <a
             href="/stats"
             className="px-6 py-3 bg-slate-800 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest"
