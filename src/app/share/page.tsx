@@ -45,7 +45,7 @@ function ShareHandler() {
           .from("profiles")
           .select("pending_words")
           .eq("id", user.id)
-          .single().abortSignal(AbortSignal.timeout(15000));
+          .abortSignal(AbortSignal.timeout(15000)).single();
         if (profileError) throw profileError;
 
         // Merge Supabase + localStorage so we never drop words that haven't synced yet
