@@ -320,6 +320,8 @@ export default function Dashboard() {
   const [data, setData] = useState<ProfileScores | null>(
     () => readDashboardCache(user?.id ?? "")
   );
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [doneTodayQuizzes, setDoneTodayQuizzes] = useState({ reading: false, listening: false, grammar: false });
   const [isSocialOpen, setIsSocialOpen] = useState(false);
   const [isStreakShareOpen, setIsStreakShareOpen] = useState(false);
@@ -404,6 +406,10 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!user) return;
+    let cancelled = false;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => { controller.abort(); if (!cancelled) setLoadFailed(true); }, 15000);
+    setLoadFailed(false);
     const load = async () => {
       const today = new Date().toLocaleDateString("en-CA");
 
@@ -413,8 +419,10 @@ export default function Dashboard() {
       // per-card aggregation server-side (see its migration for why that's also
       // immune to PostgREST's 1000-row cap, not just faster) and persists the
       // recomputed vocab/grammar scores itself.
-      const { data: raw, error } = await supabase.rpc("get_dashboard_data", { p_today: today });
-      if (error || !raw) { console.error("[dashboard load]", error?.code, error?.message); return; }
+      const { data: raw, error } = await supabase.rpc("get_dashboard_data", { p_today: today }).abortSignal(controller.signal);
+      clearTimeout(timeout);
+      if (cancelled || controller.signal.aborted) return;
+      if (error || !raw) { console.error("[dashboard load]", error?.code, error?.message); setLoadFailed(true); return; }
 
       setDoneTodayQuizzes({
         reading: !!raw.done_today_quizzes?.reading,
@@ -466,13 +474,14 @@ export default function Dashboard() {
         if (keys.length > 0) setBadgeQueue((prev) => [...prev, ...keys]);
       }
     };
-    load();
+    void load().catch(err => { clearTimeout(timeout); if (!cancelled) { console.error("[dashboard load]", err); setLoadFailed(true); } });
+    return () => { cancelled = true; clearTimeout(timeout); controller.abort(); };
     // Depend on user.id (a stable primitive), not the user object — Supabase's
     // onAuthStateChange emits a new object reference on every event (token refresh,
     // tab focus, etc.) even for the same session, which was re-triggering this whole
     // fetch-and-recompute sequence repeatedly and made the displayed numbers flicker.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, loadAttempt]);
 
   // Hydrate once auth resolves on a cold launch; do not block on the RPC.
   useEffect(() => {
@@ -499,6 +508,7 @@ export default function Dashboard() {
   }, [user?.id]);
 
   if (!data) {
+    if (loadFailed) return <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 px-6 text-center"><p className="font-bold text-slate-800">Unable to load your profile.</p><p className="text-sm text-slate-500">Check your connection and try again.</p><button className="rounded-xl bg-indigo-600 px-6 py-3 font-bold text-white" onClick={() => setLoadAttempt(n => n + 1)}>Retry</button></div>;
     return <LoadingScreen />;
   }
 
