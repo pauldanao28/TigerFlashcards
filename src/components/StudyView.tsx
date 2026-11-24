@@ -566,25 +566,25 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       // Fetch Profile & Deck in parallel for speed
       const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
       const [profileRes, deckRes, reviewCountRes, masteryCountRes, weakWordsRes] = await Promise.all([
-        supabase.from("profiles").select("*").eq("id", user?.id).maybeSingle().abortSignal(controller.signal),
+        supabase.from("profiles").select("*").eq("id", user?.id).abortSignal(controller.signal).maybeSingle(),
         supabase
           .from("decks")
           .select("id")
           .eq("user_id", user?.id)
           .eq("is_default", true)
-          .maybeSingle().abortSignal(controller.signal),
+          .abortSignal(controller.signal).maybeSingle(),
         supabase
           .from("user_review_counts")
           .select("count")
           .eq("user_id", user?.id)
           .eq("study_date", sgToday)
-          .maybeSingle().abortSignal(controller.signal),
+          .abortSignal(controller.signal).maybeSingle(),
         supabase
           .from("user_mastery_counts")
           .select("count")
           .eq("user_id", user?.id)
           .eq("mastery_date", sgToday)
-          .maybeSingle().abortSignal(controller.signal),
+          .abortSignal(controller.signal).maybeSingle(),
         supabase.rpc("count_weak_words", { p_today: sgToday }).abortSignal(controller.signal),
       ]);
       clearTimeout(timer);
