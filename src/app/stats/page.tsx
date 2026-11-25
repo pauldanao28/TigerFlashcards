@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useMemo, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { FlashcardData, KanjiMnemonic } from "@/lib/types";
 import { authedFetch } from "@/lib/authedFetch";
@@ -85,6 +85,7 @@ export default function StatsPage() {
 
 function StatsContent() {
   const { user } = useAuth();
+  const active = usePathname() === "/stats";
   const router = useRouter();
   const t = translations.en;
   const { isBusy: uploadBusy, setIsBusy: setUploadBusy } = useUploadGuard();
@@ -223,16 +224,16 @@ function StatsContent() {
   // Cards before ever visiting Home still gets prompt awarding; Home and StudyView's
   // own checks cover the toast/display side now.
   useEffect(() => {
-    if (!user) return;
+    if (!user || !active) return;
     supabase.rpc("check_and_award_badges").then(({ error }) => {
       if (error) console.error("Error checking badges:", error.message);
     });
-  }, [user]);
+  }, [user?.id, active]);
 
   // Grammar summary for the compact card — same mastery bar (>=3 attempts, >=80%)
   // and "touched" filter as /stats/grammar uses, so the count matches the full page.
   useEffect(() => {
-    if (!user) return;
+    if (!user || !active) return;
     (async () => {
       const { data: sData, error } = await supabase
         .from("user_grammar_scores")
@@ -243,7 +244,7 @@ function StatsContent() {
       const mastered = touched.filter((s) => s.total >= 3 && s.percent >= 80).length;
       setGrammarStats({ mastered, total: touched.length });
     })();
-  }, [user]);
+  }, [user?.id, active]);
 
   // 1. Fetch the user's basic info first
   useEffect(() => {
@@ -279,13 +280,13 @@ function StatsContent() {
       }
     };
 
-    initData();
-  }, [user]);
+    if (active) initData();
+  }, [user?.id, active]);
 
   // 2. ONLY fetch cards once we have a valid Deck ID — runs even after a cache hit above,
   // to revalidate that snapshot in the background (stale-while-revalidate).
   useEffect(() => {
-    if (!user || !defaultDeckId) return;
+    if (!active || !user || !defaultDeckId) return;
     // Avoid downloading the same complete deck again when bouncing between tabs.
     // Only skip when the Cards-specific snapshot is recent and belongs to this
     // exact user/deck. A missing timestamp always triggers revalidation.
@@ -298,14 +299,14 @@ function StatsContent() {
       return;
     }
     fetchCards();
-  }, [user?.id, defaultDeckId]);
+  }, [user?.id, defaultDeckId, active]);
 
   // Struggling/Explained Today are both written to from Study — often a *separate*
   // window (the Mini Mode popup), not just a different in-app page. visibilitychange
   // alone doesn't reliably fire across separate windows (it's really meant for
   // tab-switching/minimizing within one), so also listen for window focus, which does.
   useEffect(() => {
-    if (!user) return;
+    if (!user || !active) return;
     const refetch = () => {
       fetchDailyStruggles();
       fetchDailyExplainedLines();
@@ -318,7 +319,7 @@ function StatsContent() {
       window.removeEventListener("focus", refetch);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user?.id, active]);
 
   const fetchProfile = async () => {
     const { data } = await supabase
