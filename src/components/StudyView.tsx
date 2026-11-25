@@ -541,28 +541,33 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     }
     return ids;
   }, [cards]);
-  const [addedWeek, setAddedWeek] = useState<number | null>(null);
+  const [reviewWeek, setReviewWeek] = useState<number | null>(null);
   const [dateAnchor, setDateAnchor] = useState(() => Date.now());
   useEffect(() => {
-    if (!active || addedWeek === null) return;
+    if (!active || reviewWeek === null) return;
     const refresh = () => setDateAnchor(Date.now());
     refresh();
     const timer = window.setInterval(refresh, 60_000);
     return () => window.clearInterval(timer);
-  }, [active, addedWeek]);
+  }, [active, reviewWeek]);
   const inStatusFilter = useCallback(
     (c: FlashcardData) => {
-      if (addedWeek !== null) {
-        const age = dateAnchor - new Date(c.added_to_deck_at ?? 0).getTime();
-        const week = 7 * 86400000;
-        if (!c.added_to_deck_at || !(age >= addedWeek * week && age < (addedWeek + 1) * week)) return false;
+      if (reviewWeek !== null) {
+        const attempts = (c.scores?.jp_to_en?.total ?? 0) + (c.scores?.en_to_jp?.total ?? 0);
+        if (reviewWeek === -1) {
+          if (attempts > 0) return false;
+        } else {
+          const age = Math.max(dateAnchor, Date.now()) - Date.parse(c.last_reviewed_at ?? "");
+          const week = 7 * 86400000;
+          if (!attempts || !Number.isFinite(age) || !(age >= reviewWeek * week && age < (reviewWeek + 1) * week)) return false;
+        }
       }
       if (statusFilters.length === 0) return true;
       return statusFilters.some((f) =>
         f === "leech" ? leechIds.has(c.id) : f === "strugglingToday" ? strugglingTodayIds.has(c.id) : slowReflexIds.has(c.id),
       );
     },
-    [statusFilters, leechIds, strugglingTodayIds, slowReflexIds, addedWeek, dateAnchor],
+    [statusFilters, leechIds, strugglingTodayIds, slowReflexIds, reviewWeek, dateAnchor],
   );
   // Picking a trouble filter overrides N-level (see comment above) — also resets the
   // toast used by both filter sections so the two don't talk over each other.
@@ -1134,7 +1139,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       // 5b. Update local card scores and recompute mastery from full deck
       {
         const updatedCards = cards.map((c) =>
-          c.id === currentCard.id ? { ...c, scores: newScores, ...(reflexPatch ?? {}) } : c
+          c.id === currentCard.id ? { ...c, scores: newScores, last_reviewed_at: new Date().toISOString(), ...(reflexPatch ?? {}) } : c
         );
         setCards(updatedCards);
         const modeKey = language === "jp" ? "jp_to_en" : "en_to_jp";
@@ -1189,7 +1194,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       }
 
       const updatedCards = cards.map((c) =>
-        c.id === currentCard.id ? { ...c, scores: newScores, ...(reflexPatch ?? {}) } : c,
+        c.id === currentCard.id ? { ...c, scores: newScores, last_reviewed_at: new Date().toISOString(), ...(reflexPatch ?? {}) } : c,
       );
 
       setCards(updatedCards);
@@ -1362,7 +1367,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     const newScores = { jp_to_en: knownStats, en_to_jp: knownStats };
 
     const updatedCards = cards.map((c) =>
-      c.id === currentCard.id ? { ...c, scores: newScores } : c,
+      c.id === currentCard.id ? { ...c, scores: newScores, last_reviewed_at: new Date().toISOString() } : c,
     );
     setCards(updatedCards);
     setSessionNewMastered((prev) => prev + 1);
@@ -1809,7 +1814,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     setCurrentCard(getNextPriorityCard(filteredCards, language));
     setIsFlipped(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jlptFilterKey, posFilterKey, statusFilterKey, addedWeek, dateAnchor]);
+  }, [jlptFilterKey, posFilterKey, statusFilterKey, reviewWeek]);
 
   // Show full-screen loading until the first deck fetch completes
   if (!hasLoadedOnce) {
@@ -1913,11 +1918,11 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               </button>
             </div>
 
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Date added</p>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Last reviewed</p>
               <div className="flex gap-2 flex-wrap mb-5">
-                {["All time","This week","Last week","2 weeks ago","3 weeks ago","4 weeks ago"].map((label,i)=>{
-                  const value=i===0?null:i-1;
-                  return <button key={label} onClick={()=>{setDateAnchor(Date.now());setAddedWeek(value);}} className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${addedWeek===value?"bg-indigo-600 text-white border-indigo-600":"bg-slate-50 text-slate-500 border-slate-200"}`}>{label}</button>;
+                {["All time","This week","Last week","2 weeks ago","3 weeks ago","4 weeks ago","Never reviewed"].map((label,i)=>{
+                  const value=i===0?null:i===6?-1:i-1;
+                  return <button key={label} onClick={()=>{setDateAnchor(Date.now());setReviewWeek(value);}} className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${reviewWeek===value?"bg-indigo-600 text-white border-indigo-600":"bg-slate-50 text-slate-500 border-slate-200"}`}>{label}</button>;
                 })}
               </div>
               <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Focus</p>
@@ -3145,7 +3150,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 60, opacity: 0 }}
               transition={{ type: "spring", stiffness: 320, damping: 28 }}
-              className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[211] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm"
+              className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-[211] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-100 p-6 w-full sm:max-w-sm max-h-[85dvh] overflow-y-auto overscroll-contain"
               style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
             >
               <div className="flex items-center justify-between mb-1.5">
@@ -3153,11 +3158,11 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 <button onClick={() => setShowJlptBreakdown(false)} className="text-slate-300 hover:text-slate-500">✕</button>
               </div>
               <button className="w-full bg-indigo-50 text-indigo-700 rounded-xl p-3 mb-3 font-bold" onClick={()=>{setShowJlptBreakdown(false);setShowSourceStudy(true);}}>Situations</button>
-              <p className="text-slate-800 font-black text-sm uppercase tracking-tight mb-2">Date added</p>
+              <p className="text-slate-800 font-black text-sm uppercase tracking-tight mb-2">Last reviewed</p>
               <div className="flex gap-2 flex-wrap mb-5">
-                {["All time","This week","Last week","2 weeks ago","3 weeks ago","4 weeks ago"].map((label,i)=>{
-                  const value=i===0?null:i-1;
-                  return <button key={label} onClick={()=>{setDateAnchor(Date.now());setAddedWeek(value);}} className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${addedWeek===value?"bg-indigo-600 text-white border-indigo-600":"bg-slate-50 text-slate-500 border-slate-200"}`}>{label}</button>;
+                {["All time","This week","Last week","2 weeks ago","3 weeks ago","4 weeks ago","Never reviewed"].map((label,i)=>{
+                  const value=i===0?null:i===6?-1:i-1;
+                  return <button key={label} onClick={()=>{setDateAnchor(Date.now());setReviewWeek(value);}} className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${reviewWeek===value?"bg-indigo-600 text-white border-indigo-600":"bg-slate-50 text-slate-500 border-slate-200"}`}>{label}</button>;
                 })}
               </div>
               <p className="text-slate-800 font-black text-sm uppercase tracking-tight mb-1.5">Focus</p>
