@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence, useAnimationControls } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -316,6 +317,7 @@ function OverallBanner({ level, score }: { level: string; score: number }) {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const active = usePathname() === "/";
   const [data, setData] = useState<ProfileScores | null>(
     () => readDashboardCache(user?.id ?? "")
   );
@@ -404,7 +406,7 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !active) return;
     let cancelled = false;
     const controller = new AbortController();
     const timeout = setTimeout(() => { controller.abort(); if (!cancelled) setLoadFailed(true); }, 15000);
@@ -467,6 +469,7 @@ export default function Dashboard() {
       // level, friends) — StudyView's own check (after updateStreak) only fires on a
       // goal-met moment, so this is what covers everything else.
       const { data: newBadges, error: badgeErr } = await supabase.rpc("check_and_award_badges");
+      if (cancelled) return;
       if (badgeErr) console.error("Error checking badges:", badgeErr.message);
       else {
         const keys = (newBadges ?? []).map((b: { badge_key: string }) => b.badge_key);
@@ -480,7 +483,7 @@ export default function Dashboard() {
     // tab focus, etc.) even for the same session, which was re-triggering this whole
     // fetch-and-recompute sequence repeatedly and made the displayed numbers flicker.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, loadAttempt]);
+  }, [user?.id, loadAttempt, active]);
 
   // Hydrate once auth resolves on a cold launch; do not block on the RPC.
   useEffect(() => {
@@ -504,7 +507,7 @@ export default function Dashboard() {
       });
     // Same user?.id-not-user rationale as the load() effect above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, active]);
 
   if (!data) {
     if (loadFailed) return <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 px-6 text-center"><p className="font-bold text-slate-800">Unable to load your profile.</p><p className="text-sm text-slate-500">Check your connection and try again.</p><button className="rounded-xl bg-indigo-600 px-6 py-3 font-bold text-white" onClick={() => setLoadAttempt(n => n + 1)}>Retry</button></div>;
