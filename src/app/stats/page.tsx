@@ -740,15 +740,6 @@ function StatsContent() {
     return ids;
   }, [cards]);
 
-  const [addedWeek, setAddedWeek] = useState<number | null>(null);
-  const [dateAnchor, setDateAnchor] = useState(() => Date.now());
-  useEffect(() => {
-    if (!active) return;
-    const refresh = () => setDateAnchor(Date.now());
-    refresh();
-    const timer = window.setInterval(refresh, 60_000);
-    return () => window.clearInterval(timer);
-  }, [active, addedWeek]);
   const deferredSearch = useDeferredValue(searchQuery);
   const [desktopList, setDesktopList] = useState(false);
   useEffect(() => {
@@ -766,14 +757,6 @@ function StatsContent() {
         card.reading.toLowerCase().includes(query) ||
         card.english.toLowerCase().includes(query),
     );
-    if (addedWeek !== null) {
-      const weekMs = 7 * 24 * 60 * 60 * 1000;
-      list = list.filter((card) => {
-        if (!card.added_to_deck_at) return false;
-        const age = dateAnchor - new Date(card.added_to_deck_at).getTime();
-        return age >= addedWeek * weekMs && age < (addedWeek + 1) * weekMs;
-      });
-    }
     if (quickFilter === "slowReflex") list = list.filter((c) => slowReflexIds.has(c.id));
     if (quickFilter === "recentlyReviewed") list = list.filter((c) => recentlyReviewedIds.has(c.id));
     if (quickFilter === "weakWords") list = list.filter((c) => weakWordsIds.has(c.id));
@@ -800,7 +783,7 @@ function StatsContent() {
       const dateB = new Date(b.added_to_deck_at ?? 0).getTime();
       return dateB - dateA;
     });
-  }, [cards, deferredSearch, addedWeek, dateAnchor, quickFilter, slowReflexIds, recentlyReviewedIds, weakWordsIds, favoritesIds, masteredIds]);
+  }, [cards, deferredSearch, quickFilter, slowReflexIds, recentlyReviewedIds, weakWordsIds, favoritesIds, masteredIds]);
 
   const visibleCards = useMemo(() => filteredCards.slice(0, displayLimit), [filteredCards, displayLimit]);
 
@@ -2129,13 +2112,13 @@ function StatsContent() {
                 onClick={() => setShowFilterMenu((v) => !v)}
                 title="Filter"
                 className={`shrink-0 relative w-9 h-9 flex items-center justify-center border rounded-xl shadow-sm active:scale-90 transition-all ${
-                  showFilterMenu || quickFilter !== "none" || addedWeek !== null
+                  showFilterMenu || quickFilter !== "none"
                     ? "bg-indigo-600 border-indigo-600 text-white"
                     : "bg-white border-slate-200 text-slate-400 hover:text-indigo-600"
                 }`}
               >
                 <SlidersHorizontal size={14} />
-                {(quickFilter !== "none" || addedWeek !== null) && !showFilterMenu && (
+                {(quickFilter !== "none") && !showFilterMenu && (
                   <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white" />
                 )}
               </button>
@@ -2170,15 +2153,10 @@ function StatsContent() {
                       </button>
                     );
                   })}
-                  <p className="mt-2 px-2 text-[10px] font-bold uppercase text-slate-400">Date added</p>
-                  {["All time", "This week (0–6 days)", "Last week (7–13 days)", "2 weeks ago", "3 weeks ago", "4 weeks ago"].map((label, index) => {
-                    const value = index === 0 ? null : index - 1;
-                    return <button key={label} onClick={() => { setAddedWeek(value); setDisplayLimit(20); setShowFilterMenu(false); }} className={`w-full px-3 py-1.5 rounded-full text-[10px] font-black border text-left ${addedWeek === value ? "bg-indigo-600 text-white border-indigo-600" : "bg-slate-50 text-slate-500 border-slate-200"}`}>{label}</button>;
-                  })}
+
                 </div>
               </>
             )}
-            {addedWeek !== null && <div className="mt-2 flex items-center gap-2 text-xs text-slate-500"><span>{filteredCards.length} matching cards · {addedWeek * 7}–{addedWeek * 7 + 6} days ago</span><button onClick={() => { setAddedWeek(null); setDisplayLimit(20); }} className="font-bold text-indigo-600">Clear date</button></div>}
           </div>
 
           {/* Card list skeleton while full content loads */}
