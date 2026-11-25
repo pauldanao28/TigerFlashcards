@@ -93,7 +93,7 @@ function invalidateCardsTabSnapshot(userId: string) {
   }
   catch { /* Storage may be unavailable. */ }
 }
-const studyCardsKey = (userId: string) => `flashkado_study_cards_${userId}`;
+const studyCardsKey = (userId: string) => `flashkado_study_cards_v2_${userId}`;
 const studyCurrentKey = (userId: string) => `flashkado_study_current_${userId}`;
 const reflexModeKey = (userId: string) => `flashkado_reflex_mode_${userId}`;
 let _studyCacheHydrationAttempted = false;
@@ -278,6 +278,9 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
 
   const [dataLoading, setDataLoading] = useState(!hasCachedData);
   const partialDeckLoadingRef = useRef(false);
+  const [deckLoadError, setDeckLoadError] = useState(false);
+  const deckRequestRef = useRef(0);
+  const completeDeckRef = useRef(cached ? { userId: cached.userId, deckId: cached.deckId } : null);
   const [aiLoading, setAiLoading] = useState(false); // AI Syncing
   const [hasLoadedOnce, setHasLoadedOnce] = useState(hasCachedData);
 
@@ -714,6 +717,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
 
   // --- 4. Card Fetching (Triggers when Deck is ready) ---
   const fetchInitialData = useCallback(async () => {
+    const requestId = ++deckRequestRef.current;
+    setDeckLoadError(false);
     if (!user || !defaultDeckId) {
       setDataLoading(false);
       // A genuinely deckless-but-onboarded account (deck creation failed during
@@ -728,7 +733,10 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     }
     // 🔥 FIX 1: Only show the "Syncing Deck" spinner if we have NO cards.
     // If we already have cards, we fetch in the background silently.
-    if (cards.length === 0) {
+    const hasCompleteDeck = completeDeckRef.current?.userId === user.id && completeDeckRef.current?.deckId === defaultDeckId;
+    if (!hasCompleteDeck) {
+      partialDeckLoadingRef.current = true;
+      setHasLoadedOnce(false);
       setDataLoading(true);
     }
 
@@ -753,8 +761,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     // together instead of awaiting the RPC first cuts a full sequential round trip
     // off the slowest part of Study's initial load.
     const PAGE_SIZE = 1000;
-    const FIRST_BATCH = 100;
-    const fetchPage = (from: number, size = PAGE_SIZE) =>
+    const fetchPageOnce = (from: number, size = PAGE_SIZE) =>
       supabase
         .from("master_cards")
         .select(
@@ -769,13 +776,23 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         .order("id", { ascending: true })
         .range(from, from + size - 1).abortSignal(AbortSignal.timeout(20000));
 
-    // Fetch just 100 cards first so the first card does not wait for the entire deck.
-    // The full deck is still fetched and replaces this preview before normal study
-    // selection proceeds. Flagged cards are excluded from both stages.
+    const fetchPage = async (from: number, size = PAGE_SIZE) => {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const result = await fetchPageOnce(from, size);
+          if (!result.error) return result;
+          if (attempt >= 2) throw result.error;
+        } catch (error) {
+          if (attempt >= 2) throw error;
+        }
+        await new Promise(resolve => setTimeout(resolve, 500 * 2 ** attempt));
+      }
+    };
     const [firstRes, flaggedRes] = await Promise.all([
-      fetchPage(0, FIRST_BATCH),
+      fetchPage(0),
       supabase.rpc("get_pending_flagged_card_ids").abortSignal(AbortSignal.timeout(20000)),
     ]);
+    if (flaggedRes.error) throw flaggedRes.error;
     const flaggedCardIds = new Set((flaggedRes.data ?? []).map((r: { card_id: string }) => r.card_id));
     const flatten = (rows: any[]) => {
       const pendingByCard = new Map(
@@ -797,37 +814,24 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         };
       });
     };
-    if (!firstRes.error && firstRes.data && firstRes.data.length > 0 && cards.length === 0) {
-      const preview = flatten(firstRes.data);
-      if (preview.length > 0) {
-        partialDeckLoadingRef.current = true;
-        setCards(preview);
-        setCurrentCard(prev => prev ?? getNextPriorityCard(preview, "jp"));
-        setDataLoading(false);
-        setHasLoadedOnce(true);
-      }
+    const allData = [...(firstRes.data ?? [])];
+    let pageLength = firstRes.data?.length ?? 0;
+    for (let from = pageLength; pageLength === PAGE_SIZE; ) {
+      const result = await fetchPage(from);
+      const page = result.data ?? [];
+      allData.push(...page);
+      pageLength = page.length;
+      from += pageLength;
     }
-    // Finish fetching all remaining pages in the background, then publish the
-    // complete deck. Never cache the 100-card preview as a complete deck.
-    const [page0Tail, page1Res] = await Promise.all([
-      firstRes.data?.length === FIRST_BATCH ? fetchPage(FIRST_BATCH, PAGE_SIZE - FIRST_BATCH) : Promise.resolve({ data: [], error: null }),
-      firstRes.data?.length === FIRST_BATCH ? fetchPage(PAGE_SIZE) : Promise.resolve({ data: [], error: null }),
-    ]);
-    const allData: any[] = [...(firstRes.data ?? []), ...(page0Tail.data ?? []), ...(page1Res.data ?? [])];
-    let error = firstRes.error || page0Tail.error || page1Res.error;
-    if (!error && page1Res.data && page1Res.data.length === PAGE_SIZE) {
-      for (let from = PAGE_SIZE * 2; ; from += PAGE_SIZE) {
-        const { data: page, error: pageErr } = await fetchPage(from);
-        if (pageErr) { error = pageErr; break; }
-        if (page) allData.push(...page);
-        if (!page || page.length < PAGE_SIZE) break;
-      }
-    }
-    const data = allData.filter((card) => !flaggedCardIds.has(card.id));
-
-    if (!error && data) {
-      const flattened = flatten(data);
+    if (requestId !== deckRequestRef.current) return;
+    {
+      const flattened = flatten(allData);
+      completeDeckRef.current = { userId: user.id, deckId: defaultDeckId };
       partialDeckLoadingRef.current = false;
+      setHasLoadedOnce(true);
+      setCurrentCard(prev => flattened.find(card => card.id === prev?.id) ?? null);
+      _studyCache = { userId: user.id, cards: flattened, deckId: defaultDeckId, currentCard: null };
+      persistStudyCards(user.id, defaultDeckId, flattened);
       setCards(flattened);
       if (flattened.length > 0) {
         // ✅ FIX: Only pick a new card if we don't already have one on screen.
@@ -839,7 +843,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
             // _studyCache with 0 attempts) lingers forever and the Already-Know button
             // keeps thinking an already-studied word is brand new.
             const fresh = flattened.find((c) => c.id === prev.id);
-            return fresh ?? prev;
+            return fresh ?? getNextPriorityCard(flattened, "jp");
           }
           return getNextPriorityCard(flattened, "jp");
         });
@@ -850,16 +854,17 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       // Offline or a dropped connection mid-request — leave whatever cards are
       // already on screen (cache-restored or from a prior successful fetch) exactly
       // as they are rather than erroring out.
-      console.error("fetchInitialData failed (likely offline):", e);
+      if (requestId !== deckRequestRef.current) return;
+      console.error("fetchInitialData failed:", e);
+      setDeckLoadError(true);
     } finally {
-      partialDeckLoadingRef.current = false;
-      setDataLoading(false);
-      setHasLoadedOnce(true);
+      if (requestId === deckRequestRef.current) setDataLoading(false);
     }
   }, [user?.id, defaultDeckId, hasOnboarded]);
 
   useEffect(() => {
     fetchInitialData();
+    return () => { deckRequestRef.current++; };
   }, [fetchInitialData]);
 
   // Pick up newly added/edited cards (new words, an admin correction, another
@@ -912,7 +917,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   // whole deck and only actually changes on a fresh fetch or a card edit, not on
   // every card reviewed.
   useEffect(() => {
-    if (user?.id && cards.length > 0 && !partialDeckLoadingRef.current) {
+    if (user?.id && cards.length > 0 && !partialDeckLoadingRef.current && completeDeckRef.current?.userId === user.id && completeDeckRef.current?.deckId === defaultDeckId) {
       _studyCache = { userId: user.id, cards, deckId: defaultDeckId, currentCard };
       persistStudyCards(user.id, defaultDeckId, cards);
     }
@@ -1781,6 +1786,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
 
   // Show full-screen loading until the first deck fetch completes
   if (!hasLoadedOnce) {
+    if (deckLoadError) return <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 px-6 text-center"><p className="font-bold text-slate-800">Unable to load your complete deck.</p><button className="rounded-xl bg-indigo-600 px-6 py-3 font-bold text-white" onClick={() => void fetchInitialData()}>Retry</button></div>;
     if (environmentFailed) return <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 px-6 text-center"><p className="font-bold text-slate-800">Unable to load your cards.</p><p className="text-sm text-slate-500">Check your connection and try again.</p><button className="rounded-xl bg-indigo-600 px-6 py-3 font-bold text-white" onClick={() => setEnvironmentAttempt(n => n + 1)}>Retry</button></div>;
     return <LoadingScreen />;
   }
