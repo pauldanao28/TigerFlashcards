@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, useDeferredValue } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { FlashcardData, KanjiMnemonic } from "@/lib/types";
@@ -740,8 +740,17 @@ function StatsContent() {
     return ids;
   }, [cards]);
 
+  const deferredSearch = useDeferredValue(searchQuery);
+  const [desktopList, setDesktopList] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 768px)");
+    const update = () => setDesktopList(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
   const filteredCards = useMemo(() => {
-    const query = searchQuery.toLowerCase();
+    const query = deferredSearch.toLowerCase();
     let list = cards.filter(
       (card) =>
         card.japanese.toLowerCase().includes(query) ||
@@ -774,9 +783,9 @@ function StatsContent() {
       const dateB = new Date(b.added_to_deck_at ?? 0).getTime();
       return dateB - dateA;
     });
-  }, [cards, searchQuery, quickFilter, slowReflexIds, recentlyReviewedIds, weakWordsIds, favoritesIds, masteredIds]);
+  }, [cards, deferredSearch, quickFilter, slowReflexIds, recentlyReviewedIds, weakWordsIds, favoritesIds, masteredIds]);
 
-  const visibleCards = filteredCards.slice(0, displayLimit);
+  const visibleCards = useMemo(() => filteredCards.slice(0, displayLimit), [filteredCards, displayLimit]);
 
   const getPosColor = (pos: string) => {
     const p = pos?.toLowerCase() || "";
@@ -2162,7 +2171,7 @@ function StatsContent() {
 
           {/* List Views (Mobile & Desktop) */}
           <div className="md:hidden space-y-2.5">
-            {visibleCards.map((card) => {
+            {!desktopList && visibleCards.map((card) => {
               const isNew =
                 new Date().getTime() -
                   new Date(card.added_to_deck_at ?? 0).getTime() <
@@ -2171,6 +2180,7 @@ function StatsContent() {
               return (
                 <div
                   key={card.id}
+                  style={{ contentVisibility: "auto", containIntrinsicSize: "auto 150px" }}
                   className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden"
                 >
                   {/* ACTION BUTTONS (Top Right) */}
@@ -2450,7 +2460,7 @@ function StatsContent() {
           {filteredCards.length > displayLimit && (
             <div className="mt-8 mb-12 flex justify-center">
               <button
-                onClick={() => setDisplayLimit((prev) => prev + 200)}
+                onClick={() => setDisplayLimit((prev) => prev + 50)}
                 className="bg-white border border-slate-200 px-8 py-3 rounded-2xl font-bold text-slate-600 hover:bg-slate-50"
               >
                 {t.load_more} ({filteredCards.length - displayLimit}{" "}
