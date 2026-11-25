@@ -1,4 +1,5 @@
 "use client";
+import { usePathname } from "next/navigation";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
@@ -247,6 +248,7 @@ function cardOverallPercent(c: FlashcardData): number {
 
 
 export default function StudyView({ compact = false }: { compact?: boolean } = {}) {
+  const active = usePathname() === "/study";
   const { user, loading } = useAuth();
   const { showAlert } = useAppAlert();
   const shownGenerateLimitAlertRef = useRef(false);
@@ -464,6 +466,12 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
 
   const [showQuiz, setShowQuiz] = useState(false);
   const [showListeningQuiz, setShowListeningQuiz] = useState(false);
+  useEffect(() => {
+    if (active) return;
+    setShowQuiz(false);
+    setShowListeningQuiz(false);
+    window.speechSynthesis?.cancel();
+  }, [active]);
   const [isFlipped, setIsFlipped] = useState(false);
   const [audioPulse, setAudioPulse] = useState(0);
   const [autoPlayJp, setAutoPlayJp] = useState(true);
@@ -863,9 +871,10 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   }, [user?.id, defaultDeckId, hasOnboarded]);
 
   useEffect(() => {
+    if (!active) return;
     fetchInitialData();
     return () => { deckRequestRef.current++; };
-  }, [fetchInitialData]);
+  }, [fetchInitialData, active]);
 
   // Pick up newly added/edited cards (new words, an admin correction, another
   // device's edit) whenever the connection comes back — the queue-flush effect
@@ -875,6 +884,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   // fetchInitialData only shows a spinner when there are no cards on screen
   // yet, so this never interrupts an active review session.
   useEffect(() => {
+    if (!active) return;
     const handleOnline = () => fetchInitialData();
     const handleVisible = () => {
       if (document.visibilityState === "visible" && navigator.onLine) fetchInitialData();
@@ -885,7 +895,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       window.removeEventListener("online", handleOnline);
       document.removeEventListener("visibilitychange", handleVisible);
     };
-  }, [fetchInitialData]);
+  }, [fetchInitialData, active]);
 
   // When auth resolves, restore cached currentCard before fetchInitialData can pick a new one.
   useEffect(() => {
@@ -1296,17 +1306,17 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   // a stopwatch start read back on a Pass. Resets on a new card, or the moment Reflex
   // Mode is turned on for the card already showing.
   useEffect(() => {
-    reflexStartRef.current = reflexMode ? Date.now() : null;
+    reflexStartRef.current = active && reflexMode ? Date.now() : null;
     reflexFlipMsRef.current = null;
-  }, [reflexMode, currentCard?.id]);
+  }, [reflexMode, currentCard?.id, active]);
 
   // Freezes the elapsed time the instant the card is flipped — that's the recall
   // moment; everything after (reading the back, deciding how to grade) isn't.
   useEffect(() => {
-    if (reflexMode && isFlipped && reflexStartRef.current != null && reflexFlipMsRef.current == null) {
+    if (active && reflexMode && isFlipped && reflexStartRef.current != null && reflexFlipMsRef.current == null) {
       reflexFlipMsRef.current = Date.now() - reflexStartRef.current;
     }
-  }, [reflexMode, isFlipped]);
+  }, [reflexMode, isFlipped, active]);
 
   // Fast-track for cards never reviewed before — skips the flip/grade ritual
   // and immediately seeds a high-confidence score in both directions so it
@@ -1543,6 +1553,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
 
   // Keyboard Controls
   useEffect(() => {
+    if (!active) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       // 1. Ignore if typing or if key is being held down (auto-repeat)
       if (
@@ -1585,7 +1596,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleScore]); // Removed isFlipped because we use the functional update (prev => !prev)
+  }, [handleScore, active]); // Removed isFlipped because we use the functional update (prev => !prev)
 
   // 1. Calculate Global Stats using your common function (or inline)
   const globalStats = useMemo(() => calculateGlobalStats(cards), [cards]);
@@ -2849,8 +2860,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     language={language}
                     userId={user?.id || ""}
                     onSwipe={onSwipe}
-                    autoPlayJp={autoPlayJp && hasInteracted.current}
-                    autoPlayEn={autoPlayEn && hasInteracted.current}
+                    autoPlayJp={active && autoPlayJp && hasInteracted.current}
+                    autoPlayEn={active && autoPlayEn && hasInteracted.current}
                     sfxEnabled={sfxEnabled}
                     isFlipped={isFlipped}
                     onFlip={setIsFlipped}
@@ -2999,12 +3010,12 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         )}
       </AnimatePresence>
       <AnimatePresence>
-        {showQuiz && user?.id && (
+        {active && showQuiz && user?.id && (
           <SentenceQuiz userId={user.id} isAdmin={isAdmin} onClose={() => setShowQuiz(false)} />
         )}
       </AnimatePresence>
       <AnimatePresence>
-        {showListeningQuiz && user?.id && (
+        {active && showListeningQuiz && user?.id && (
           <ListeningQuiz userId={user.id} isAdmin={isAdmin} onClose={() => setShowListeningQuiz(false)} />
         )}
       </AnimatePresence>
