@@ -11,5 +11,5 @@ export default function HomeClient() {
     return <LoadingScreen />;
   }
 
-  return user ? <Dashboard /> : <WelcomeView />;
+  return user ? <Dashboard key={user.id} /> : <WelcomeView />;
 }
