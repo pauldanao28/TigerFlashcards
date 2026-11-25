@@ -3,7 +3,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import LoadingScreen from "@/components/LoadingScreen";
+import { useAuth } from "@/context/AuthContext";
 import SentenceQuiz from "@/components/SentenceQuiz";
 import ListeningQuiz from "@/components/ListeningQuiz";
 import GrammarQuiz from "@/components/GrammarQuiz";
@@ -17,7 +17,8 @@ import ReadingAloudDrill from "@/components/ReadingAloudDrill";
 function QuizzesInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [userId, setUserId] = useState<string | null>(null);
+  const { user, loading } = useAuth();
+  const userId = user?.id ?? null;
   const [isAdmin, setIsAdmin] = useState(false);
   // Initialized from the URL synchronously (not in the effect below) so the overlay
   // is already open on the very first render that shows anything — otherwise the
@@ -36,16 +37,15 @@ function QuizzesInner() {
   const [showReadingAloud, setShowReadingAloud] = useState(open === "reading_aloud");
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) { router.replace("/login"); return; }
-      const uid = session.user.id;
-      setUserId(uid);
-      const { data } = await supabase.from("profiles").select("is_admin").eq("id", uid).single();
-      setIsAdmin(!!data?.is_admin);
+    if (loading) return;
+    if (!userId) { router.replace("/login"); return; }
+    let cancelled = false;
+    setIsAdmin(false);
+    void supabase.from("profiles").select("is_admin").eq("id", userId).single().then(({ data }) => {
+      if (!cancelled) setIsAdmin(!!data?.is_admin);
     });
-  }, [router]);
-
-  if (!userId) return <LoadingScreen />;
+    return () => { cancelled = true; };
+  }, [router, userId, loading]);
 
   return (
     <div className="min-h-screen bg-slate-50 pb-28 md:pb-8">
@@ -236,27 +236,27 @@ function QuizzesInner() {
       </div>
 
       {/* Overlays */}
-      {showConversation && <ConversationSpeaking onClose={() => setShowConversation(false)} />}
-      {showReadingAloud && <ReadingAloudDrill onClose={() => setShowReadingAloud(false)} />}
-      {showSentence && (
+      {userId && showConversation && <ConversationSpeaking onClose={() => setShowConversation(false)} />}
+      {userId && showReadingAloud && <ReadingAloudDrill onClose={() => setShowReadingAloud(false)} />}
+      {userId && showSentence && (
         <SentenceQuiz userId={userId} isAdmin={isAdmin} onClose={() => setShowSentence(false)} />
       )}
-      {showListening && (
+      {userId && showListening && (
         <ListeningQuiz userId={userId} isAdmin={isAdmin} onClose={() => setShowListening(false)} />
       )}
-      {showGrammar && (
+      {userId && showGrammar && (
         <GrammarQuiz userId={userId} onClose={() => setShowGrammar(false)} />
       )}
-      {showReader && (
+      {userId && showReader && (
         <ReaderView userId={userId} onClose={() => setShowReader(false)} />
       )}
-      {showWatch && (
+      {userId && showWatch && (
         <WatchView userId={userId} onClose={() => setShowWatch(false)} />
       )}
-      {showTranslate && (
+      {userId && showTranslate && (
         <TranslateView userId={userId} onClose={() => setShowTranslate(false)} />
       )}
-      {showWeakWords && (
+      {userId && showWeakWords && (
         <WeakWordsQuiz userId={userId} isAdmin={isAdmin} onClose={() => setShowWeakWords(false)} />
       )}
     </div>
@@ -265,7 +265,7 @@ function QuizzesInner() {
 
 export default function QuizzesPage() {
   return (
-    <Suspense fallback={<LoadingScreen />}>
+    <Suspense fallback={<div className="px-5 pt-14 md:pt-8"><h1 className="text-2xl font-black italic">Practice</h1></div>}>
       <QuizzesInner />
     </Suspense>
   );
