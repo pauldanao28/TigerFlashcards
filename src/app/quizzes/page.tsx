@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
@@ -16,6 +16,7 @@ import ReadingAloudDrill from "@/components/ReadingAloudDrill";
 
 function QuizzesInner() {
   const router = useRouter();
+  const active = usePathname() === "/quizzes";
   const searchParams = useSearchParams();
   const { user, loading } = useAuth();
   const userId = user?.id ?? null;
@@ -37,7 +38,20 @@ function QuizzesInner() {
   const [showReadingAloud, setShowReadingAloud] = useState(open === "reading_aloud");
 
   useEffect(() => {
-    if (loading) return;
+    setShowSentence(active && open === "sentence");
+    setShowListening(active && open === "listening");
+    setShowGrammar(active && open === "grammar");
+    setShowReader(active && open === "reader");
+    setShowWatch(active && open === "watch");
+    setShowTranslate(active && open === "translate");
+    setShowWeakWords(active && open === "weak_words");
+    setShowConversation(active && open === "conversation");
+    setShowReadingAloud(active && open === "reading_aloud");
+    if (!active) window.speechSynthesis?.cancel();
+  }, [active, open]);
+
+  useEffect(() => {
+    if (!active || loading) return;
     if (!userId) { router.replace("/login"); return; }
     let cancelled = false;
     setIsAdmin(false);
@@ -45,7 +59,7 @@ function QuizzesInner() {
       if (!cancelled) setIsAdmin(!!data?.is_admin);
     });
     return () => { cancelled = true; };
-  }, [router, userId, loading]);
+  }, [router, userId, loading, active]);
 
   return (
     <div className="min-h-screen bg-slate-50 pb-28 md:pb-8">
@@ -236,27 +250,27 @@ function QuizzesInner() {
       </div>
 
       {/* Overlays */}
-      {userId && showConversation && <ConversationSpeaking onClose={() => setShowConversation(false)} />}
-      {userId && showReadingAloud && <ReadingAloudDrill onClose={() => setShowReadingAloud(false)} />}
-      {userId && showSentence && (
+      {active && userId && showConversation && <ConversationSpeaking onClose={() => setShowConversation(false)} />}
+      {active && userId && showReadingAloud && <ReadingAloudDrill onClose={() => setShowReadingAloud(false)} />}
+      {active && userId && showSentence && (
         <SentenceQuiz userId={userId} isAdmin={isAdmin} onClose={() => setShowSentence(false)} />
       )}
-      {userId && showListening && (
+      {active && userId && showListening && (
         <ListeningQuiz userId={userId} isAdmin={isAdmin} onClose={() => setShowListening(false)} />
       )}
-      {userId && showGrammar && (
+      {active && userId && showGrammar && (
         <GrammarQuiz userId={userId} onClose={() => setShowGrammar(false)} />
       )}
-      {userId && showReader && (
+      {active && userId && showReader && (
         <ReaderView userId={userId} onClose={() => setShowReader(false)} />
       )}
-      {userId && showWatch && (
+      {active && userId && showWatch && (
         <WatchView userId={userId} onClose={() => setShowWatch(false)} />
       )}
-      {userId && showTranslate && (
+      {active && userId && showTranslate && (
         <TranslateView userId={userId} onClose={() => setShowTranslate(false)} />
       )}
-      {userId && showWeakWords && (
+      {active && userId && showWeakWords && (
         <WeakWordsQuiz userId={userId} isAdmin={isAdmin} onClose={() => setShowWeakWords(false)} />
       )}
     </div>
