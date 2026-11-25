@@ -7,7 +7,7 @@ import LoadingScreen from "@/components/LoadingScreen";
 export default function HomeClient() {
   const { user, loading } = useAuth();
 
-  if (loading) {
+  if (loading && !user) {
     return <LoadingScreen />;
   }
 
