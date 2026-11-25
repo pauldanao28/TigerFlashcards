@@ -1,4 +1,5 @@
 "use client";
+import SourceStudy from "@/components/SourceStudy";
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -248,6 +249,7 @@ function cardOverallPercent(c: FlashcardData): number {
 
 
 export default function StudyView({ compact = false }: { compact?: boolean } = {}) {
+  const [showSourceStudy,setShowSourceStudy]=useState(false);
   const active = usePathname() === "/study";
   const { user, loading } = useAuth();
   const { showAlert } = useAppAlert();
@@ -1993,6 +1995,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     );
   }
 
+  if (showSourceStudy && user && active) return <SourceStudy userId={user.id} type="situation" onClose={()=>setShowSourceStudy(false)}/>;
   return (
     <>
       {/* 1. Add the opening fragment here */}
@@ -3128,6 +3131,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 <p className="text-slate-800 font-black text-sm uppercase tracking-tight">{t.by_level}</p>
                 <button onClick={() => setShowJlptBreakdown(false)} className="text-slate-300 hover:text-slate-500">✕</button>
               </div>
+              <button className="w-full bg-indigo-50 text-indigo-700 rounded-xl p-3 mb-3 font-bold" onClick={()=>{setShowJlptBreakdown(false);setShowSourceStudy(true);}}>Situations</button>
               <p className="text-slate-800 font-black text-sm uppercase tracking-tight mb-1.5">Focus</p>
               <p className="text-[10px] font-bold text-slate-400 mb-3 leading-relaxed">
                 Drill a trouble list instead of a level — overrides N-level below while active.
