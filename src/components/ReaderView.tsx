@@ -1,4 +1,5 @@
 "use client";
+import SourceStudy from "@/components/SourceStudy";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, Sparkles, Send, Loader2, List, BookOpen, NotebookText, Pencil, Check, Trash2, X } from "lucide-react";
@@ -92,6 +93,7 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
   // is the current session's row id (set on first save, or when opening a saved one);
   // `resumeIdxRef` is the sentence index to jump to once a reopened passage is ready.
   const savedIdRef = useRef<string | null>(null);
+  const [reviewMaterialId, setReviewMaterialId] = useState<string | null>(null);
   const resumeIdxRef = useRef<number | null>(null);
 
   // `opts.notes` skips the AI annotate call entirely — used when reopening a saved
@@ -318,6 +320,8 @@ export default function ReaderView({ userId, onClose }: { userId: string; onClos
 
   return (
     <div className="fixed inset-0 z-[300] bg-slate-50 flex flex-col">
+      {reviewMaterialId && <SourceStudy userId={userId} type="reader" materialId={reviewMaterialId} onClose={()=>setReviewMaterialId(null)}/>}
+      {phase === "reading" && <button className="shrink-0 bg-indigo-50 text-indigo-700 py-2 text-sm font-bold" onClick={()=>{if(savedIdRef.current){stopReading();setReviewMaterialId(savedIdRef.current);}else window.alert("Please wait for this material to finish saving, then retry.");}}>Review Vocabulary</button>}
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white shrink-0">
         <button
