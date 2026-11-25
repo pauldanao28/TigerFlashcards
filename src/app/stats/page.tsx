@@ -11,7 +11,6 @@ import { useUploadGuard } from "@/context/UploadGuardContext";
 import { useAppAlert } from "@/context/AlertContext";
 import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
-import LoadingScreen from "@/components/LoadingScreen";
 import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
 import AddWordsSheet from "@/components/AddWordsSheet";
 import DuplicatesSheet from "@/components/DuplicatesSheet";
@@ -80,7 +79,7 @@ export default function StatsPage() {
   useEffect(() => {
     if (!loading && !user) router.replace("/");
   }, [loading, user, router]);
-  if (!user) return <LoadingScreen />;
+  if (!user) return <div className="px-5 pt-8"><h1 className="text-2xl font-black italic">Cards</h1></div>;
   return <StatsContent key={user.id} />;
 }
 
@@ -1047,7 +1046,7 @@ function StatsContent() {
     setSubmittingFeedback(false);
   };
 
-  if (initLoading && !initialCache && cards.length === 0) return <LoadingScreen />;
+
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20 md:pb-0">
@@ -2149,7 +2148,7 @@ function StatsContent() {
           </div>
 
           {/* Card list skeleton while full content loads */}
-          {cardsLoading && cards.length === 0 && (
+          {(initLoading || cardsLoading) && cards.length === 0 && (
             <div className="space-y-2.5 mb-6">
               {[...Array(5)].map((_, i) => (
                 <div key={i} className="bg-white rounded-2xl border border-slate-100 p-4 animate-pulse">
