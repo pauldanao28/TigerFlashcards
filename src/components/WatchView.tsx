@@ -1,4 +1,5 @@
 "use client";
+import SourceStudy from "@/components/SourceStudy";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronUp, List, MonitorPlay, Play, Plus, Repeat, RotateCcw, Sparkles, Trash2, Upload, X } from "lucide-react";
 import TappableText from "@/components/TappableText";
@@ -223,6 +224,7 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
   const [openingSaved, setOpeningSaved] = useState<string | null>(null);
   const [videoTitle, setVideoTitle] = useState<string | null>(null);
   const savedIdRef = useRef<string | null>(null);
+  const [reviewMaterialId, setReviewMaterialId] = useState<string | null>(null);
   const resumeRef = useRef<number | null>(null); // seek here once the player is ready
 
   // (Re)load the list whenever the start screen shows. If the table isn't there yet
@@ -566,6 +568,8 @@ export default function WatchView({ userId, onClose }: { userId: string; onClose
 
   return (
     <div className="fixed inset-0 z-[300] bg-slate-50 flex flex-col">
+      {reviewMaterialId && <SourceStudy userId={userId} type="watcher" materialId={reviewMaterialId} onClose={()=>setReviewMaterialId(null)}/>}
+      {phase === "watching" && <button className="shrink-0 bg-indigo-50 text-indigo-700 py-2 text-sm font-bold" onClick={()=>{if(savedIdRef.current){setReviewMaterialId(savedIdRef.current);}else window.alert("Please wait for this material to finish saving, then retry.");}}>Review Vocabulary</button>}
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white shrink-0">
         <button
