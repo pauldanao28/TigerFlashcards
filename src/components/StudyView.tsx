@@ -95,7 +95,7 @@ function invalidateCardsTabSnapshot(userId: string) {
   }
   catch { /* Storage may be unavailable. */ }
 }
-const studyCardsKey = (userId: string) => `flashkado_study_cards_v2_${userId}`;
+const studyCardsKey = (userId: string) => `flashkado_study_cards_v3_${userId}`;
 const studyCurrentKey = (userId: string) => `flashkado_study_current_${userId}`;
 const reflexModeKey = (userId: string) => `flashkado_reflex_mode_${userId}`;
 let _studyCacheHydrationAttempted = false;
@@ -541,14 +541,28 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     }
     return ids;
   }, [cards]);
+  const [addedWeek, setAddedWeek] = useState<number | null>(null);
+  const [dateAnchor, setDateAnchor] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active || addedWeek === null) return;
+    const refresh = () => setDateAnchor(Date.now());
+    refresh();
+    const timer = window.setInterval(refresh, 60_000);
+    return () => window.clearInterval(timer);
+  }, [active, addedWeek]);
   const inStatusFilter = useCallback(
     (c: FlashcardData) => {
+      if (addedWeek !== null) {
+        const age = dateAnchor - new Date(c.added_to_deck_at ?? 0).getTime();
+        const week = 7 * 86400000;
+        if (!c.added_to_deck_at || !(age >= addedWeek * week && age < (addedWeek + 1) * week)) return false;
+      }
       if (statusFilters.length === 0) return true;
       return statusFilters.some((f) =>
         f === "leech" ? leechIds.has(c.id) : f === "strugglingToday" ? strugglingTodayIds.has(c.id) : slowReflexIds.has(c.id),
       );
     },
-    [statusFilters, leechIds, strugglingTodayIds, slowReflexIds],
+    [statusFilters, leechIds, strugglingTodayIds, slowReflexIds, addedWeek, dateAnchor],
   );
   // Picking a trouble filter overrides N-level (see comment above) — also resets the
   // toast used by both filter sections so the two don't talk over each other.
@@ -777,7 +791,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         .select(
           `
           *,
-          deck_cards!inner (deck_id),
+          deck_cards!inner (deck_id, added_at),
           user_scores (scores_json, is_priority, prioritized_at, updated_at, reflex_time_total_ms, reflex_attempts)
         `,
         )
@@ -812,6 +826,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         const pending = pendingByCard.get(card.id);
         return {
           ...card,
+          added_to_deck_at: card.deck_cards?.[0]?.added_at ?? null,
           scores: pending?.scores_json ?? card.user_scores?.[0]?.scores_json ?? {
             jp_to_en: { pass: 0, fail: 0, total: 0, percent: 0 },
             en_to_jp: { pass: 0, fail: 0, total: 0, percent: 0 },
@@ -1220,7 +1235,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         (posFilters.length === 0 || posFilters.includes(c.partOfSpeech ?? "noun")) &&
         inStatusFilter(c)
       );
-      setCurrentCard(getNextPriorityCard(pool.length > 0 ? pool : updatedCards, language, currentCard.id));
+      setCurrentCard(getNextPriorityCard(pool, language, currentCard.id));
       setIsFlipped(false);
 
       // Database Sync (Upsert Score) — deliberately NOT awaited, and fired after
@@ -1367,7 +1382,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       (posFilters.length === 0 || posFilters.includes(c.partOfSpeech ?? "noun")) &&
       inStatusFilter(c)
     );
-    setCurrentCard(getNextPriorityCard(pool.length > 0 ? pool : updatedCards, language, currentCard.id));
+    setCurrentCard(getNextPriorityCard(pool, language, currentCard.id));
     setIsFlipped(false);
 
     // Database Sync (Upsert Score) — not awaited, fired after the card has
@@ -1791,11 +1806,10 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       jlptFilterInitialized.current = true;
       return;
     }
-    if (filteredCards.length === 0) return;
     setCurrentCard(getNextPriorityCard(filteredCards, language));
     setIsFlipped(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jlptFilterKey, posFilterKey, statusFilterKey]);
+  }, [jlptFilterKey, posFilterKey, statusFilterKey, addedWeek, dateAnchor]);
 
   // Show full-screen loading until the first deck fetch completes
   if (!hasLoadedOnce) {
@@ -1899,7 +1913,14 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               </button>
             </div>
 
-            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Focus</p>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Date added</p>
+              <div className="flex gap-2 flex-wrap mb-5">
+                {["All time","This week","Last week","2 weeks ago","3 weeks ago","4 weeks ago"].map((label,i)=>{
+                  const value=i===0?null:i-1;
+                  return <button key={label} onClick={()=>{setDateAnchor(Date.now());setAddedWeek(value);}} className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${addedWeek===value?"bg-indigo-600 text-white border-indigo-600":"bg-slate-50 text-slate-500 border-slate-200"}`}>{label}</button>;
+                })}
+              </div>
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Focus</p>
             <div className="flex gap-1.5 flex-wrap mb-5">
               {([
                 ["leech", "Leech"],
@@ -3132,6 +3153,13 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 <button onClick={() => setShowJlptBreakdown(false)} className="text-slate-300 hover:text-slate-500">✕</button>
               </div>
               <button className="w-full bg-indigo-50 text-indigo-700 rounded-xl p-3 mb-3 font-bold" onClick={()=>{setShowJlptBreakdown(false);setShowSourceStudy(true);}}>Situations</button>
+              <p className="text-slate-800 font-black text-sm uppercase tracking-tight mb-2">Date added</p>
+              <div className="flex gap-2 flex-wrap mb-5">
+                {["All time","This week","Last week","2 weeks ago","3 weeks ago","4 weeks ago"].map((label,i)=>{
+                  const value=i===0?null:i-1;
+                  return <button key={label} onClick={()=>{setDateAnchor(Date.now());setAddedWeek(value);}} className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${addedWeek===value?"bg-indigo-600 text-white border-indigo-600":"bg-slate-50 text-slate-500 border-slate-200"}`}>{label}</button>;
+                })}
+              </div>
               <p className="text-slate-800 font-black text-sm uppercase tracking-tight mb-1.5">Focus</p>
               <p className="text-[10px] font-bold text-slate-400 mb-3 leading-relaxed">
                 Drill a trouble list instead of a level — overrides N-level below while active.
