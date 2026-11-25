@@ -5,7 +5,7 @@ import Link from "next/link";
 import { FlashcardData, KanjiMnemonic } from "@/lib/types";
 import { authedFetch } from "@/lib/authedFetch";
 import { supabase } from "@/lib/supabase";
-import { User } from "@supabase/supabase-js";
+import { useAuth } from "@/context/AuthContext";
 import { translations } from "@/lib/languages";
 import { useUploadGuard } from "@/context/UploadGuardContext";
 import { useAppAlert } from "@/context/AlertContext";
@@ -75,15 +75,26 @@ const PRIORITY_CAP = 30;
 const DAILY_STRUGGLE_THRESHOLD = 3;
 
 export default function StatsPage() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  useEffect(() => {
+    if (!loading && !user) router.replace("/");
+  }, [loading, user, router]);
+  if (!user) return <LoadingScreen />;
+  return <StatsContent key={user.id} />;
+}
+
+function StatsContent() {
+  const { user } = useAuth();
   const router = useRouter();
   const t = translations.en;
   const { isBusy: uploadBusy, setIsBusy: setUploadBusy } = useUploadGuard();
   const { showAlert, showConfirm, showPrompt } = useAppAlert();
-  const [cards, setCards] = useState<FlashcardData[]>([]);
+  const [initialCache] = useState(() => user ? ((_statsCardsCache?.userId === user.id ? _statsCardsCache : null) ?? loadPersistedCardsCache(user.id)) : null);
+  const [cards, setCards] = useState<FlashcardData[]>(() => initialCache?.cards ?? []);
   const [loading, setLoading] = useState(false);
-  const [initLoading, setInitLoading] = useState(false);
+  const [initLoading, setInitLoading] = useState(!initialCache);
   const [cardsLoading, setCardsLoading] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
   const [userBlocklist, setUserBlocklist] = useState<string[]>([]);
   const [showSettings, setShowSettings] = useState(false);
   const [newBlockWord, setNewBlockWord] = useState("");
@@ -104,7 +115,7 @@ export default function StatsPage() {
   const [mnemonicError, setMnemonicError] = useState<string | null>(null);
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(50);
-  const [defaultDeckId, setDefaultDeckId] = useState<string | null>(null);
+  const [defaultDeckId, setDefaultDeckId] = useState<string | null>(() => initialCache?.deckId ?? null);
   const [deckTitle, setDeckTitle] = useState("Main Deck");
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState("");
@@ -208,35 +219,6 @@ export default function StatsPage() {
       );
     }
   };
-  useEffect(() => {
-    // 1. Only set initLoading if we don't have a user yet
-    if (!user) {
-      setInitLoading(true);
-    }
-
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
-
-      // Signing out still needs to drop the loading gate (nothing left to wait for);
-      // otherwise leave it to initData/fetchCards below, once there's real data to show
-      // instead of revealing the page with every stat still at its zero default.
-      if (!session) setInitLoading(false);
-
-      if (event === "SIGNED_OUT") {
-        window.location.href = "/";
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []); // Empty array means this ONLY runs once on mount
-
   // Re-checks (not just reads) on every visit — a cheap idempotent RPC call, kept
   // here (even though Badges no longer displays on this page) so someone who opens
   // Cards before ever visiting Home still gets prompt awarding; Home and StudyView's
@@ -1065,7 +1047,7 @@ export default function StatsPage() {
     setSubmittingFeedback(false);
   };
 
-  if (initLoading) return <LoadingScreen />;
+  if (initLoading && !initialCache && cards.length === 0) return <LoadingScreen />;
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20 md:pb-0">
