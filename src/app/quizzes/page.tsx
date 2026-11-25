@@ -2,17 +2,18 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
-import SentenceQuiz from "@/components/SentenceQuiz";
-import ListeningQuiz from "@/components/ListeningQuiz";
-import GrammarQuiz from "@/components/GrammarQuiz";
-import ReaderView from "@/components/ReaderView";
-import WatchView from "@/components/WatchView";
-import TranslateView from "@/components/TranslateView";
-import WeakWordsQuiz from "@/components/WeakWordsQuiz";
-import ConversationSpeaking from "@/components/ConversationSpeaking";
-import ReadingAloudDrill from "@/components/ReadingAloudDrill";
+const SentenceQuiz = dynamic(() => import("@/components/SentenceQuiz"), { ssr: false, loading: () => <div role="status" className="fixed inset-0 z-[200] grid place-items-center bg-white/90"><span className="text-sm font-bold text-slate-500">Opening exercise…</span></div> });
+const ListeningQuiz = dynamic(() => import("@/components/ListeningQuiz"), { ssr: false, loading: () => <div role="status" className="fixed inset-0 z-[200] grid place-items-center bg-white/90"><span className="text-sm font-bold text-slate-500">Opening exercise…</span></div> });
+const GrammarQuiz = dynamic(() => import("@/components/GrammarQuiz"), { ssr: false, loading: () => <div role="status" className="fixed inset-0 z-[200] grid place-items-center bg-white/90"><span className="text-sm font-bold text-slate-500">Opening exercise…</span></div> });
+const ReaderView = dynamic(() => import("@/components/ReaderView"), { ssr: false, loading: () => <div role="status" className="fixed inset-0 z-[200] grid place-items-center bg-white/90"><span className="text-sm font-bold text-slate-500">Opening exercise…</span></div> });
+const WatchView = dynamic(() => import("@/components/WatchView"), { ssr: false, loading: () => <div role="status" className="fixed inset-0 z-[200] grid place-items-center bg-white/90"><span className="text-sm font-bold text-slate-500">Opening exercise…</span></div> });
+const TranslateView = dynamic(() => import("@/components/TranslateView"), { ssr: false, loading: () => <div role="status" className="fixed inset-0 z-[200] grid place-items-center bg-white/90"><span className="text-sm font-bold text-slate-500">Opening exercise…</span></div> });
+const WeakWordsQuiz = dynamic(() => import("@/components/WeakWordsQuiz"), { ssr: false, loading: () => <div role="status" className="fixed inset-0 z-[200] grid place-items-center bg-white/90"><span className="text-sm font-bold text-slate-500">Opening exercise…</span></div> });
+const ConversationSpeaking = dynamic(() => import("@/components/ConversationSpeaking"), { ssr: false, loading: () => <div role="status" className="fixed inset-0 z-[200] grid place-items-center bg-white/90"><span className="text-sm font-bold text-slate-500">Opening exercise…</span></div> });
+const ReadingAloudDrill = dynamic(() => import("@/components/ReadingAloudDrill"), { ssr: false, loading: () => <div role="status" className="fixed inset-0 z-[200] grid place-items-center bg-white/90"><span className="text-sm font-bold text-slate-500">Opening exercise…</span></div> });
 
 function QuizzesInner() {
   const router = useRouter();
