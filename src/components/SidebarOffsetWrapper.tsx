@@ -19,7 +19,7 @@ function RetainedTabs({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const path = usePathname();
   useEffect(() => {
-    if (!/Android/i.test(navigator.userAgent) || (path !== "/stats" && path !== "/study")) return;
+    if (!/Android/i.test(navigator.userAgent) || !["/stats", "/study", "/quizzes", "/sensei"].includes(path)) return;
     const roots = [document.documentElement, document.body];
     const previous = roots.map(el => ({ value: el.style.getPropertyValue("overscroll-behavior-y"), priority: el.style.getPropertyPriority("overscroll-behavior-y") }));
     roots.forEach(el => el.style.setProperty("overscroll-behavior-y", "none"));
