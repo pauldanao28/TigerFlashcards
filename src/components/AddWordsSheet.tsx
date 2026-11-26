@@ -46,7 +46,6 @@ export default function AddWordsSheet({
     addedWordsSummary,
     showSummary,
     setShowSummary,
-    processWords,
     savePreviewCards,
     deleteFromSummary,
     relatedWords,
@@ -70,8 +69,6 @@ export default function AddWordsSheet({
   const [addSheetTab, setAddSheetTab] = useState<"word" | "paste" | "queue">(initialTab);
   const [pendingWords, setPendingWords] = useState<string[]>([]);
   const [wordListText, setWordListText] = useState("");
-  const [wordListAdding, setWordListAdding] = useState(false);
-  const [batchProcessing, setBatchProcessing] = useState(false);
 
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -289,12 +286,14 @@ export default function AddWordsSheet({
 
             <div className="flex-1 overflow-y-auto p-5">
               <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3 mb-4 space-y-2">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">Import as</p>
-                <div className="flex gap-2">
-                  {(["vocabulary", "phrase"] as const).map(type =>
-                    <button key={type} type="button" aria-pressed={importType === type} onClick={() => setImportType(type)} className={`flex-1 rounded-xl border py-2 text-xs font-bold capitalize ${importType === type ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-slate-200 text-slate-500"}`}>{type === "phrase" ? "Phrases" : "Vocabulary"}</button>
-                  )}
-                </div>
+                <CustomSelect label="Import type" value={importType}
+                  onChange={value => setImportType(value as ImportMode)}
+                  options={[
+                    {value:"auto",label:"Auto Detect (Gemini)"},
+                    {value:"vocabulary",label:"Vocabulary"},
+                    {value:"phrase",label:"Phrases"},
+                  ]} />
+                <p className="text-[10px] font-semibold text-slate-500">Auto Detect classifies each line. Phrases stay intact, including particles and punctuation.</p>
                 <details className="group">
                   <summary className="text-[11px] font-bold text-indigo-600 cursor-pointer">Situation tags {importTags.length + (customTags.trim() ? 1 : 0) > 0 ? `(${importTags.length + (customTags.trim() ? 1 : 0)})` : "(optional)"}</summary>
                   <div className="flex gap-1.5 flex-wrap mt-2">
@@ -306,6 +305,7 @@ export default function AddWordsSheet({
                   <input value={customTags} onChange={e => setCustomTags(e.target.value)} placeholder="Other tags, separated by commas" className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs" />
                 </details>
               </div>
+              {previewError && !previewRows && <p role="alert" className="mb-3 p-3 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 text-xs font-bold">{previewError}</p>}
               {addSheetTab === "word" && (
                 <div className="flex flex-col gap-4">
                   <div>
@@ -318,10 +318,10 @@ export default function AddWordsSheet({
                           onChange={(e) => setInput(e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" && input.trim()) {
-                              processWords(input.split("\n").filter((l) => l.trim()), importOptions());
+                              void preparePreview(input.split("\n").filter((l) => l.trim()), "word");
                             }
                           }}
-                          placeholder="食べる / taberu / to eat…"
+                          placeholder={importType === "phrase" ? "そういうことか！" : "食べる / そうなんだ…"}
                           className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-4 pr-10 py-3.5 text-base font-bold outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
                         />
                         {input && (
@@ -338,24 +338,24 @@ export default function AddWordsSheet({
                     </div>
                   </div>
                   <button
-                    onClick={() => { if (!input.trim()) return; processWords(input.split("\n").filter((l) => l.trim()), importOptions()); }}
-                    disabled={loading || !input.trim()}
+                    onClick={() => { if (!input.trim()) return; void preparePreview(input.split("\n").filter((l) => l.trim()), "word"); }}
+                    disabled={loading || preparing || !input.trim()}
                     className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
                   >
-                    {loading ? <><Loader2 size={16} className="animate-spin" /> Generating…</> : <><Plus size={16} /> Add to Deck</>}
+                    {preparing ? <><Loader2 size={16} className="animate-spin" /> Analysing…</> : <><Plus size={16} /> Preview Card</>}
                   </button>
-                  <p className="text-center text-[10px] text-slate-400 font-bold">AI generates the card — reading, meaning, JLPT level</p>
+                  <p className="text-center text-[10px] text-slate-400 font-bold">Gemini suggests readings, natural meanings, situations and usage notes. Review before saving.</p>
                 </div>
               )}
 
               {addSheetTab === "paste" && (() => {
                 const lines = batchInput.split("\n").map((l) => l.trim()).filter(Boolean);
-                const looksLikeText = lines.some((l) => l.length > 15 || /[。、！？]/.test(l));
+                const looksLikeText = importType === "vocabulary" && lines.some((l) => l.length > 30);
                 let hint: { label: string; emoji: string } | null = null;
                 if (lines.length > 0) {
                   hint = looksLikeText
                     ? { emoji: "📖", label: "Looks like longer text — use the Reader" }
-                    : { emoji: "📋", label: `${lines.length} word${lines.length !== 1 ? "s" : ""}` };
+                    : { emoji: "📋", label: `${lines.length} entries` };
                 }
                 return (
                   <div className="flex flex-col gap-3">
@@ -372,19 +372,14 @@ export default function AddWordsSheet({
                       onChange={(e) => setBatchInput(e.target.value)}
                       rows={9}
                       className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none font-mono leading-relaxed"
-                      placeholder={"食べる\n勉強する\n彼女\n…"}
+                      placeholder={importType === "vocabulary" ? "食べる\n勉強\n彼女" : "そういうことか！\n今向かってる\nちょっと遅れる"}
                     />
                     <button
-                      onClick={async () => {
-                        onClose();
-                        setBatchProcessing(true);
-                        try { await processWords(lines, importOptions()); }
-                        finally { setBatchProcessing(false); }
-                      }}
-                      disabled={loading || !batchInput.trim()}
+                      onClick={() => void preparePreview(lines, "paste")}
+                      disabled={loading || preparing || !batchInput.trim()}
                       className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
                     >
-                      {loading ? <><Loader2 size={16} className="animate-spin" /> Processing…</> : <><Plus size={16} /> Add {lines.length || ""} to Deck</>}
+                      {preparing ? <><Loader2 size={16} className="animate-spin" /> Analysing…</> : <><Plus size={16} /> Preview {lines.length || ""} Cards</>}
                     </button>
                     <p className="text-center text-[10px] text-slate-400 font-bold">
                       Have lyrics or a story? Paste it in Practice → Reader to pick out the words you don&apos;t have yet. Expressions entered as phrases stay intact.
@@ -408,11 +403,11 @@ export default function AddWordsSheet({
                     placeholder={"食べる\n勉強\n彼女\n…"}
                   />
                   <button
-                    onClick={() => addWordListToDeck(wordListText.split("\n").map((w) => w.trim()).filter(Boolean))}
-                    disabled={wordListAdding || !wordListText.trim()}
+                    onClick={() => void preparePreview(wordListText.split("\n").map((w) => w.trim()).filter(Boolean), "queue")}
+                    disabled={preparing || !wordListText.trim()}
                     className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
                   >
-                    {wordListAdding ? <><Loader2 size={16} className="animate-spin" /> Adding…</> : <><Plus size={16} /> Add All to Deck</>}
+                    {preparing ? <><Loader2 size={16} className="animate-spin" /> Analysing…</> : <><Plus size={16} /> Preview Queue</>}
                   </button>
                 </div>
               )}
@@ -421,14 +416,21 @@ export default function AddWordsSheet({
         </div>
       )}
 
-      {/* Batch processing overlay — sheet closes immediately, this shows while AI works.
-          z-[260]: above the sheet itself (z-[250]) since the Word tab's single-add path
-          leaves the sheet open, so this/the summary below must render on top of it, not behind. */}
-      {batchProcessing && (
-        <div className="fixed inset-0 z-[260] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl px-10 py-8 flex flex-col items-center gap-4 shadow-2xl">
-            <div className="w-10 h-10 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin" />
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Processing…</p>
+      {previewRows && (
+        <ImportPreviewSheet
+          rows={previewRows}
+          onChange={setPreviewRows}
+          onClose={() => {if(!savingPreview){setPreviewRows(null);setPreviewError("");}}}
+          onApprove={() => void confirmPreview()}
+          saving={savingPreview}
+          error={previewError}
+        />
+      )}
+      {preparing && (
+        <div className="fixed inset-0 z-[270] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl px-8 py-7 flex flex-col items-center gap-4 shadow-2xl">
+            <Loader2 size={28} className="animate-spin text-indigo-600"/>
+            <p className="text-xs font-black uppercase tracking-widest text-slate-600">Gemini is preparing your preview…</p>
           </div>
         </div>
       )}
