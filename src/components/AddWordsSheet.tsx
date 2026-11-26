@@ -191,16 +191,14 @@ export default function AddWordsSheet({
             </div>
 
             <div className="flex-1 overflow-y-auto p-5">
-              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3 mb-4 space-y-2">
-                <CustomSelect label="Import type" value={importType}
+              <div className="mb-3 flex justify-end">
+                <CustomSelect compact label="Import type" value={importType}
                   onChange={value => setImportType(value as ImportMode)}
                   options={[
                     {value:"auto",label:"Auto Detect (AI)"},
                     {value:"vocabulary",label:"Vocabulary"},
                     {value:"phrase",label:"Phrases"},
                   ]} />
-                <p className="text-[10px] font-semibold text-slate-500">Auto Detect classifies each line. Phrases stay intact, including particles and punctuation.</p>
-
               </div>
               {addSheetTab === "word" && (
                 <div className="flex flex-col gap-4">
