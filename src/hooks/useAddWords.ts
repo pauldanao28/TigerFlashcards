@@ -280,7 +280,12 @@ export function useAddWords({
             body: JSON.stringify({ words: wordsForAI, cardType }),
           });
 
-          if (!res.ok) throw new Error(res.status === 429 ? "AI Limit Reached" : "AI Error");
+          if (!res.ok) {
+            const detail = await res.json().catch(() => ({}));
+            throw new Error(res.status === 429
+              ? "Daily AI limit reached"
+              : typeof detail.error === "string" ? detail.error : "AI generation failed");
+          }
 
           const items = await res.json();
           const itemsArray = Array.isArray(items) ? items : [items];
