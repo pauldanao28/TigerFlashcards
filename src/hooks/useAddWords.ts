@@ -188,7 +188,7 @@ export function useAddWords({
     // Single Add Bypass: if only one item is provided, treat it as a deliberate single add
     // and do NOT chop the kanji/words.
     if (cardType === "phrase") {
-      wordsToProcess = inputList.map(item => item.normalize("NFKC").trim()).filter(Boolean);
+      wordsToProcess = inputList.map(item => item.trim()).filter(Boolean);
     } else if (inputList.length === 1 && inputList[0].trim().length > 0) {
       wordsToProcess = [inputList[0].trim()];
     } else if (isEnglishInput) {
