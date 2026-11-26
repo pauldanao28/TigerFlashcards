@@ -140,6 +140,12 @@ export default function CardDetailModal({ card, onClose, onMetadataSaved }: { ca
             {suruLabel(card.japanese)}: <span className="text-slate-800 font-bold">{card.suru_meaning}</span>
           </p>
         )}
+        {card.exampleSentence?.note && (
+          <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50 p-3">
+            <p className="text-[9px] font-black uppercase tracking-widest text-indigo-500 mb-1">Usage note</p>
+            <p className="text-xs text-indigo-800 leading-relaxed font-medium">{card.exampleSentence.note}</p>
+          </div>
+        )}
         <div className="mb-4 p-4 bg-slate-50 rounded-2xl">
           <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Example</p>
           {card.exampleSentence?.jp ? (
