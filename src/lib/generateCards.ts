@@ -155,20 +155,26 @@ async function tryGenerate(modelName: string, words: string[], cardType: ImportM
 // surface that (an error response, or just dropping the words in a best-effort path).
 export async function generateCards(words: string[], options?: {cardType?: ImportMode; preview?: boolean}): Promise<GeneratedCard[]> {
   const cardType = options?.cardType ?? "vocabulary";
-  let text: string;
+  // A successful model call can still return truncated or invalid JSON.
+  // Retry through the existing fallback model before failing the whole import.
+  const parseCards = (raw: string): Record<string, unknown>[] => {
+    const matched = raw.match(/\\[[\\s\\S]*\\]/);
+    const data: unknown = JSON.parse(matched ? matched[0] : raw);
+    if (!Array.isArray(data) || data.some(item => !item || typeof item !== "object")) {
+      throw new Error("AI returned an invalid card list.");
+    }
+    if ((options?.preview || cardType === "auto" || cardType === "phrase") && data.length !== words.length) {
+      throw new Error("AI returned an incomplete card list.");
+    }
+    return data as Record<string, unknown>[];
+  };
+  let parsedData: Record<string, unknown>[];
   try {
-    text = await tryGenerate("gemini-2.5-flash-lite", words, cardType, options?.preview);
+    parsedData = parseCards(await tryGenerate("gemini-2.5-flash-lite", words, cardType, options?.preview));
   } catch {
-    text = await tryGenerate("gemini-2.5-flash", words, cardType, options?.preview);
+    parsedData = parseCards(await tryGenerate("gemini-2.5-flash", words, cardType, options?.preview));
   }
 
-  const jsonMatch = text.match(/\[[\s\S]*\]/);
-  const cleanJson = jsonMatch ? jsonMatch[0] : text;
-
-  const parsedData: Record<string, unknown>[] = JSON.parse(cleanJson);
-  if (!Array.isArray(parsedData) || ((options?.preview || cardType === "auto" || cardType === "phrase") && parsedData.length !== words.length)) {
-    throw new Error("AI did not return one card per item; please retry.");
-  }
   const asEnum = <T extends string>(value: unknown, allowed: readonly T[]): T | null =>
     typeof value === "string" && (allowed as readonly string[]).includes(value) ? (value as T) : null;
   return parsedData.map((item: Record<string, unknown>, index: number) => {
