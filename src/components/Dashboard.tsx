@@ -64,6 +64,8 @@ interface ProfileScores {
   listening_score: number | null;
   grammar_score: number | null;
   deck_size: number;
+  vocab_deck_size?: number;
+  phrase_stats?: { total: number; mastered: number };
   jlpt_stats: Record<JlptLevel, { total: number; mastered: number }>;
   pos_stats: Record<string, { total: number; mastered: number }>;
   vocab_nlevel: JlptLevel;
@@ -458,6 +460,8 @@ export default function Dashboard() {
         listening_score: raw.listening_score ?? null,
         grammar_score: raw.grammar_score ?? null,
         deck_size: raw.deck_size ?? 0,
+        vocab_deck_size: raw.vocab_deck_size ?? raw.deck_size ?? 0,
+        phrase_stats: raw.phrase_stats ?? { total: 0, mastered: 0 },
         jlpt_stats: raw.jlpt_stats,
         pos_stats: raw.pos_stats,
         vocab_nlevel: raw.vocab_nlevel ?? "N5",
@@ -680,7 +684,7 @@ export default function Dashboard() {
 
       {/* 2×2 skill tiles */}
       <div className="px-4 grid grid-cols-2 gap-3">
-        <ScoreTile href="/study"                   skill="vocab"     emoji="🃏" label="Vocabulary" score={data.vocab_score}     sub={`${data.deck_size.toLocaleString()} cards in deck`} nlevelOverride={data.vocab_nlevel} />
+        <ScoreTile href="/study"                   skill="vocab"     emoji="🃏" label="Vocabulary" score={data.vocab_score}     sub={`${(data.vocab_deck_size ?? data.deck_size).toLocaleString()} words in deck`} nlevelOverride={data.vocab_nlevel} />
         <ScoreTile href="/quizzes?open=grammar"    skill="grammar"   emoji="📝" label="Grammar"    score={data.grammar_score} />
         <ScoreTile href="/quizzes?open=sentence"   skill="reading"   emoji="📖" label="Reading"    score={data.reading_score}   sub="Sentence quiz" />
         <ScoreTile href="/quizzes?open=listening"  skill="listening" emoji="🎧" label="Listening"  score={data.listening_score} sub="Listening quiz" />
@@ -847,6 +851,16 @@ export default function Dashboard() {
                 </div>
               );
             })}
+          </div>
+          <div className="border-t border-slate-100 mt-4 pt-4">
+            <div className="flex justify-between items-center mb-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Conversational Phrases</p>
+              <p className="text-[10px] font-bold text-slate-500">{data.phrase_stats?.mastered ?? 0}/{data.phrase_stats?.total ?? 0} mastered</p>
+            </div>
+            <div className="h-3 bg-slate-100 overflow-hidden rounded-full">
+              <div className="h-full bg-indigo-600 rounded-full transition-all" style={{width:`${(data.phrase_stats?.total ?? 0) > 0 ? Math.round(((data.phrase_stats?.mastered ?? 0) / data.phrase_stats!.total) * 100) : 0}%`}} />
+            </div>
+            <p className="text-right mt-1.5 text-[10px] font-bold text-slate-400">{(data.phrase_stats?.total ?? 0) > 0 ? Math.round(((data.phrase_stats?.mastered ?? 0) / data.phrase_stats!.total) * 100) : 0}%</p>
           </div>
         </div>
       )}
