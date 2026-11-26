@@ -7,7 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { jlptLevel, JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
-import { ALLOWED_PARTS_OF_SPEECH } from "@/lib/textNormalize";
+import { FILTERABLE_PARTS_OF_SPEECH } from "@/lib/textNormalize";
 import { SocialDock } from "@/components/SocialDock";
 import SocialToast from "@/components/SocialToast";
 import BadgeToast from "@/components/BadgeToast";
@@ -870,7 +870,7 @@ export default function Dashboard() {
         <div className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Vocabulary by Part of Speech</p>
           <div className="flex gap-2 flex-wrap">
-            {ALLOWED_PARTS_OF_SPEECH.map((pos) => {
+            {FILTERABLE_PARTS_OF_SPEECH.map((pos) => {
               const { total, mastered } = data.pos_stats[pos] ?? { total: 0, mastered: 0 };
               const pct = total > 0 ? Math.round((mastered / total) * 100) : 0;
               return (
