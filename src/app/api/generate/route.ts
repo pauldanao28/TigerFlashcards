@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "words must be a non-empty array" }, { status: 400 });
   }
 
-  if (words.length > 20 || words.some((w: unknown) => typeof w !== "string" || !w.trim() || w.length > 200))
+  if (preview === true && (words.length > 20 || words.some((w: unknown) => typeof w !== "string" || !w.trim() || w.length > 200)))
     return NextResponse.json({ error: "Maximum 20 entries per request, 200 characters per entry" }, {status:400});
   const usage = await checkAndRecordUsage(user.id, "generate", words.length);
   if (!usage.allowed) {
