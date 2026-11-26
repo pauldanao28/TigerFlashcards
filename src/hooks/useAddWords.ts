@@ -6,7 +6,7 @@ import { useAppAlert } from "@/context/AlertContext";
 import { useUploadGuard } from "@/context/UploadGuardContext";
 import { translations } from "@/lib/languages";
 import { skipDeckDuplicates } from "@/lib/duplicates";
-import { normalizeSituationTags, type CardType, type ImportPreviewCard } from "@/lib/cardMetadata";
+import { normalizeSituationTags, type ImportMode, type ImportPreviewCard } from "@/lib/cardMetadata";
 
 const t = translations.en;
 const DAILY_LIMIT = 100;
@@ -19,6 +19,8 @@ export interface AddedWordSummary {
   partOfSpeech?: string;
   jlpt_level?: "N5" | "N4" | "N3" | "N2" | "N1" | null;
   alreadyInDeck: boolean;
+  card_type?: "vocabulary" | "phrase";
+  situation_tags?: string[];
 }
 
 export interface RelatedWord {
@@ -175,9 +177,8 @@ export function useAddWords({
 
   // Batch input is one word per line — extracting vocabulary from lyrics/stories is
   // the Reader's job, so lines are never re-segmented here (that chopped 食べる into 食|べる).
-  const processWords = async (inputList: string[], options?: { cardType?: CardType; situationTags?: string[] }): Promise<Set<string>> => {
+  const processWords = async (inputList: string[], options?: { cardType?: ImportMode }): Promise<Set<string>> => {
     const cardType = options?.cardType ?? "vocabulary";
-    const situationTags = normalizeSituationTags(options?.situationTags ?? []);
     const succeededWords = new Set<string>();
     if (!userId || !deckId) {
       showAlert("Please log in and ensure deck is initialized.");
@@ -192,7 +193,7 @@ export function useAddWords({
 
     // Single Add Bypass: if only one item is provided, treat it as a deliberate single add
     // and do NOT chop the kanji/words.
-    if (cardType === "phrase") {
+    if (cardType === "phrase" || cardType === "auto") {
       wordsToProcess = inputList.map(item => item.trim()).filter(Boolean);
     } else if (inputList.length === 1 && inputList[0].trim().length > 0) {
       wordsToProcess = [inputList[0].trim()];
@@ -250,24 +251,7 @@ export function useAddWords({
 
     let allProcessedCards: any[] = [];
     const preLinkedIds = new Set<string>();
-    // Existing Japanese expressions are reused rather than duplicated. Importing as
-    // "phrase" can promote their shared metadata without touching user_scores.
-    const applyImportMetadata = async (rows: any[]) => {
-      if (cardType === "vocabulary" && situationTags.length === 0) return rows;
-      return Promise.all(rows.map(async (row: any) => {
-        const nextTags = normalizeSituationTags([...(row.situation_tags ?? []), ...situationTags]);
-        const nextType = cardType === "phrase" ? "phrase" : row.card_type ?? "vocabulary";
-        if (nextType === row.card_type && nextTags.length === (row.situation_tags ?? []).length) return row;
-        const { data, error } = await supabase.from("master_cards")
-          .update({card_type: nextType, situation_tags: nextTags}).eq("id",row.id).select("*").single();
-        if (error) {
-          console.warn("Could not update shared phrase metadata",row.id,error.message);
-          return row;
-        }
-        return data ?? row;
-      }));
-    };
-
+    // Existing library entries are reused as-is, including their type, tags and scores.
     try {
       const { data: existingCards, error: searchErr } = await supabase
         .from("master_cards")
@@ -277,7 +261,7 @@ export function useAddWords({
       if (searchErr) throw searchErr;
 
       if (existingCards) {
-        allProcessedCards = await applyImportMetadata(existingCards);
+        allProcessedCards = [...existingCards];
         const foundIds = existingCards.map((c) => c.id);
         if (foundIds.length > 0) {
           (await alreadyLinked(foundIds)).forEach((id) => preLinkedIds.add(id));
@@ -301,7 +285,7 @@ export function useAddWords({
           const items = await res.json();
           const itemsArray = Array.isArray(items) ? items : [items];
 
-          // Deduplicate Gemini output by dictionary form
+          // Deduplicate AI output by exact Japanese text, not by partial words
           const seen = new Set<string>();
           const deduplicatedItems = itemsArray
             .map((item: any) => ({
@@ -311,15 +295,20 @@ export function useAddWords({
               alternatives: Array.isArray(item.alternatives) ? item.alternatives.filter((v: unknown): v is string => typeof v === "string") : [],
               partOfSpeech: String(item.partOfSpeech || "noun").trim().toLowerCase(),
               jlpt_level: item.jlpt_level ?? null,
-              exampleSentence: item.exampleSentence || { jp: "", en: "" },
+              exampleSentence: {
+                ...(item.exampleSentence && typeof item.exampleSentence === "object" ? item.exampleSentence : { jp: "", en: "" }),
+                ...(typeof item.usage_note === "string" ? { note: item.usage_note.trim().slice(0, 300) } : {}),
+              },
               te_form: item.te_form ?? null,
               transitivity: item.transitivity ?? null,
               verb_type: item.verb_type ?? null,
               adjective_type: item.adjective_type ?? null,
               suru_meaning: item.suru_meaning ?? null,
               creator_id: userId,
-              card_type: cardType,
-              situation_tags: situationTags,
+              card_type: cardType === "auto"
+                ? (item.card_type === "phrase" ? "phrase" : "vocabulary")
+                : cardType,
+              situation_tags: normalizeSituationTags(Array.isArray(item.situation_tags) ? item.situation_tags : []),
             }))
             .filter((item: any) => {
               if (!item.japanese || seen.has(item.japanese)) return false;
@@ -327,20 +316,20 @@ export function useAddWords({
               return true;
             });
 
-          // Second existing-card check against Gemini's normalized dictionary-form words.
+          // Check again for exact Japanese duplicates after AI generation.
           // Catches cards that were missed by the first check (e.g. whole-text paste input).
-          const geminiWords = deduplicatedItems.map((i) => i.japanese);
+          const generatedJapanese = deduplicatedItems.map((i) => i.japanese);
           const { data: alreadyInMaster } = await supabase
             .from("master_cards")
             .select("*")
-            .in("japanese", geminiWords);
+            .in("japanese", generatedJapanese);
 
           const alreadyInMasterMap = new Map((alreadyInMaster ?? []).map((c) => [c.japanese, c]));
 
           if (alreadyInMaster && alreadyInMaster.length > 0) {
             const ids = alreadyInMaster.map((c) => c.id);
             (await alreadyLinked(ids)).forEach((id) => preLinkedIds.add(id));
-            allProcessedCards = [...allProcessedCards, ...await applyImportMetadata(alreadyInMaster)];
+            allProcessedCards = [...allProcessedCards, ...alreadyInMaster];
             await performLinking(ids);
             alreadyInMaster.forEach((c) => succeededWords.add(c.japanese));
           }
@@ -351,7 +340,7 @@ export function useAddWords({
           if (trulyNewItems.length > 0) {
             const { data: newCards, error: mErr } = await supabase
               .from("master_cards")
-              .upsert(trulyNewItems, { onConflict: "japanese" })
+              .upsert(trulyNewItems, { onConflict: "japanese", ignoreDuplicates: true })
               .select("*");
 
             if (mErr) throw mErr;
