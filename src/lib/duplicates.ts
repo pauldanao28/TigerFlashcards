@@ -51,7 +51,7 @@ export function findDuplicates(cards: FlashcardData[]): Duplicate[] {
   for (const c of cards) {
     const jp = norm(c.japanese);
     byJapanese.set(jp, c);
-    if (kanjiRe.test(jp)) {
+    if ((c.card_type ?? "vocabulary") !== "phrase" && kanjiRe.test(jp)) {
       const list = kanjiByReading.get(norm(c.reading)) ?? [];
       list.push(c);
       kanjiByReading.set(norm(c.reading), list);
@@ -59,6 +59,7 @@ export function findDuplicates(cards: FlashcardData[]): Duplicate[] {
   }
 
   for (const c of cards) {
+    if ((c.card_type ?? "vocabulary") === "phrase") continue;
     const jp = norm(c.japanese);
 
     if (kanaOnlyRe.test(jp)) {
@@ -79,7 +80,7 @@ export function findDuplicates(cards: FlashcardData[]): Duplicate[] {
     const particle = CASE_PARTICLES.find((p) => jp.length > p.length && jp.endsWith(p));
     if (particle && !NOT_A_PARTICLE_COPY.test(c.partOfSpeech ?? "")) {
       const keep = byJapanese.get(jp.slice(0, -particle.length));
-      if (keep && keep.id !== c.id && sameMeaning(keep, c)) {
+      if (keep && (keep.card_type ?? "vocabulary") !== "phrase" && keep.id !== c.id && sameMeaning(keep, c)) {
         out.push({ kind: "particle", keep, remove: c });
         claimed.add(c.id);
       }
@@ -133,7 +134,7 @@ export async function resolveDuplicate(userId: string, deckId: string, d: Duplic
   if (linkErr || scoreErr) throw linkErr || scoreErr;
 }
 
-const DUP_COLUMNS = "id, japanese, reading, english, jlpt_level, partOfSpeech";
+const DUP_COLUMNS = "id, japanese, reading, english, jlpt_level, partOfSpeech, card_type";
 const CHUNK = 150;
 
 async function selectChunked(column: string, values: string[], deckId?: string): Promise<FlashcardData[]> {
