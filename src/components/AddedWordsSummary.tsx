@@ -61,7 +61,7 @@ export default function AddedWordsSummary({
             </h2>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1 flex flex-wrap gap-x-1">
               <span>{words.filter((w) => !w.alreadyInDeck).length} added</span>
-              <span className="text-indigo-600">· {words.filter(w => !w.alreadyInDeck && w.card_type === "phrase").length} phrases</span>
+              {words.some(w => !w.alreadyInDeck && w.card_type === "phrase") && <span className="text-indigo-600">· {words.filter(w => !w.alreadyInDeck && w.card_type === "phrase").length} phrases</span>}
               {words.some((w) => w.alreadyInDeck) && (
                 <span className="text-teal-500 whitespace-nowrap">· {words.filter((w) => w.alreadyInDeck).length} already in deck</span>
               )}
