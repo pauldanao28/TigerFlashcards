@@ -412,7 +412,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     return () => clearTimeout(t);
   }, [cardMasteryToast]);
 
-  const goalFired = useRef(_storedProgress >= DAILY_GOAL);
+  const goalFired = useRef(false);
+  const streakRequestDay = useRef<string | null>(null);
   // Which Asia/Singapore calendar day dailyProgress/goalFired currently apply to.
   // Needed because this component can stay mounted across a real midnight rollover —
   // a backgrounded tab/PWA doesn't necessarily remount, and without this, dailyProgress
@@ -658,7 +659,10 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         // calendar date (set by the update_streak RPC), so compare against that same
         // timezone rather than the device's own, or this can silently mismatch too.
         const todaySg = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
-        if (p.last_review_date === todaySg) setDailyProgress(DAILY_GOAL);
+        if (p.last_review_date === todaySg) {
+          setDailyProgress(DAILY_GOAL);
+          goalFired.current = true;
+        }
 
         // 2. SAFE STREAK DISPLAY (No Auto-Reset)
         // We simply show whatever is in the DB.
@@ -1171,8 +1175,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         // double-grade race reading stale state, or dailyProgress already past it
         // from some prior desync), an exact-match check would never fire again for
         // the rest of the day, leaving the streak stuck.
-        if (prog >= DAILY_GOAL && !goalFired.current) {
-          goalFired.current = true;
+        if (prog >= DAILY_GOAL && !goalFired.current && streakRequestDay.current !== todaySg) {
+          streakRequestDay.current = todaySg;
           // Not awaited — same reasoning as the score upsert below: this used to
           // block the whole rest of handleScore (including the card advance) on
           // the update_streak network RPC, so hitting today's goal right after the
@@ -1180,10 +1184,14 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           // The recap modal showing a beat later than the card underneath it
           // advances is not a correctness issue.
           updateStreak().then((newStreak) => {
-            if (newStreak != null) notifyFriendsGoalMet();
-            setGoalStreak(newStreak ?? streak);
+            if (newStreak == null || progressDayRef.current !== todaySg) return;
+            goalFired.current = true;
+            notifyFriendsGoalMet();
+            setGoalStreak(newStreak);
             setShowRecap(true);
             navigator.vibrate?.([100, 50, 100, 50, 200]);
+          }).catch(error => console.error("Streak update failed:", error)).finally(() => {
+            if (streakRequestDay.current === todaySg) streakRequestDay.current = null;
           });
         }
       }
