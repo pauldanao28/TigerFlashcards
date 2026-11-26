@@ -2144,13 +2144,13 @@ function StatsContent() {
                 onClick={() => setShowFilterMenu((v) => !v)}
                 title="Filter"
                 className={`shrink-0 relative w-9 h-9 flex items-center justify-center border rounded-xl shadow-sm active:scale-90 transition-all ${
-                  showFilterMenu || quickFilter !== "none" || cardTypeFilter !== "all" || situationFilters.length > 0 || jlptFilters.length > 0 || posFilters.length > 0
+                  showFilterMenu || quickFilter !== "none" || cardTypeFilter !== "all" || situationFilters.length > 0 || jlptFilters.length > 0 || posFilters.length > 0 || reviewWeek !== null
                     ? "bg-indigo-600 border-indigo-600 text-white"
                     : "bg-white border-slate-200 text-slate-400 hover:text-indigo-600"
                 }`}
               >
                 <SlidersHorizontal size={14} />
-                {(quickFilter !== "none" || cardTypeFilter !== "all" || situationFilters.length > 0 || jlptFilters.length > 0 || posFilters.length > 0) && !showFilterMenu && (
+                {(quickFilter !== "none" || cardTypeFilter !== "all" || situationFilters.length > 0 || jlptFilters.length > 0 || posFilters.length > 0 || reviewWeek !== null) && !showFilterMenu && (
                   <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white" />
                 )}
               </button>
@@ -2159,6 +2159,9 @@ function StatsContent() {
             {showFilterMenu && (
               <CardsFilterModal
                 onClose={() => setShowFilterMenu(false)}
+                cards={cards}
+                reviewWeek={reviewWeek}
+                onReviewWeekChange={value => { setReviewDateAnchor(Date.now()); setReviewWeek(value); setDisplayLimit(20); }}
                 jlptFilters={jlptFilters}
                 onJlptChange={values => { setJlptFilters(values); setDisplayLimit(20); }}
                 posFilters={posFilters}
@@ -2176,6 +2179,7 @@ function StatsContent() {
                   setPosFilters([]);
                   setCardTypeFilter("all");
                   setSituationFilters([]);
+                  setReviewWeek(null);
                   setQuickFilter("none");
                   setDisplayLimit(20);
                 }}
