@@ -16,6 +16,8 @@ import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
 import AddWordsSheet from "@/components/AddWordsSheet";
 import DuplicatesSheet from "@/components/DuplicatesSheet";
 import CardDetailModal from "@/components/CardDetailModal";
+import CardMetadataFilters from "@/components/CardMetadataFilters";
+import { cardMatchesMetadata, availableSituationTags, type CardType } from "@/lib/cardMetadata";
 import { findDuplicates, skipDeckDuplicates } from "@/lib/duplicates";
 import { AlertTriangle, Ban, BarChart3, Bell, ChevronLeft, Flag, Gamepad2, Gift, ImageIcon, Lightbulb, Loader2, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, SlidersHorizontal, Sparkles, Star, TrendingDown, Volume2, X, Zap } from "lucide-react";
 import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from "@/lib/push";
@@ -107,6 +109,9 @@ function StatsContent() {
   // Collapsed into a dropdown off the search bar instead of their own row — absolutely
   // positioned so opening/closing it never shifts the card list underneath.
   const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [cardTypeFilter, setCardTypeFilter] = useState<CardType | "all">("all");
+  const [situationFilters, setSituationFilters] = useState<string[]>([]);
+  const availableTags = useMemo(() => availableSituationTags(cards), [cards]);
   // "Remember this kanji" mnemonic generation — moved here from Study's Slow Recall/
   // Weak Words lists (both now gone from Study; this is the only place a kanji card
   // from either signal is browsable). Study's own in-review Flashcard view still has
@@ -758,6 +763,7 @@ function StatsContent() {
         card.reading.toLowerCase().includes(query) ||
         card.english.toLowerCase().includes(query),
     );
+    list = list.filter(c => cardMatchesMetadata(c, cardTypeFilter, situationFilters));
     if (quickFilter === "slowReflex") list = list.filter((c) => slowReflexIds.has(c.id));
     if (quickFilter === "recentlyReviewed") list = list.filter((c) => recentlyReviewedIds.has(c.id));
     if (quickFilter === "weakWords") list = list.filter((c) => weakWordsIds.has(c.id));
@@ -784,7 +790,7 @@ function StatsContent() {
       const dateB = new Date(b.added_to_deck_at ?? 0).getTime();
       return dateB - dateA;
     });
-  }, [cards, deferredSearch, quickFilter, slowReflexIds, recentlyReviewedIds, weakWordsIds, favoritesIds, masteredIds]);
+  }, [cards, deferredSearch, quickFilter, cardTypeFilter, situationFilters, slowReflexIds, recentlyReviewedIds, weakWordsIds, favoritesIds, masteredIds]);
 
   const visibleCards = useMemo(() => filteredCards.slice(0, displayLimit), [filteredCards, displayLimit]);
 
@@ -2130,7 +2136,9 @@ function StatsContent() {
             {showFilterMenu && (
               <>
                 <div className="fixed inset-0 z-20" onClick={() => setShowFilterMenu(false)} />
-                <div className="absolute right-0 top-full mt-2 z-30 flex flex-col gap-1.5 p-3 w-52 max-h-[65vh] overflow-y-auto bg-white rounded-2xl border border-slate-100 shadow-xl">
+                <div className="absolute right-0 top-full mt-2 z-30 flex flex-col gap-1.5 p-3 w-64 max-h-[65vh] overflow-y-auto bg-white rounded-2xl border border-slate-100 shadow-xl">
+                  <CardMetadataFilters cardType={cardTypeFilter} onCardTypeChange={v => {setCardTypeFilter(v);setDisplayLimit(20);}} selectedTags={situationFilters} onTagsChange={v => {setSituationFilters(v);setDisplayLimit(20);}} tags={availableTags} />
+                  <div className="h-px bg-slate-100 my-1" />
                   <p className="px-2 text-[10px] font-bold uppercase text-slate-400">Progress</p>
                   {([
                     ["mastered", "🏆 Mastered"],
@@ -2242,6 +2250,7 @@ function StatsContent() {
                       )}
                     </div>
 
+                    {(card.card_type ?? "vocabulary") === "phrase" && <span className="rounded-md bg-indigo-50 border border-indigo-100 text-indigo-600 text-[9px] px-1.5 py-0.5 font-black uppercase">Phrase</span>}
                     {card.partOfSpeech && (
                       <span
                         className={`text-[9px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(card.partOfSpeech)}`}
@@ -2303,7 +2312,16 @@ function StatsContent() {
           {/* JP→EN / EN→JP detail — tap a card above to see it, instead of every card
               carrying two bars inline all the time. */}
           {scoreDetailCard && (
-            <CardDetailModal card={scoreDetailCard} onClose={() => setScoreDetailCard(null)} />
+            <CardDetailModal card={scoreDetailCard} onClose={() => setScoreDetailCard(null)} onMetadataSaved={meta => {
+              const updated = cards.map(item => item.id === scoreDetailCard.id ? { ...item, ...meta } : item);
+              setCards(updated);
+              setScoreDetailCard(prev => prev ? { ...prev, ...meta } : null);
+              if (user?.id && defaultDeckId) {
+                const next: StatsCardsCache = { userId: user.id, deckId: defaultDeckId, cards: updated, fetchedAt: Date.now() };
+                _statsCardsCache = next; savePersistedCardsCache(next);
+                try { localStorage.removeItem(`flashkado_study_cards_v3_${user.id}`); } catch {}
+              }
+            }} />
           )}
 
           <div className="hidden md:block bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
@@ -2344,6 +2362,7 @@ function StatsContent() {
                           )}
                         </div>
 
+                        {(card.card_type ?? "vocabulary") === "phrase" && <span className="rounded-md bg-indigo-50 border border-indigo-100 text-indigo-600 text-[9px] px-1.5 py-0.5 font-black uppercase">Phrase</span>}
                         {card.partOfSpeech && (
                           <span
                             className={`text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(card.partOfSpeech)}`}
