@@ -154,7 +154,7 @@ export async function generateCards(words: string[], options?: {cardType?: "voca
   return parsedData.map((item: Record<string, unknown>, index: number) => ({
     ...item,
     japanese: cardType === "phrase" && /[\u3040-\u30ff\u3400-\u9fff]/u.test(words[index] ?? "") ? words[index].trim() : item.japanese,
-    english: typeof item.english === "string" ? normalizeEnglish(item.english) : item.english,
+    english: typeof item.english === "string" ? (cardType === "phrase" ? item.english.trim() : normalizeEnglish(item.english)) : item.english,
     reading: typeof item.reading === "string" ? stripParens(item.reading) : item.reading,
     partOfSpeech: cardType === "phrase" ? "phrase" : typeof item.partOfSpeech === "string" ? normalizePartOfSpeech(item.partOfSpeech) : item.partOfSpeech,
     te_form: typeof item.te_form === "string" && item.te_form.trim() ? item.te_form.trim() : null,
