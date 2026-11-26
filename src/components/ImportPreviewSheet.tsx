@@ -2,7 +2,7 @@
 import CustomSelect from "@/components/CustomSelect";
 import { SITUATION_TAGS, normalizeSituationTags, type ImportPreviewCard } from "@/lib/cardMetadata";
 import { Check, Loader2, X } from "lucide-react";
-import { ALLOWED_PARTS_OF_SPEECH } from "@/lib/textNormalize";
+import { FILTERABLE_PARTS_OF_SPEECH } from "@/lib/textNormalize";
 
 export default function ImportPreviewSheet({
   rows, onChange, onClose, onApprove, saving, error,
@@ -70,7 +70,7 @@ export default function ImportPreviewSheet({
                       </div>
                       {row.card_type === "vocabulary" && (
                         <CustomSelect label="Part of speech" value={row.partOfSpeech} onChange={value => update(index,{partOfSpeech:value})}
-                          options={ALLOWED_PARTS_OF_SPEECH.map(value => ({value,label:value.charAt(0).toUpperCase()+value.slice(1)}))} />
+                          options={FILTERABLE_PARTS_OF_SPEECH.map(value => ({value,label:value.charAt(0).toUpperCase()+value.slice(1)}))} />
                       )}
                       <label className="block text-[11px] font-bold text-slate-600">Usage note (context, tone, formality)
                         <textarea disabled={saving} rows={2} value={row.usage_note} onChange={e => update(index,{usage_note:e.target.value})} className="block w-full mt-1 bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm text-slate-800 resize-y" />
