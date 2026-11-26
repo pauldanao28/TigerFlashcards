@@ -14,7 +14,7 @@ import ShareButton from "@/components/ShareButton";
 import { translations } from "@/lib/languages";
 import { calculateGlobalStats } from "@/lib/stats";
 import { rollingAvg, vocabMastery, JLPT_VOCAB_INCREMENT } from "@/lib/scoring";
-import { ALLOWED_PARTS_OF_SPEECH } from "@/lib/textNormalize";
+import { FILTERABLE_PARTS_OF_SPEECH } from "@/lib/textNormalize";
 import { isRedundantSuruMeaning } from "@/lib/verbConjugation";
 import { useFriendsContext } from "@/context/FriendsContext";
 import { authedFetch } from "@/lib/authedFetch";
@@ -513,7 +513,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   // filter above (narrows the same study pool) rather than its own top-level control.
   const [posFilters, setPosFilters] = useState<string[]>([]);
   const selectedPos = useMemo(
-    () => ALLOWED_PARTS_OF_SPEECH.filter((p) => posFilters.includes(p)),
+    () => FILTERABLE_PARTS_OF_SPEECH.filter((p) => posFilters.includes(p)),
     [posFilters],
   );
   const posFilterKey = selectedPos.join(",");
@@ -1708,7 +1708,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const posMasteryAll = useMemo(() => {
     const mode = language === "jp" ? "jp_to_en" : "en_to_jp";
     const out: Record<string, number> = {};
-    for (const pos of ALLOWED_PARTS_OF_SPEECH) {
+    for (const pos of FILTERABLE_PARTS_OF_SPEECH) {
       const posCards = cards.filter((c) => (c.partOfSpeech ?? "noun") === pos);
       const known = posCards.filter((c) => (c.scores?.[mode]?.pass ?? 0) >= MASTERY_MIN_TRIES && (c.scores?.[mode]?.percent ?? 0) >= 70).length;
       out[pos] = posCards.length > 0 ? Math.round((known / posCards.length) * 100) : 0;
@@ -1969,7 +1969,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
 
             <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Part of Speech</p>
             <div className="flex gap-1.5 flex-wrap">
-              {(["All", ...ALLOWED_PARTS_OF_SPEECH] as const).map((pos) => {
+              {(["All", ...FILTERABLE_PARTS_OF_SPEECH] as const).map((pos) => {
                 const isAll = pos === "All";
                 const isActive = isAll ? selectedPos.length === 0 : posFilters.includes(pos);
                 return (
@@ -3246,7 +3246,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 Narrow it further — pick as many as you like. Each pill fills left to right by how well you&apos;ve mastered that tag.
               </p>
               <div className="flex gap-2 flex-wrap">
-                {(["All", ...ALLOWED_PARTS_OF_SPEECH] as const).map((pos) => {
+                {(["All", ...FILTERABLE_PARTS_OF_SPEECH] as const).map((pos) => {
                   const isAll = pos === "All";
                   const isActive = isAll ? selectedPos.length === 0 : posFilters.includes(pos);
                   const mastery = isAll ? 0 : posMasteryAll[pos];
