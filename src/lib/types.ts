@@ -7,6 +7,8 @@ export interface MasterCard {
   english: string;
   level?: number;
   jlpt_level?: 'N5' | 'N4' | 'N3' | 'N2' | 'N1' | null;
+  card_type?: 'vocabulary' | 'phrase';
+  situation_tags?: string[];
   partOfSpeech?: 'noun' | 'verb' | 'adjective' | 'adverb' | 'particle' | 'pronoun' | 'conjunction' | 'number' | 'phrase' | string;
   exampleSentence?: {
     jp: string;
