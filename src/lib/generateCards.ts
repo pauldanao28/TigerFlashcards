@@ -13,6 +13,7 @@ export interface GeneratedCard {
   japanese: string;
   reading: string;
   english: string;
+  alternatives?: string[];
   partOfSpeech: string;
   jlpt_level: string | null;
   exampleSentence: { jp: string; en: string };
