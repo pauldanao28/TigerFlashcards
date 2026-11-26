@@ -16,14 +16,14 @@ import KnownWordsTriage, { TriageCard } from "@/components/KnownWordsTriage";
 import AddWordsSheet from "@/components/AddWordsSheet";
 import DuplicatesSheet from "@/components/DuplicatesSheet";
 import CardDetailModal from "@/components/CardDetailModal";
-import CardMetadataFilters from "@/components/CardMetadataFilters";
+import CardsFilterModal from "@/components/CardsFilterModal";
 import { cardMatchesMetadata, availableSituationTags, type CardType } from "@/lib/cardMetadata";
 import { findDuplicates, skipDeckDuplicates } from "@/lib/duplicates";
 import { AlertTriangle, Ban, BarChart3, Bell, ChevronLeft, Flag, Gamepad2, Gift, ImageIcon, Lightbulb, Loader2, Lock, MessageSquare, PenTool, Plus, RefreshCw, Search, Settings as SettingsIcon, SlidersHorizontal, Sparkles, Star, TrendingDown, Volume2, X, Zap } from "lucide-react";
 import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from "@/lib/push";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { validateUsername, isUsernameTaken, type UsernameProblem } from "@/lib/username";
-import { normalizeEnglish, stripParens, normalizePartOfSpeech, ALLOWED_PARTS_OF_SPEECH } from "@/lib/textNormalize";
+import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
 
 // Same test StudyView uses to decide whether a card has a kanji worth generating a
 // mnemonic for.
@@ -106,8 +106,7 @@ function StatsContent() {
   const [maxStreak, setMaxStreak] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [quickFilter, setQuickFilter] = useState<"none" | "slowReflex" | "recentlyReviewed" | "weakWords" | "favorites" | "mastered">("none");
-  // Collapsed into a dropdown off the search bar instead of their own row — absolutely
-  // positioned so opening/closing it never shifts the card list underneath.
+  // Full-size Study-style filter sheet opened from the compact search-bar button.
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [cardTypeFilter, setCardTypeFilter] = useState<CardType | "all">("all");
   const [jlptFilters, setJlptFilters] = useState<string[]>([]);
@@ -2138,54 +2137,29 @@ function StatsContent() {
             </div>
 
             {showFilterMenu && (
-              <>
-                <div className="fixed inset-0 z-20" onClick={() => setShowFilterMenu(false)} />
-                <div className="absolute right-0 top-full mt-2 z-30 flex flex-col gap-1.5 p-3 w-64 max-h-[65vh] overflow-y-auto bg-white rounded-2xl border border-slate-100 shadow-xl">
-                  <p className="px-2 text-[10px] font-bold uppercase text-slate-400">JLPT Level</p>
-                  <div className="flex flex-wrap gap-1">
-                    {["All","N5","N4","N3","N2","N1"].map(level => {
-                      const active = level === "All" ? jlptFilters.length === 0 : jlptFilters.includes(level);
-                      return <button key={level} type="button" aria-pressed={active} onClick={() => {setJlptFilters(prev => level === "All" ? [] : prev.includes(level) ? prev.filter(v => v !== level) : [...prev,level]);setDisplayLimit(20);}} className={`rounded-full border px-2.5 py-1.5 text-[10px] font-black ${active ? "bg-indigo-600 text-white border-indigo-600" : "bg-slate-50 text-slate-500 border-slate-200"}`}>{level}</button>;
-                    })}
-                  </div>
-                  <p className="px-2 text-[10px] font-bold uppercase text-slate-400 mt-1">Part of Speech</p>
-                  <div className="flex flex-wrap gap-1">
-                    {["All",...ALLOWED_PARTS_OF_SPEECH].map(pos => {
-                      const active = pos === "All" ? posFilters.length === 0 : posFilters.includes(pos);
-                      return <button key={pos} type="button" aria-pressed={active} onClick={() => {setPosFilters(prev => pos === "All" ? [] : prev.includes(pos) ? prev.filter(v => v !== pos) : [...prev,pos]);setDisplayLimit(20);}} className={`rounded-full border px-2.5 py-1.5 text-[10px] font-bold ${active ? "bg-indigo-600 text-white border-indigo-600" : "bg-slate-50 text-slate-500 border-slate-200"}`}>{pos}</button>;
-                    })}
-                  </div>
-                  <div className="h-px bg-slate-100 my-1" />
-                  <CardMetadataFilters cardType={cardTypeFilter} onCardTypeChange={v => {setCardTypeFilter(v);setDisplayLimit(20);}} selectedTags={situationFilters} onTagsChange={v => {setSituationFilters(v);setDisplayLimit(20);}} tags={availableTags} />
-                  <div className="h-px bg-slate-100 my-1" />
-                  <p className="px-2 text-[10px] font-bold uppercase text-slate-400">Progress</p>
-                  {([
-                    ["mastered", "🏆 Mastered"],
-                    ["favorites", "⭐ Favorites"],
-                    ["slowReflex", "🐌 Slow"],
-                    ["recentlyReviewed", "🕐 Recent"],
-                    ["weakWords", "😓 Weak"],
-                  ] as const).map(([key, label]) => {
-                    const isActive = quickFilter === key;
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => {
-                          setQuickFilter(isActive ? "none" : key);
-                          setDisplayLimit(20);
-                          setShowFilterMenu(false);
-                        }}
-                        className={`w-full px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 text-left whitespace-nowrap ${
-                          isActive ? "bg-indigo-600 text-white border-indigo-600" : "bg-slate-50 text-slate-500 border-slate-200"
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-
-                </div>
-              </>
+              <CardsFilterModal
+                onClose={() => setShowFilterMenu(false)}
+                jlptFilters={jlptFilters}
+                onJlptChange={values => { setJlptFilters(values); setDisplayLimit(20); }}
+                posFilters={posFilters}
+                onPosChange={values => { setPosFilters(values); setDisplayLimit(20); }}
+                cardType={cardTypeFilter}
+                onCardTypeChange={value => { setCardTypeFilter(value); setDisplayLimit(20); }}
+                situationFilters={situationFilters}
+                onSituationChange={values => { setSituationFilters(values); setDisplayLimit(20); }}
+                availableTags={availableTags}
+                progressFilter={quickFilter}
+                onProgressChange={value => { setQuickFilter(value); setDisplayLimit(20); }}
+                matchingCount={filteredCards.length}
+                onReset={() => {
+                  setJlptFilters([]);
+                  setPosFilters([]);
+                  setCardTypeFilter("all");
+                  setSituationFilters([]);
+                  setQuickFilter("none");
+                  setDisplayLimit(20);
+                }}
+              />
             )}
           </div>
 
@@ -2270,7 +2244,7 @@ function StatsContent() {
                     </div>
 
                     {(card.card_type ?? "vocabulary") === "phrase" && <span className="rounded-md bg-indigo-50 border border-indigo-100 text-indigo-600 text-[9px] px-1.5 py-0.5 font-black uppercase">Phrase</span>}
-                    {card.partOfSpeech && (
+                    {card.partOfSpeech && card.partOfSpeech !== "phrase" && (
                       <span
                         className={`text-[9px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(card.partOfSpeech)}`}
                       >
@@ -2382,7 +2356,7 @@ function StatsContent() {
                         </div>
 
                         {(card.card_type ?? "vocabulary") === "phrase" && <span className="rounded-md bg-indigo-50 border border-indigo-100 text-indigo-600 text-[9px] px-1.5 py-0.5 font-black uppercase">Phrase</span>}
-                        {card.partOfSpeech && (
+                        {card.partOfSpeech && card.partOfSpeech !== "phrase" && (
                           <span
                             className={`text-[10px] px-2 py-0.5 rounded-md border font-black uppercase tracking-tighter ${getPosColor(card.partOfSpeech)}`}
                           >
