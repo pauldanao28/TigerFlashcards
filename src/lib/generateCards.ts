@@ -175,17 +175,22 @@ export async function generateCards(words: string[], options?: {cardType?: Impor
     const detectedType = item.card_type === "phrase" ? "phrase" : "vocabulary";
     const type = cardType === "auto" ? detectedType : cardType;
     const sourceInput = words[index] ?? "";
+    const example = item.exampleSentence && typeof item.exampleSentence === "object"
+      ? item.exampleSentence as Record<string, unknown> : {};
     const tagCandidates = Array.isArray(item.situation_tags) ? item.situation_tags : [];
     const tags = tagCandidates.map(tag => typeof tag === "string" ? SITUATION_TAGS.find(preferred => preferred.toLowerCase() === tag.trim().toLowerCase()) : undefined).filter((tag): tag is typeof SITUATION_TAGS[number] => !!tag);
     return {
     ...item,
-    japanese: type === "phrase" && /[\u3040-\u30ff\u3400-\u9fff]/u.test(sourceInput) ? sourceInput.trim() : item.japanese,
+    japanese: type === "phrase" && /[\u3040-\u30ff\u3400-\u9fff]/u.test(sourceInput) ? sourceInput.trim() : String(item.japanese ?? "").trim(),
     card_type: type,
     situation_tags: tags,
     usage_note: typeof item.usage_note === "string" ? item.usage_note.trim().slice(0, 300) : "",
-    english: typeof item.english === "string" ? (type === "phrase" ? item.english.trim() : normalizeEnglish(item.english)) : item.english,
-    reading: typeof item.reading === "string" ? stripParens(item.reading) : item.reading,
-    partOfSpeech: type === "phrase" ? "phrase" : typeof item.partOfSpeech === "string" ? normalizePartOfSpeech(item.partOfSpeech) : item.partOfSpeech,
+    english: typeof item.english === "string" ? (type === "phrase" ? item.english.trim() : normalizeEnglish(item.english)) : "",
+    reading: typeof item.reading === "string" ? stripParens(item.reading) : "",
+    partOfSpeech: type === "phrase" ? "phrase" : typeof item.partOfSpeech === "string" ? normalizePartOfSpeech(item.partOfSpeech) : "noun",
+    jlpt_level: asEnum(item.jlpt_level, ["N5","N4","N3","N2","N1"] as const),
+    alternatives: Array.isArray(item.alternatives) ? item.alternatives.filter((v): v is string => typeof v === "string") : [],
+    exampleSentence: { jp: String(example.jp ?? ""), en: String(example.en ?? "") },
     te_form: typeof item.te_form === "string" && item.te_form.trim() ? item.te_form.trim() : null,
     transitivity: asEnum(item.transitivity, ["transitive", "intransitive"] as const),
     verb_type: asEnum(item.verb_type, ["godan", "ichidan", "irregular"] as const),
