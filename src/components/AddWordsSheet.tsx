@@ -5,6 +5,7 @@ import { Plus, Loader2, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { translations } from "@/lib/languages";
 import { useAddWords } from "@/hooks/useAddWords";
+import { SITUATION_TAGS, normalizeSituationTags, type CardType } from "@/lib/cardMetadata";
 import AddedWordsSummary from "@/components/AddedWordsSummary";
 
 const t = translations.en;
@@ -53,6 +54,10 @@ export default function AddWordsSheet({
 
   const [input, setInput] = useState("");
   const [batchInput, setBatchInput] = useState("");
+  const [importType, setImportType] = useState<CardType>("vocabulary");
+  const [importTags, setImportTags] = useState<string[]>([]);
+  const [customTags, setCustomTags] = useState("");
+  const importOptions = () => ({ cardType: importType, situationTags: normalizeSituationTags([...importTags, ...customTags.split(",")]) });
   const [addSheetTab, setAddSheetTab] = useState<"word" | "paste" | "queue">(initialTab);
   const [pendingWords, setPendingWords] = useState<string[]>([]);
   const [wordListText, setWordListText] = useState("");
@@ -131,7 +136,7 @@ export default function AddWordsSheet({
     onClose();
     setBatchProcessing(true);
     try {
-      const succeededWords = await processWords(words);
+      const succeededWords = await processWords(words, importOptions());
       flushWordList(words.filter((w) => !succeededWords.has(w)));
       setWordListText("");
     } finally {
@@ -185,10 +190,28 @@ export default function AddWordsSheet({
             </div>
 
             <div className="flex-1 overflow-y-auto p-5">
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3 mb-4 space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">Import as</p>
+                <div className="flex gap-2">
+                  {(["vocabulary", "phrase"] as const).map(type =>
+                    <button key={type} type="button" aria-pressed={importType === type} onClick={() => setImportType(type)} className={`flex-1 rounded-xl border py-2 text-xs font-bold capitalize ${importType === type ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-slate-200 text-slate-500"}`}>{type === "phrase" ? "Phrases" : "Vocabulary"}</button>
+                  )}
+                </div>
+                <details className="group">
+                  <summary className="text-[11px] font-bold text-indigo-600 cursor-pointer">Situation tags {importTags.length + (customTags.trim() ? 1 : 0) > 0 ? `(${importTags.length + (customTags.trim() ? 1 : 0)})` : "(optional)"}</summary>
+                  <div className="flex gap-1.5 flex-wrap mt-2">
+                    {SITUATION_TAGS.map(tag => {
+                      const selected = importTags.includes(tag);
+                      return <button type="button" aria-pressed={selected} key={tag} onClick={() => setImportTags(prev => selected ? prev.filter(t => t !== tag) : [...prev, tag])} className={`text-[10px] font-bold px-2 py-1.5 rounded-full border ${selected ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-500 border-slate-200"}`}>{tag}</button>;
+                    })}
+                  </div>
+                  <input value={customTags} onChange={e => setCustomTags(e.target.value)} placeholder="Other tags, separated by commas" className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs" />
+                </details>
+              </div>
               {addSheetTab === "word" && (
                 <div className="flex flex-col gap-4">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Japanese or English word</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{importType === "phrase" ? "Japanese or English expression" : "Japanese or English word"}</p>
                     <div className="flex gap-2">
                       <div className="relative flex-1">
                         <input
@@ -197,7 +220,7 @@ export default function AddWordsSheet({
                           onChange={(e) => setInput(e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" && input.trim()) {
-                              processWords(input.split("\n").filter((l) => l.trim()));
+                              processWords(input.split("\n").filter((l) => l.trim()), importOptions());
                             }
                           }}
                           placeholder="食べる / taberu / to eat…"
@@ -217,7 +240,7 @@ export default function AddWordsSheet({
                     </div>
                   </div>
                   <button
-                    onClick={() => { if (!input.trim()) return; processWords(input.split("\n").filter((l) => l.trim())); }}
+                    onClick={() => { if (!input.trim()) return; processWords(input.split("\n").filter((l) => l.trim()), importOptions()); }}
                     disabled={loading || !input.trim()}
                     className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
                   >
@@ -233,13 +256,13 @@ export default function AddWordsSheet({
                 let hint: { label: string; emoji: string } | null = null;
                 if (lines.length > 0) {
                   hint = looksLikeText
-                    ? { emoji: "📖", label: "Looks like sentences — use the Reader" }
+                    ? { emoji: "📖", label: "Looks like longer text — use the Reader" }
                     : { emoji: "📋", label: `${lines.length} word${lines.length !== 1 ? "s" : ""}` };
                 }
                 return (
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">One word per line</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{importType === "phrase" ? "One complete phrase per line" : "One word per line"}</p>
                       {hint && (
                         <span className="text-[10px] font-black bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded-full">
                           {hint.emoji} {hint.label}
@@ -257,7 +280,7 @@ export default function AddWordsSheet({
                       onClick={async () => {
                         onClose();
                         setBatchProcessing(true);
-                        try { await processWords(lines); }
+                        try { await processWords(lines, importOptions()); }
                         finally { setBatchProcessing(false); }
                       }}
                       disabled={loading || !batchInput.trim()}
@@ -266,7 +289,7 @@ export default function AddWordsSheet({
                       {loading ? <><Loader2 size={16} className="animate-spin" /> Processing…</> : <><Plus size={16} /> Add {lines.length || ""} to Deck</>}
                     </button>
                     <p className="text-center text-[10px] text-slate-400 font-bold">
-                      Have lyrics or a story? Paste it in Practice → Reader to pick out the words you don&apos;t have yet.
+                      Have lyrics or a story? Paste it in Practice → Reader to pick out the words you don&apos;t have yet. Expressions entered as phrases stay intact.
                     </p>
                   </div>
                 );
