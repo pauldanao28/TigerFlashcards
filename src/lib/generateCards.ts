@@ -100,12 +100,28 @@ Output ONLY raw JSON as an ARRAY of objects:
   }
 ]`;
 
-async function tryGenerate(modelName: string, words: string[]): Promise<string> {
+const phrasePrompt = (phrases: string[]) => `Create one Japanese conversational flashcard for EACH item, in the same order. Each item is an entire expression, NOT vocabulary to extract.
+
+Items (JSON): ${JSON.stringify(phrases)}
+
+Critical requirements:
+- Keep every Japanese input EXACTLY as entered (including contractions, particles and punctuation) as the "japanese" field. Do NOT normalize into dictionary form, segment or shorten phrases.
+- If an input is English, give ONE natural everyday Japanese translation as "japanese".
+- "reading" is full kana reading for the complete expression.
+- "english" is one natural short English translation of the whole expression, not a word-by-word gloss.
+- "partOfSpeech" must be "phrase"; "jlpt_level" may be null when a single level is not appropriate.
+- "alternatives" may list other natural English translations.
+- "exampleSentence" contains a short natural contextual exchange in "jp" and its natural "en" translation.
+- Set te_form, transitivity, verb_type, adjective_type and suru_meaning to null.
+Return ONLY a JSON array with exactly ${phrases.length} objects and these fields:
+[{ "japanese":"...", "reading":"...", "english":"...", "partOfSpeech":"phrase", "jlpt_level":null, "alternatives":[], "exampleSentence":{"jp":"...", "en":"..."}, "te_form":null, "transitivity":null, "verb_type":null, "adjective_type":null, "suru_meaning":null }]`;
+
+async function tryGenerate(modelName: string, words: string[], cardType: "vocabulary" | "phrase" = "vocabulary"): Promise<string> {
   const model = genAI.getGenerativeModel({ model: modelName });
   let lastError: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const result = await model.generateContent(prompt(words));
+      const result = await model.generateContent(cardType === "phrase" ? phrasePrompt(words) : prompt(words));
       return result.response.text();
     } catch (e) {
       lastError = e;
@@ -120,12 +136,13 @@ async function tryGenerate(modelName: string, words: string[]): Promise<string> 
 
 // Throws on total failure (both models) or invalid JSON — callers decide how to
 // surface that (an error response, or just dropping the words in a best-effort path).
-export async function generateCards(words: string[]): Promise<GeneratedCard[]> {
+export async function generateCards(words: string[], options?: {cardType?: "vocabulary" | "phrase"}): Promise<GeneratedCard[]> {
+  const cardType = options?.cardType ?? "vocabulary";
   let text: string;
   try {
-    text = await tryGenerate("gemini-2.5-flash-lite", words);
+    text = await tryGenerate("gemini-2.5-flash-lite", words, cardType);
   } catch {
-    text = await tryGenerate("gemini-2.5-flash", words);
+    text = await tryGenerate("gemini-2.5-flash", words, cardType);
   }
 
   const jsonMatch = text.match(/\[[\s\S]*\]/);
@@ -134,11 +151,12 @@ export async function generateCards(words: string[]): Promise<GeneratedCard[]> {
   const parsedData = JSON.parse(cleanJson);
   const asEnum = <T extends string>(value: unknown, allowed: readonly T[]): T | null =>
     typeof value === "string" && (allowed as readonly string[]).includes(value) ? (value as T) : null;
-  return parsedData.map((item: Record<string, unknown>) => ({
+  return parsedData.map((item: Record<string, unknown>, index: number) => ({
     ...item,
+    japanese: cardType === "phrase" && /[\u3040-\u30ff\u3400-\u9fff]/u.test(words[index] ?? "") ? words[index].trim() : item.japanese,
     english: typeof item.english === "string" ? normalizeEnglish(item.english) : item.english,
     reading: typeof item.reading === "string" ? stripParens(item.reading) : item.reading,
-    partOfSpeech: typeof item.partOfSpeech === "string" ? normalizePartOfSpeech(item.partOfSpeech) : item.partOfSpeech,
+    partOfSpeech: cardType === "phrase" ? "phrase" : typeof item.partOfSpeech === "string" ? normalizePartOfSpeech(item.partOfSpeech) : item.partOfSpeech,
     te_form: typeof item.te_form === "string" && item.te_form.trim() ? item.te_form.trim() : null,
     transitivity: asEnum(item.transitivity, ["transitive", "intransitive"] as const),
     verb_type: asEnum(item.verb_type, ["godan", "ichidan", "irregular"] as const),
