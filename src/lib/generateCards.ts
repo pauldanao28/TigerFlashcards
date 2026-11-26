@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { stripParens, normalizeEnglish, normalizePartOfSpeech } from "@/lib/textNormalize";
+import { SITUATION_TAGS, type ImportMode } from "@/lib/cardMetadata";
 
 // Shared by /api/generate (the normal add pipeline) and /api/related-words (which
 // enriches whichever of its suggestions aren't already in master_cards) — same
@@ -14,6 +15,9 @@ export interface GeneratedCard {
   reading: string;
   english: string;
   alternatives?: string[];
+  card_type?: "vocabulary" | "phrase";
+  situation_tags?: string[];
+  usage_note?: string;
   partOfSpeech: string;
   jlpt_level: string | null;
   exampleSentence: { jp: string; en: string };
@@ -117,12 +121,24 @@ Critical requirements:
 Return ONLY a JSON array with exactly ${phrases.length} objects and these fields:
 [{ "japanese":"...", "reading":"...", "english":"...", "partOfSpeech":"phrase", "jlpt_level":null, "alternatives":[], "exampleSentence":{"jp":"...", "en":"..."}, "te_form":null, "transitivity":null, "verb_type":null, "adjective_type":null, "suru_meaning":null }]`;
 
-async function tryGenerate(modelName: string, words: string[], cardType: "vocabulary" | "phrase" = "vocabulary"): Promise<string> {
+
+const previewPrompt = (inputs: string[], mode: ImportMode) => `Produce EXACTLY one Japanese flashcard per input, in the same order. These are independent entries, not paragraphs:
+${JSON.stringify(inputs)}
+Mode: ${mode}. If auto, classify each as vocabulary (single lexical item) or phrase (full utterance, idiom, reaction, set expression, greeting); if vocabulary, every item is vocabulary; if phrase, every item is a complete phrase.
+For Japanese phrases preserve the input string EXACTLY including particles, colloquial inflection and punctuation, never deconjugate or segment them. For Japanese vocabulary return canonical dictionary forms where appropriate. English inputs need a natural Japanese equivalent.
+Give accurate full kana reading, a natural English meaning, up to 3 alternative natural translations, a concise usage_note about formality/tone/context, and a brief natural exampleSentence (jp,en).
+Give 1-3 situation_tags drawn ONLY from: ${JSON.stringify(SITUATION_TAGS)}.
+For phrases set partOfSpeech=phrase; for vocabulary classify its actual part of speech (noun,verb,adjective,adverb,particle,pronoun,conjunction,number,phrase).
+JLPT can be null for phrases. For phrases set all grammar metadata null.
+Return ONLY valid JSON array of exactly ${inputs.length} cards in the same order, using:
+[{"japanese":"...", "reading":"...", "english":"...", "card_type":"phrase", "situation_tags":["Friends"], "usage_note":"...", "alternatives":[], "partOfSpeech":"phrase", "jlpt_level":null, "exampleSentence":{"jp":"...","en":"..."}, "te_form":null, "transitivity":null, "verb_type":null, "adjective_type":null, "suru_meaning":null}]`;
+
+async function tryGenerate(modelName: string, words: string[], cardType: ImportMode = "vocabulary", preview = false): Promise<string> {
   const model = genAI.getGenerativeModel({ model: modelName });
   let lastError: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const result = await model.generateContent(cardType === "phrase" ? phrasePrompt(words) : prompt(words));
+      const result = await model.generateContent(preview ? previewPrompt(words, cardType) : cardType === "phrase" ? phrasePrompt(words) : prompt(words));
       return result.response.text();
     } catch (e) {
       lastError = e;
@@ -137,13 +153,13 @@ async function tryGenerate(modelName: string, words: string[], cardType: "vocabu
 
 // Throws on total failure (both models) or invalid JSON — callers decide how to
 // surface that (an error response, or just dropping the words in a best-effort path).
-export async function generateCards(words: string[], options?: {cardType?: "vocabulary" | "phrase"}): Promise<GeneratedCard[]> {
+export async function generateCards(words: string[], options?: {cardType?: ImportMode; preview?: boolean}): Promise<GeneratedCard[]> {
   const cardType = options?.cardType ?? "vocabulary";
   let text: string;
   try {
-    text = await tryGenerate("gemini-2.5-flash-lite", words, cardType);
+    text = await tryGenerate("gemini-2.5-flash-lite", words, cardType, options?.preview);
   } catch {
-    text = await tryGenerate("gemini-2.5-flash", words, cardType);
+    text = await tryGenerate("gemini-2.5-flash", words, cardType, options?.preview);
   }
 
   const jsonMatch = text.match(/\[[\s\S]*\]/);
