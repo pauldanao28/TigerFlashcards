@@ -5,10 +5,8 @@ import { Plus, Loader2, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { translations } from "@/lib/languages";
 import { useAddWords } from "@/hooks/useAddWords";
-import { authedFetch } from "@/lib/authedFetch";
 import CustomSelect from "@/components/CustomSelect";
-import ImportPreviewSheet from "@/components/ImportPreviewSheet";
-import { SITUATION_TAGS, normalizeSituationTags, type ImportMode, type ImportPreviewCard } from "@/lib/cardMetadata";
+import type { ImportMode } from "@/lib/cardMetadata";
 import AddedWordsSummary from "@/components/AddedWordsSummary";
 
 const t = translations.en;
@@ -46,7 +44,7 @@ export default function AddWordsSheet({
     addedWordsSummary,
     showSummary,
     setShowSummary,
-    savePreviewCards,
+    processWords,
     deleteFromSummary,
     relatedWords,
     relatedWordsLoading,
@@ -58,14 +56,7 @@ export default function AddWordsSheet({
   const [input, setInput] = useState("");
   const [batchInput, setBatchInput] = useState("");
   const [importType, setImportType] = useState<ImportMode>("auto");
-  const [previewRows, setPreviewRows] = useState<ImportPreviewCard[] | null>(null);
-  const [previewSource, setPreviewSource] = useState<"word" | "paste" | "queue">("word");
-  const [previewError, setPreviewError] = useState("");
-  const [preparing, setPreparing] = useState(false);
-  const [savingPreview, setSavingPreview] = useState(false);
-  const [importTags, setImportTags] = useState<string[]>([]);
-  const [customTags, setCustomTags] = useState("");
-  const importOptions = () => ({ cardType: importType, situationTags: normalizeSituationTags([...importTags, ...customTags.split(",")]) });
+  const [importBusy, setImportBusy] = useState(false);
   const [addSheetTab, setAddSheetTab] = useState<"word" | "paste" | "queue">(initialTab);
   const [pendingWords, setPendingWords] = useState<string[]>([]);
   const [wordListText, setWordListText] = useState("");
@@ -135,109 +126,24 @@ export default function AddWordsSheet({
     onClose();
   };
 
-  const preparePreview = async (inputLines: string[], source: "word" | "paste" | "queue") => {
-    if (preparing || savingPreview) return;
-    const inputs = [...new Set(inputLines.map(line => line.trim()).filter(Boolean))];
-    if (!inputs.length) return;
-    setPreviewError("");
-    if (inputs.length > 100) { setPreviewError("Import up to 100 entries at a time."); return; }
-    if (inputs.some(item => item.length > 200)) { setPreviewError("Each entry must be under 200 characters."); return; }
-    setPreparing(true);
+  const importCards = async (inputLines: string[], source: "word" | "paste" | "queue") => {
+    if (loading || importBusy) return;
+    const lines = [...new Set(inputLines.map(line => line.trim()).filter(Boolean))];
+    if (!lines.length) return;
+    setImportBusy(true);
     try {
-      const { data: existing, error: lookupError } = await supabase.from("master_cards")
-        .select("*").in("japanese", inputs);
-      if (lookupError) throw lookupError;
-      const firstExisting = new Map((existing ?? []).map(card => [card.japanese, card]));
-      const missing = inputs.filter(item => !firstExisting.has(item));
-      const generated = new Map<string, any>();
-      for (let offset = 0; offset < missing.length; offset += 10) {
-        const batch = missing.slice(offset, offset + 10);
-        const response = await authedFetch("/api/generate", {
-          method: "POST",
-          body: JSON.stringify({ words: batch, cardType: importType, preview: true }),
-        });
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.error ?? "Unable to generate import preview.");
-        }
-        const results = await response.json();
-        if (!Array.isArray(results) || results.length !== batch.length)
-          throw new Error("AI returned an incomplete preview. Try again.");
-        batch.forEach((input, i) => generated.set(input, results[i]));
-      }
-
-      // Gemini may normalize vocabulary to dictionary form or translate English.
-      // Check exact duplicates again against the final generated Japanese strings.
-      const generatedJapanese = [...new Set([...generated.values()].map(item => String(item?.japanese ?? "").trim()).filter(Boolean))];
-      let laterExisting: any[] = [];
-      if (generatedJapanese.length) {
-        const { data, error } = await supabase.from("master_cards").select("*").in("japanese", generatedJapanese);
-        if (error) throw error;
-        laterExisting = data ?? [];
-      }
-      const byJapanese = new Map([...((existing ?? []) as any[]), ...laterExisting].map(card => [card.japanese, card]));
-      const ids = [...new Set([...byJapanese.values()].map(card => card.id))];
-      let inDeck = new Set<string>();
-      if (ids.length) {
-        const { data, error } = await supabase.from("deck_cards").select("card_id").eq("deck_id", deckId).in("card_id", ids);
-        if (error) throw error;
-        inDeck = new Set((data ?? []).map(link => link.card_id));
-      }
-      const commonTags = importOptions().situationTags;
-      const levels = ["N5","N4","N3","N2","N1"];
-      const rows: ImportPreviewCard[] = inputs.map(input => {
-        const ai = generated.get(input);
-        const finalJapanese = String(ai?.japanese ?? input).trim();
-        const matched = byJapanese.get(finalJapanese);
-        const card: any = matched ?? ai ?? {};
-        const type = matched
-          ? (matched.card_type === "phrase" ? "phrase" : "vocabulary")
-          : (importType === "auto" ? ai?.card_type === "phrase" ? "phrase" : "vocabulary" : importType);
-        const tags = matched ? matched.situation_tags ?? [] : normalizeSituationTags([...(Array.isArray(ai?.situation_tags) ? ai.situation_tags : []), ...commonTags]);
-        const example = card.exampleSentence ?? {};
-        const level = levels.includes(card.jlpt_level) ? card.jlpt_level : null;
-        return {
-          input,
-          japanese: finalJapanese,
-          reading: String(card.reading ?? "").trim(),
-          english: String(card.english ?? "").trim(),
-          card_type: type,
-          situation_tags: tags,
-          usage_note: String(matched ? (example.note ?? "") : (ai?.usage_note ?? "")).trim(),
-          partOfSpeech: type === "phrase" ? "phrase" : String(card.partOfSpeech ?? "noun"),
-          jlpt_level: level,
-          alternatives: Array.isArray(card.alternatives) ? card.alternatives.filter((x: unknown): x is string => typeof x === "string") : [],
-          exampleSentence: {jp: String(example.jp ?? ""), en: String(example.en ?? "")},
-          existingId: matched?.id,
-          alreadyInDeck: matched ? inDeck.has(matched.id) : false,
-          selected: matched ? !inDeck.has(matched.id) : true,
-        };
-      });
-      setPreviewRows(rows);
-      setPreviewSource(source);
-    } catch (error) {
-      setPreviewError(error instanceof Error ? error.message : "Unable to generate preview.");
-    } finally { setPreparing(false); }
-  };
-
-  const confirmPreview = async () => {
-    if (!previewRows || savingPreview) return;
-    setPreviewError("");
-    setSavingPreview(true);
-    try {
-      const savedInputs = await savePreviewCards(previewRows);
-      if (previewSource === "word") setInput("");
-      if (previewSource === "paste") setBatchInput("");
-      if (previewSource === "queue") {
-        const remaining = wordListText.split("\n").map(item => item.trim()).filter(item => item && !savedInputs.has(item));
+      // No preview: use the existing add flow and show its completion summary.
+      const added = await processWords(lines, { cardType: importType });
+      if (added.size === 0) return;
+      if (source === "word") setInput("");
+      if (source === "paste") setBatchInput("");
+      if (source === "queue") {
+        const remaining = wordListText.split("\\n").map(line => line.trim()).filter(line => line && !added.has(line));
         flushWordList(remaining);
-        setWordListText(remaining.join("\n"));
+        setWordListText(remaining.join("\\n"));
       }
-      setPreviewRows(null);
-      onClose();
-    } catch (error) {
-      setPreviewError(error instanceof Error ? error.message : "Import failed. Nothing was cleared.");
-    } finally { setSavingPreview(false); }
+      if (source !== "word") onClose();
+    } finally { setImportBusy(false); }
   };
 
   return (
@@ -294,22 +200,12 @@ export default function AddWordsSheet({
                     {value:"phrase",label:"Phrases"},
                   ]} />
                 <p className="text-[10px] font-semibold text-slate-500">Auto Detect classifies each line. Phrases stay intact, including particles and punctuation.</p>
-                <details className="group">
-                  <summary className="text-[11px] font-bold text-indigo-600 cursor-pointer">Situation tags {importTags.length + (customTags.trim() ? 1 : 0) > 0 ? `(${importTags.length + (customTags.trim() ? 1 : 0)})` : "(optional)"}</summary>
-                  <div className="flex gap-1.5 flex-wrap mt-2">
-                    {SITUATION_TAGS.map(tag => {
-                      const selected = importTags.includes(tag);
-                      return <button type="button" aria-pressed={selected} key={tag} onClick={() => setImportTags(prev => selected ? prev.filter(t => t !== tag) : [...prev, tag])} className={`text-[10px] font-bold px-2 py-1.5 rounded-full border ${selected ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-500 border-slate-200"}`}>{tag}</button>;
-                    })}
-                  </div>
-                  <input value={customTags} onChange={e => setCustomTags(e.target.value)} placeholder="Other tags, separated by commas" className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs" />
-                </details>
+
               </div>
-              {previewError && !previewRows && <p role="alert" className="mb-3 p-3 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 text-xs font-bold">{previewError}</p>}
               {addSheetTab === "word" && (
                 <div className="flex flex-col gap-4">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{importType === "phrase" ? "Japanese or English expression" : "Japanese or English word"}</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{importType === "vocabulary" ? "Japanese or English word" : "Japanese word or expression"}</p>
                     <div className="flex gap-2">
                       <div className="relative flex-1">
                         <input
@@ -318,7 +214,7 @@ export default function AddWordsSheet({
                           onChange={(e) => setInput(e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" && input.trim()) {
-                              void preparePreview(input.split("\n").filter((l) => l.trim()), "word");
+                              void importCards(input.split("\n").filter((l) => l.trim()), "word");
                             }
                           }}
                           placeholder={importType === "phrase" ? "そういうことか！" : "食べる / そうなんだ…"}
@@ -338,13 +234,13 @@ export default function AddWordsSheet({
                     </div>
                   </div>
                   <button
-                    onClick={() => { if (!input.trim()) return; void preparePreview(input.split("\n").filter((l) => l.trim()), "word"); }}
-                    disabled={loading || preparing || !input.trim()}
+                    onClick={() => { if (!input.trim()) return; void importCards(input.split("\n").filter((l) => l.trim()), "word"); }}
+                    disabled={loading || importBusy || !input.trim()}
                     className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
                   >
-                    {preparing ? <><Loader2 size={16} className="animate-spin" /> Analysing…</> : <><Plus size={16} /> Preview Card</>}
+                    {loading || importBusy ? <><Loader2 size={16} className="animate-spin" /> Adding…</> : <><Plus size={16} /> Add to Deck</>}
                   </button>
-                  <p className="text-center text-[10px] text-slate-400 font-bold">AI suggests readings, natural meanings, situations and usage notes. Review before saving.</p>
+                  <p className="text-center text-[10px] text-slate-400 font-bold">AI generates readings, natural meanings and usage notes. A summary appears after adding.</p>
                 </div>
               )}
 
@@ -360,7 +256,7 @@ export default function AddWordsSheet({
                 return (
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{importType === "phrase" ? "One complete phrase per line" : "One word per line"}</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{importType === "vocabulary" ? "One word per line" : "One word or phrase per line"}</p>
                       {hint && (
                         <span className="text-[10px] font-black bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded-full">
                           {hint.emoji} {hint.label}
@@ -375,11 +271,11 @@ export default function AddWordsSheet({
                       placeholder={importType === "vocabulary" ? "食べる\n勉強\n彼女" : "そういうことか！\n今向かってる\nちょっと遅れる"}
                     />
                     <button
-                      onClick={() => void preparePreview(lines, "paste")}
-                      disabled={loading || preparing || !batchInput.trim()}
+                      onClick={() => void importCards(lines, "paste")}
+                      disabled={loading || importBusy || !batchInput.trim()}
                       className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
                     >
-                      {preparing ? <><Loader2 size={16} className="animate-spin" /> Analysing…</> : <><Plus size={16} /> Preview {lines.length || ""} Cards</>}
+                      {loading || importBusy ? <><Loader2 size={16} className="animate-spin" /> Adding…</> : <><Plus size={16} /> Add {lines.length || ""} to Deck</>}
                     </button>
                     <p className="text-center text-[10px] text-slate-400 font-bold">
                       Have lyrics or a story? Paste it in Practice → Reader to pick out the words you don&apos;t have yet. Expressions entered as phrases stay intact.
@@ -403,35 +299,16 @@ export default function AddWordsSheet({
                     placeholder={"食べる\n勉強\n彼女\n…"}
                   />
                   <button
-                    onClick={() => void preparePreview(wordListText.split("\n").map((w) => w.trim()).filter(Boolean), "queue")}
-                    disabled={preparing || !wordListText.trim()}
+                    onClick={() => void importCards(wordListText.split("\n").map((w) => w.trim()).filter(Boolean), "queue")}
+                    disabled={loading || importBusy || !wordListText.trim()}
                     className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
                   >
-                    {preparing ? <><Loader2 size={16} className="animate-spin" /> Analysing…</> : <><Plus size={16} /> Preview Queue</>}
+                    {loading || importBusy ? <><Loader2 size={16} className="animate-spin" /> Adding…</> : <><Plus size={16} /> Add Queue to Deck</>}
                   </button>
                 </div>
               )}
             </div>
           </motion.div>
-        </div>
-      )}
-
-      {previewRows && (
-        <ImportPreviewSheet
-          rows={previewRows}
-          onChange={setPreviewRows}
-          onClose={() => {if(!savingPreview){setPreviewRows(null);setPreviewError("");}}}
-          onApprove={() => void confirmPreview()}
-          saving={savingPreview}
-          error={previewError}
-        />
-      )}
-      {preparing && (
-        <div className="fixed inset-0 z-[270] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl px-8 py-7 flex flex-col items-center gap-4 shadow-2xl">
-            <Loader2 size={28} className="animate-spin text-indigo-600"/>
-            <p className="text-xs font-black uppercase tracking-widest text-slate-600">AI is preparing your preview…</p>
-          </div>
         </div>
       )}
 
