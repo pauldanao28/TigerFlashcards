@@ -23,7 +23,7 @@ import { AlertTriangle, Ban, BarChart3, Bell, ChevronLeft, Flag, Gamepad2, Gift,
 import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from "@/lib/push";
 import { AVATAR_PRESETS } from "@/lib/avatars";
 import { validateUsername, isUsernameTaken, type UsernameProblem } from "@/lib/username";
-import { normalizeEnglish, stripParens, normalizePartOfSpeech } from "@/lib/textNormalize";
+import { normalizeEnglish, stripParens, normalizePartOfSpeech, ALLOWED_PARTS_OF_SPEECH } from "@/lib/textNormalize";
 
 // Same test StudyView uses to decide whether a card has a kanji worth generating a
 // mnemonic for.
@@ -110,6 +110,8 @@ function StatsContent() {
   // positioned so opening/closing it never shifts the card list underneath.
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [cardTypeFilter, setCardTypeFilter] = useState<CardType | "all">("all");
+  const [jlptFilters, setJlptFilters] = useState<string[]>([]);
+  const [posFilters, setPosFilters] = useState<string[]>([]);
   const [situationFilters, setSituationFilters] = useState<string[]>([]);
   const availableTags = useMemo(() => availableSituationTags(cards), [cards]);
   // "Remember this kanji" mnemonic generation — moved here from Study's Slow Recall/
@@ -764,6 +766,8 @@ function StatsContent() {
         card.english.toLowerCase().includes(query),
     );
     list = list.filter(c => cardMatchesMetadata(c, cardTypeFilter, situationFilters));
+    if (jlptFilters.length) list = list.filter(c => c.jlpt_level && jlptFilters.includes(c.jlpt_level));
+    if (posFilters.length) list = list.filter(c => posFilters.includes(c.partOfSpeech ?? "noun"));
     if (quickFilter === "slowReflex") list = list.filter((c) => slowReflexIds.has(c.id));
     if (quickFilter === "recentlyReviewed") list = list.filter((c) => recentlyReviewedIds.has(c.id));
     if (quickFilter === "weakWords") list = list.filter((c) => weakWordsIds.has(c.id));
@@ -790,7 +794,7 @@ function StatsContent() {
       const dateB = new Date(b.added_to_deck_at ?? 0).getTime();
       return dateB - dateA;
     });
-  }, [cards, deferredSearch, quickFilter, cardTypeFilter, situationFilters, slowReflexIds, recentlyReviewedIds, weakWordsIds, favoritesIds, masteredIds]);
+  }, [cards, deferredSearch, quickFilter, cardTypeFilter, situationFilters, jlptFilters, posFilters, slowReflexIds, recentlyReviewedIds, weakWordsIds, favoritesIds, masteredIds]);
 
   const visibleCards = useMemo(() => filteredCards.slice(0, displayLimit), [filteredCards, displayLimit]);
 
@@ -2121,13 +2125,13 @@ function StatsContent() {
                 onClick={() => setShowFilterMenu((v) => !v)}
                 title="Filter"
                 className={`shrink-0 relative w-9 h-9 flex items-center justify-center border rounded-xl shadow-sm active:scale-90 transition-all ${
-                  showFilterMenu || quickFilter !== "none" || cardTypeFilter !== "all" || situationFilters.length > 0
+                  showFilterMenu || quickFilter !== "none" || cardTypeFilter !== "all" || situationFilters.length > 0 || jlptFilters.length > 0 || posFilters.length > 0
                     ? "bg-indigo-600 border-indigo-600 text-white"
                     : "bg-white border-slate-200 text-slate-400 hover:text-indigo-600"
                 }`}
               >
                 <SlidersHorizontal size={14} />
-                {(quickFilter !== "none" || cardTypeFilter !== "all" || situationFilters.length > 0) && !showFilterMenu && (
+                {(quickFilter !== "none" || cardTypeFilter !== "all" || situationFilters.length > 0 || jlptFilters.length > 0 || posFilters.length > 0) && !showFilterMenu && (
                   <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white" />
                 )}
               </button>
@@ -2137,6 +2141,21 @@ function StatsContent() {
               <>
                 <div className="fixed inset-0 z-20" onClick={() => setShowFilterMenu(false)} />
                 <div className="absolute right-0 top-full mt-2 z-30 flex flex-col gap-1.5 p-3 w-64 max-h-[65vh] overflow-y-auto bg-white rounded-2xl border border-slate-100 shadow-xl">
+                  <p className="px-2 text-[10px] font-bold uppercase text-slate-400">JLPT Level</p>
+                  <div className="flex flex-wrap gap-1">
+                    {["All","N5","N4","N3","N2","N1"].map(level => {
+                      const active = level === "All" ? jlptFilters.length === 0 : jlptFilters.includes(level);
+                      return <button key={level} type="button" aria-pressed={active} onClick={() => {setJlptFilters(prev => level === "All" ? [] : prev.includes(level) ? prev.filter(v => v !== level) : [...prev,level]);setDisplayLimit(20);}} className={`rounded-full border px-2.5 py-1.5 text-[10px] font-black ${active ? "bg-indigo-600 text-white border-indigo-600" : "bg-slate-50 text-slate-500 border-slate-200"}`}>{level}</button>;
+                    })}
+                  </div>
+                  <p className="px-2 text-[10px] font-bold uppercase text-slate-400 mt-1">Part of Speech</p>
+                  <div className="flex flex-wrap gap-1">
+                    {["All",...ALLOWED_PARTS_OF_SPEECH].map(pos => {
+                      const active = pos === "All" ? posFilters.length === 0 : posFilters.includes(pos);
+                      return <button key={pos} type="button" aria-pressed={active} onClick={() => {setPosFilters(prev => pos === "All" ? [] : prev.includes(pos) ? prev.filter(v => v !== pos) : [...prev,pos]);setDisplayLimit(20);}} className={`rounded-full border px-2.5 py-1.5 text-[10px] font-bold ${active ? "bg-indigo-600 text-white border-indigo-600" : "bg-slate-50 text-slate-500 border-slate-200"}`}>{pos}</button>;
+                    })}
+                  </div>
+                  <div className="h-px bg-slate-100 my-1" />
                   <CardMetadataFilters cardType={cardTypeFilter} onCardTypeChange={v => {setCardTypeFilter(v);setDisplayLimit(20);}} selectedTags={situationFilters} onTagsChange={v => {setSituationFilters(v);setDisplayLimit(20);}} tags={availableTags} />
                   <div className="h-px bg-slate-100 my-1" />
                   <p className="px-2 text-[10px] font-bold uppercase text-slate-400">Progress</p>
