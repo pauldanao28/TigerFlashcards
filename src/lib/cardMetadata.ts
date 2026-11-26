@@ -14,7 +14,7 @@ export function normalizeSituationTags(tags: string[]): string[] {
     if (!key || key.length > 60 || seen.has(key)) return false;
     seen.add(key);
     return true;
-  }).slice(0, 20);
+  });
 }
 
 export function cardMatchesMetadata(
