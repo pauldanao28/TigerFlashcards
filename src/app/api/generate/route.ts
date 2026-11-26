@@ -7,12 +7,15 @@ export async function POST(req: Request) {
   const user = await getAuthedUser(req);
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
 
-  const { words, cardType = "vocabulary" } = await req.json();
-  if (!["vocabulary", "phrase"].includes(cardType)) return NextResponse.json({ error: "Invalid card type" }, {status:400});
+  const { words, cardType = "vocabulary", preview = false } = await req.json();
+  if (!["vocabulary", "phrase", "auto"].includes(cardType) || (cardType === "auto" && preview !== true))
+    return NextResponse.json({ error: "Invalid card type" }, {status:400});
   if (!Array.isArray(words) || words.length === 0) {
     return NextResponse.json({ error: "words must be a non-empty array" }, { status: 400 });
   }
 
+  if (words.length > 20 || words.some((w: unknown) => typeof w !== "string" || !w.trim() || w.length > 200))
+    return NextResponse.json({ error: "Maximum 20 entries per request, 200 characters per entry" }, {status:400});
   const usage = await checkAndRecordUsage(user.id, "generate", words.length);
   if (!usage.allowed) {
     return NextResponse.json(
@@ -22,7 +25,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const cards = await generateCards(words, {cardType});
+    const cards = await generateCards(words, {cardType, preview: preview === true});
     return NextResponse.json(cards);
   } catch (e) {
     console.error("Generate API error:", e);
