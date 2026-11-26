@@ -18,6 +18,16 @@ export default function SidebarOffsetWrapper({ children }: { children: React.Rea
 function RetainedTabs({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const path = usePathname();
+  useEffect(() => {
+    if (!/Android/i.test(navigator.userAgent) || (path !== "/stats" && path !== "/study")) return;
+    const roots = [document.documentElement, document.body];
+    const previous = roots.map(el => ({ value: el.style.getPropertyValue("overscroll-behavior-y"), priority: el.style.getPropertyPriority("overscroll-behavior-y") }));
+    roots.forEach(el => el.style.setProperty("overscroll-behavior-y", "none"));
+    return () => roots.forEach((el, i) => {
+      if (previous[i].value) el.style.setProperty("overscroll-behavior-y", previous[i].value, previous[i].priority);
+      else el.style.removeProperty("overscroll-behavior-y");
+    });
+  }, [path]);
   const params = useSearchParams();
   const mini = path === "/study" && params.get("mini") === "1";
   const studyActive = path === "/study" && !mini;
