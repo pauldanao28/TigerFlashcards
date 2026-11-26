@@ -413,6 +413,19 @@ export function useAddWords({
     if (unique.some(row => !row.japanese.trim() || !row.english.trim()))
       throw new Error("Every selected card needs Japanese text and an English meaning.");
 
+    if (!isAdmin) {
+      // Preserve the existing 100-cards-per-day rule used by the normal importer.
+      const { data: quota, error: quotaError } = await supabase
+        .from("admin_user_performance_master").select("cards_added_today")
+        .eq("id", userId).single();
+      if (quotaError) throw quotaError;
+      const remaining = Math.max(0, DAILY_LIMIT - (quota?.cards_added_today ?? 0));
+      if (unique.length > remaining) throw new Error(
+        remaining === 0 ? "Daily card limit reached." :
+        "You can add " + remaining + " more cards today. Uncheck some entries to continue."
+      );
+    }
+
     setLoading(true);
     setUploadBusy(true);
     try {
@@ -462,7 +475,7 @@ export function useAddWords({
       setRelatedWordsAttempted(false);
       setShowSummary(true);
       onAdded?.();
-      return new Set(unique.map(row => row.input));
+      return new Set(choices.map(row => row.input));
     } finally {
       setLoading(false);
       setUploadBusy(false);
