@@ -2121,13 +2121,13 @@ function StatsContent() {
                 onClick={() => setShowFilterMenu((v) => !v)}
                 title="Filter"
                 className={`shrink-0 relative w-9 h-9 flex items-center justify-center border rounded-xl shadow-sm active:scale-90 transition-all ${
-                  showFilterMenu || quickFilter !== "none"
+                  showFilterMenu || quickFilter !== "none" || cardTypeFilter !== "all" || situationFilters.length > 0
                     ? "bg-indigo-600 border-indigo-600 text-white"
                     : "bg-white border-slate-200 text-slate-400 hover:text-indigo-600"
                 }`}
               >
                 <SlidersHorizontal size={14} />
-                {(quickFilter !== "none") && !showFilterMenu && (
+                {(quickFilter !== "none" || cardTypeFilter !== "all" || situationFilters.length > 0) && !showFilterMenu && (
                   <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white" />
                 )}
               </button>
