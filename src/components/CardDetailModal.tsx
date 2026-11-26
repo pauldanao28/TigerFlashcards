@@ -68,7 +68,7 @@ export default function CardDetailModal({ card, onClose, onMetadataSaved }: { ca
       >
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="min-w-0">
-            <p className="text-2xl font-black text-slate-800 truncate">{card.japanese}</p>
+            <p className="text-2xl font-black text-slate-800 break-words">{card.japanese}</p>
             <p className="text-sm font-bold text-indigo-500">{card.reading}</p>
             <p className="text-slate-600 text-sm mt-0.5">{card.english}</p>
           </div>
