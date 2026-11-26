@@ -162,7 +162,7 @@ export default function AddWordsSheet({
         }
         const results = await response.json();
         if (!Array.isArray(results) || results.length !== batch.length)
-          throw new Error("Gemini returned an incomplete preview. Try again.");
+          throw new Error("AI returned an incomplete preview. Try again.");
         batch.forEach((input, i) => generated.set(input, results[i]));
       }
 
@@ -289,7 +289,7 @@ export default function AddWordsSheet({
                 <CustomSelect label="Import type" value={importType}
                   onChange={value => setImportType(value as ImportMode)}
                   options={[
-                    {value:"auto",label:"Auto Detect (Gemini)"},
+                    {value:"auto",label:"Auto Detect (AI)"},
                     {value:"vocabulary",label:"Vocabulary"},
                     {value:"phrase",label:"Phrases"},
                   ]} />
@@ -344,7 +344,7 @@ export default function AddWordsSheet({
                   >
                     {preparing ? <><Loader2 size={16} className="animate-spin" /> Analysing…</> : <><Plus size={16} /> Preview Card</>}
                   </button>
-                  <p className="text-center text-[10px] text-slate-400 font-bold">Gemini suggests readings, natural meanings, situations and usage notes. Review before saving.</p>
+                  <p className="text-center text-[10px] text-slate-400 font-bold">AI suggests readings, natural meanings, situations and usage notes. Review before saving.</p>
                 </div>
               )}
 
@@ -430,7 +430,7 @@ export default function AddWordsSheet({
         <div className="fixed inset-0 z-[270] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white rounded-3xl px-8 py-7 flex flex-col items-center gap-4 shadow-2xl">
             <Loader2 size={28} className="animate-spin text-indigo-600"/>
-            <p className="text-xs font-black uppercase tracking-widest text-slate-600">Gemini is preparing your preview…</p>
+            <p className="text-xs font-black uppercase tracking-widest text-slate-600">AI is preparing your preview…</p>
           </div>
         </div>
       )}
