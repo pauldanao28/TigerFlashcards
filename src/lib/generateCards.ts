@@ -158,8 +158,9 @@ export async function generateCards(words: string[], options?: {cardType?: Impor
   // A successful model call can still return truncated or invalid JSON.
   // Retry through the existing fallback model before failing the whole import.
   const parseCards = (raw: string): Record<string, unknown>[] => {
-    const matched = raw.match(/\\[[\\s\\S]*\\]/);
-    const data: unknown = JSON.parse(matched ? matched[0] : raw);
+    const start = raw.indexOf("[");
+    const end = raw.lastIndexOf("]");
+    const data: unknown = JSON.parse(start >= 0 && end > start ? raw.slice(start, end + 1) : raw);
     if (!Array.isArray(data) || data.some(item => !item || typeof item !== "object")) {
       throw new Error("AI returned an invalid card list.");
     }
