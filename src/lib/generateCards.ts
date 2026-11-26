@@ -138,7 +138,7 @@ async function tryGenerate(modelName: string, words: string[], cardType: ImportM
   let lastError: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const result = await model.generateContent(preview ? previewPrompt(words, cardType) : cardType === "phrase" ? phrasePrompt(words) : prompt(words));
+      const result = await model.generateContent(preview || cardType === "auto" || cardType === "phrase" ? previewPrompt(words, cardType) : prompt(words));
       return result.response.text();
     } catch (e) {
       lastError = e;
@@ -166,8 +166,8 @@ export async function generateCards(words: string[], options?: {cardType?: Impor
   const cleanJson = jsonMatch ? jsonMatch[0] : text;
 
   const parsedData: Record<string, unknown>[] = JSON.parse(cleanJson);
-  if (!Array.isArray(parsedData) || (options?.preview && parsedData.length !== words.length)) {
-    throw new Error("Gemini did not return one card per input; please retry.");
+  if (!Array.isArray(parsedData) || ((options?.preview || cardType === "auto" || cardType === "phrase") && parsedData.length !== words.length)) {
+    throw new Error("AI did not return one card per item; please retry.");
   }
   const asEnum = <T extends string>(value: unknown, allowed: readonly T[]): T | null =>
     typeof value === "string" && (allowed as readonly string[]).includes(value) ? (value as T) : null;
