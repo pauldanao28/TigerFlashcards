@@ -6,6 +6,7 @@ import { useAppAlert } from "@/context/AlertContext";
 import { useUploadGuard } from "@/context/UploadGuardContext";
 import { translations } from "@/lib/languages";
 import { skipDeckDuplicates } from "@/lib/duplicates";
+import { normalizeSituationTags, type CardType } from "@/lib/cardMetadata";
 
 const t = translations.en;
 const DAILY_LIMIT = 100;
@@ -169,7 +170,9 @@ export function useAddWords({
 
   // Batch input is one word per line — extracting vocabulary from lyrics/stories is
   // the Reader's job, so lines are never re-segmented here (that chopped 食べる into 食|べる).
-  const processWords = async (inputList: string[]): Promise<Set<string>> => {
+  const processWords = async (inputList: string[], options?: { cardType?: CardType; situationTags?: string[] }): Promise<Set<string>> => {
+    const cardType = options?.cardType ?? "vocabulary";
+    const situationTags = normalizeSituationTags(options?.situationTags ?? []);
     const succeededWords = new Set<string>();
     if (!userId || !deckId) {
       showAlert("Please log in and ensure deck is initialized.");
@@ -184,7 +187,9 @@ export function useAddWords({
 
     // Single Add Bypass: if only one item is provided, treat it as a deliberate single add
     // and do NOT chop the kanji/words.
-    if (inputList.length === 1 && inputList[0].trim().length > 0) {
+    if (cardType === "phrase") {
+      wordsToProcess = inputList.map(item => item.normalize("NFKC").trim()).filter(Boolean);
+    } else if (inputList.length === 1 && inputList[0].trim().length > 0) {
       wordsToProcess = [inputList[0].trim()];
     } else if (isEnglishInput) {
       wordsToProcess = inputList.map((w) => w.trim()).filter((w) => w.length > 0);
@@ -266,7 +271,7 @@ export function useAddWords({
         try {
           const res = await authedFetch("/api/generate", {
             method: "POST",
-            body: JSON.stringify({ words: wordsForAI }),
+            body: JSON.stringify({ words: wordsForAI, cardType }),
           });
 
           if (!res.ok) throw new Error(res.status === 429 ? "AI Limit Reached" : "AI Error");
@@ -290,6 +295,8 @@ export function useAddWords({
               adjective_type: item.adjective_type ?? null,
               suru_meaning: item.suru_meaning ?? null,
               creator_id: userId,
+              card_type: cardType,
+              situation_tags: situationTags,
             }))
             .filter((item: any) => {
               if (!item.japanese || seen.has(item.japanese)) return false;
@@ -353,7 +360,7 @@ export function useAddWords({
         // finalSummary.length === 1, since the AI can still return more than one card
         // for what the user typed as a single item (e.g. it read as a short phrase) —
         // that shouldn't silently suppress the suggestions.
-        if (uniqueInputWords.length === 1) {
+        if (uniqueInputWords.length === 1 && cardType === "vocabulary") {
           const singleWordCard = finalSummary.find((c) => c.japanese === uniqueInputWords[0]) ?? finalSummary[0];
           fetchRelatedWords(singleWordCard);
         }
