@@ -1,5 +1,6 @@
 "use client";
 import { X, Flag, Zap } from "lucide-react";
+import CustomSelect from "@/components/CustomSelect";
 import { useState } from "react";
 import { SITUATION_TAGS, normalizeSituationTags, type CardType } from "@/lib/cardMetadata";
 import { FlashcardData } from "@/lib/types";
@@ -88,10 +89,7 @@ export default function CardDetailModal({ card, onClose, onMetadataSaved }: { ca
           </div>
           {editing && onMetadataSaved && (
             <div className="mt-3 border border-slate-200 bg-slate-50 rounded-2xl p-3 space-y-3">
-              <p className="text-[10px] text-slate-500 font-bold">Card type</p>
-              <div className="flex gap-2">
-                {(["vocabulary", "phrase"] as const).map(type => <button key={type} type="button" onClick={() => setCardType(type)} className={`flex-1 rounded-xl py-2 text-xs font-bold capitalize border ${cardType === type ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-200"}`}>{type}</button>)}
-              </div>
+              <CustomSelect label="Card type" value={cardType} options={[{value:"vocabulary",label:"Vocabulary"},{value:"phrase",label:"Phrases"}]} onChange={value => setCardType(value as CardType)} />
               <p className="text-[10px] text-slate-500 font-bold">Situation tags (multiple)</p>
               <div className="flex flex-wrap gap-1.5">
                 {normalizeSituationTags([...SITUATION_TAGS, ...tags]).map(tag => {
