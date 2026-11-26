@@ -112,6 +112,15 @@ function StatsContent() {
   const [jlptFilters, setJlptFilters] = useState<string[]>([]);
   const [posFilters, setPosFilters] = useState<string[]>([]);
   const [situationFilters, setSituationFilters] = useState<string[]>([]);
+  const [reviewWeek, setReviewWeek] = useState<number | null>(null);
+  const [reviewDateAnchor, setReviewDateAnchor] = useState(() => Date.now());
+  useEffect(() => {
+    if (!showFilterMenu && reviewWeek === null) return;
+    const refresh = () => setReviewDateAnchor(Date.now());
+    refresh();
+    const timer = window.setInterval(refresh, 60_000);
+    return () => window.clearInterval(timer);
+  }, [showFilterMenu, reviewWeek]);
   const availableTags = useMemo(() => availableSituationTags(cards), [cards]);
   // "Remember this kanji" mnemonic generation — moved here from Study's Slow Recall/
   // Weak Words lists (both now gone from Study; this is the only place a kanji card
@@ -767,6 +776,17 @@ function StatsContent() {
     list = list.filter(c => cardMatchesMetadata(c, cardTypeFilter, situationFilters));
     if (jlptFilters.length) list = list.filter(c => c.jlpt_level && jlptFilters.includes(c.jlpt_level));
     if (posFilters.length) list = list.filter(c => posFilters.includes(c.partOfSpeech ?? "noun"));
+    // Study's rolling seven-day buckets, based on actual review attempts.
+    if (reviewWeek !== null) {
+      const weekMs = 7 * 86_400_000;
+      list = list.filter(card => {
+        const tries = (card.scores?.jp_to_en?.total ?? 0) + (card.scores?.en_to_jp?.total ?? 0);
+        if (reviewWeek === -1) return tries === 0;
+        const age = reviewDateAnchor - Date.parse(card.last_reviewed_at ?? "");
+        return tries > 0 && Number.isFinite(age) &&
+          age >= reviewWeek * weekMs && age < (reviewWeek + 1) * weekMs;
+      });
+    }
     if (quickFilter === "slowReflex") list = list.filter((c) => slowReflexIds.has(c.id));
     if (quickFilter === "recentlyReviewed") list = list.filter((c) => recentlyReviewedIds.has(c.id));
     if (quickFilter === "weakWords") list = list.filter((c) => weakWordsIds.has(c.id));
@@ -793,7 +813,7 @@ function StatsContent() {
       const dateB = new Date(b.added_to_deck_at ?? 0).getTime();
       return dateB - dateA;
     });
-  }, [cards, deferredSearch, quickFilter, cardTypeFilter, situationFilters, jlptFilters, posFilters, slowReflexIds, recentlyReviewedIds, weakWordsIds, favoritesIds, masteredIds]);
+  }, [cards, deferredSearch, quickFilter, cardTypeFilter, situationFilters, jlptFilters, posFilters, reviewWeek, reviewDateAnchor, slowReflexIds, recentlyReviewedIds, weakWordsIds, favoritesIds, masteredIds]);
 
   const visibleCards = useMemo(() => filteredCards.slice(0, displayLimit), [filteredCards, displayLimit]);
 
