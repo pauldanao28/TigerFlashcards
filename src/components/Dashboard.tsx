@@ -1,4 +1,5 @@
 "use client";
+import LoadingScreen from "@/components/LoadingScreen";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence, useAnimationControls } from "framer-motion";
@@ -511,7 +512,7 @@ export default function Dashboard() {
 
   if (!data) {
     if (loadFailed) return <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 px-6 text-center"><p className="font-bold text-slate-800">Unable to load your profile.</p><p className="text-sm text-slate-500">Check your connection and try again.</p><button className="rounded-xl bg-indigo-600 px-6 py-3 font-bold text-white" onClick={() => setLoadAttempt(n => n + 1)}>Retry</button></div>;
-    return <div className="mx-auto max-w-5xl px-5 pt-8" aria-busy="true"><h1 className="text-2xl font-black italic">Home</h1><div className="mt-5 h-24 rounded-2xl bg-slate-100 animate-pulse" /><div className="mt-4 h-32 rounded-2xl bg-slate-100 animate-pulse" /></div>;
+    return <LoadingScreen />;
   }
 
   const { name, streak, max_streak, daily_count, mastered_today, still_learning } = data;
