@@ -13,6 +13,7 @@ export interface MasterCard {
   exampleSentence?: {
     jp: string;
     en: string;
+    note?: string;
   };
   alternatives?: string[];
   is_public: boolean;
