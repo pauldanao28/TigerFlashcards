@@ -1,6 +1,25 @@
 import type { MasterCard } from "@/lib/types";
 
 export type CardType = "vocabulary" | "phrase";
+export type ImportMode = CardType | "auto";
+
+export interface ImportPreviewCard {
+  input: string;
+  japanese: string;
+  reading: string;
+  english: string;
+  card_type: CardType;
+  situation_tags: string[];
+  usage_note: string;
+  partOfSpeech: string;
+  jlpt_level: "N5" | "N4" | "N3" | "N2" | "N1" | null;
+  alternatives: string[];
+  exampleSentence: { jp: string; en: string };
+  existingId?: string;
+  alreadyInDeck?: boolean;
+  selected: boolean;
+}
+
 export const SITUATION_TAGS = [
   "Friends", "Anime", "Daily Conversation", "Reactions", "Feelings",
   "Restaurant", "Shopping", "Travel", "Work", "Texting / LINE",
