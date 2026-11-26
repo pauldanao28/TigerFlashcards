@@ -7,7 +7,8 @@ export async function POST(req: Request) {
   const user = await getAuthedUser(req);
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
 
-  const { words } = await req.json();
+  const { words, cardType = "vocabulary" } = await req.json();
+  if (!["vocabulary", "phrase"].includes(cardType)) return NextResponse.json({ error: "Invalid card type" }, {status:400});
   if (!Array.isArray(words) || words.length === 0) {
     return NextResponse.json({ error: "words must be a non-empty array" }, { status: 400 });
   }
@@ -21,7 +22,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const cards = await generateCards(words);
+    const cards = await generateCards(words, {cardType});
     return NextResponse.json(cards);
   } catch (e) {
     console.error("Generate API error:", e);
