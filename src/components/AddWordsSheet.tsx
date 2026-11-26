@@ -138,9 +138,9 @@ export default function AddWordsSheet({
       if (source === "word") setInput("");
       if (source === "paste") setBatchInput("");
       if (source === "queue") {
-        const remaining = wordListText.split("\\n").map(line => line.trim()).filter(line => line && !added.has(line));
+        const remaining = wordListText.split("\n").map(line => line.trim()).filter(line => line && !added.has(line));
         flushWordList(remaining);
-        setWordListText(remaining.join("\\n"));
+        setWordListText(remaining.join("\n"));
       }
       if (source !== "word") onClose();
     } finally { setImportBusy(false); }
