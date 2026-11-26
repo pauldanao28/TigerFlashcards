@@ -57,10 +57,11 @@ export default function AddedWordsSummary({
         <div className="p-6 border-b border-slate-100 flex justify-between items-start gap-3 bg-slate-50/50">
           <div className="min-w-0">
             <h2 className="text-xl font-black text-slate-800 uppercase italic tracking-tighter">
-              {t.words_added}
+              Cards Added
             </h2>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1 flex flex-wrap gap-x-1">
-              <span>{words.filter((w) => !w.alreadyInDeck).length} new</span>
+              <span>{words.filter((w) => !w.alreadyInDeck).length} added</span>
+              <span className="text-indigo-600">· {words.filter(w => !w.alreadyInDeck && w.card_type === "phrase").length} phrases</span>
               {words.some((w) => w.alreadyInDeck) && (
                 <span className="text-teal-500 whitespace-nowrap">· {words.filter((w) => w.alreadyInDeck).length} already in deck</span>
               )}
@@ -115,7 +116,7 @@ export default function AddedWordsSummary({
 
               <div className="flex-1 min-w-0 flex flex-col text-left">
                 <div className="flex items-baseline gap-2 flex-wrap">
-                  <span className="text-lg font-black text-slate-800 truncate">
+                  <span className="text-lg font-black text-slate-800 break-words">
                     {word.japanese}
                   </span>
                   <span className="text-xs font-bold text-rose-500 uppercase tracking-tighter shrink-0 whitespace-nowrap">
@@ -123,7 +124,7 @@ export default function AddedWordsSummary({
                   </span>
                 </div>
 
-                <p className="text-sm text-slate-600 font-medium mt-0.5 leading-tight pr-8 truncate">
+                <p className="text-sm text-slate-600 font-medium mt-0.5 leading-snug break-words">
                   {word.english}
                 </p>
 
@@ -135,9 +136,11 @@ export default function AddedWordsSummary({
                       {word.jlpt_level}
                     </span>
                   )}
-                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md whitespace-nowrap">
-                    {word.partOfSpeech}
-                  </span>
+                  {word.card_type === "phrase" ? (
+                    <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">Phrase</span>
+                  ) : word.partOfSpeech && word.partOfSpeech !== "phrase" ? (
+                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">{word.partOfSpeech}</span>
+                  ) : null}
                   {word.alreadyInDeck && (
                     <span className="text-[9px] font-black uppercase tracking-widest text-teal-600 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md whitespace-nowrap">
                       Already in deck
