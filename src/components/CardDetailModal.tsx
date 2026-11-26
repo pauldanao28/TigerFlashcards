@@ -1,5 +1,7 @@
 "use client";
 import { X, Flag, Zap } from "lucide-react";
+import { useState } from "react";
+import { SITUATION_TAGS, normalizeSituationTags, type CardType } from "@/lib/cardMetadata";
 import { FlashcardData } from "@/lib/types";
 import { suruLabel } from "@/lib/verbConjugation";
 import { supabase } from "@/lib/supabase";
@@ -10,10 +12,33 @@ import { useAuth } from "@/context/AuthContext";
 // The one card-detail view, shared by the Cards page grid and Study's Weak Words /
 // Slow Recall lists — tapping a word anywhere in the app should land on the exact
 // same stats, not a slightly different summary per screen.
-export default function CardDetailModal({ card, onClose }: { card: FlashcardData; onClose: () => void }) {
+export default function CardDetailModal({ card, onClose, onMetadataSaved }: { card: FlashcardData; onClose: () => void; onMetadataSaved?: (metadata: {card_type: CardType; situation_tags: string[]}) => void }) {
   const { user } = useAuth();
   const { showPrompt, showAlert } = useAppAlert();
   const t = translations.en;
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [cardType, setCardType] = useState<CardType>(card.card_type ?? "vocabulary");
+  const [tags, setTags] = useState<string[]>(card.situation_tags ?? []);
+  const [customTags, setCustomTags] = useState("");
+  const [editError, setEditError] = useState("");
+
+  const saveMetadata = async () => {
+    if (!user || saving) return;
+    setSaving(true); setEditError("");
+    const nextTags = normalizeSituationTags([...tags, ...customTags.split(",")]);
+    try {
+      const { data, error } = await supabase.from("master_cards").update({
+        card_type: cardType, situation_tags: nextTags,
+      }).eq("id", card.id).select("id").single();
+      if (error || !data) throw error ?? new Error("Card update not allowed");
+      onMetadataSaved?.({card_type: cardType, situation_tags: nextTags});
+      setTags(nextTags); setCustomTags(""); setEditing(false);
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : "Unable to save card metadata");
+    } finally { setSaving(false); }
+  };
+
 
   const handleReport = async () => {
     const suggestion = await showPrompt(t.report_placeholder, { title: "Report a card" });
@@ -38,7 +63,7 @@ export default function CardDetailModal({ card, onClose }: { card: FlashcardData
     >
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200" />
       <div
-        className="relative w-full max-w-sm bg-white rounded-[2rem] shadow-2xl p-6 animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-sm bg-white rounded-[2rem] shadow-2xl p-6 animate-in zoom-in-95 duration-200 max-h-[85dvh] overflow-y-auto overscroll-contain"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 mb-4">
@@ -53,6 +78,32 @@ export default function CardDetailModal({ card, onClose }: { card: FlashcardData
           >
             <X size={15} />
           </button>
+        </div>
+
+        <div className="mb-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-black uppercase bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-1 rounded-full">{(card.card_type ?? "vocabulary") === "phrase" ? "Phrase" : "Vocabulary"}</span>
+            {(card.situation_tags ?? []).map(tag => <span key={tag} className="text-[10px] font-bold px-2 py-1 rounded-full bg-slate-100 text-slate-500">{tag}</span>)}
+            {!!onMetadataSaved && <button type="button" onClick={() => setEditing(v => !v)} className="ml-auto text-[10px] font-bold text-indigo-600">{editing ? "Cancel" : "Edit type & tags"}</button>}
+          </div>
+          {editing && onMetadataSaved && (
+            <div className="mt-3 border border-slate-200 bg-slate-50 rounded-2xl p-3 space-y-3">
+              <p className="text-[10px] text-slate-500 font-bold">Card type</p>
+              <div className="flex gap-2">
+                {(["vocabulary", "phrase"] as const).map(type => <button key={type} type="button" onClick={() => setCardType(type)} className={`flex-1 rounded-xl py-2 text-xs font-bold capitalize border ${cardType === type ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-200"}`}>{type}</button>)}
+              </div>
+              <p className="text-[10px] text-slate-500 font-bold">Situation tags (multiple)</p>
+              <div className="flex flex-wrap gap-1.5">
+                {normalizeSituationTags([...SITUATION_TAGS, ...tags]).map(tag => {
+                  const selected = tags.includes(tag);
+                  return <button type="button" key={tag} aria-pressed={selected} onClick={() => setTags(prev => selected ? prev.filter(t => t !== tag) : normalizeSituationTags([...prev, tag]))} className={`text-[10px] font-bold px-2 py-1.5 rounded-full border ${selected ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-500 border-slate-200"}`}>{tag}</button>;
+                })}
+              </div>
+              <input value={customTags} onChange={e => setCustomTags(e.target.value)} placeholder="Other tags, comma-separated" className="w-full border border-slate-200 rounded-xl p-2.5 text-xs bg-white" />
+              {editError && <p role="alert" className="text-xs text-rose-600">{editError}</p>}
+              <button disabled={saving} onClick={saveMetadata} className="w-full rounded-xl bg-indigo-600 text-white font-bold text-xs py-3 disabled:opacity-50">{saving ? "Saving…" : "Save card type & tags"}</button>
+            </div>
+          )}
         </div>
 
         {(card.transitivity || card.verb_type || card.adjective_type || card.te_form) && (
