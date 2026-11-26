@@ -6,7 +6,7 @@ import { useAppAlert } from "@/context/AlertContext";
 import { useUploadGuard } from "@/context/UploadGuardContext";
 import { translations } from "@/lib/languages";
 import { skipDeckDuplicates } from "@/lib/duplicates";
-import { normalizeSituationTags, type ImportMode, type ImportPreviewCard } from "@/lib/cardMetadata";
+import { normalizeSituationTags, type ImportMode } from "@/lib/cardMetadata";
 
 const t = translations.en;
 const DAILY_LIMIT = 100;
@@ -391,86 +391,6 @@ export function useAddWords({
     return succeededWords;
   };
 
-  // A preview never writes to the database until the user confirms. Exact matches
-  // are linked to the deck without overwriting master metadata or user progress.
-  const savePreviewCards = async (previewRows: ImportPreviewCard[]): Promise<Set<string>> => {
-    if (!userId || !deckId) throw new Error("Sign in and initialize your deck first.");
-    const choices = previewRows.filter(row => row.selected && !row.alreadyInDeck);
-    const unique = [...new Map(choices.map(row => [row.japanese.trim(), row])).values()];
-    if (!unique.length) return new Set<string>();
-    if (unique.length > 100) throw new Error("Import at most 100 entries at once.");
-    if (unique.some(row => !row.japanese.trim() || !row.english.trim()))
-      throw new Error("Every selected card needs Japanese text and an English meaning.");
-
-    if (!isAdmin) {
-      // Preserve the existing 100-cards-per-day rule used by the normal importer.
-      const { data: quota, error: quotaError } = await supabase
-        .from("admin_user_performance_master").select("cards_added_today")
-        .eq("id", userId).single();
-      if (quotaError) throw quotaError;
-      const remaining = Math.max(0, DAILY_LIMIT - (quota?.cards_added_today ?? 0));
-      if (unique.length > remaining) throw new Error(
-        remaining === 0 ? "Daily card limit reached." :
-        "You can add " + remaining + " more cards today. Uncheck some entries to continue."
-      );
-    }
-
-    setLoading(true);
-    setUploadBusy(true);
-    try {
-      const japanese = unique.map(row => row.japanese.trim());
-      const { data: firstExisting, error: lookupError } = await supabase
-        .from("master_cards").select("*").in("japanese", japanese);
-      if (lookupError) throw lookupError;
-      const existingJapanese = new Set((firstExisting ?? []).map(row => row.japanese));
-      const newItems = unique.filter(row => !existingJapanese.has(row.japanese.trim())).map(row => ({
-        japanese: row.japanese.trim(),
-        reading: row.reading.trim(),
-        english: row.english.trim(),
-        creator_id: userId,
-        card_type: row.card_type,
-        situation_tags: normalizeSituationTags(row.situation_tags),
-        partOfSpeech: row.card_type === "phrase" ? "phrase" : row.partOfSpeech,
-        jlpt_level: row.jlpt_level,
-        alternatives: row.alternatives,
-        exampleSentence: {
-          jp: row.exampleSentence.jp.trim(),
-          en: row.exampleSentence.en.trim(),
-          note: row.usage_note.trim(),
-        },
-      }));
-      if (newItems.length) {
-        // ignoreDuplicates prevents a concurrent import from overwriting a shared
-        // dictionary entry. Re-fetch below to link the winning row.
-        const { error: insertError } = await supabase.from("master_cards")
-          .upsert(newItems, { onConflict: "japanese", ignoreDuplicates: true });
-        if (insertError) throw insertError;
-      }
-      const { data: savedCards, error: savedError } = await supabase
-        .from("master_cards").select("*").in("japanese", japanese);
-      if (savedError) throw savedError;
-      const byJapanese = new Map((savedCards ?? []).map(card => [card.japanese, card]));
-      if (japanese.some(j => !byJapanese.has(j)))
-        throw new Error("Some cards could not be found after saving.");
-
-      const ids = [...new Set((savedCards ?? []).map(c => c.id))];
-      const linkedBefore = await alreadyLinked(ids);
-      await performLinking(ids);
-      const summary = (savedCards ?? []).map(card =>
-        skippedFor.get(card.id) ?? { ...card, alreadyInDeck: linkedBefore.has(card.id) }
-      );
-      setAddedWordsSummary(summary);
-      setRelatedWords([]);
-      setRelatedWordsAttempted(false);
-      setShowSummary(true);
-      onAdded?.();
-      return new Set(choices.map(row => row.input));
-    } finally {
-      setLoading(false);
-      setUploadBusy(false);
-    }
-  };
-
   const deleteFromSummary = async (id: string) => {
     if (!deckId || !userId) return;
     // Removing a freshly imported deck link must not erase prior review history.
@@ -492,7 +412,6 @@ export function useAddWords({
     showSummary,
     setShowSummary,
     processWords,
-    savePreviewCards,
     deleteFromSummary,
     relatedWords,
     relatedWordsLoading,
