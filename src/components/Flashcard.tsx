@@ -429,7 +429,7 @@ export default function Flashcard({
   const isLongMeaning = !isBackJapanese && backTextLen > 45;
   const isTeFormBig = teFormLen <= 4;
   const backHeadingClass = isBackJapanese
-    ? BACK_JP_PINNED_SIZE
+    ? (card?.card_type === "phrase" ? getFontSize(backText, true) : BACK_JP_PINNED_SIZE)
     : isLongMeaning ? "text-base sm:text-lg" : isHeadingBig ? HEADING_BIG : HEADING_SMALL;
 
   const cardStats = card.scores?.[language === "en" ? "en_to_jp" : "jp_to_en"];
