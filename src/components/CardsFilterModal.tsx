@@ -1,17 +1,21 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { SlidersHorizontal, X } from "lucide-react";
 import CardMetadataFilters from "@/components/CardMetadataFilters";
 import { FILTERABLE_PARTS_OF_SPEECH } from "@/lib/textNormalize";
 import type { CardType } from "@/lib/cardMetadata";
+import type { FlashcardData } from "@/lib/types";
 
 export type CardsProgressFilter = "none" | "slowReflex" | "recentlyReviewed" | "weakWords" | "favorites" | "mastered";
 
 interface Props {
   onClose: () => void;
+  cards: FlashcardData[];
+  reviewWeek: number | null;
+  onReviewWeekChange: (value: number | null) => void;
   jlptFilters: string[];
   onJlptChange: (values: string[]) => void;
   posFilters: string[];
@@ -27,7 +31,21 @@ interface Props {
   onReset: () => void;
 }
 
-const JLPT_LEVELS = ["N5", "N4", "N3", "N2", "N1"];
+// Identical palette and markup to StudyView's white filter sheet.
+const JLPT_LEVELS = ["N5", "N4", "N3", "N2", "N1"] as const;
+type JlptLevel = typeof JLPT_LEVELS[number];
+const JLPT_BAR_COLOR: Record<JlptLevel, string> = {
+  N5: "bg-emerald-500", N4: "bg-sky-500", N3: "bg-amber-500",
+  N2: "bg-orange-500", N1: "bg-rose-500",
+};
+const JLPT_BADGE_COLOR: Record<JlptLevel, string> = {
+  N5: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  N4: "bg-sky-100 text-sky-700 border-sky-200",
+  N3: "bg-amber-100 text-amber-700 border-amber-200",
+  N2: "bg-orange-100 text-orange-700 border-orange-200",
+  N1: "bg-rose-100 text-rose-700 border-rose-200",
+};
+const REVIEW_WINDOWS = ["All time","This week","Last week","2 weeks ago","3 weeks ago","4 weeks ago","Never reviewed"] as const;
 const PROGRESS = [
   ["mastered", "🏆 Mastered"],
   ["favorites", "⭐ Favorites"],
@@ -37,7 +55,7 @@ const PROGRESS = [
 ] as const;
 
 export default function CardsFilterModal({
-  onClose, jlptFilters, onJlptChange, posFilters, onPosChange,
+  onClose, cards, reviewWeek, onReviewWeekChange, jlptFilters, onJlptChange, posFilters, onPosChange,
   cardType, onCardTypeChange, situationFilters, onSituationChange, availableTags,
   progressFilter, onProgressChange, matchingCount, onReset,
 }: Props) {
@@ -54,7 +72,32 @@ export default function CardsFilterModal({
     };
   }, [onClose]);
 
-  const activeCount = jlptFilters.length + posFilters.length +
+  const mastery = useMemo(() => {
+    const byLevel = {} as Record<JlptLevel, { total: number; mastered: number }>;
+    const byPos: Record<string, { total: number; mastered: number }> = {};
+    for (const level of JLPT_LEVELS) byLevel[level] = { total: 0, mastered: 0 };
+    for (const pos of FILTERABLE_PARTS_OF_SPEECH) byPos[pos] = { total: 0, mastered: 0 };
+    // Same recognition mastery formula as Study (JP→EN: 5+ passes, 70%+).
+    for (const card of cards) {
+      const score = card.scores?.jp_to_en;
+      const mastered = (score?.pass ?? 0) >= 5 && (score?.percent ?? 0) >= 70;
+      const level = card.jlpt_level;
+      if (level && level in byLevel) {
+        byLevel[level].total += 1;
+        if (mastered) byLevel[level].mastered += 1;
+      }
+      const pos = card.partOfSpeech ?? "noun";
+      if (pos in byPos) {
+        byPos[pos].total += 1;
+        if (mastered) byPos[pos].mastered += 1;
+      }
+    }
+    return { byLevel, byPos };
+  }, [cards]);
+  const percent = (entry: { total: number; mastered: number }) =>
+    entry.total ? Math.round(entry.mastered / entry.total * 100) : 0;
+
+  const activeCount = (reviewWeek === null ? 0 : 1) + jlptFilters.length + posFilters.length +
     (cardType === "all" ? 0 : 1) + situationFilters.length +
     (progressFilter === "none" ? 0 : 1);
 
@@ -93,29 +136,68 @@ export default function CardsFilterModal({
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 space-y-4">
           <section>
-            <h3 className="text-slate-800 font-black text-xs uppercase tracking-tight mb-1.5">JLPT Level</h3>
-            <p className="text-[10px] text-slate-400 font-semibold mb-3">Choose one or several levels.</p>
-            <div className="flex gap-2 flex-wrap">
-              {["All", ...JLPT_LEVELS].map(level => {
-                const active = level === "All" ? !jlptFilters.length : jlptFilters.includes(level);
-                return <button key={level} type="button" aria-pressed={active} className={chip(active)}
-                  onClick={() => onJlptChange(level === "All" ? [] : active ? jlptFilters.filter(v => v !== level) : [...jlptFilters, level])}>
-                  {level}
-                </button>;
+            <h3 className="text-slate-800 font-black text-sm uppercase tracking-tight mb-1.5">JLPT Level</h3>
+            <p className="text-[10px] font-bold text-slate-400 mb-4 leading-relaxed">
+              Tap levels to filter your cards — pick as many as you like. Bars show your mastery of each level; the number on the right is how many cards you have.
+            </p>
+            <div className="flex gap-2 mb-5 flex-wrap">
+              {(["All", ...JLPT_LEVELS] as const).map(level => {
+                const isAll = level === "All";
+                const active = isAll ? !jlptFilters.length : jlptFilters.includes(level);
+                return (
+                  <button type="button" key={level} aria-pressed={active}
+                    onClick={() => onJlptChange(isAll ? [] : active ? jlptFilters.filter(v => v !== level) : [...jlptFilters, level])}
+                    className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                      active
+                        ? isAll ? "bg-slate-800 text-white border-slate-800" : `${JLPT_BAR_COLOR[level]} text-white border-transparent`
+                        : isAll ? "bg-slate-50 text-slate-500 border-slate-200" : JLPT_BADGE_COLOR[level]
+                    }`}>
+                    {level}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="space-y-3">
+              {JLPT_LEVELS.map(level => {
+                const { total } = mastery.byLevel[level];
+                const mastered = percent(mastery.byLevel[level]);
+                return (
+                  <div key={level} className="flex items-center gap-3">
+                    <span className={`shrink-0 w-9 text-[10px] px-1.5 py-0.5 rounded-md border font-black text-center uppercase tracking-tighter ${JLPT_BADGE_COLOR[level]}`}>
+                      {level}
+                    </span>
+                    <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${JLPT_BAR_COLOR[level]}`} style={{width: `${mastered}%`}} />
+                    </div>
+                    <span className="shrink-0 w-14 text-right text-xs font-black text-slate-600">{total}</span>
+                  </div>
+                );
               })}
             </div>
           </section>
           <div className="h-px bg-slate-100 -mx-5" />
           <section>
-            <h3 className="text-slate-800 font-black text-xs uppercase tracking-tight mb-1.5">Part of Speech</h3>
-            <p className="text-[10px] text-slate-400 font-semibold mb-3">Grammatical categories for vocabulary; phrases are under Card Type.</p>
+            <h3 className="text-slate-800 font-black text-sm uppercase tracking-tight mb-1.5">Part of Speech</h3>
+            <p className="text-[10px] font-bold text-slate-400 mb-3 leading-relaxed">
+              Narrow it further — pick as many as you like. Each pill fills left to right by how well you&apos;ve mastered that tag.
+            </p>
             <div className="flex gap-2 flex-wrap">
-              {["All", ...FILTERABLE_PARTS_OF_SPEECH].map(pos => {
-                const active = pos === "All" ? !posFilters.length : posFilters.includes(pos);
-                return <button key={pos} type="button" aria-pressed={active} className={chip(active)}
-                  onClick={() => onPosChange(pos === "All" ? [] : active ? posFilters.filter(v => v !== pos) : [...posFilters, pos])}>
-                  {pos}
-                </button>;
+              {(["All", ...FILTERABLE_PARTS_OF_SPEECH] as const).map(pos => {
+                const isAll = pos === "All";
+                const active = isAll ? !posFilters.length : posFilters.includes(pos);
+                const mastered = isAll ? 0 : percent(mastery.byPos[pos]);
+                return (
+                  <button type="button" key={pos} aria-pressed={active}
+                    onClick={() => onPosChange(isAll ? [] : active ? posFilters.filter(v => v !== pos) : [...posFilters, pos])}
+                    className={`relative overflow-hidden px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                      isAll
+                        ? active ? "bg-slate-800 text-white border-slate-800" : "bg-slate-50 text-slate-500 border-slate-200"
+                        : `bg-slate-50 text-slate-600 ${active ? "border-indigo-600 ring-2 ring-indigo-600 ring-offset-1" : "border-slate-200"}`
+                    }`}>
+                    {!isAll && <span aria-hidden className="absolute inset-y-0 left-0 bg-indigo-200" style={{width: `${mastered}%`}} />}
+                    <span className="relative">{pos}{!isAll ? ` · ${mastered}%` : ""}</span>
+                  </button>
+                );
               })}
             </div>
           </section>
@@ -124,7 +206,21 @@ export default function CardsFilterModal({
             selectedTags={situationFilters} onTagsChange={onSituationChange} tags={availableTags} />
           <div className="h-px bg-slate-100 -mx-5" />
           <section>
-            <h3 className="text-slate-800 font-black text-xs uppercase tracking-tight mb-1.5">Progress</h3>
+            <h3 className="text-slate-800 font-black text-sm uppercase tracking-tight mb-2">Last reviewed</h3>
+            <div className="flex gap-2 flex-wrap">
+              {REVIEW_WINDOWS.map((label, i) => {
+                const value = i === 0 ? null : i === 6 ? -1 : i - 1;
+                return <button type="button" key={label} aria-pressed={reviewWeek === value}
+                  onClick={() => onReviewWeekChange(value)}
+                  className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${
+                    reviewWeek === value ? "bg-indigo-600 text-white border-indigo-600" : "bg-slate-50 text-slate-500 border-slate-200"
+                  }`}>{label}</button>;
+              })}
+            </div>
+          </section>
+          <div className="h-px bg-slate-100 -mx-5" />
+          <section>
+            <h3 className="text-slate-800 font-black text-sm uppercase tracking-tight mb-1.5">Progress</h3>
             <p className="text-[10px] text-slate-400 font-semibold mb-3">Optional review focus. Select one at a time.</p>
             <div className="flex gap-2 flex-wrap">
               {([["none", "All"], ...PROGRESS] as const).map(([value, label]) => (
