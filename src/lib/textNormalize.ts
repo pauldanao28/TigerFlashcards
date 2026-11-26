@@ -21,6 +21,9 @@ export const ALLOWED_PARTS_OF_SPEECH = [
   "pronoun", "conjunction", "number", "phrase",
 ] as const;
 
+// Phrase remains a valid stored legacy POS value but is filtered by card_type in the UI.
+export const FILTERABLE_PARTS_OF_SPEECH = ALLOWED_PARTS_OF_SPEECH.filter(pos => pos !== "phrase");
+
 // Coerces into the controlled vocabulary instead of trusting raw input —
 // handles stray qualifiers ("noun (suru-verb)", "na-adjective", wrong casing).
 export const normalizePartOfSpeech = (s: string): string => {
