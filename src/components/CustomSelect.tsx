@@ -4,9 +4,9 @@ import { createPortal } from "react-dom";
 import { Check, ChevronDown, X } from "lucide-react";
 
 type Option = { value: string; label: string };
-type Props = { label: string; value: string; options: Option[]; onChange: (value: string) => void };
+type Props = { label: string; value: string; options: Option[]; onChange: (value: string) => void; compact?: boolean };
 
-export default function CustomSelect({ label, value, options, onChange }: Props) {
+export default function CustomSelect({ label, value, options, onChange, compact = false }: Props) {
   const [open, setOpen] = useState(false);
   const titleId = useId();
   const selected = options.find(option => option.value === value);
@@ -21,11 +21,13 @@ export default function CustomSelect({ label, value, options, onChange }: Props)
   }, [open]);
 
   return (
-    <div>
-      <span className="block text-xs font-bold mb-2 text-slate-700">{label}</span>
-      <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open}
-        className="w-full flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-900 active:scale-[0.99] transition-transform">
-        <span>{selected?.label ?? value}</span><ChevronDown size={17} className="shrink-0 text-indigo-600" />
+    <div className={compact ? "flex items-center gap-2.5" : ""}>
+      <span className={compact ? "text-[10px] font-bold text-slate-400 whitespace-nowrap" : "block text-xs font-bold mb-2 text-slate-700"}>{label}</span>
+      <button type="button" onClick={() => setOpen(true)} aria-label={compact ? label : undefined} aria-haspopup="dialog" aria-expanded={open}
+        className={compact
+          ? "inline-flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-left text-[11px] font-semibold text-slate-600 active:scale-[0.99] transition-transform"
+          : "w-full flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-900 active:scale-[0.99] transition-transform"}>
+        <span>{selected?.label ?? value}</span><ChevronDown size={compact ? 13 : 17} className="shrink-0 text-indigo-600" />
       </button>
       {open && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-end sm:items-center sm:justify-center">
