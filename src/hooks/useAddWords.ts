@@ -245,6 +245,23 @@ export function useAddWords({
 
     let allProcessedCards: any[] = [];
     const preLinkedIds = new Set<string>();
+    // Existing Japanese expressions are reused rather than duplicated. Importing as
+    // "phrase" can promote their shared metadata without touching user_scores.
+    const applyImportMetadata = async (rows: any[]) => {
+      if (cardType === "vocabulary" && situationTags.length === 0) return rows;
+      return Promise.all(rows.map(async (row: any) => {
+        const nextTags = normalizeSituationTags([...(row.situation_tags ?? []), ...situationTags]);
+        const nextType = cardType === "phrase" ? "phrase" : row.card_type ?? "vocabulary";
+        if (nextType === row.card_type && nextTags.length === (row.situation_tags ?? []).length) return row;
+        const { data, error } = await supabase.from("master_cards")
+          .update({card_type: nextType, situation_tags: nextTags}).eq("id",row.id).select("*").single();
+        if (error) {
+          console.warn("Could not update shared phrase metadata",row.id,error.message);
+          return row;
+        }
+        return data ?? row;
+      }));
+    };
 
     try {
       const { data: existingCards, error: searchErr } = await supabase
@@ -255,7 +272,7 @@ export function useAddWords({
       if (searchErr) throw searchErr;
 
       if (existingCards) {
-        allProcessedCards = [...existingCards];
+        allProcessedCards = await applyImportMetadata(existingCards);
         const foundIds = existingCards.map((c) => c.id);
         if (foundIds.length > 0) {
           (await alreadyLinked(foundIds)).forEach((id) => preLinkedIds.add(id));
@@ -317,7 +334,7 @@ export function useAddWords({
           if (alreadyInMaster && alreadyInMaster.length > 0) {
             const ids = alreadyInMaster.map((c) => c.id);
             (await alreadyLinked(ids)).forEach((id) => preLinkedIds.add(id));
-            allProcessedCards = [...allProcessedCards, ...alreadyInMaster];
+            allProcessedCards = [...allProcessedCards, ...await applyImportMetadata(alreadyInMaster)];
             await performLinking(ids);
             alreadyInMaster.forEach((c) => succeededWords.add(c.japanese));
           }
