@@ -31,7 +31,7 @@ export default function ImportPreviewSheet({
           <button type="button" disabled={saving} aria-label="Close preview" onClick={onClose} className="p-2 rounded-xl bg-slate-100 text-slate-500"><X size={18}/></button>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-3">
-          <p className="text-[11px] font-medium text-slate-500 px-1">Check Gemini&apos;s suggestions. Tap an item to correct it before anything is saved. Existing library cards remain unchanged.</p>
+          <p className="text-[11px] font-medium text-slate-500 px-1">Check AI suggestions. Tap an item to correct it before anything is saved. Existing library cards remain unchanged.</p>
           {rows.map((row, index) => (
             <div key={index} className={`rounded-2xl border p-3 ${row.selected ? "bg-white border-slate-200" : "bg-slate-50 border-slate-100 opacity-70"}`}>
               <div className="flex items-start gap-3">
