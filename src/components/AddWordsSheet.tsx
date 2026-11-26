@@ -5,7 +5,10 @@ import { Plus, Loader2, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { translations } from "@/lib/languages";
 import { useAddWords } from "@/hooks/useAddWords";
-import { SITUATION_TAGS, normalizeSituationTags, type CardType } from "@/lib/cardMetadata";
+import { authedFetch } from "@/lib/authedFetch";
+import CustomSelect from "@/components/CustomSelect";
+import ImportPreviewSheet from "@/components/ImportPreviewSheet";
+import { SITUATION_TAGS, normalizeSituationTags, type ImportMode, type ImportPreviewCard } from "@/lib/cardMetadata";
 import AddedWordsSummary from "@/components/AddedWordsSummary";
 
 const t = translations.en;
@@ -44,6 +47,7 @@ export default function AddWordsSheet({
     showSummary,
     setShowSummary,
     processWords,
+    savePreviewCards,
     deleteFromSummary,
     relatedWords,
     relatedWordsLoading,
@@ -54,7 +58,12 @@ export default function AddWordsSheet({
 
   const [input, setInput] = useState("");
   const [batchInput, setBatchInput] = useState("");
-  const [importType, setImportType] = useState<CardType>("vocabulary");
+  const [importType, setImportType] = useState<ImportMode>("auto");
+  const [previewRows, setPreviewRows] = useState<ImportPreviewCard[] | null>(null);
+  const [previewSource, setPreviewSource] = useState<"word" | "paste" | "queue">("word");
+  const [previewError, setPreviewError] = useState("");
+  const [preparing, setPreparing] = useState(false);
+  const [savingPreview, setSavingPreview] = useState(false);
   const [importTags, setImportTags] = useState<string[]>([]);
   const [customTags, setCustomTags] = useState("");
   const importOptions = () => ({ cardType: importType, situationTags: normalizeSituationTags([...importTags, ...customTags.split(",")]) });
@@ -129,20 +138,109 @@ export default function AddWordsSheet({
     onClose();
   };
 
-  const addWordListToDeck = async (words: string[]) => {
-    if (!words.length) return;
-    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-    setWordListAdding(true);
-    onClose();
-    setBatchProcessing(true);
+  const preparePreview = async (inputLines: string[], source: "word" | "paste" | "queue") => {
+    if (preparing || savingPreview) return;
+    const inputs = [...new Set(inputLines.map(line => line.trim()).filter(Boolean))];
+    if (!inputs.length) return;
+    setPreviewError("");
+    if (inputs.length > 100) { setPreviewError("Import up to 100 entries at a time."); return; }
+    if (inputs.some(item => item.length > 200)) { setPreviewError("Each entry must be under 200 characters."); return; }
+    setPreparing(true);
     try {
-      const succeededWords = await processWords(words, importOptions());
-      flushWordList(words.filter((w) => !succeededWords.has(w)));
-      setWordListText("");
-    } finally {
-      setWordListAdding(false);
-      setBatchProcessing(false);
-    }
+      const { data: existing, error: lookupError } = await supabase.from("master_cards")
+        .select("*").in("japanese", inputs);
+      if (lookupError) throw lookupError;
+      const firstExisting = new Map((existing ?? []).map(card => [card.japanese, card]));
+      const missing = inputs.filter(item => !firstExisting.has(item));
+      const generated = new Map<string, any>();
+      for (let offset = 0; offset < missing.length; offset += 10) {
+        const batch = missing.slice(offset, offset + 10);
+        const response = await authedFetch("/api/generate", {
+          method: "POST",
+          body: JSON.stringify({ words: batch, cardType: importType, preview: true }),
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error ?? "Unable to generate import preview.");
+        }
+        const results = await response.json();
+        if (!Array.isArray(results) || results.length !== batch.length)
+          throw new Error("Gemini returned an incomplete preview. Try again.");
+        batch.forEach((input, i) => generated.set(input, results[i]));
+      }
+
+      // Gemini may normalize vocabulary to dictionary form or translate English.
+      // Check exact duplicates again against the final generated Japanese strings.
+      const generatedJapanese = [...new Set([...generated.values()].map(item => String(item?.japanese ?? "").trim()).filter(Boolean))];
+      let laterExisting: any[] = [];
+      if (generatedJapanese.length) {
+        const { data, error } = await supabase.from("master_cards").select("*").in("japanese", generatedJapanese);
+        if (error) throw error;
+        laterExisting = data ?? [];
+      }
+      const byJapanese = new Map([...((existing ?? []) as any[]), ...laterExisting].map(card => [card.japanese, card]));
+      const ids = [...new Set([...byJapanese.values()].map(card => card.id))];
+      let inDeck = new Set<string>();
+      if (ids.length) {
+        const { data, error } = await supabase.from("deck_cards").select("card_id").eq("deck_id", deckId).in("card_id", ids);
+        if (error) throw error;
+        inDeck = new Set((data ?? []).map(link => link.card_id));
+      }
+      const commonTags = importOptions().situationTags;
+      const levels = ["N5","N4","N3","N2","N1"];
+      const rows: ImportPreviewCard[] = inputs.map(input => {
+        const ai = generated.get(input);
+        const finalJapanese = String(ai?.japanese ?? input).trim();
+        const matched = byJapanese.get(finalJapanese);
+        const card: any = matched ?? ai ?? {};
+        const type = matched
+          ? (matched.card_type === "phrase" ? "phrase" : "vocabulary")
+          : (importType === "auto" ? ai?.card_type === "phrase" ? "phrase" : "vocabulary" : importType);
+        const tags = matched ? matched.situation_tags ?? [] : normalizeSituationTags([...(Array.isArray(ai?.situation_tags) ? ai.situation_tags : []), ...commonTags]);
+        const example = card.exampleSentence ?? {};
+        const level = levels.includes(card.jlpt_level) ? card.jlpt_level : null;
+        return {
+          input,
+          japanese: finalJapanese,
+          reading: String(card.reading ?? "").trim(),
+          english: String(card.english ?? "").trim(),
+          card_type: type,
+          situation_tags: tags,
+          usage_note: String(matched ? (example.note ?? "") : (ai?.usage_note ?? "")).trim(),
+          partOfSpeech: type === "phrase" ? "phrase" : String(card.partOfSpeech ?? "noun"),
+          jlpt_level: level,
+          alternatives: Array.isArray(card.alternatives) ? card.alternatives.filter((x: unknown): x is string => typeof x === "string") : [],
+          exampleSentence: {jp: String(example.jp ?? ""), en: String(example.en ?? "")},
+          existingId: matched?.id,
+          alreadyInDeck: matched ? inDeck.has(matched.id) : false,
+          selected: matched ? !inDeck.has(matched.id) : true,
+        };
+      });
+      setPreviewRows(rows);
+      setPreviewSource(source);
+    } catch (error) {
+      setPreviewError(error instanceof Error ? error.message : "Unable to generate preview.");
+    } finally { setPreparing(false); }
+  };
+
+  const confirmPreview = async () => {
+    if (!previewRows || savingPreview) return;
+    setPreviewError("");
+    setSavingPreview(true);
+    try {
+      const savedInputs = await savePreviewCards(previewRows);
+      if (previewSource === "word") setInput("");
+      if (previewSource === "paste") setBatchInput("");
+      if (previewSource === "queue") {
+        const remaining = wordListText.split("\n").map(item => item.trim()).filter(item => item && !savedInputs.has(item));
+        flushWordList(remaining);
+        setWordListText(remaining.join("\n"));
+      }
+      setPreviewRows(null);
+      onClose();
+    } catch (error) {
+      setPreviewError(error instanceof Error ? error.message : "Import failed. Nothing was cleared.");
+    } finally { setSavingPreview(false); }
   };
 
   return (
