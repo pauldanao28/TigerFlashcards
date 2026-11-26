@@ -1926,35 +1926,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               </button>
             </div>
 
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Last reviewed</p>
-              <div className="flex gap-2 flex-wrap mb-5">
-                {["All time","This week","Last week","2 weeks ago","3 weeks ago","4 weeks ago","Never reviewed"].map((label,i)=>{
-                  const value=i===0?null:i===6?-1:i-1;
-                  return <button key={label} onClick={()=>{setDateAnchor(Date.now());setReviewWeek(value);}} className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${reviewWeek===value?"bg-indigo-600 text-white border-indigo-600":"bg-slate-50 text-slate-500 border-slate-200"}`}>{label}</button>;
-                })}
-              </div>
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Focus</p>
-            <div className="flex gap-1.5 flex-wrap mb-5">
-              {([
-                ["leech", "Leech"],
-                ["strugglingToday", "Struggling Today"],
-                ["slowReflex", "Slow Reflex"],
-              ] as const).map(([key, label]) => {
-                const isActive = statusFilters.includes(key);
-                return (
-                  <button
-                    key={key}
-                    onClick={() => toggleStatusFilter(key)}
-                    className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
-                      isActive ? "bg-amber-500 text-white border-amber-500" : "bg-transparent text-slate-500 border-slate-700"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-
             <div className={statusFilters.length > 0 ? "opacity-40 pointer-events-none" : ""}>
               <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">
                 Level{statusFilters.length > 0 ? " (unavailable with Focus)" : ""}
@@ -2012,6 +1983,36 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     }`}
                   >
                     {pos}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="h-px bg-slate-700 my-4 shrink-0" />
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Last reviewed</p>
+              <div className="flex gap-2 flex-wrap mb-5">
+                {["All time","This week","Last week","2 weeks ago","3 weeks ago","4 weeks ago","Never reviewed"].map((label,i)=>{
+                  const value=i===0?null:i===6?-1:i-1;
+                  return <button key={label} onClick={()=>{setDateAnchor(Date.now());setReviewWeek(value);}} className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${reviewWeek===value?"bg-indigo-600 text-white border-indigo-600":"bg-slate-50 text-slate-500 border-slate-200"}`}>{label}</button>;
+                })}
+              </div>
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Focus</p>
+            <div className="flex gap-1.5 flex-wrap mb-5">
+              {([
+                ["leech", "Leech"],
+                ["strugglingToday", "Struggling Today"],
+                ["slowReflex", "Slow Reflex"],
+              ] as const).map(([key, label]) => {
+                const isActive = statusFilters.includes(key);
+                return (
+                  <button
+                    key={key}
+                    onClick={() => toggleStatusFilter(key)}
+                    className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                      isActive ? "bg-amber-500 text-white border-amber-500" : "bg-transparent text-slate-500 border-slate-700"
+                    }`}
+                  >
+                    {label}
                   </button>
                 );
               })}
@@ -3165,44 +3166,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 <p className="text-slate-800 font-black text-sm uppercase tracking-tight">{t.by_level}</p>
                 <button onClick={() => setShowJlptBreakdown(false)} className="text-slate-300 hover:text-slate-500">✕</button>
               </div>
-              <button className="w-full bg-indigo-50 text-indigo-700 rounded-xl p-3 mb-3 font-bold" onClick={()=>{setShowJlptBreakdown(false);setShowSourceStudy(true);}}>Situations</button>
-              <p className="text-slate-800 font-black text-sm uppercase tracking-tight mb-2">Last reviewed</p>
-              <div className="flex gap-2 flex-wrap mb-5">
-                {["All time","This week","Last week","2 weeks ago","3 weeks ago","4 weeks ago","Never reviewed"].map((label,i)=>{
-                  const value=i===0?null:i===6?-1:i-1;
-                  return <button key={label} onClick={()=>{setDateAnchor(Date.now());setReviewWeek(value);}} className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${reviewWeek===value?"bg-indigo-600 text-white border-indigo-600":"bg-slate-50 text-slate-500 border-slate-200"}`}>{label}</button>;
-                })}
-              </div>
-              <p className="text-slate-800 font-black text-sm uppercase tracking-tight mb-1.5">Focus</p>
-              <p className="text-[10px] font-bold text-slate-400 mb-3 leading-relaxed">
-                Drill a trouble list instead of a level — overrides N-level below while active.
-              </p>
-              <div className="flex gap-2 mb-5 flex-wrap">
-                {([
-                  ["leech", "Leech"],
-                  ["strugglingToday", "Struggling Today"],
-                  ["slowReflex", "Slow Reflex"],
-                ] as const).map(([key, label]) => {
-                  const isActive = statusFilters.includes(key);
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => {
-                        toggleStatusFilter(key);
-                        setJlptFilterToast(isActive ? "Focus filter off" : `Now studying: ${label}`);
-                        setTimeout(() => setJlptFilterToast(null), 2200);
-                      }}
-                      className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
-                        isActive ? "bg-amber-500 text-white border-amber-500" : "bg-slate-50 text-slate-500 border-slate-200"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="h-px bg-slate-100 -mx-6 mb-4" />
               <p className="text-slate-800 font-black text-sm uppercase tracking-tight mb-1.5">
                 Level{statusFilters.length > 0 ? " (unavailable with Focus)" : ""}
               </p>
@@ -3314,6 +3277,44 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     </button>
                   );
                 })}
+
+              <div className="h-px bg-slate-100 -mx-6 my-4" />
+              <button className="w-full bg-indigo-50 text-indigo-700 rounded-xl p-3 mb-3 font-bold" onClick={()=>{setShowJlptBreakdown(false);setShowSourceStudy(true);}}>Situations</button>
+              <p className="text-slate-800 font-black text-sm uppercase tracking-tight mb-2">Last reviewed</p>
+              <div className="flex gap-2 flex-wrap mb-5">
+                {["All time","This week","Last week","2 weeks ago","3 weeks ago","4 weeks ago","Never reviewed"].map((label,i)=>{
+                  const value=i===0?null:i===6?-1:i-1;
+                  return <button key={label} onClick={()=>{setDateAnchor(Date.now());setReviewWeek(value);}} className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${reviewWeek===value?"bg-indigo-600 text-white border-indigo-600":"bg-slate-50 text-slate-500 border-slate-200"}`}>{label}</button>;
+                })}
+              </div>
+              <p className="text-slate-800 font-black text-sm uppercase tracking-tight mb-1.5">Focus</p>
+              <p className="text-[10px] font-bold text-slate-400 mb-3 leading-relaxed">
+                Drill a trouble list instead of a level — overrides N-level while active.
+              </p>
+              <div className="flex gap-2 mb-5 flex-wrap">
+                {([
+                  ["leech", "Leech"],
+                  ["strugglingToday", "Struggling Today"],
+                  ["slowReflex", "Slow Reflex"],
+                ] as const).map(([key, label]) => {
+                  const isActive = statusFilters.includes(key);
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => {
+                        toggleStatusFilter(key);
+                        setJlptFilterToast(isActive ? "Focus filter off" : `Now studying: ${label}`);
+                        setTimeout(() => setJlptFilterToast(null), 2200);
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                        isActive ? "bg-amber-500 text-white border-amber-500" : "bg-slate-50 text-slate-500 border-slate-200"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
               </div>
             </motion.div>
           </>
