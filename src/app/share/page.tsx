@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import Logo from "@/components/Logo";
 
@@ -106,12 +107,12 @@ function ShareHandler() {
               {status === "done" ? "Added to word list" : "Already in word list"}
             </p>
           </div>
-          <a
+          <Link
             href="/stats"
             className="mt-2 px-6 py-3 bg-slate-800 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest active:scale-95 transition-all"
           >
             Open Flashkado →
-          </a>
+          </Link>
         </div>
       )}
 
@@ -119,12 +120,12 @@ function ShareHandler() {
         <div className="flex flex-col items-center gap-4 text-center">
           <div className="text-3xl">🔒</div>
           <p className="text-sm font-black text-slate-700">Sign in to save words</p>
-          <a
+          <Link
             href="/"
             className="px-6 py-3 bg-slate-800 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest"
           >
             Sign In
-          </a>
+          </Link>
         </div>
       )}
 
@@ -133,12 +134,12 @@ function ShareHandler() {
           <div className="text-3xl">⚠️</div>
           <p className="text-sm font-black text-slate-700">{errorMessage}</p>
           {word && <button type="button" onClick={() => setAttempt(n => n + 1)} className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-sm">Retry saving</button>}
-          <a
+          <Link
             href="/stats"
             className="px-6 py-3 bg-slate-800 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest"
           >
             Open Flashkado
-          </a>
+          </Link>
         </div>
       )}
     </div>
