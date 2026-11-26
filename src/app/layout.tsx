@@ -117,17 +117,10 @@ export default function RootLayout({
                     if (document.visibilityState === 'visible') reg.update();
                   });
                 });
-                // A new service worker taking over (it already calls skipWaiting +
-                // clients.claim on activate) used to still leave the CURRENTLY OPEN page
-                // running old JS until the user manually reopened the app a second time.
-                // Reloading once here — guarded so it can only ever fire once per page
-                // load — means an update is live after a single close/reopen instead of two.
-                var reloaded = false;
-                navigator.serviceWorker.addEventListener('controllerchange', function () {
-                  if (reloaded) return;
-                  reloaded = true;
-                  window.location.reload();
-                });
+                // Do not reload when a worker takes control. Android share intents
+                // and background/foreground transitions can activate a new worker
+                // while a user is studying. SilentAppUpdater offers an explicit
+                // refresh when a new deployed version is available.
               }`,
             }}
           />
