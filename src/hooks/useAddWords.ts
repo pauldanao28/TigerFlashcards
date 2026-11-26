@@ -6,7 +6,7 @@ import { useAppAlert } from "@/context/AlertContext";
 import { useUploadGuard } from "@/context/UploadGuardContext";
 import { translations } from "@/lib/languages";
 import { skipDeckDuplicates } from "@/lib/duplicates";
-import { normalizeSituationTags, type CardType } from "@/lib/cardMetadata";
+import { normalizeSituationTags, type CardType, type ImportPreviewCard } from "@/lib/cardMetadata";
 
 const t = translations.en;
 const DAILY_LIMIT = 100;
@@ -103,8 +103,13 @@ export function useAddWords({
     // studied many times look brand new again ("I already know this" button and
     // all). Only genuinely new-to-this-deck cards get a fresh blank row; deck_cards
     // itself is still safely re-upserted for all of them (idempotent membership).
-    const alreadyLinkedIds = await alreadyLinked(cardIds);
-    const newIds = cardIds.filter((id) => !alreadyLinkedIds.has(id));
+    // Review history can still exist when a card was previously removed from a
+    // deck. Never overwrite an existing user_scores row during re-import.
+    const { data: previousScores, error: previousScoreError } = await supabase
+      .from("user_scores").select("card_id").eq("user_id", userId).in("card_id", cardIds);
+    if (previousScoreError) throw previousScoreError;
+    const scoredIds = new Set((previousScores ?? []).map(row => row.card_id));
+    const newIds = cardIds.filter(id => !scoredIds.has(id));
 
     const [deckRes, scoreRes] = await Promise.all([
       supabase.from("deck_cards").upsert(
@@ -397,15 +402,81 @@ export function useAddWords({
     return succeededWords;
   };
 
+  // A preview never writes to the database until the user confirms. Exact matches
+  // are linked to the deck without overwriting master metadata or user progress.
+  const savePreviewCards = async (previewRows: ImportPreviewCard[]): Promise<Set<string>> => {
+    if (!userId || !deckId) throw new Error("Sign in and initialize your deck first.");
+    const choices = previewRows.filter(row => row.selected && !row.alreadyInDeck);
+    const unique = [...new Map(choices.map(row => [row.japanese.trim(), row])).values()];
+    if (!unique.length) return new Set<string>();
+    if (unique.length > 100) throw new Error("Import at most 100 entries at once.");
+    if (unique.some(row => !row.japanese.trim() || !row.english.trim()))
+      throw new Error("Every selected card needs Japanese text and an English meaning.");
+
+    setLoading(true);
+    setUploadBusy(true);
+    try {
+      const japanese = unique.map(row => row.japanese.trim());
+      const { data: firstExisting, error: lookupError } = await supabase
+        .from("master_cards").select("*").in("japanese", japanese);
+      if (lookupError) throw lookupError;
+      const existingJapanese = new Set((firstExisting ?? []).map(row => row.japanese));
+      const newItems = unique.filter(row => !existingJapanese.has(row.japanese.trim())).map(row => ({
+        japanese: row.japanese.trim(),
+        reading: row.reading.trim(),
+        english: row.english.trim(),
+        creator_id: userId,
+        card_type: row.card_type,
+        situation_tags: normalizeSituationTags(row.situation_tags),
+        partOfSpeech: row.card_type === "phrase" ? "phrase" : row.partOfSpeech,
+        jlpt_level: row.jlpt_level,
+        alternatives: row.alternatives,
+        exampleSentence: {
+          jp: row.exampleSentence.jp.trim(),
+          en: row.exampleSentence.en.trim(),
+          note: row.usage_note.trim(),
+        },
+      }));
+      if (newItems.length) {
+        // ignoreDuplicates prevents a concurrent import from overwriting a shared
+        // dictionary entry. Re-fetch below to link the winning row.
+        const { error: insertError } = await supabase.from("master_cards")
+          .upsert(newItems, { onConflict: "japanese", ignoreDuplicates: true });
+        if (insertError) throw insertError;
+      }
+      const { data: savedCards, error: savedError } = await supabase
+        .from("master_cards").select("*").in("japanese", japanese);
+      if (savedError) throw savedError;
+      const byJapanese = new Map((savedCards ?? []).map(card => [card.japanese, card]));
+      if (japanese.some(j => !byJapanese.has(j)))
+        throw new Error("Some cards could not be found after saving.");
+
+      const ids = [...new Set((savedCards ?? []).map(c => c.id))];
+      const linkedBefore = await alreadyLinked(ids);
+      await performLinking(ids);
+      const summary = (savedCards ?? []).map(card =>
+        skippedFor.get(card.id) ?? { ...card, alreadyInDeck: linkedBefore.has(card.id) }
+      );
+      setAddedWordsSummary(summary);
+      setRelatedWords([]);
+      setRelatedWordsAttempted(false);
+      setShowSummary(true);
+      onAdded?.();
+      return new Set(unique.map(row => row.input));
+    } finally {
+      setLoading(false);
+      setUploadBusy(false);
+    }
+  };
+
   const deleteFromSummary = async (id: string) => {
     if (!deckId || !userId) return;
-    const [{ error: linkErr }, { error: scoreErr }] = await Promise.all([
-      supabase.from("deck_cards").delete().eq("card_id", id).eq("deck_id", deckId),
-      supabase.from("user_scores").delete().eq("card_id", id).eq("user_id", userId),
-    ]);
+    // Removing a freshly imported deck link must not erase prior review history.
+    const { error: linkErr } = await supabase
+      .from("deck_cards").delete().eq("card_id", id).eq("deck_id", deckId);
 
-    if (linkErr || scoreErr) {
-      showAlert(`Could not delete: ${linkErr?.message || scoreErr?.message}`);
+    if (linkErr) {
+      showAlert(`Could not remove: ${linkErr.message}`);
       return;
     }
 
@@ -419,6 +490,7 @@ export function useAddWords({
     showSummary,
     setShowSummary,
     processWords,
+    savePreviewCards,
     deleteFromSummary,
     relatedWords,
     relatedWordsLoading,
