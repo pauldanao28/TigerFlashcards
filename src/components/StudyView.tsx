@@ -1,5 +1,7 @@
 "use client";
 import SourceStudy from "@/components/SourceStudy";
+import CardMetadataFilters from "@/components/CardMetadataFilters";
+import { availableSituationTags, cardMatchesMetadata, type CardType } from "@/lib/cardMetadata";
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -515,6 +517,10 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     [posFilters],
   );
   const posFilterKey = selectedPos.join(",");
+  const [cardTypeFilter, setCardTypeFilter] = useState<CardType | "all">("all");
+  const [situationFilters, setSituationFilters] = useState<string[]>([]);
+  const situationKey = situationFilters.join("|");
+  const availableTags = useMemo(() => availableSituationTags(cards), [cards]);
 
   // "Trouble" filters — Leech (same cumulative <40% definition as the Cards page's
   // Struggling stat), Struggling Today (daily_struggles, 3+ fails today), Slow Reflex
@@ -553,6 +559,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   }, [active, reviewWeek]);
   const inStatusFilter = useCallback(
     (c: FlashcardData) => {
+      if (!cardMatchesMetadata(c, cardTypeFilter, situationFilters)) return false;
       if (reviewWeek !== null) {
         const attempts = (c.scores?.jp_to_en?.total ?? 0) + (c.scores?.en_to_jp?.total ?? 0);
         if (reviewWeek === -1) {
@@ -568,7 +575,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         f === "leech" ? leechIds.has(c.id) : f === "strugglingToday" ? strugglingTodayIds.has(c.id) : slowReflexIds.has(c.id),
       );
     },
-    [statusFilters, leechIds, strugglingTodayIds, slowReflexIds, reviewWeek, dateAnchor],
+    [statusFilters, leechIds, strugglingTodayIds, slowReflexIds, reviewWeek, dateAnchor, cardTypeFilter, situationFilters],
   );
   // Picking a trouble filter overrides N-level (see comment above) — also resets the
   // toast used by both filter sections so the two don't talk over each other.
@@ -1822,7 +1829,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     setCurrentCard(getNextPriorityCard(filteredCards, language));
     setIsFlipped(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jlptFilterKey, posFilterKey, statusFilterKey, reviewWeek]);
+  }, [jlptFilterKey, posFilterKey, statusFilterKey, reviewWeek, cardTypeFilter, situationKey]);
 
   // Show full-screen loading until the first deck fetch completes
   if (!hasLoadedOnce) {
@@ -1988,6 +1995,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               })}
             </div>
 
+            <div className="h-px bg-slate-700 my-4 shrink-0" />
+            <CardMetadataFilters cardType={cardTypeFilter} onCardTypeChange={setCardTypeFilter} selectedTags={situationFilters} onTagsChange={setSituationFilters} tags={availableTags} dark />
             <div className="h-px bg-slate-700 my-4 shrink-0" />
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Last reviewed</p>
               <div className="flex gap-2 flex-wrap mb-5">
@@ -3277,8 +3286,10 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     </button>
                   );
                 })}
+              </div>
 
               <div className="h-px bg-slate-100 -mx-6 my-4" />
+              <CardMetadataFilters cardType={cardTypeFilter} onCardTypeChange={setCardTypeFilter} selectedTags={situationFilters} onTagsChange={setSituationFilters} tags={availableTags} />
               <button className="w-full bg-indigo-50 text-indigo-700 rounded-xl p-3 mb-3 font-bold" onClick={()=>{setShowJlptBreakdown(false);setShowSourceStudy(true);}}>Situations</button>
               <p className="text-slate-800 font-black text-sm uppercase tracking-tight mb-2">Last reviewed</p>
               <div className="flex gap-2 flex-wrap mb-5">
@@ -3314,7 +3325,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                     </button>
                   );
                 })}
-              </div>
               </div>
             </motion.div>
           </>
