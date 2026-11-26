@@ -165,19 +165,32 @@ export async function generateCards(words: string[], options?: {cardType?: Impor
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   const cleanJson = jsonMatch ? jsonMatch[0] : text;
 
-  const parsedData = JSON.parse(cleanJson);
+  const parsedData: Record<string, unknown>[] = JSON.parse(cleanJson);
+  if (!Array.isArray(parsedData) || (options?.preview && parsedData.length !== words.length)) {
+    throw new Error("Gemini did not return one card per input; please retry.");
+  }
   const asEnum = <T extends string>(value: unknown, allowed: readonly T[]): T | null =>
     typeof value === "string" && (allowed as readonly string[]).includes(value) ? (value as T) : null;
-  return parsedData.map((item: Record<string, unknown>, index: number) => ({
+  return parsedData.map((item: Record<string, unknown>, index: number) => {
+    const detectedType = item.card_type === "phrase" ? "phrase" : "vocabulary";
+    const type = cardType === "auto" ? detectedType : cardType;
+    const sourceInput = words[index] ?? "";
+    const tagCandidates = Array.isArray(item.situation_tags) ? item.situation_tags : [];
+    const tags = tagCandidates.map(tag => typeof tag === "string" ? SITUATION_TAGS.find(preferred => preferred.toLowerCase() === tag.trim().toLowerCase()) : undefined).filter((tag): tag is typeof SITUATION_TAGS[number] => !!tag);
+    return {
     ...item,
-    japanese: cardType === "phrase" && /[\u3040-\u30ff\u3400-\u9fff]/u.test(words[index] ?? "") ? words[index].trim() : item.japanese,
-    english: typeof item.english === "string" ? (cardType === "phrase" ? item.english.trim() : normalizeEnglish(item.english)) : item.english,
+    japanese: type === "phrase" && /[\u3040-\u30ff\u3400-\u9fff]/u.test(sourceInput) ? sourceInput.trim() : item.japanese,
+    card_type: type,
+    situation_tags: tags,
+    usage_note: typeof item.usage_note === "string" ? item.usage_note.trim().slice(0, 300) : "",
+    english: typeof item.english === "string" ? (type === "phrase" ? item.english.trim() : normalizeEnglish(item.english)) : item.english,
     reading: typeof item.reading === "string" ? stripParens(item.reading) : item.reading,
-    partOfSpeech: cardType === "phrase" ? "phrase" : typeof item.partOfSpeech === "string" ? normalizePartOfSpeech(item.partOfSpeech) : item.partOfSpeech,
+    partOfSpeech: type === "phrase" ? "phrase" : typeof item.partOfSpeech === "string" ? normalizePartOfSpeech(item.partOfSpeech) : item.partOfSpeech,
     te_form: typeof item.te_form === "string" && item.te_form.trim() ? item.te_form.trim() : null,
     transitivity: asEnum(item.transitivity, ["transitive", "intransitive"] as const),
     verb_type: asEnum(item.verb_type, ["godan", "ichidan", "irregular"] as const),
     adjective_type: asEnum(item.adjective_type, ["i", "na"] as const),
     suru_meaning: typeof item.suru_meaning === "string" && item.suru_meaning.trim() ? item.suru_meaning.trim() : null,
-  }));
+  };
+  });
 }
