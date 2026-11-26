@@ -303,6 +303,7 @@ export function useAddWords({
               japanese: String(item.japanese).trim(),
               reading: String(item.reading || "").replace(/[a-zA-Z\s]/g, ""),
               english: String(item.english || "").trim(),
+              alternatives: Array.isArray(item.alternatives) ? item.alternatives.filter((v: unknown): v is string => typeof v === "string") : [],
               partOfSpeech: String(item.partOfSpeech || "noun").trim().toLowerCase(),
               jlpt_level: item.jlpt_level ?? null,
               exampleSentence: item.exampleSentence || { jp: "", en: "" },
