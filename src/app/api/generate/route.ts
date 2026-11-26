@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
 
   const { words, cardType = "vocabulary", preview = false } = await req.json();
-  if (!["vocabulary", "phrase", "auto"].includes(cardType) || (cardType === "auto" && preview !== true))
+  if (!["vocabulary", "phrase", "auto"].includes(cardType))
     return NextResponse.json({ error: "Invalid card type" }, {status:400});
   if (!Array.isArray(words) || words.length === 0) {
     return NextResponse.json({ error: "words must be a non-empty array" }, { status: 400 });
