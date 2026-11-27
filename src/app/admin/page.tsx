@@ -408,7 +408,7 @@ export default function AdminDashboard() {
             {backfillMessage && <p role="status" className="mt-2 text-xs text-slate-600">{backfillMessage}</p>}
           </div>
         )}
-        {activeTab === "analytics" && <AdminAnalytics />
+        {activeTab === "analytics" && <AdminAnalytics />}
 
         {/* REPORTS LIST */}
         {activeTab !== "analytics" && (
