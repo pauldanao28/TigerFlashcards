@@ -24,7 +24,6 @@ import DailyJapaneseRoutine from "@/components/DailyJapaneseRoutine";
 
 type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1";
 
-const DAILY_GOAL = 10;
 // Same targets Study uses for its reviews-today / mastered-today chips — kept identical
 // so the same numbers mean the same thing on both tabs.
 const REVIEW_TARGET = 100;
@@ -581,11 +580,11 @@ export default function Dashboard() {
               <span className="text-[10px] font-black text-amber-600">{max_streak} best passes</span>
             </span>
           )}
-          {/* Daily goal ring */}
+          {/* Total reviewed goal ring (Pass + Fail); 10 Pass-only Remembered is tracked in Study. */}
           {(() => {
             const radius = 14;
             const circ = 2 * Math.PI * radius;
-            const pct = Math.min(daily_count / DAILY_GOAL, 1);
+            const pct = Math.min(daily_count / REVIEW_TARGET, 1);
             const done = pct >= 1;
             return (
               <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${done ? "bg-emerald-50 border-emerald-100" : "bg-slate-50 border-slate-100"}`}>
@@ -602,10 +601,10 @@ export default function Dashboard() {
                 </svg>
                 <div className="flex flex-col leading-none">
                   <span className={`text-[9px] font-black uppercase tracking-widest ${done ? "text-emerald-600" : "text-slate-400"}`}>
-                    Daily goal
+                    Reviewed
                   </span>
                   <span className={`text-[11px] font-black ${done ? "text-emerald-600" : "text-slate-600"}`}>
-                    {done ? `${DAILY_GOAL}/${DAILY_GOAL} ✓` : `${daily_count}/${DAILY_GOAL}`}
+                    {done ? `${REVIEW_TARGET}/${REVIEW_TARGET} ✓` : `${daily_count}/${REVIEW_TARGET}`}
                   </span>
                 </div>
               </div>
@@ -658,12 +657,12 @@ export default function Dashboard() {
       <div className="px-5 pt-5 pb-2 flex items-center justify-between">
         <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Your Skills</p>
         <div className="flex items-center gap-1.5">
-          {/* Vocab: shows daily progress */}
+          {/* Vocabulary activity: total reviews today, including Fail. */}
           {(() => {
-            const done = daily_count >= DAILY_GOAL;
+            const done = daily_count >= REVIEW_TARGET;
             return (
               <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border ${done ? "bg-emerald-50 border-emerald-200 text-emerald-600" : "bg-slate-50 border-slate-200 text-slate-400"}`}>
-                🃏 {done ? "✓" : `${daily_count}/${DAILY_GOAL}`}
+                🃏 {done ? "✓" : `${daily_count}/${REVIEW_TARGET}`}
               </span>
             );
           })()}
@@ -718,7 +717,7 @@ export default function Dashboard() {
               <p className="text-xl font-black text-slate-800 tabular-nums">
                 {daily_count}<span className="text-slate-300 text-sm">/{REVIEW_TARGET}</span>
               </p>
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Reviews</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-0.5">Reviewed</p>
             </div>
             <div>
               <p className={`text-xl font-black tabular-nums ${mastered_today >= MASTERED_GOAL ? "text-emerald-600" : "text-slate-800"}`}>
