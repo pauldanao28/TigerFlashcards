@@ -3123,7 +3123,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               </motion.div>
 
               <div className="text-center">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Daily Goal Complete!</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">You Remembered 10 Cards Today!</p>
                 <p className="text-3xl font-black text-slate-900 mt-1 italic">
                   {goalStreak > 0 ? `${goalStreak} Day Streak 🔥` : "Great Work!"}
                 </p>
