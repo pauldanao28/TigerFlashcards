@@ -668,7 +668,13 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         const todaySg = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
         if (p.last_review_date === todaySg) {
           setDailyProgress(DAILY_GOAL);
-          goalFired.current = true;
+          // A server-confirmed streak isn't proof that the recap appeared on
+          // this device. If the RPC completed after a navigation, show it on
+          // the next Pass unless the local recap was actually displayed.
+          try {
+            goalFired.current = localStorage.getItem(`flashkado_goal_recap_seen_${user?.id}_${todaySg}`) === "1";
+          } catch { /* Storage may be unavailable. */ }
+          streakRequestDay.current = todaySg; // server has already recorded today's streak
         }
 
         // 2. SAFE STREAK DISPLAY (No Auto-Reset)
@@ -1183,13 +1189,18 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         // from some prior desync), an exact-match check would never fire again for
         // the rest of the day, leaving the streak stuck.
         if (prog >= DAILY_GOAL && !goalFired.current) {
-          // Show the completion recap immediately on the 10th PASS. A failed or
-          // slow streak RPC must never prevent a completed goal from celebrating.
-          // Fail grades still increment review stats, not this Pass-only goal.
+          // The recap is a client-side celebration of 10 Pass grades. Never
+          // wait for a streak RPC, and never replay it after reopening the PWA.
+          const recapKey = `flashkado_goal_recap_seen_${user.id}_${todaySg}`;
+          let alreadyShown = false;
+          try { alreadyShown = localStorage.getItem(recapKey) === "1"; } catch {}
           goalFired.current = true;
-          setGoalStreak(0); // Don't show an unconfirmed streak number.
-          setShowRecap(true);
-          navigator.vibrate?.([100, 50, 100, 50, 200]);
+          if (!alreadyShown) {
+            try { localStorage.setItem(recapKey, "1"); } catch {}
+            setGoalStreak(0); // Don't show an unconfirmed streak number.
+            setShowRecap(true);
+            navigator.vibrate?.([100, 50, 100, 50, 200]);
+          }
         }
         if (prog >= DAILY_GOAL && streakRequestDay.current !== todaySg) {
           // Keep streak/badge persistence independent of the recap and of
