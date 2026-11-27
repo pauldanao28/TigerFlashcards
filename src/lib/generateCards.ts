@@ -129,7 +129,7 @@ For Japanese phrases preserve the input string EXACTLY including particles, coll
 Give accurate full kana reading, a natural English meaning, up to 3 alternative natural translations, a concise usage_note about formality/tone/context, and a brief natural exampleSentence (jp,en).
 Give 1-3 situation_tags drawn ONLY from: ${JSON.stringify(SITUATION_TAGS)}.
 For phrases set partOfSpeech=phrase; for vocabulary classify its actual part of speech (noun,verb,adjective,adverb,particle,pronoun,conjunction,number,phrase).
-JLPT can be null for phrases. For phrases set all grammar metadata null.
+For VOCABULARY cards, jlpt_level is REQUIRED: assign the best estimated N5, N4, N3, N2 or N1 level based on the word's usual usage and difficulty. Never use null for a vocabulary card. For PHRASES, jlpt_level may be null when no single level fits; set all grammar metadata null for phrases. JLPT classifications are approximate study aids, not official JLPT word lists.
 Return ONLY valid JSON array of exactly ${inputs.length} cards in the same order, using:
 [{"japanese":"...", "reading":"...", "english":"...", "card_type":"phrase", "situation_tags":["Friends"], "usage_note":"...", "alternatives":[], "partOfSpeech":"phrase", "jlpt_level":null, "exampleSentence":{"jp":"...","en":"..."}, "te_form":null, "transitivity":null, "verb_type":null, "adjective_type":null, "suru_meaning":null}]`;
 
