@@ -1182,22 +1182,29 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         // double-grade race reading stale state, or dailyProgress already past it
         // from some prior desync), an exact-match check would never fire again for
         // the rest of the day, leaving the streak stuck.
-        if (prog >= DAILY_GOAL && !goalFired.current && streakRequestDay.current !== todaySg) {
+        if (prog >= DAILY_GOAL && !goalFired.current) {
+          // Show the completion recap immediately on the 10th PASS. A failed or
+          // slow streak RPC must never prevent a completed goal from celebrating.
+          // Fail grades still increment review stats, not this Pass-only goal.
+          goalFired.current = true;
+          setGoalStreak(0); // Don't show an unconfirmed streak number.
+          setShowRecap(true);
+          navigator.vibrate?.([100, 50, 100, 50, 200]);
+        }
+        if (prog >= DAILY_GOAL && streakRequestDay.current !== todaySg) {
+          // Keep streak/badge persistence independent of the recap and of
+          // offline-safe grade syncing. Retry on a later Pass if this request
+          // fails, rather than showing the popup a second time.
           streakRequestDay.current = todaySg;
-          // Not awaited — same reasoning as the score upsert below: this used to
-          // block the whole rest of handleScore (including the card advance) on
-          // the update_streak network RPC, so hitting today's goal right after the
-          // app resumes from background could freeze the swipe UI the same way.
-          // The recap modal showing a beat later than the card underneath it
-          // advances is not a correctness issue.
           updateStreak().then((newStreak) => {
-            if (newStreak == null || progressDayRef.current !== todaySg) return;
-            goalFired.current = true;
+            if (newStreak == null || progressDayRef.current !== todaySg) {
+              if (streakRequestDay.current === todaySg) streakRequestDay.current = null;
+              return;
+            }
             notifyFriendsGoalMet();
             setGoalStreak(newStreak);
-            setShowRecap(true);
-            navigator.vibrate?.([100, 50, 100, 50, 200]);
-          }).catch(error => console.error("Streak update failed:", error)).finally(() => {
+          }).catch(error => {
+            console.error("Streak update failed:", error);
             if (streakRequestDay.current === todaySg) streakRequestDay.current = null;
           });
         }
