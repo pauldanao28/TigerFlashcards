@@ -14,6 +14,9 @@ export default function AdminDashboard() {
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [missingJlpt, setMissingJlpt] = useState<number | null>(null);
+  const [backfillRunning, setBackfillRunning] = useState(false);
+  const [backfillMessage, setBackfillMessage] = useState("");
   const [activeTab, setActiveTab] = useState<"cards" | "system" | "analytics">("cards");
   const [view, setView] = useState<"pending" | "resolved" | "ignored">(
     "pending",
@@ -91,6 +94,13 @@ export default function AdminDashboard() {
     }
 
     setIsAdmin(true);
+    void authedFetch("/api/admin/migrate-jlpt")
+      .then(async response => {
+        if (!response.ok) throw new Error("Could not read missing JLPT levels");
+        return response.json();
+      })
+      .then(result => setMissingJlpt(result.remaining))
+      .catch(() => setBackfillMessage("Couldn't load missing-level count."));
 
     // 3. FETCH DATA WITH THE NEW EMAIL COLUMN
     const { data, error } = await supabase
@@ -286,6 +296,24 @@ export default function AdminDashboard() {
     setEditingId(null);
   };
 
+  const backfillJlptBatch = async () => {
+    if (backfillRunning || !isAdmin) return;
+    setBackfillRunning(true);
+    setBackfillMessage("");
+    try {
+      const response = await authedFetch("/api/admin/migrate-jlpt", { method: "POST" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "JLPT backfill failed");
+      setMissingJlpt(result.remaining);
+      const skipped = result.errors?.length ?? 0;
+      setBackfillMessage(`Updated ${result.updated} cards. ${result.remaining} missing levels remain.${skipped ? ` ${skipped} entries need a retry or review.` : ""}`);
+    } catch (error) {
+      setBackfillMessage(error instanceof Error ? error.message : "JLPT backfill failed");
+    } finally {
+      setBackfillRunning(false);
+    }
+  };
+
   if (loading) return <LoadingScreen />;
 
   return (
@@ -361,7 +389,26 @@ export default function AdminDashboard() {
           </Link>
         </div>
 
-        {activeTab === "analytics" && <AdminAnalytics />}
+        {activeTab === "analytics" && isAdmin && (
+          <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-black text-slate-800">Missing JLPT Levels</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {missingJlpt === null ? "Checking missing vocabulary levels…" : `${missingJlpt} vocabulary cards unclassified`}
+                  {" · "}Only fills missing levels; existing classifications and study scores stay unchanged.
+                </p>
+              </div>
+              <button type="button" disabled={backfillRunning || !missingJlpt}
+                onClick={backfillJlptBatch}
+                className="rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-40">
+                {backfillRunning ? "Classifying…" : "Fill next 20"}
+              </button>
+            </div>
+            {backfillMessage && <p role="status" className="mt-2 text-xs text-slate-600">{backfillMessage}</p>}
+          </div>
+        )}
+        {activeTab === "analytics" && <AdminAnalytics />
 
         {/* REPORTS LIST */}
         {activeTab !== "analytics" && (
