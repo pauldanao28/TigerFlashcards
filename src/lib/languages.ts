@@ -1,6 +1,6 @@
 export const translations = {
   en: {
-    goal: "Daily Goal",
+    goal: "Remembered",
     stats: "Stats",
     fail: "Fail",
     pass: "Pass",
@@ -46,7 +46,7 @@ export const translations = {
     in_a_row: "in a row",
     loading: "LOADING...",
     loading_session: "Loading Session...",
-    daily_goal_met: "Daily Goal Met! 🎉",
+    daily_goal_met: "Remembered 10/10! 🎉",
     start_journey: "Start your journey by adding some cards.",
     get_started: "+ Get Started",
     how_to_study: "HOW TO STUDY",
@@ -199,7 +199,7 @@ export const translations = {
     study_kana: "Study Kana",
   },
   jp: {
-    goal: "今日の目標",
+    goal: "覚えた数",
     stats: "統計",
     fail: "わからない",
     pass: "わかった",
@@ -245,7 +245,7 @@ export const translations = {
     in_a_row: "連続",           // Renzoku (Consecutive)
     loading: "読み込み中...",       // "Yomikomi-chū"
     loading_session: "セッションを読み込み中...", // Sesshon o yomikomi-chū
-    daily_goal_met: "今日の目標達成！ 🎉",      // Kyō no mokuhyō tassei!
+    daily_goal_met: "10枚覚えた！ 🎉",      // Kyō no mokuhyō tassei!
     start_journey: "カードを追加して、学習を始めましょう！", // Kādo o tsuika shite...
     get_started: "+ 学習を始める",                // Gakushū o hajimeru
     how_to_study: "学習方法",       // Gakushū hōhō
