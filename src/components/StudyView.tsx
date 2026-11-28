@@ -39,7 +39,7 @@ import { FlashcardData } from "@/lib/types";
 import { upsertScoreOrQueue, flushScoreQueue, readScoreQueue } from "@/lib/offlineScoreQueue";
 import { useIsMiniViewport } from "@/lib/useMiniViewport";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, History, Star, X, Menu, Zap, ExternalLink, Filter, Volume2, WifiOff, Check, Brain, ChartNoAxesColumn } from "lucide-react";
+import { Plus, History, Star, X, Menu, Zap, ExternalLink, Filter, Volume2, WifiOff, Check, ChartNoAxesColumn } from "lucide-react";
 const DAILY_GOAL = 10;
 const MASTERY_MIN_TRIES = 5;
 const PRIORITY_CAP = 30;
@@ -1046,6 +1046,9 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         supabase.rpc("record_daily_struggle", { target_user_id: user.id, target_card_id: currentCard.id })
           .then(async ({ error }) => {
             if (error) { console.error("Error recording daily struggle:", error); return; }
+            // BottomNav refreshes its weak-word count without adding another
+            // heavy deck query or changing score/offline syncing.
+            window.dispatchEvent(new Event("flashkado:weak-words-updated"));
             // Refresh the Focus filter as soon as a miss is saved, rather than
             // requiring the learner to leave Study or switch browser tabs.
             const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
