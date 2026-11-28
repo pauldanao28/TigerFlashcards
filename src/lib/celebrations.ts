@@ -6,7 +6,7 @@ export type ExtraCelebration =
   | { kind: "jlpt"; level: "N5" | "N4" | "N3" | "N2" | "N1" };
 
 export const MAJOR_STREAKS = [7, 30, 50, 100, 200, 365, 500, 1000] as const;
-export const JLPT_BADGE_LEVELS: Record<string, ExtraCelebration["kind"] extends never ? never : "N5" | "N4" | "N3" | "N2" | "N1"> = {
+export const JLPT_BADGE_LEVELS: Record<string, "N5" | "N4" | "N3" | "N2" | "N1"> = {
   jlpt_n5: "N5",
   jlpt_n4: "N4",
   jlpt_n3: "N3",
