@@ -3184,6 +3184,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 <ShareButton
                   params={{
                     kind: "streak",
+                    requireToday: 1, // Recap sharing waits for the server to confirm today's streak.
                     cards: sessionCards,
                     accuracy: sessionCards > 0 ? Math.round((sessionPass / sessionCards) * 100) : 0,
                   }}
