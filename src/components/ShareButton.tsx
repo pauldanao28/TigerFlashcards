@@ -19,6 +19,7 @@ export default function ShareButton({
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [shareUrl, setShareUrl] = useState("");
+  const [verifiedCaption, setVerifiedCaption] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -29,6 +30,7 @@ export default function ShareButton({
   useEffect(() => {
     setFile(null);
     setShareUrl("");
+    setVerifiedCaption(null);
   }, [query]);
 
   useEffect(() => {
@@ -46,8 +48,8 @@ export default function ShareButton({
     setTimeout(() => setToast(null), 2500);
   };
 
-  const sharePrepared = async (image: File, link: string, justGenerated: boolean) => {
-    const text = `${caption} ${link}`;
+  const sharePrepared = async (image: File, link: string, justGenerated: boolean, shareCaption: string) => {
+    const text = `${shareCaption} ${link}`;
     if (navigator.canShare?.({ files: [image] })) {
       try {
         await navigator.share({ files: [image], text });
@@ -83,7 +85,7 @@ export default function ShareButton({
   const handleShare = async () => {
     if (generating) return;
     if (file) {
-      await sharePrepared(file, shareUrl, false);
+      await sharePrepared(file, shareUrl, false, verifiedCaption ?? caption);
       return;
     }
 
@@ -112,9 +114,15 @@ export default function ShareButton({
       const blob = await response.blob();
       const image = new File([blob], "flashkado.png", { type: "image/png" });
       const link = response.headers.get("X-Share-Url") || window.location.origin;
+      const encodedCaption = response.headers.get("X-Share-Caption");
+      let confirmedCaption = caption;
+      if (encodedCaption) {
+        try { confirmedCaption = decodeURIComponent(encodedCaption); } catch { /* Use fallback text. */ }
+      }
       setFile(image);
       setShareUrl(link);
-      await sharePrepared(image, link, true);
+      setVerifiedCaption(confirmedCaption);
+      await sharePrepared(image, link, true, confirmedCaption);
     } catch (error) {
       console.error("Share image generation failed:", error);
       flash(error instanceof Error ? error.message : "Couldn't generate image — try again");
