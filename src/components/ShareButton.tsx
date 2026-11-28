@@ -91,8 +91,24 @@ export default function ShareButton({
     setToast(null);
     try {
       // The request starts here, never on mount or when opening a modal.
-      const response = await authedFetch(`/api/og/share?${query}`);
-      if (!response.ok) throw new Error(`Share image HTTP ${response.status}`);
+      // Today's totals are saved asynchronously after grading. At exactly 100
+      // reviews / 20 mastered, the popup can appear before the last RPC commits.
+      // Retry ONLY this verifiable 409 race, never any auth or rendering error.
+      let response: Response | null = null;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        response = await authedFetch(`/api/og/share?${query}`);
+        if (response.status !== 409 || attempt === 4) break;
+        await new Promise(resolve => setTimeout(resolve, 850 * (attempt + 1)));
+      }
+      if (!response) throw new Error("No share response");
+      if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        throw new Error(response.status === 409
+          ? "Your achievement is still syncing. Try Share again shortly."
+          : response.status === 401
+            ? "Please sign in again before sharing."
+            : `Couldn't create the image (${response.status})${detail ? `: ${detail.slice(0, 100)}` : ""}`);
+      }
       const blob = await response.blob();
       const image = new File([blob], "flashkado.png", { type: "image/png" });
       const link = response.headers.get("X-Share-Url") || window.location.origin;
@@ -101,7 +117,7 @@ export default function ShareButton({
       await sharePrepared(image, link, true);
     } catch (error) {
       console.error("Share image generation failed:", error);
-      flash("Couldn't generate image — try again");
+      flash(error instanceof Error ? error.message : "Couldn't generate image — try again");
     } finally {
       setGenerating(false);
     }
@@ -132,7 +148,7 @@ export default function ShareButton({
         {generating ? "Generating image…" : "Share"}
       </button>
       {toast && (
-        <p role="status" className="absolute left-0 right-0 -bottom-6 text-center text-[10px] font-bold text-slate-400">{toast}</p>
+        <p role="status" className="mt-2 text-center text-[11px] font-bold text-rose-600">{toast}</p>
       )}
     </div>
   );
