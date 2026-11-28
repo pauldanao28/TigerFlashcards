@@ -11,6 +11,8 @@ import { FILTERABLE_PARTS_OF_SPEECH } from "@/lib/textNormalize";
 import { SocialDock } from "@/components/SocialDock";
 import SocialToast from "@/components/SocialToast";
 import BadgeToast from "@/components/BadgeToast";
+import AchievementCelebration from "@/components/AchievementCelebration";
+import { claimCelebration, JLPT_BADGE_LEVELS, type ExtraCelebration } from "@/lib/celebrations";
 import NotificationBell from "@/components/NotificationBell";
 import ShareButton from "@/components/ShareButton";
 import { SKILL_TILE, type SkillKey } from "@/lib/skillTheme";
@@ -329,6 +331,7 @@ export default function Dashboard() {
   const [isSocialOpen, setIsSocialOpen] = useState(false);
   const [isStreakShareOpen, setIsStreakShareOpen] = useState(false);
   const [badgeQueue, setBadgeQueue] = useState<string[]>([]);
+  const [achievementQueue, setAchievementQueue] = useState<ExtraCelebration[]>([]);
   const [isStatsShareOpen, setIsStatsShareOpen] = useState(false);
   const [isQuestsShareOpen, setIsQuestsShareOpen] = useState(false);
   const [selectedPos, setSelectedPos] = useState<string | null>(null);
@@ -478,6 +481,12 @@ export default function Dashboard() {
       else {
         const keys = (newBadges ?? []).map((b: { badge_key: string }) => b.badge_key);
         if (keys.length > 0) setBadgeQueue((prev) => [...prev, ...keys]);
+        for (const key of keys) {
+          const level = JLPT_BADGE_LEVELS[key];
+          if (level && claimCelebration(user.id, key)) {
+            setAchievementQueue(prev => [...prev, { kind: "jlpt", level }]);
+          }
+        }
       }
     };
     void load().catch(err => { clearTimeout(timeout); if (!cancelled) { console.error("[dashboard load]", err); setLoadFailed(true); } });
@@ -1048,7 +1057,13 @@ export default function Dashboard() {
         onTap={() => setIsSocialOpen(true)}
         onDismiss={dismissSocialToast}
       />
-      <BadgeToast queue={badgeQueue} onAdvance={() => setBadgeQueue((prev) => prev.slice(1))} />
+      {!achievementQueue.length && <BadgeToast queue={badgeQueue} onAdvance={() => setBadgeQueue((prev) => prev.slice(1))} />}
+      {!showCelebration && !isStreakShareOpen && !isStatsShareOpen && !isQuestsShareOpen && (
+        <AchievementCelebration
+          achievement={achievementQueue[0] ?? null}
+          onContinue={() => setAchievementQueue(prev => prev.slice(1))}
+        />
+      )}
 
       {/* --- Celebration Modal (Daily Progress) --- */}
       {showCelebration && (() => {
