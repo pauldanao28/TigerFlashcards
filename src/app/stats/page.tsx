@@ -1689,7 +1689,7 @@ function StatsContent() {
             </div>
           )}
 
-          <div className="flex justify-between items-start gap-3 mb-8">
+          <div className="flex justify-between items-start gap-2 sm:gap-3 mb-8">
             {/* Left Side: Deck Title & Edit Logic */}
             <div className="flex flex-col min-w-0 flex-1">
               {isEditingTitle ? (
@@ -1717,13 +1717,13 @@ function StatsContent() {
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center gap-3 min-w-0">
-                  <h1 className="text-2xl md:text-3xl font-black text-slate-800 leading-tight tracking-tight truncate min-w-0">
+                <div className="flex items-start gap-2 min-w-0">
+                  <h1 className="min-w-0 flex-1 text-2xl md:text-3xl font-black text-slate-800 leading-tight tracking-tight break-words [overflow-wrap:anywhere]">
                     {deckTitle}
                   </h1>
                   <button
                     onClick={() => setIsEditingTitle(true)}
-                    className="shrink-0 p-1.5 bg-slate-200/50 text-slate-400 rounded-lg hover:bg-indigo-100 hover:text-indigo-600 transition-all active:scale-90"
+                    className="shrink-0 mt-1 p-1.5 bg-slate-200/50 text-slate-400 rounded-lg hover:bg-indigo-100 hover:text-indigo-600 transition-all active:scale-90"
                     title="Rename Deck"
                   >
                     <svg
@@ -1753,7 +1753,7 @@ function StatsContent() {
                 (Grammar's own page; Struggling's existing modal via
                 setShowDailyStruggles; Mini Games), just collapsed into this row so
                 the quick filters + search + card list start right after it. */}
-            <div className="shrink-0 flex items-center gap-2">
+            <div className="shrink-0 flex items-center gap-1.5 sm:gap-2">
               {grammarStats && grammarStats.total > 0 && (
                 <Link
                   href="/stats/grammar"
@@ -1761,7 +1761,7 @@ function StatsContent() {
                   className="flex items-center gap-1.5 px-3 py-2.5 bg-violet-50 rounded-2xl shadow-sm text-violet-700 border border-violet-100 hover:bg-violet-100 active:scale-95 transition-all"
                 >
                   <PenTool size={16} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Grammar</span>
+                  <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest">Grammar</span>
                 </Link>
               )}
               {(dailyStruggles.length > 0 || dailyExplainedLines.length > 0) && (
