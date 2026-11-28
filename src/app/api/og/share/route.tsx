@@ -93,13 +93,24 @@ export async function GET(req: Request) {
   let subline: string;
   let stats: { label: string; value: string }[] = [];
   let headlineLetterSpacing: number | undefined;
+  let verifiedShareCaption: string | null = null;
 
   if (kind === "streak") {
     const streak = me.streak_count ?? 0;
     // Shareable any time from Home, not just right after the goal — only claim
     // "goal complete"/milestone when today's goal (SGT, set by update_streak) is done.
     const doneToday = me.last_review_date === new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+    // The 10-Remembered popup can open before update_streak finishes.
+    // Only that popup requests confirmation; Home can share an existing streak anytime.
+    if (searchParams.get("requireToday") === "1" && !doneToday) {
+      return new Response("Today's streak is still syncing", { status: 409 });
+    }
     const milestone = doneToday && STREAK_MILESTONES.includes(streak);
+    verifiedShareCaption = milestone
+      ? `🏆 I reached a ${streak}-day streak learning Japanese on FlashKado! Join me:`
+      : doneToday
+        ? `🔥 Day ${streak} of learning Japanese on FlashKado! Join me:`
+        : `🔥 My current ${streak}-day streak learning Japanese on FlashKado! Join me:`;
     const cards = clampInt(searchParams.get("cards"), 9999);
     const accuracy = clampInt(searchParams.get("accuracy"), 100);
     emoji = milestone ? "🏆" : "🔥";
@@ -188,6 +199,9 @@ export async function GET(req: Request) {
 
   const image = await renderShareCard({ name, avatar, shareHost, emoji, eyebrow, headline, headlineSize, subline, stats, headlineLetterSpacing });
   image.headers.set("X-Share-Url", shareUrl);
+  // Use the same verified streak number for image and caption. Encode emoji
+  // as ASCII-safe header content to avoid invalid HTTP response headers.
+  if (verifiedShareCaption) image.headers.set("X-Share-Caption", encodeURIComponent(verifiedShareCaption));
   image.headers.set("Cache-Control", "private, no-store");
   return image;
 }
