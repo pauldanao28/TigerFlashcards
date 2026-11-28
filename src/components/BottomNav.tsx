@@ -116,15 +116,38 @@ function BottomNavInner() {
     return () => { cancelled = true; };
   }, [user?.id, loading, defaultDeckId]);
 
-  // Fetched lazily (only once the Quick Actions sheet is opened) since most page
-  // loads never touch Add Cards/Friends/the Weak Words badge — no need to pay for
-  // this on every navigation. Covers all three tiles' data needs in one round trip.
-  // count_weak_words is a cheap server-side count (see its migration), not the full
-  // per-card fetch WeakWordsQuiz's own load() does when the quiz actually starts.
-  // pending_words is just read off the same profile row — no extra query for it.
-  // Both counts are a one-time-per-session snapshot, same as everything else this
-  // effect loads — onQueueCountChange below keeps pendingWordsCount live only while
-  // AddWordsSheet itself is actually interacted with.
+  // The middle Quick Action badge must be available before the sheet opens.
+  // Query only the small pending queue and the existing weak-word count, not
+  // the full deck. Refresh on navigation/resume and after struggle updates.
+  useEffect(() => {
+    if (!user?.id || loading) return;
+    let cancelled = false;
+    const fetchCounts = async () => {
+      const todaySg = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+      const [pending, weak] = await Promise.all([
+        supabase.from("profiles").select("pending_words").eq("id", user.id).maybeSingle(),
+        supabase.rpc("count_weak_words", { p_today: todaySg }),
+      ]);
+      if (cancelled) return;
+      if (!pending.error && pending.data) setPendingWordsCount((pending.data.pending_words || []).length);
+      if (!weak.error && typeof weak.data === "number") setWeakWordsCount(weak.data);
+    };
+    void fetchCounts();
+    const onFocus = () => { void fetchCounts(); };
+    const onVisible = () => { if (document.visibilityState === "visible") void fetchCounts(); };
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("flashkado:weak-words-updated", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("flashkado:weak-words-updated", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [user?.id, loading, path]);
+
+  // Load the remaining user details only when Quick Actions opens.
+  // The lightweight pending/weak counters above populate the central badge.
   useEffect(() => {
     if (!showQuickActions || !user) return;
     (async () => {
@@ -198,6 +221,10 @@ function BottomNavInner() {
   // request you sent doesn't need any action from you, so it shouldn't nag here.
   // Same !isSentByMe check SocialDock's own "new request" dot already uses.
   const pendingFriendsCount = friends.filter((f) => f.status === "pending" && !f.isSentByMe).length;
+  // One badge on the central launcher: pending additions take precedence.
+  // Both underlying tile badges still display their respective counts.
+  const quickBadgeCount = (pendingWordsCount ?? 0) > 0 ? pendingWordsCount! : (weakWordsCount ?? 0);
+  const quickBadgeLabel = (pendingWordsCount ?? 0) > 0 ? "cards waiting to be added" : "struggling cards";
 
   const renderQuickActionTile = (item: QuickAction) => {
     const badgeCount =
@@ -255,10 +282,16 @@ function BottomNavInner() {
           {TABS_BEFORE.map(renderTab)}
           <button
             onClick={() => setShowQuickActions(true)}
+            aria-label={quickBadgeCount > 0 ? `Quick Actions: ${quickBadgeCount} ${quickBadgeLabel}` : "Quick Actions"}
             className="flex-1 flex flex-col items-center justify-center"
           >
             <span className="relative -mt-6 active:scale-95 transition-all">
               <Logo className="w-9 h-11" />
+              {quickBadgeCount > 0 && (
+                <span className="absolute -top-1.5 -right-2.5 min-w-5 h-5 px-1 rounded-full border-2 border-white bg-rose-500 text-white text-[10px] leading-none font-black flex items-center justify-center tabular-nums">
+                  {quickBadgeCount > 99 ? "99+" : quickBadgeCount}
+                </span>
+              )}
             </span>
           </button>
           {TABS_AFTER.map(renderTab)}
