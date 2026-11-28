@@ -109,6 +109,42 @@ export async function GET(req: Request) {
     subline = "DAY STREAK";
     if (cards != null) stats.push({ label: "Cards today", value: String(cards) });
     if (accuracy != null) stats.push({ label: "Accuracy", value: `${accuracy}%` });
+  } else if (kind === "reviews" || kind === "mastered_today") {
+    // Share claims are checked against saved daily totals rather than supplied
+    // query-string numbers. The button can be tapped after the popup opens.
+    const todaySg = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+    const isReviewed = kind === "reviews";
+    const { data: daily, error } = isReviewed
+      ? await supabaseAdmin.from("user_review_counts").select("count")
+          .eq("user_id", user.id).eq("study_date", todaySg).maybeSingle()
+      : await supabaseAdmin.from("user_mastery_counts").select("count")
+          .eq("user_id", user.id).eq("mastery_date", todaySg).maybeSingle();
+    if (error) return new Response("Could not verify today's achievement", { status: 500 });
+    const target = isReviewed ? 100 : 20;
+    if ((daily?.count ?? 0) < target) {
+      return new Response("Achievement is still syncing", { status: 409 });
+    }
+    emoji = isReviewed ? "🔁" : "⭐";
+    eyebrow = isReviewed ? "Daily Review Goal" : "Daily Mastery Goal";
+    headline = String(target);
+    headlineSize = 320;
+    subline = isReviewed ? "REVIEWED TODAY" : "MASTERED TODAY";
+    stats = [{ label: "Today's total", value: String(daily?.count ?? target) }];
+  } else if (kind === "jlpt_badge") {
+    const level = searchParams.get("level");
+    if (!level || !LEVELS.some(candidate => candidate === level)) {
+      return new Response("Invalid JLPT level", { status: 400 });
+    }
+    const { data: badge, error } = await supabaseAdmin.from("user_badges")
+      .select("badge_key").eq("user_id", user.id)
+      .eq("badge_key", `jlpt_${level.toLowerCase()}`).maybeSingle();
+    if (error) return new Response("Could not verify JLPT badge", { status: 500 });
+    if (!badge) return new Response("JLPT milestone not yet earned", { status: 409 });
+    emoji = LEVEL_EMOJI[level];
+    eyebrow = "JLPT Vocabulary Milestone";
+    headline = level;
+    headlineSize = 320;
+    subline = "VOCABULARY BADGE EARNED";
   } else if (kind === "levelup") {
     const from = searchParams.get("from") as (typeof LEVELS)[number];
     const to = searchParams.get("to") as (typeof LEVELS)[number];
