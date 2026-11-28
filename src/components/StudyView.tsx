@@ -358,10 +358,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   // current card state alone — only the live transition tells you a mastery (or
   // review) happened "today".
   const [masteredToday, setMasteredToday] = useState(0);
-  // Same count_weak_words RPC BottomNav's Quick Actions badge uses — surfaces a
-  // banner below once the pool has a full round's worth (POOL_SIZE in
-  // WeakWordsQuiz.tsx), rather than leaving it passive/badge-only.
-  const [weakWordsCount, setWeakWordsCount] = useState(0);
   const [reviewsToday, setReviewsToday] = useState(0);
   const [returnRetention, setReturnRetention] = useState({ sevenPass: 0, sevenTotal: 0, thirtyPass: 0, thirtyTotal: 0 });
   const refreshReturnRetention = useCallback(async () => {
@@ -616,7 +612,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
     const fetchUserEnvironment = async () => {
       // Fetch Profile & Deck in parallel for speed
       const sgToday = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
-      const [profileRes, deckRes, reviewCountRes, masteryCountRes, weakWordsRes] = await Promise.all([
+      const [profileRes, deckRes, reviewCountRes, masteryCountRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user?.id).abortSignal(controller.signal).maybeSingle(),
         supabase
           .from("decks")
@@ -636,14 +632,12 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           .eq("user_id", user?.id)
           .eq("mastery_date", sgToday)
           .abortSignal(controller.signal).maybeSingle(),
-        supabase.rpc("count_weak_words", { p_today: sgToday }).abortSignal(controller.signal),
       ]);
       clearTimeout(timer);
       if (cancelled || controller.signal.aborted) return;
       if (profileRes.error || deckRes.error) { setEnvironmentFailed(true); return; }
       if (reviewCountRes.data) setReviewsToday(reviewCountRes.data.count);
       if (masteryCountRes.data) setMasteredToday(masteryCountRes.data.count);
-      if (typeof weakWordsRes.data === "number") setWeakWordsCount(weakWordsRes.data);
 
       if (profileRes.data) {
         const p = profileRes.data;
@@ -2476,10 +2470,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                       <Filter size={19} className="text-slate-500" />
                       {statusFilters.length > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 border-2 border-white" />}
                     </button>
-                    <Link href="/quizzes?open=weak_words" onClick={() => setShowQuickMenu(false)} title="Struggling Words Quiz" aria-label="Struggling Words Quiz" className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all">
-                      <Brain size={19} className="text-rose-500" />
-                      {weakWordsCount > 0 && <span className="absolute -top-1 -right-1 rounded-full min-w-4 h-4 px-0.5 bg-rose-500 text-white text-[9px] font-black flex items-center justify-center">{weakWordsCount}</span>}
-                    </Link>
                     <button type="button" onClick={() => { setShowMobileInsights(true); setShowQuickMenu(false); }} title="Learning Insights" aria-label="Learning Insights" className="relative flex items-center justify-center w-11 h-11 rounded-2xl border border-white bg-white shadow-sm active:scale-95 transition-all">
                       <ChartNoAxesColumn size={19} className="text-indigo-500" />
                     </button>
@@ -2524,8 +2514,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
               </div>
             )}
             </div>
-            {/* Connection and struggling words share the right-aligned third line. */}
-          {(weakWordsCount >= 10 || !isOnline || (isOnline && justSyncedCount != null)) && (
+            {/* Connection status only; weak-word actions live under Quick Actions/Cards. */}
+          {(!isOnline || (isOnline && justSyncedCount != null)) && (
             <div className="flex w-full items-center justify-end gap-1.5 min-w-0 pointer-events-auto">
               {!isOnline && (
                 <div className="inline-flex items-center gap-1 whitespace-nowrap text-[9px] font-black text-slate-500 uppercase">
@@ -2537,11 +2527,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 <div className="inline-flex items-center gap-1 whitespace-nowrap text-[9px] font-black text-emerald-500 uppercase">
                   <Check size={11} className="shrink-0" /> Synced
                 </div>
-              )}
-              {weakWordsCount >= 10 && (
-                <Link href="/quizzes?open=weak_words" className="min-w-0 truncate text-[9px] font-black text-rose-400">
-                  😓 {t.struggling} ({weakWordsCount})
-                </Link>
               )}
             </div>
           )}
@@ -2681,14 +2666,6 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                 <Check size={11} />
                 Synced
               </div>
-            )}
-            {weakWordsCount >= 10 && (
-              <Link
-                href="/quizzes?open=weak_words"
-                className="block text-[10px] font-black text-rose-400 tabular-nums pr-1 hover:text-rose-500"
-              >
-                😓 {t.struggling} ({weakWordsCount})
-              </Link>
             )}
           </div>
           <div className="flex items-center gap-6 h-14">
