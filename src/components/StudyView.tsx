@@ -10,6 +10,8 @@ import { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { notifyFriendsGoalMet } from "@/lib/push";
 import { STREAK_MILESTONES } from "@/lib/notificationText";
+import AchievementCelebration from "@/components/AchievementCelebration";
+import { claimCelebration, JLPT_BADGE_LEVELS, MAJOR_STREAKS, singaporeDay, type ExtraCelebration } from "@/lib/celebrations";
 import ShareButton from "@/components/ShareButton";
 import { translations } from "@/lib/languages";
 import { calculateGlobalStats } from "@/lib/stats";
@@ -388,7 +390,16 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
   const [sessionCards, setSessionCards] = useState(0);
   const [sessionPass, setSessionPass] = useState(0);
   const [sessionNewMastered, setSessionNewMastered] = useState(0);
-  const [showRecap, setShowRecap] = useState(false);
+  // All fullscreen achievements share one FIFO queue, including the existing
+  // 10-Remembered recap. Only the front event is rendered at a time.
+  const [celebrationQueue, setCelebrationQueue] = useState<({ kind: "remembered" } | ExtraCelebration)[]>([]);
+  const activeCelebration = celebrationQueue[0] ?? null;
+  const showRecap = activeCelebration?.kind === "remembered";
+  const dismissCelebration = () => setCelebrationQueue(prev => prev.slice(1));
+  const enqueueExtra = (event: ExtraCelebration, key: string) => {
+    if (!user || !claimCelebration(user.id, key)) return;
+    setCelebrationQueue(prev => [...prev, event]);
+  };
   const [recapAnimCards, setRecapAnimCards] = useState(0);
   const [recapAnimAccuracy, setRecapAnimAccuracy] = useState(0);
   const [recapAnimMastered, setRecapAnimMastered] = useState(0);
@@ -994,6 +1005,10 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       if (badgeErr) { console.error("Error checking badges:", badgeErr.message); return; }
       const keys = (newBadges ?? []).map((b: { badge_key: string }) => b.badge_key);
       if (keys.length > 0) setBadgeQueue((prev) => [...prev, ...keys]);
+      for (const key of keys) {
+        const level = JLPT_BADGE_LEVELS[key];
+        if (level) enqueueExtra({ kind: "jlpt", level }, key);
+      }
     });
     return newStreak;
   };
@@ -1099,6 +1114,9 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       setSessionStreak(newSessionStreak);
       incrementStudyCount();
       setReviewsToday((prev) => prev + 1);
+      if (reviewsToday < REVIEW_TARGET && reviewsToday + 1 >= REVIEW_TARGET) {
+        enqueueExtra({ kind: "reviewed", count: REVIEW_TARGET }, `reviewed_${singaporeDay()}`);
+      }
       // Server-side review history is the source of truth for return retention.
       // First recorded review establishes the baseline; later reviews measure gaps.
       supabase.rpc("record_study_review", {
@@ -1198,7 +1216,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           if (!alreadyShown) {
             try { localStorage.setItem(recapKey, "1"); } catch {}
             setGoalStreak(0); // Don't show an unconfirmed streak number.
-            setShowRecap(true);
+            setCelebrationQueue(prev => [...prev, { kind: "remembered" }]);
             navigator.vibrate?.([100, 50, 100, 50, 200]);
           }
         }
@@ -1214,6 +1232,9 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
             }
             notifyFriendsGoalMet();
             setGoalStreak(newStreak);
+            if (newStreak > streak && MAJOR_STREAKS.some(m => m === newStreak)) {
+              enqueueExtra({ kind: "streak", count: newStreak }, `streak_${newStreak}`);
+            }
           }).catch(error => {
             console.error("Streak update failed:", error);
             if (streakRequestDay.current === todaySg) streakRequestDay.current = null;
@@ -1245,6 +1266,9 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       if (!wasAlreadyMastered && isNowMastered) {
         setSessionNewMastered((prev) => prev + 1);
         setMasteredToday((prev) => prev + 1);
+        if (masteredToday < MASTERED_GOAL && masteredToday + 1 >= MASTERED_GOAL) {
+          enqueueExtra({ kind: "mastered", count: MASTERED_GOAL }, `mastered_${singaporeDay()}`);
+        }
         supabase.rpc("increment_mastery_count", { target_user_id: user.id })
           .then(({ error }) => { if (error) console.error("Error incrementing mastery count:", error); });
         const level = currentCard.jlpt_level ?? "N5";
@@ -1310,6 +1334,8 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
       showHints,
       reflexMode,
       refreshReturnRetention,
+      reviewsToday,
+      masteredToday,
     ],
   );
   // Add the dependencies used inside the function
@@ -3058,7 +3084,7 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
         onTap={() => setIsSocialOpen(true)}
         onDismiss={dismissSocialToast}
       />
-      <BadgeToast queue={badgeQueue} onAdvance={() => setBadgeQueue((prev) => prev.slice(1))} />
+      {!activeCelebration && <BadgeToast queue={badgeQueue} onAdvance={() => setBadgeQueue((prev) => prev.slice(1))} />}
       {/* 2. Move AnimatePresence here, now it's a sibling to <main> */}
       <AnimatePresence>
         {isSocialOpen && profileName && user?.id && (
@@ -3096,6 +3122,13 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
           onQueueCountChange={setPendingWordCount}
         />
       )}
+
+      {/* The same queue handles reviewed/mastered/streak/JLPT celebrations.
+          Never mount two full-screen celebration dialogs simultaneously. */}
+      <AchievementCelebration
+        achievement={activeCelebration?.kind !== "remembered" ? activeCelebration : null}
+        onContinue={dismissCelebration}
+      />
 
       {/* Session Recap Modal */}
       <AnimatePresence>
@@ -3164,10 +3197,10 @@ export default function StudyView({ compact = false }: { compact?: boolean } = {
                   className="bg-indigo-600 text-white shadow-lg shadow-indigo-200"
                 />
                 <button
-                  onClick={() => setShowRecap(false)}
+                  onClick={dismissCelebration}
                   className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
                 >
-                  Keep Going →
+                  Continue
                 </button>
               </div>
             </motion.div>
